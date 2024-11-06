@@ -14,11 +14,11 @@ pub unsafe fn steal_arm7() {
     core::ptr::write_volatile(0x400405C as *mut u32, 0x100000);
 
     //Write NOP instructions to the area which the arm7 will be occupying (WRAM C slot 7)
-    for i in 0x400..0x1000 {
+    for i in 0x400..0x800 {
         core::ptr::write_volatile((0x3000000+(i<<2)) as *mut u32, 0xE1A00000);
     }
     //Write our binary (for now a branch instruction that jumps to itself, AKA infinite loop.)
-    core::ptr::write_volatile((0x3000000+(0x1000<<2)) as *mut u32, 0xEAFFFFFE);
+    core::ptr::write_volatile((0x3000000+(0x800<<2)) as *mut u32, 0xEAFFFFFE);
    
     //overwrite the WRAM bank the arm7 is currently executing in with ours
     core::ptr::write_volatile((0x4004050) as *mut u8, 0b10011101); //enable our hijacked one
