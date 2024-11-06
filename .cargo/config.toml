@@ -10,4 +10,4 @@ strip = true                                # Strip symbols from binary*
 rustflags = ["-C", "linker-flavor=ld.lld"]
 
 [build]
-target = "armv5te-unknown-linux-gnueabi"`
+target = "armv5te-unknown-linux-gnueabi"
