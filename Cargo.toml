@@ -3,7 +3,10 @@ name = "reboot"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
+[workspace]
+members = [ "micro_gui", 
+    "reboot_lib"
+]
 
 [profile.release]
 opt-level = 'z'                             # Optimize for size
@@ -12,8 +15,11 @@ codegen-units = 1                           # Reduce number of codegen units to 
 panic = 'abort'                             # Abort on panic
 strip = true                                # Strip symbols from binary*
 
+
+
 [profile.dev]
 panic='abort'
 
-[target.armv5te-unknown-linux-gnueabi.linker]                # All targets
-rustflags = ["-C", "relocation-model=pic"]  # Set the ptr jumps to PIC (Position-Independent Code)
+[dependencies]
+linked_list_allocator = {version = "0.10.5", default-features = false}
+reboot_lib = {path = "./reboot_lib"}

@@ -6,8 +6,12 @@ panic = 'abort'                             # Abort on panic
 strip = true                                # Strip symbols from binary*
 
 
-[target.armv5te-unknown-linux-gnueabi]                # All targets
-rustflags = ["-C", "linker-flavor=ld.lld"]
+[target.armv5te-none-eabi]                # All targets
+rustflags = ["-C", "linker-flavor=ld.lld", "-C", "relocation-model=pic","-C", "link-arg=-Tlink.x"]
+
 
 [build]
-target = "armv5te-unknown-linux-gnueabi"
+target = "armv5te-none-eabi"
+
+[unstable]
+build-std = ["core", "alloc"]

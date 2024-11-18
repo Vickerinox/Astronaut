@@ -1,5 +1,5 @@
 [package]
-name = "reboot_cli"
+name = "micro_gui"
 version = "0.1.0"
 edition = "2021"
 
