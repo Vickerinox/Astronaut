@@ -7,25 +7,24 @@ use core::{
 };
 use linked_list_allocator::Heap;
 
-
 #[global_allocator]
-pub static ALLOCATOR: MegaUnsafeAllocator = MegaUnsafeAllocator;
+pub static ALLOCATOR: DSiAllocator = DSiAllocator;
 
 /// An wrapper that simply redirects to the real allocator which is in main memory.
-pub struct MegaUnsafeAllocator;
-impl Deref for MegaUnsafeAllocator {
+pub struct DSiAllocator;
+impl Deref for DSiAllocator {
     type Target = DualSuperAllocator;
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*(ALLOCATOR_LOCATION as *const DualSuperAllocator) }
     }
 }
-impl DerefMut for MegaUnsafeAllocator {
+impl DerefMut for DSiAllocator {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *(ALLOCATOR_LOCATION as *mut DualSuperAllocator) }
     }
 }
-unsafe impl GlobalAlloc for MegaUnsafeAllocator {
+unsafe impl GlobalAlloc for DSiAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         self.inner_alloc(layout)
     }
@@ -44,7 +43,7 @@ pub struct LockGuard<'a>(&'a DualSuperAllocator);
 const REG_IME: *mut u32 = 0x4000208 as *mut u32;
 const ALLOCATOR_LOCATION: usize = 0x200_0000;
 const HEAP_START: usize = ALLOCATOR_LOCATION + size_of::<DualSuperAllocator>();
-const HEAP_LEN: usize = 0x2ff_ffff - HEAP_START;
+const HEAP_LEN: usize = 0x2ff_C000 - HEAP_START;
 impl DualSuperAllocator {
     /// Locks the Allocator, returning a lockguard which allows access to the heap
     ///

@@ -51,16 +51,12 @@ impl<'a> VideoTextPass<'a> {
     pub fn new(hardware: &'a mut VideoHardwareHandle) -> Self {
         Self(hardware)
     }
-    pub fn begin_text_pass(self) -> TextLayoutHandle<'a> {
-        unsafe {self.0.begin_vertex_list(VertexListType::IndividualQuads);}
-        TextLayoutHandle { current_position: (0,0), host: VertexListHost(PhantomData) }
-    } 
-}
-impl<'a> Drop for VertexListHost<'a> {
-    fn drop(&mut self) {
-        // This is technically not unsafe, or needed. The geometry engine doesn't care.
-        // However it is good to still have for the sake of compliance and debugging.
-        unsafe { VIDEO_HARDWARE.geometry_commands.end_vertex_list(); }
+    pub unsafe fn text_pass<R, F: FnOnce(&mut TextLayoutHandle) -> R>(self, closure: F) -> R {
+        self.0.begin_vertex_list(VertexListType::IndividualQuads);
+        let mut host = TextLayoutHandle { current_position: (0,0), host: VertexListHost(PhantomData) };
+        let ret = closure(&mut host);
+        self.0.end_vertex_list();
+        ret
     }
 }
 pub struct TextLayoutHandle<'a> {
@@ -71,7 +67,6 @@ impl<'a> TextLayoutHandle<'a> {
     pub fn set_color(&mut self, color: u32) {
         self.host.set_vertex_color(color);
     }
-    #[inline(always)]
     pub fn layout_str(&mut self, str: &str) {
         for byte in str.as_bytes() {
             if !byte.is_ascii() {

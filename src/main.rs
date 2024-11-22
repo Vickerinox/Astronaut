@@ -1,14 +1,13 @@
 #![no_main]
 #![no_std]
 
-mod allocator;
 const FONT_FILE: &[u8] = include_bytes!("./font.bin");
-const TEST_STRING_UPPER: &str = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG ÅÖÄ";
+const TEST_STRING_UPPER: &str = "THE BAJS BROWN FOX JUMPED OVER THE LAZY DOG";
 const TEST_STRING_LOWER: &str = "the quick brown fox jumped over the lazy dog";
 
 use core::arch::asm;
 
-use reboot_lib::{VIDEO_HARDWARE, PrimaryDisplayControl, VideoPowerControl,  PolygonAttributes, MatrixMode, Viewport, VertexListType, VertexListHost};
+use reboot_lib::{VIDEO_HARDWARE, PrimaryDisplayControl, VideoPowerControl,  PolygonAttributes, MatrixMode, Viewport};
 extern crate alloc;
 
 /// This function steals control of the ARM7 CPU assuming it is running in the sync loop within the bootloader.
@@ -50,7 +49,7 @@ pub unsafe fn steal_arm7() {
     //congrats! Now the arm7 is stolen. Since it will immediately jump to it's entrypoint.
 }
 pub unsafe fn steal_main_mem() {
-    allocator::ALLOCATOR.init();
+    reboot_lib::ALLOCATOR.init();
 }
 unsafe fn main(){
     unsafe {
@@ -63,7 +62,7 @@ unsafe fn main(){
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
 
         steal_arm7();
-        //steal_main_mem();
+        steal_main_mem();
 
         core::ptr::write_volatile(0x4000304 as *mut u16, 12);
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
@@ -103,18 +102,18 @@ unsafe fn main(){
         VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
         VIDEO_HARDWARE.clear_color.write(0b0000111101010100); //greenish color
 
-        {
-            let mut text_pass = reboot_lib::VideoTextPass::new(&mut video_context).begin_text_pass();
-            text_pass.set_color(0x7FFF);
-            text_pass.layout_str(TEST_STRING_UPPER);
-            text_pass.next_line();
-            text_pass.next_line();
-            text_pass.layout_str(TEST_STRING_LOWER);
-
-
+        
+        loop {
+            reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+                text_pass.set_color(0x7FFF);
+                text_pass.layout_str(TEST_STRING_UPPER);
+                text_pass.next_line();
+                text_pass.next_line();
+                text_pass.layout_str(&alloc::format!("Lmao, you're pressing: {}", core::ptr::read_volatile(0x400_0130 as *mut u16)));
+            });
+            video_context.next_frame();
         }
 
-        video_context.next_frame();
 
         //core::ptr::write_volatile(0x5000000 as *mut u16, 0b0000111101010100);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
