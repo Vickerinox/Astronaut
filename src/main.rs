@@ -5,6 +5,9 @@ mod allocator;
 const FONT_FILE: &[u8] = include_bytes!("./font.bin");
 const TEST_STRING_UPPER: &str = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG ÅÖÄ";
 const TEST_STRING_LOWER: &str = "the quick brown fox jumped over the lazy dog";
+
+use core::arch::asm;
+
 use reboot_lib::{VIDEO_HARDWARE, PrimaryDisplayControl, VideoPowerControl,  PolygonAttributes, MatrixMode, Viewport, VertexListType, VertexListHost};
 extern crate alloc;
 
@@ -49,15 +52,12 @@ pub unsafe fn steal_arm7() {
 pub unsafe fn steal_main_mem() {
     allocator::ALLOCATOR.init();
 }
-
-/// Main
-#[no_mangle]
-pub fn _start() {
+unsafe fn main(){
     unsafe {
         //enable the 2D engine A, with no backgrounds on.
         core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
         core::ptr::write_volatile(0x4001000 as *mut u32, 0b000000000000000010000000000000000);
-        
+
         //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
@@ -65,7 +65,7 @@ pub fn _start() {
         steal_arm7();
         //steal_main_mem();
 
-        core::ptr::write_volatile(0x4000304 as *mut u16, 12); 
+        core::ptr::write_volatile(0x4000304 as *mut u16, 12);
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
         core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
 
@@ -88,13 +88,13 @@ pub fn _start() {
         VIDEO_HARDWARE.primary_display_control.write(PrimaryDisplayControl::BG_MODE_0 | PrimaryDisplayControl::ENABLE_3D | PrimaryDisplayControl::ENABLE_BG_0);
         VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
         video_context.next_frame(); //swap geometry buffers
-        
+
         //init matricies
         video_context.init_matricies();
         VIDEO_HARDWARE.geometry_commands.select_matrix_stack(MatrixMode::POSITION);
         VIDEO_HARDWARE.geometry_commands.scale_matrix(0x1000, -0x1555, 0x1000);
         VIDEO_HARDWARE.geometry_commands.translate_matrix(-0x80 * 0x20, -0x58 * 0x20, 0);
-        
+
         //more init
         VIDEO_HARDWARE.geometry_commands.pipeline_set_viewport.write(Viewport::WHOLE_SCREEN_DEFAULT);
         VIDEO_HARDWARE.geometry_commands.material_texture_attributes.write((7 << 20) | (2 <<26) | (1<<29)); //bind font texture
@@ -110,18 +110,33 @@ pub fn _start() {
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(TEST_STRING_LOWER);
-            
+
 
         }
-        
+
         video_context.next_frame();
-        
+
         //core::ptr::write_volatile(0x5000000 as *mut u16, 0b0000111101010100);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
         //core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);
-        
-        loop {}
     }
+}
+/// Main
+#[no_mangle]
+pub unsafe extern "C" fn _start() {
+    asm!(
+        // Set up the stack pointer to 0x7C00
+        "ldr sp, =0x37DF068",
+
+        // Call the main function
+        "bl {main}",
+
+        // Halt the CPU after main returns (if it does)
+        "1: b 1b", // Infinite loop
+
+        main = sym main, // Link the `main` symbol
+        options(noreturn) // No return possible from this function
+    );
 }
 //Really our code should NEVER panic, but we still need this.
 #[cfg(not(test))] //works to shut up rust-analyzer in vscode. It keeps thinking we still have std...
