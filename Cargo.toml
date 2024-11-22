@@ -15,10 +15,15 @@ codegen-units = 1                           # Reduce number of codegen units to 
 panic = 'abort'                             # Abort on panic
 strip = true                                # Strip symbols from binary*
 
-
-
 [profile.dev]
 panic='abort'
+
+[[bin]]
+name = "DeBoot"
+path = "src/main.rs"
+test = false
+bench = false
+
 
 [dependencies]
 linked_list_allocator = {version = "0.10.5", default-features = false}

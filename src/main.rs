@@ -3,46 +3,11 @@
 
 mod allocator;
 const FONT_FILE: &[u8] = include_bytes!("./font.bin");
-
-pub struct TextLayoutPass {
-    current_position: (u8, u8)
-}
-impl TextLayoutPass {
-    pub fn new() -> Self {
-        Self { current_position: (0,0)}
-    }
-    pub fn layout_str(&mut self, str: &str) {
-        for char in str.chars() {
-            self.layout_char(char);
-        }
-    }
-    pub fn layout_char(&mut self, char: core::primitive::char) {
-        const CHAR_WIDTH: u32 = 7 << 4; //(i.e, 1*7 texels)
-        let index = match char.is_ascii() {
-            true => char as u8,
-            false => '?' as u8,
-        };
-        let index = CHAR_WIDTH * index as u32;
-        let x = self.current_position.0 as u16;
-        let y = self.current_position.1 as u16;
-        unsafe {
-            core::ptr::write_volatile(0x4000488 as *mut u32, index | (8 << 20)); //set UV coordinates
-            core::ptr::write_volatile(0x4000490 as *mut u32, (x | (y<<10)) as u32); //draw vertex
-    
-            core::ptr::write_volatile(0x4000488 as *mut u32, (index+CHAR_WIDTH) | (8 << 20)); //set UV coordinates
-            core::ptr::write_volatile(0x40004A0 as *mut u32, 224); //draw vertex
-    
-            core::ptr::write_volatile(0x4000488 as *mut u32, index+CHAR_WIDTH); //set UV coordinates
-            core::ptr::write_volatile(0x40004A0 as *mut u32, 320 << 10); //draw vertex
-    
-            core::ptr::write_volatile(0x4000488 as *mut u32, index); //set UV coordinates
-            core::ptr::write_volatile(0x40004A0 as *mut u32, 0b1111111111-223); //draw vertex
-        }
-        self.current_position.0 += 4;
-    }
-}
+const TEST_STRING_UPPER: &str = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG ÅÖÄ";
+const TEST_STRING_LOWER: &str = "the quick brown fox jumped over the lazy dog";
+use reboot_lib::{VIDEO_HARDWARE, PrimaryDisplayControl, VideoPowerControl,  PolygonAttributes, MatrixMode, Viewport, VertexListType, VertexListHost};
 extern crate alloc;
-use alloc::string::String;
+
 /// This function steals control of the ARM7 CPU assuming it is running in the sync loop within the bootloader.
 /// The way it does this is by stealing some unused WRAM, writing a jump table to "stabilize" it,
 /// binary at the destination of the jump table, and mapping it to the memory where the ARM7 is executing
@@ -100,16 +65,13 @@ pub fn _start() {
         steal_arm7();
         //steal_main_mem();
 
-        //let mut lmao = String::from("kachow!!!");
-        
-        
         core::ptr::write_volatile(0x4000304 as *mut u16, 12); 
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
         core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
 
         //write to "color palette 0"
         core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_11111_00000_00000);
+        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
         core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
 
@@ -118,44 +80,42 @@ pub fn _start() {
             let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
             core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
         }
-
+        let mut video_context = reboot_lib::VideoHardwareHandle::new();
         //setup 3d hardware
-        use reboot_lib::{VIDEO_HARDWARE, PrimaryDisplayControl, MatrixMode, Viewport, VertexListType};
+        VIDEO_HARDWARE.power_control.write(VideoPowerControl::all());
         VIDEO_HARDWARE.vram_control_bank_a.write(0x83); //map VRAM BANK A
         VIDEO_HARDWARE.vram_control_bank_e.write(0x83); //map VRAM BANK E
         VIDEO_HARDWARE.primary_display_control.write(PrimaryDisplayControl::BG_MODE_0 | PrimaryDisplayControl::ENABLE_3D | PrimaryDisplayControl::ENABLE_BG_0);
         VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
-        VIDEO_HARDWARE.geometry_commands.pipeline_swap_buffers.write(0); //swap geometry buffers
+        video_context.next_frame(); //swap geometry buffers
         
         //init matricies
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::PROJECTION);
-        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::POSITION);
-        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::TEXTURE);
-        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::VECTOR);
-        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        //VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::PROJECTION);
-        //VIDEO_HARDWARE.geometry_commands.matrix_mult_scale.write(0x1000000);
-        //VIDEO_HARDWARE.geometry_commands.matrix_mult_scale.write(0x1000000);
-        //VIDEO_HARDWARE.geometry_commands.matrix_mult_scale.write(0x1000000);
+        video_context.init_matricies();
+        VIDEO_HARDWARE.geometry_commands.select_matrix_stack(MatrixMode::POSITION);
+        VIDEO_HARDWARE.geometry_commands.scale_matrix(0x1000, -0x1555, 0x1000);
+        VIDEO_HARDWARE.geometry_commands.translate_matrix(-0x80 * 0x20, -0x58 * 0x20, 0);
         
         //more init
         VIDEO_HARDWARE.geometry_commands.pipeline_set_viewport.write(Viewport::WHOLE_SCREEN_DEFAULT);
         VIDEO_HARDWARE.geometry_commands.material_texture_attributes.write((7 << 20) | (2 <<26) | (1<<29)); //bind font texture
         VIDEO_HARDWARE.geometry_commands.material_color_palette.write(0); //use color palette 0
-        VIDEO_HARDWARE.geometry_commands.material_polygon_attributes.write((1 << 6) | (1 << 7) | (31 << 16)); //use max alpha, and no culling
+        VIDEO_HARDWARE.geometry_commands.material_polygon_attributes.write(PolygonAttributes::RENDER_BACK_SURFACE | PolygonAttributes::RENDER_FRONT_SURFACE | PolygonAttributes::POLYGON_ALPHA_SOLID);
         VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
         VIDEO_HARDWARE.clear_color.write(0b0000111101010100); //greenish color
 
-        //draw stuff
-        VIDEO_HARDWARE.geometry_commands.pipeline_begin_vertex_list.write(VertexListType::IndividualQuads);
-        VIDEO_HARDWARE.geometry_commands.vertex_set_color.write(0x7FFF); //white
-        TextLayoutPass::new().layout_str("Hello World! Bänner");
-        VIDEO_HARDWARE.geometry_commands.pipeline_end_vertex_list.write(0);
-        VIDEO_HARDWARE.geometry_commands.pipeline_swap_buffers.write(0);
+        {
+            let mut text_pass = reboot_lib::VideoTextPass::new(&mut video_context).begin_text_pass();
+            text_pass.set_color(0x7FFF);
+            text_pass.layout_str(TEST_STRING_UPPER);
+            text_pass.next_line();
+            text_pass.next_line();
+            text_pass.layout_str(TEST_STRING_LOWER);
+            
 
+        }
+        
+        video_context.next_frame();
+        
         //core::ptr::write_volatile(0x5000000 as *mut u16, 0b0000111101010100);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
         //core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);

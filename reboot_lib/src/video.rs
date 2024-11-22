@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use volatile_register::{RO, RW, WO};
 use bitflags::bitflags;
 use crate::RegisterWrapper;
@@ -5,8 +7,156 @@ use crate::RegisterWrapper;
 ///Public access to the DS video hardware registers
 pub const VIDEO_HARDWARE: RegisterWrapper<VideoHardware> = RegisterWrapper(0x0400_0000 as *mut VideoHardware);
 
+pub struct VideoHardwareHandle;
+pub struct VideoHardwareInUseError;
+impl VideoHardwareHandle {
+    pub unsafe fn new() -> Self {
+        Self
+    }
+    #[inline]
+    pub unsafe fn next_frame(&mut self) {
+        VIDEO_HARDWARE.geometry_commands.pipeline_swap_buffers.write(0);
+    }
+    #[inline]
+    pub unsafe fn init_matricies(&mut self) {
+        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::PROJECTION);
+        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
+        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::POSITION);
+        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
+        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::TEXTURE);
+        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
+        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::VECTOR);
+        VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
+    }
+    #[inline]
+    unsafe fn begin_vertex_list(&mut self, primitive_type: VertexListType) {
+        VIDEO_HARDWARE.geometry_commands.pipeline_begin_vertex_list.write(primitive_type);
+    }
+    #[inline]
+    unsafe fn end_vertex_list(&mut self) {
+        VIDEO_HARDWARE.geometry_commands.pipeline_end_vertex_list.write(0);
+    }
+    pub unsafe fn create_vertex_list<R, F: FnOnce(&mut VertexListHost) -> R>(&mut self, primitive_type: VertexListType, closure: F) -> R {
+        self.begin_vertex_list(primitive_type);
+        let mut host = VertexListHost(PhantomData);
+        let ret = closure(&mut host);
+        self.end_vertex_list();
+        ret
+    }
+}
+
+pub struct VideoTextPass<'a>(&'a mut VideoHardwareHandle);
+
+impl<'a> VideoTextPass<'a> {
+    pub fn new(hardware: &'a mut VideoHardwareHandle) -> Self {
+        Self(hardware)
+    }
+    pub fn begin_text_pass(self) -> TextLayoutHandle<'a> {
+        unsafe {self.0.begin_vertex_list(VertexListType::IndividualQuads);}
+        TextLayoutHandle { current_position: (0,0), host: VertexListHost(PhantomData) }
+    } 
+}
+impl<'a> Drop for VertexListHost<'a> {
+    fn drop(&mut self) {
+        // This is technically not unsafe, or needed. The geometry engine doesn't care.
+        // However it is good to still have for the sake of compliance and debugging.
+        unsafe { VIDEO_HARDWARE.geometry_commands.end_vertex_list(); }
+    }
+}
+pub struct TextLayoutHandle<'a> {
+    current_position: (u8, u8),
+    host: VertexListHost<'a>,
+}
+impl<'a> TextLayoutHandle<'a> {
+    pub fn set_color(&mut self, color: u32) {
+        self.host.set_vertex_color(color);
+    }
+    #[inline(always)]
+    pub fn layout_str(&mut self, str: &str) {
+        for byte in str.as_bytes() {
+            if !byte.is_ascii() {
+                continue;
+            }
+            self.layout_char(*byte);
+        }
+    }
+    pub fn set_position(&mut self, x: u8, y:u8) {
+        self.current_position = (x,y);
+    }
+    pub fn next_line(&mut self) {
+        self.current_position.0 = 0;
+        self.current_position.1 += 8;
+    }
+    pub fn layout_char(&mut self, ascii_value: u8) {
+        const CHAR_WIDTH: i16 = 7 << 4; //(i.e, 1*7 texels)
+        let old_x = self.current_position.0;
+        let index = CHAR_WIDTH * ascii_value as i16;
+        let movement = match ascii_value {
+            b'j' => 5,
+            b'l' => 3,
+            b'i' => 2,
+            _ => 6
+        };
+        self.current_position.0 = self.current_position.0.wrapping_add(movement);
+        if old_x > self.current_position.0 {
+            self.current_position.0 = movement;
+            self.current_position.1 += 8;
+        }
+        let x = (self.current_position.0 as i16) << 5;
+        let y = (self.current_position.1 as i16) << 5;
+        unsafe {
+            self.host.vertex_set_texture_coordinate(index+CHAR_WIDTH, 0x80);
+            self.host.add_vertex_double(x, y, 0);
+            self.host.vertex_set_texture_coordinate(index, 0x80);
+            self.host.add_vertex_relative_raw(0b1111111111-223);
+            self.host.vertex_set_texture_coordinate(index,0);
+            self.host.add_vertex_relative_raw((0b1111111111-240) << 10);
+            self.host.vertex_set_texture_coordinate(index+CHAR_WIDTH,0);
+            self.host.add_vertex_relative_raw(224);   
+        }
+    }
+}
+// VideoHardwareHandle is a ZST since it directly interacts with video hardware. why hold a pointer to 
+// it when we can only pretend to for the sake of leveraging rust lifetimes, without wasting memory?
+pub struct VertexListHost<'a>(PhantomData<&'a mut VideoHardwareHandle>);
+impl<'a> VertexListHost<'a> {
+    pub fn set_vertex_color(&mut self, color: u32) {
+        unsafe {VIDEO_HARDWARE.geometry_commands.vertex_set_color.write(color) };
+    }
+    pub fn vertex_set_texture_coordinate(&mut self, x: i16, y: i16,) {
+        let x = x as u32;
+        let y = (y as u32) << 16;
+        unsafe {VIDEO_HARDWARE.geometry_commands.vertex_set_texture_coordinate.write(x|y)};
+    }
+    pub fn add_vertex_single(&mut self, x: i16, y: i16, z: i16) {
+        let x = (x as u32) >> 6;
+        let y = ((y as u32) << 4) & 0b11111111110000000000;
+        let z = ((z as u32) << 14) & 0b111111111100000000000000000000;
+        unsafe {VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_single.write(x|y|z); }
+    }
+    pub fn add_vertex_double(&mut self, x: i16, y: i16, z: i16) {
+        let x = x as u32;
+        let y = (y as u32) << 16;
+        let z = z as u32;
+        unsafe {
+            VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_double.write(x|y);
+            VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_double.write(z); 
+        }
+    }
+    pub unsafe fn add_vertex_relative_raw(&mut self, value: u32) {
+        VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_relative.write(value);
+    }
+}
 
 bitflags! {
+    #[derive(Clone, Copy)]
+    pub struct VideoPowerControl: u16 {
+        const ENABLE_ENGINE_A = (1<<1);
+        const ENABLE_3D_RENDERING = (1<<2);
+        const ENABLE_3D_GEOMETRY = (1<<3);
+        const ENABLE_ENGINE_B = (1<<9);
+        const ENGINE_A_ON_TOP = (1<<15);
+    }
     #[derive(Clone, Copy)]
     pub struct PrimaryDisplayControl: u32 {
         const BG_MODE_0 = 0x10000;
@@ -29,7 +179,27 @@ bitflags! {
         const ENABLE_EXT_BG_PALETTE = (1 << 30);
         const ENABLE_EXT_OBJ_PALETTE = (1 << 31);
     }
+    #[derive(Clone, Copy)]
+    pub struct PolygonAttributes: u32 {
+        const ENABLE_LIGHT_0 = (1 << 0);
+        const ENABLE_LIGHT_1 = (1 << 1);
+        const ENABLE_LIGHT_2 = (1 << 2);
 
+        const POLYGON_MODE_MODULATION = (0 << 4);
+        const POLYGON_MODE_SHADOW = (3 << 4);
+        const POLYGON_MODE_DECAL = (1 << 4);
+        const POLYGON_MODE_TOON = (2 << 4);
+
+        const RENDER_BACK_SURFACE = (1 << 6);
+        const RENDER_FRONT_SURFACE = (1 << 7);
+        const RENDER_FAR_POLYGONS = (1<<12);
+        const RENDER_SMALL_POLYGONS = (1<<13);
+        const RENDER_FOG = (1<<15);
+
+        const POLYGON_ALPHA_SOLID = (31<<16);
+        const POLYGON_ALPHA_WIREFRAME = (0<<16);
+
+    }
     #[derive(Clone, Copy)]
     pub struct MatrixMode: u32 {
         const PROJECTION = 0;
@@ -77,7 +247,9 @@ pub struct VideoHardware {
     _vram_empty: u8,
     pub vram_control_bank_h: WO<u8>,
     pub vram_control_bank_i: WO<u8>,
-    _unimplemented_3: [u8; 0xD6],
+    _unimplemented_3: [u8; 0xBA],
+    pub power_control: WO<VideoPowerControl>,
+    _unimplemented_4: [u8; 0x1A],
     pub rendered_lines: RO<u8>,
     _free_bus: [u8; 15],
     pub edge_colors: [WO<u16>; 8],
@@ -131,15 +303,15 @@ pub struct GeometryCommands {
     pub vertex_set_color: WO<u32>,
     pub vertex_set_normal: WO<u32>,
     pub vertex_set_texture_coordinate: WO<u32>,
-    pub vertex_set_coordinate_single: WO<u32>,
     pub vertex_set_coordinate_double: WO<u32>,
+    pub vertex_set_coordinate_single: WO<u32>,
     pub vertex_set_coordinate_xy: WO<u32>,
     pub vertex_set_coordinate_xz: WO<u32>,
     pub vertex_set_coordinate_yz: WO<u32>,
     pub vertex_set_coordinate_relative: WO<u32>,
 
     //MATERIAL OPERATIONS 0x400_04A4
-    pub material_polygon_attributes: WO<u32>,
+    pub material_polygon_attributes: WO<PolygonAttributes>,
     pub material_texture_attributes: WO<u32>,
     pub material_color_palette: WO<u32>,
     _free_bus_2: [u8; 0x10],
@@ -166,4 +338,46 @@ pub struct GeometryCommands {
     pub testing_box_test: WO<u32>,
     pub testing_pos_test: WO<u32>,
     pub testing_vec_test: WO<u32>,
+}
+impl GeometryCommands {
+    #[inline]
+    pub unsafe fn load_identity_matrix(&self) {
+        self.matrix_identity.write(0);
+    }
+    #[inline]
+    pub unsafe fn select_matrix_stack(&self, matrix_mode: MatrixMode) {
+        self.matrix_mode.write(matrix_mode);
+    } 
+    #[inline]
+    pub unsafe fn start_vertex_list(&self, list_type: VertexListType) {
+        self.pipeline_begin_vertex_list.write(list_type);
+    }
+    /// Ends the currently active vertex list
+    /// 
+    /// Oddily, this is actually only here for debug purposes, and not actually required at all.
+    #[inline]
+    pub unsafe fn end_vertex_list(&self) {
+        self.pipeline_end_vertex_list.write(0);
+    }
+
+    #[inline]
+    pub unsafe fn load_matrix_4x4(&self, matrix: [[u32; 4]; 4]) {
+        for row in matrix {
+            for column in row {
+                self.matrix_load_4x4.write(column);
+            }
+        }
+    }
+    #[inline]
+    pub unsafe fn scale_matrix(&self, x: i32, y: i32, z: i32) {
+        self.matrix_mult_scale.write(x as u32);
+        self.matrix_mult_scale.write(y as u32);
+        self.matrix_mult_scale.write(z as u32);
+    }
+    #[inline]
+    pub unsafe fn translate_matrix(&self, x: i32, y: i32, z: i32) {
+        self.matrix_mult_trans.write(x as u32);
+        self.matrix_mult_trans.write(y as u32);
+        self.matrix_mult_trans.write(z as u32);
+    }
 }
