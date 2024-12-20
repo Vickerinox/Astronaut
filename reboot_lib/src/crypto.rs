@@ -34,13 +34,29 @@ impl AESEngine {
     pub unsafe fn wait_aes_busy(&self) {
         while self.master_control.read() & (1 << 31) > 0 {}
     }
-    pub unsafe fn mmc_read_decrypt(&self, data: &mut [u32], ctr_base: &[u32; 4], sector: u32) -> Result<(), ()> {
+    /// read and decrypt the given sectors from NAND using NDMA.
+    pub unsafe fn mmc_read_decrypt(&self, data: *mut [crate::StorageSector], ctr_base: &[u32; 4], sector: u32) -> Result<(), ()> {
+        
+        fn add_on_key(key: &mut [u32; 4], add: u32) {
+            let carry;
+            let carry2;
+            let carry3;
+            (key[0], carry) = key[0].overflowing_add(add);
+            (key[1], carry2) = key[1].overflowing_add(carry as u32);
+            (key[2], carry3) = key[2].overflowing_add(carry2 as u32);
+            key[3] = key[3].wrapping_add(carry3 as u32);
+        }
+
+        let mut key = ctr_base.clone();
+        add_on_key(&mut key, sector);
+
         use crate::ndma::{Control, NDMA_HARDWARE};
         self.master_control.write(0);
         self.reset();
-        let length = (data.len() << 2) as u32;
-        self.load_iv(&ctr_base);
+        let length = (data.len() << 9) as u32;
+        self.load_iv(&key);
         self.set_block_count((length >> 4) as u16);
+        //setup dma 1 to read from the sdmmc fifo, and write to the AES engine input.
         let in_dma = crate::ndma::ChannelConfig {
             word_count: length >> 2,
             block_size: 4,
@@ -53,6 +69,7 @@ impl AESEngine {
                 | Control::ENABLE,
         };
         NDMA_HARDWARE.set_raw_dma(1, in_dma, 0x400490C as _, 0x4004408 as _);
+        //setup dma 0 to read from the AES engine output, and write to the provided buffer
         let out_dma = crate::ndma::ChannelConfig {
             word_count: length >> 2,
             block_size: 4,
@@ -64,9 +81,13 @@ impl AESEngine {
                 | Control::START_ARM7_READ_AES
                 | Control::ENABLE,
         };
-        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, data as *mut [u32] as _);
-        self.start((0 << 14) | (3 << 12) | (2 << 28));
+        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, data as *mut () as _);
+        //begin the NAND transfer
         let a = crate::read_sectors(crate::DeviceSelect::EMMC, sector, core::slice::from_raw_parts_mut(core::ptr::null_mut(), length as usize));
+        //start the AES engine (starting the DMA transfers)
+        self.start((0 << 14) | (3 << 12) | (2 << 28));
+        
+        //await for everything to finish
         NDMA_HARDWARE.await_channel(0);
         NDMA_HARDWARE.await_channel(1);
         self.wait_aes_busy();

@@ -45,7 +45,6 @@ pub unsafe fn steal_arm7() {
     //map WRAM-C4 to 0x0300_0000..0x0300_8000 on our side. Which should also be unused right now.
     core::ptr::write_volatile(0x400405C as *mut u32, 1 << 19);
 
-    reboot_lib::IPC_FIFO_HARDWARE.enable();
     //Write our jump table to the WRAM
     for i in JT_START..JT_END {
         core::ptr::write_volatile(
@@ -72,6 +71,7 @@ pub unsafe fn steal_main_mem() {
 }
 unsafe fn main() {
     unsafe {
+
         //enable the 2D engine A, with no backgrounds on.
         core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
         core::ptr::write_volatile(0x4001000 as *mut u32, 0b000000000000000010000000000000000);
@@ -81,6 +81,9 @@ unsafe fn main() {
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
 
         core::ptr::write_volatile(0x200_0000 as *mut u32, 0);
+        
+        reboot_lib::IPC_FIFO_HARDWARE.enable();
+        reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
         steal_arm7();
 
         core::ptr::write_volatile(0x4000304 as *mut u16, 12);
@@ -154,26 +157,34 @@ unsafe fn main() {
             text_pass.layout_str("Waiting on ARM7...");
         });
         video_context.next_frame();
-        while core::ptr::read(0x200_0000 as *const u32) == 0 {}
         steal_main_mem();
-        let mut nand_buffer = alloc::alloc::alloc(alloc::alloc::Layout::new::<[u32; 128]>());
-
-        reboot_lib::IPC_FIFO_HARDWARE.send_raw_blocking(nand_buffer as u32);
-        while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 2 {}
+        let nand_buffer = alloc::alloc::alloc(alloc::alloc::Layout::new::<[u32; 128]>());
+        let nand_buffer = core::slice::from_raw_parts_mut(nand_buffer as *mut _, 1);
+        while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
             text_pass.layout_str("ARM7 SUPER STOLEN!");
         });
         video_context.next_frame();
-        let status = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
+
+        read_encrypted_nand(nand_buffer, 0);
+
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            if status == 0xDEADBEEF {
-                let mbr = core::slice::from_raw_parts_mut(nand_buffer, 64);
-                text_pass.layout_str(&alloc::format!("bytes: {:x?}", mbr));
-                
-            } else {
-                text_pass.layout_str(&alloc::format!("status: {:x?}", status));
+            text_pass.layout_str("COOL STUFF");
+            text_pass.next_line();
+            text_pass.next_line();
+
+            let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);//core::slice::from_raw_parts_mut(nand_buffer, 128);
+            text_pass.layout_str(&alloc::format!("signature: {:x?}", &mbr.boot_signature));
+            
+            text_pass.next_line();
+
+            for partition in &mbr.partitions {
+                let lba = core::ptr::read_unaligned(core::ptr::addr_of!(partition.lba));
+                let size = core::ptr::read_unaligned(core::ptr::addr_of!(partition.sector_count));
+                text_pass.layout_str(&alloc::format!("partition: lba {:x?}, size {:x?}", lba, size));
+                text_pass.next_line();
             }
            
         });
@@ -200,7 +211,12 @@ pub unsafe extern "C" fn _start() {
         options(noreturn) // No return possible from this function
     );
 }
-
+fn read_encrypted_nand(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) {
+    unsafe { 
+        reboot_lib::arm9_set_buffer(buffer); 
+        reboot_lib::arm9_read_nand_sector_encrypted(start_sector);
+    }
+}
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe {

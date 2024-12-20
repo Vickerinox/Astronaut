@@ -60,10 +60,22 @@ pub enum DeviceSelect {
 }
 
 impl Device {
-    const fn init(dev_num: u8) -> Self {
+    const fn sd_card(dev_num: u8) -> Self {
         Self {
             port: TMIOPort::init(dev_num),
             kind: None,
+            protection: Protection::empty(),
+            rca: 0,
+            command_class_support: 0,
+            sectors: None,
+            status: 0,
+            cid: [0; 4],
+        }
+    }
+    const fn nand(dev_num: u8) -> Self {
+        Self {
+            port: TMIOPort::init(dev_num),
+            kind: Some(DeviceType::EMMC),
             protection: Protection::empty(),
             rca: 0,
             command_class_support: 0,
@@ -76,13 +88,13 @@ impl Device {
 
 #[repr(u8)]
 pub enum DeviceInitializationError {
-    AlreadyInitialized = 1,
-    IdleStateTransitionError = 10,
-    BadIfConditionResponse = 3,
-    IdentificationFail = 4,
+    AlreadyInitialized,
+    IdleStateTransitionError,
+    BadIfConditionResponse,
+    IdentificationFail,
 }
 
-static mut DEVICES: [Device; 2] = [Device::init(0), Device::init(1)];
+static mut DEVICES: [Device; 2] = [Device::sd_card(0), Device::nand(1)];
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
     let dev = &mut DEVICES[device_number as u8 as usize];
     if dev.kind.is_some() {
