@@ -1,11 +1,12 @@
 use core::marker::PhantomData;
 
-use volatile_register::{RO, RW, WO};
-use bitflags::bitflags;
 use crate::RegisterWrapper;
+use bitflags::bitflags;
+use volatile_register::{RO, RW, WO};
 
 ///Public access to the DS video hardware registers
-pub const VIDEO_HARDWARE: RegisterWrapper<VideoHardware> = RegisterWrapper(0x0400_0000 as *mut VideoHardware);
+pub const VIDEO_HARDWARE: RegisterWrapper<VideoHardware> =
+    RegisterWrapper(0x0400_0000 as *mut VideoHardware);
 
 pub struct VideoHardwareHandle;
 pub struct VideoHardwareInUseError;
@@ -15,28 +16,53 @@ impl VideoHardwareHandle {
     }
     #[inline]
     pub unsafe fn next_frame(&mut self) {
-        VIDEO_HARDWARE.geometry_commands.pipeline_swap_buffers.write(0);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .pipeline_swap_buffers
+            .write(0);
     }
     #[inline]
     pub unsafe fn init_matricies(&mut self) {
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::PROJECTION);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .matrix_mode
+            .write(MatrixMode::PROJECTION);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::POSITION);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .matrix_mode
+            .write(MatrixMode::POSITION);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::TEXTURE);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .matrix_mode
+            .write(MatrixMode::TEXTURE);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        VIDEO_HARDWARE.geometry_commands.matrix_mode.write(MatrixMode::VECTOR);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .matrix_mode
+            .write(MatrixMode::VECTOR);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
     }
     #[inline]
     unsafe fn begin_vertex_list(&mut self, primitive_type: VertexListType) {
-        VIDEO_HARDWARE.geometry_commands.pipeline_begin_vertex_list.write(primitive_type);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .pipeline_begin_vertex_list
+            .write(primitive_type);
     }
     #[inline]
     unsafe fn end_vertex_list(&mut self) {
-        VIDEO_HARDWARE.geometry_commands.pipeline_end_vertex_list.write(0);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .pipeline_end_vertex_list
+            .write(0);
     }
-    pub unsafe fn create_vertex_list<R, F: FnOnce(&mut VertexListHost) -> R>(&mut self, primitive_type: VertexListType, closure: F) -> R {
+    pub unsafe fn create_vertex_list<R, F: FnOnce(&mut VertexListHost) -> R>(
+        &mut self,
+        primitive_type: VertexListType,
+        closure: F,
+    ) -> R {
         self.begin_vertex_list(primitive_type);
         let mut host = VertexListHost(PhantomData);
         let ret = closure(&mut host);
@@ -53,7 +79,10 @@ impl<'a> VideoTextPass<'a> {
     }
     pub unsafe fn text_pass<R, F: FnOnce(&mut TextLayoutHandle) -> R>(self, closure: F) -> R {
         self.0.begin_vertex_list(VertexListType::IndividualQuads);
-        let mut host = TextLayoutHandle { current_position: (0,0), host: VertexListHost(PhantomData) };
+        let mut host = TextLayoutHandle {
+            current_position: (0, 0),
+            host: VertexListHost(PhantomData),
+        };
         let ret = closure(&mut host);
         self.0.end_vertex_list();
         ret
@@ -75,8 +104,8 @@ impl<'a> TextLayoutHandle<'a> {
             self.layout_char(*byte);
         }
     }
-    pub fn set_position(&mut self, x: u8, y:u8) {
-        self.current_position = (x,y);
+    pub fn set_position(&mut self, x: u8, y: u8) {
+        self.current_position = (x, y);
     }
     pub fn next_line(&mut self) {
         self.current_position.0 = 0;
@@ -90,7 +119,7 @@ impl<'a> TextLayoutHandle<'a> {
             b'j' => 5,
             b'l' => 3,
             b'i' => 2,
-            _ => 6
+            _ => 6,
         };
         self.current_position.0 = self.current_position.0.wrapping_add(movement);
         if old_x > self.current_position.0 {
@@ -100,46 +129,73 @@ impl<'a> TextLayoutHandle<'a> {
         let x = (self.current_position.0 as i16) << 5;
         let y = (self.current_position.1 as i16) << 5;
         unsafe {
-            self.host.vertex_set_texture_coordinate(index+CHAR_WIDTH, 0x80);
+            self.host
+                .vertex_set_texture_coordinate(index + CHAR_WIDTH, 0x80);
             self.host.add_vertex_double(x, y, 0);
             self.host.vertex_set_texture_coordinate(index, 0x80);
-            self.host.add_vertex_relative_raw(0b1111111111-223);
-            self.host.vertex_set_texture_coordinate(index,0);
-            self.host.add_vertex_relative_raw((0b1111111111-240) << 10);
-            self.host.vertex_set_texture_coordinate(index+CHAR_WIDTH,0);
-            self.host.add_vertex_relative_raw(224);   
+            self.host.add_vertex_relative_raw(0b1111111111 - 223);
+            self.host.vertex_set_texture_coordinate(index, 0);
+            self.host
+                .add_vertex_relative_raw((0b1111111111 - 240) << 10);
+            self.host
+                .vertex_set_texture_coordinate(index + CHAR_WIDTH, 0);
+            self.host.add_vertex_relative_raw(224);
         }
     }
 }
-// VideoHardwareHandle is a ZST since it directly interacts with video hardware. why hold a pointer to 
+// VideoHardwareHandle is a ZST since it directly interacts with video hardware. why hold a pointer to
 // it when we can only pretend to for the sake of leveraging rust lifetimes, without wasting memory?
 pub struct VertexListHost<'a>(PhantomData<&'a mut VideoHardwareHandle>);
 impl<'a> VertexListHost<'a> {
     pub fn set_vertex_color(&mut self, color: u32) {
-        unsafe {VIDEO_HARDWARE.geometry_commands.vertex_set_color.write(color) };
+        unsafe {
+            VIDEO_HARDWARE
+                .geometry_commands
+                .vertex_set_color
+                .write(color)
+        };
     }
-    pub fn vertex_set_texture_coordinate(&mut self, x: i16, y: i16,) {
+    pub fn vertex_set_texture_coordinate(&mut self, x: i16, y: i16) {
         let x = x as u32;
         let y = (y as u32) << 16;
-        unsafe {VIDEO_HARDWARE.geometry_commands.vertex_set_texture_coordinate.write(x|y)};
+        unsafe {
+            VIDEO_HARDWARE
+                .geometry_commands
+                .vertex_set_texture_coordinate
+                .write(x | y)
+        };
     }
     pub fn add_vertex_single(&mut self, x: i16, y: i16, z: i16) {
         let x = (x as u32) >> 6;
         let y = ((y as u32) << 4) & 0b11111111110000000000;
         let z = ((z as u32) << 14) & 0b111111111100000000000000000000;
-        unsafe {VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_single.write(x|y|z); }
+        unsafe {
+            VIDEO_HARDWARE
+                .geometry_commands
+                .vertex_set_coordinate_single
+                .write(x | y | z);
+        }
     }
     pub fn add_vertex_double(&mut self, x: i16, y: i16, z: i16) {
         let x = x as u32;
         let y = (y as u32) << 16;
         let z = z as u32;
         unsafe {
-            VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_double.write(x|y);
-            VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_double.write(z); 
+            VIDEO_HARDWARE
+                .geometry_commands
+                .vertex_set_coordinate_double
+                .write(x | y);
+            VIDEO_HARDWARE
+                .geometry_commands
+                .vertex_set_coordinate_double
+                .write(z);
         }
     }
     pub unsafe fn add_vertex_relative_raw(&mut self, value: u32) {
-        VIDEO_HARDWARE.geometry_commands.vertex_set_coordinate_relative.write(value);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .vertex_set_coordinate_relative
+            .write(value);
     }
 }
 
@@ -168,7 +224,7 @@ bitflags! {
         const ENABLE_BG_3 = (1 << 11);
 
         /// Enable using the 3D hardware
-        /// 
+        ///
         /// NOTE: requires that BG0 is enabled (and 3d hardware is powered on?)
         const ENABLE_3D = (1 << 3);
         const ENABLE_EXT_BG_PALETTE = (1 << 30);
@@ -222,13 +278,15 @@ bitflags! {
 }
 impl Viewport {
     pub const fn new(x0: u8, y0: u8, x1: u8, y1: u8) -> Self {
-        Self::from_bits_retain((x0 as u32) | ((y0 as u32) << 8) | ((x1 as u32) << 16) | ((y1 as u32) << 24))
+        Self::from_bits_retain(
+            (x0 as u32) | ((y0 as u32) << 8) | ((x1 as u32) << 16) | ((y1 as u32) << 24),
+        )
     }
 }
 
 #[repr(C)]
 pub struct VideoHardware {
-    pub primary_display_control: RW::<PrimaryDisplayControl>,
+    pub primary_display_control: RW<PrimaryDisplayControl>,
     _unimplemented: [u8; 0x5C],
     pub display_control_3d: RW<u16>,
     _unimplemented2: [u8; 0x1DE],
@@ -250,7 +308,8 @@ pub struct VideoHardware {
     pub edge_colors: [WO<u16>; 8],
     pub alpha_test_ref: WO<u8>,
     _free_bus2: [u8; 15],
-    pub clear_color: WO<u32>,
+    pub clear_color: WO<Color>,
+    _extra_pad: u16,
     pub clear_depth: WO<u16>,
     pub clear_offset: WO<u16>,
     pub fog_color: WO<u32>,
@@ -260,7 +319,7 @@ pub struct VideoHardware {
     pub toon_table: [WO<u16>; 0x20],
     _free_bus_4: [u8; 0x40],
     pub geometry_commands: GeometryCommands,
-    _free_bus_5:[u8; 0x34],
+    _free_bus_5: [u8; 0x34],
     pub geometry_engine_status: RW<u32>,
     pub ram_count: RO<u32>,
     _free_bus_6: [u8; 8],
@@ -271,6 +330,20 @@ pub struct VideoHardware {
     _free_bus_8: [u8; 0xA],
     pub clip_matrix_result: [RO<u32>; 0x10],
     pub vector_matrix_result: [RO<u32>; 6],
+}
+
+#[derive(Clone, Copy)]
+pub struct Color(u16);
+impl Color {
+    pub const WHITE: Self = Self::new_rgb(0xFF, 0xFF, 0xFF);
+    pub const BLACK: Self = Self::new_rgb(0, 0, 0);
+    pub const CONFIRM_GREEN: Self = Self(0b0000111101010100);
+    pub const fn new_rgb(mut r: u8, mut g: u8, mut b: u8) -> Self {
+        r >>= 3;
+        g &= 0b11111000;
+        b &= 0b11111000;
+        Self((r as u16) | ((g as u16) << 2) | ((b as u16) << 7))
+    }
 }
 #[repr(C)]
 pub struct GeometryCommands {
@@ -327,7 +400,6 @@ pub struct GeometryCommands {
     _free_bus5: [u8; 0x3C],
     pub pipeline_set_viewport: WO<Viewport>,
     _free_bus6: [u8; 0x3C],
-    
 
     //TESTING OPERATIONS 0x400_05C0
     pub testing_box_test: WO<u32>,
@@ -342,13 +414,13 @@ impl GeometryCommands {
     #[inline]
     pub unsafe fn select_matrix_stack(&self, matrix_mode: MatrixMode) {
         self.matrix_mode.write(matrix_mode);
-    } 
+    }
     #[inline]
     pub unsafe fn start_vertex_list(&self, list_type: VertexListType) {
         self.pipeline_begin_vertex_list.write(list_type);
     }
     /// Ends the currently active vertex list
-    /// 
+    ///
     /// Oddily, this is actually only here for debug purposes, and not actually required at all.
     #[inline]
     pub unsafe fn end_vertex_list(&self) {

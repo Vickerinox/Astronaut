@@ -1,151 +1,102 @@
-#![no_main]
-#![no_std]
+use std::{
+    env::{self, Args},
+    fs,
+    path::PathBuf,
+};
 
-const FONT_FILE: &[u8] = include_bytes!("./font.bin");
-const TEST_STRING_UPPER: &str = "THE BAJS BROWN FOX JUMPED OVER THE LAZY DOG";
-const TEST_STRING_LOWER: &str = "the quick brown fox jumped over the lazy dog";
+use elf::{endian::AnyEndian, ElfBytes};
+use rfd::FileDialog;
+mod build;
+mod mmc;
 
-use core::arch::asm;
+fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) {
+    ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
+    const M_STATE_OVERWRITE: &[u8] = &[
+        84, 72, 73, 83, 32, 73, 83, 0, 0, 0, 0, 0, 223, 0, 0, 0, 87, 72, 69, 82, 69, 32, 84, 72,
+        69, 0, 0, 0, 0, 0, 0, 0, 77, 65, 71, 73, 67, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 72, 65, 80,
+        80, 69, 78, 68, 83, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 242,
+        125, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0, 192, 14, 127, 3, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    const M_STATE_OFFSET: usize = 0x13250;
+    const MINIMUM_EXPLOIT_LEN: usize = 0x13C01;
+    const MAGIC_START_POINT: usize = 0x37DF06C;
+    const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
-use reboot_lib::{VIDEO_HARDWARE, PrimaryDisplayControl, VideoPowerControl,  PolygonAttributes, MatrixMode, Viewport};
-extern crate alloc;
+    println!("SELECTED ELF: {:?}", &elf_file_path);
+    println!("SELECTED MMC: {:?}", &mmc_file_path);
+    let file = fs::read(elf_file_path).unwrap();
+    let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..]).unwrap();
+    let entrypoint = parse.ehdr.e_entry;
+    //let rodata = parse.section_header_by_name(".rodata").unwrap().unwrap();
+    let mut empty_tmd = vec![0u8; MINIMUM_EXPLOIT_LEN];
 
-/// This function steals control of the ARM7 CPU assuming it is running in the sync loop within the bootloader.
-/// The way it does this is by stealing some unused WRAM, writing a jump table to "stabilize" it,
-/// binary at the destination of the jump table, and mapping it to the memory where the ARM7 is executing
-pub unsafe fn steal_arm7() {
-    //offsets in words (4 bytes) into the WRAM were about to steal
-    //JT here means "jump table", offsets could likely be tweaked, but i've not bothered to tune them.
-    const ENTRYPOINT_OFFSET: usize = 0x800; //cannot be within the jumptable, hopefully for obvious reasons.
-    const JT_START: usize = 0x500;
-    const JT_END: usize = 0x780;
-    const BRANCH_BASE: usize = ENTRYPOINT_OFFSET - 2; //because ARM instructions are "special", this is correct.
-
-    //some magic constants never hurt ;)
-    const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
-    const STOLEN_WRAM: *mut u32 = 0x03000000 as *mut u32;
-
-    //steal WRAM-C4 from the arm7, as it *should* be unused. It is owned by the arm9 in slot0
-    core::ptr::write_volatile(0x4004050 as *mut u8, 0b10000000);
-    //map WRAM-C4 to 0x0300_0000..0x0300_8000 on our side. Which should also be unused right now.
-    core::ptr::write_volatile(0x400405C as *mut u32, 1 << 19);
-
-    //Write our jump table to the WRAM
-    for i in JT_START..JT_END {
-        core::ptr::write_volatile(
-            STOLEN_WRAM.add(i),
-            BLANK_BRANCH_INSTRUCTION | ((BRANCH_BASE - i) & 0xFFFFFF) as u32,
+    let Some(segments) = parse.segments() else {
+        return;
+    };
+    let entry_point = entrypoint - (MAGIC_START_POINT as u64);
+    let entry_value = (entrypoint as u32) + 4;
+    println!("{} {:x} {:x}", entrypoint, entry_point, entry_value);
+    for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
+        let file_offset_start = (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64);
+        let file_offset_end = file_offset_start + segment.p_filesz as i64;
+        if file_offset_start.is_negative() {
+            continue;
+        }
+        let data = parse.segment_data(&segment).unwrap();
+        let file_range = (file_offset_start as usize)..(file_offset_end as usize);
+        println!(
+            "OCCUPIED {} BYTES, {:x?} {:x?}",
+            segment.p_filesz, file_offset_start, file_offset_end
         );
+        empty_tmd[file_range].copy_from_slice(data);
     }
-    //Write our entrypoint (for now an infinte loop instruction)
-    core::ptr::write_volatile(STOLEN_WRAM.add(ENTRYPOINT_OFFSET), 0xEAFFFFFE);
+    empty_tmd[M_STATE_OFFSET..][..M_STATE_OVERWRITE.len()].copy_from_slice(M_STATE_OVERWRITE);
+    let values = entry_value.to_le_bytes();
+    empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
 
-    //overwrite the WRAM bank the arm7 is currently executing in with ours
-    //Set WRAM-C4 to slot 7 on arm7, replacing the bank it's currently executing in. (WRAM-C7)
-    core::ptr::write_volatile((0x4004050) as *mut u8, 0b10011101);
-    //disable the old WRAM bank (WRAM-C7) entirely (unneccesary maybe?)
-    core::ptr::write_volatile((0x4004053) as *mut u8, 0);
+    mmc::write_tmd_to_image(mmc_file_path, &empty_tmd).unwrap();
 
-    //congrats! Now the arm7 is stolen. Since it will immediately jump to it's entrypoint.
+    println!("MISSION COMPLETE");
 }
-pub unsafe fn steal_main_mem() {
-    reboot_lib::ALLOCATOR.init();
+fn get_arg(args: &mut Args) -> Option<PathBuf> {
+    args.next()
+        .map(|s| {
+            PathBuf::try_from(s).ok().or_else(|| {
+                FileDialog::new()
+                    .set_title("Select TMD to modify...")
+                    .pick_file()
+            })
+        })
+        .flatten()
 }
-unsafe fn main(){
-    unsafe {
-        //enable the 2D engine A, with no backgrounds on.
-        core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
-        core::ptr::write_volatile(0x4001000 as *mut u32, 0b000000000000000010000000000000000);
+fn main() {
+    let mut args = env::args().into_iter();
+    let _ = args.next();
+    let env_us = env::current_dir().unwrap();
+    let arm9_path = env_us.clone().join("arm9_bin");
+    let arm7_path = env_us.clone().join("arm7_bin");
+    let arm9_elf = env_us
+        .clone()
+        .join("target/armv5te-none-eabi/release/DeBoot_arm9");
+    let arm7_elf = env_us
+        .clone()
+        .join("target/armv4t-none-eabi/release/DeBoot_arm7");
+    let arm7_include_path = env_us.clone().join("arm9_bin/src/arm7.bin");
 
-        //set background color to brat green.
-        core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
-        core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
-
-        steal_arm7();
-        steal_main_mem();
-
-        core::ptr::write_volatile(0x4000304 as *mut u16, 12);
-        core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
-        core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
-
-        //write to "color palette 0"
-        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-
-        //copy font to vram
-        for (i, w) in FONT_FILE.chunks_exact(4).enumerate() {
-            let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
-            core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
-        }
-        let mut video_context = reboot_lib::VideoHardwareHandle::new();
-        //setup 3d hardware
-        VIDEO_HARDWARE.power_control.write(VideoPowerControl::all());
-        VIDEO_HARDWARE.vram_control_bank_a.write(0x83); //map VRAM BANK A
-        VIDEO_HARDWARE.vram_control_bank_e.write(0x83); //map VRAM BANK E
-        VIDEO_HARDWARE.primary_display_control.write(PrimaryDisplayControl::BG_MODE_0 | PrimaryDisplayControl::ENABLE_3D | PrimaryDisplayControl::ENABLE_BG_0);
-        VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
-        video_context.next_frame(); //swap geometry buffers
-
-        //init matricies
-        video_context.init_matricies();
-        VIDEO_HARDWARE.geometry_commands.select_matrix_stack(MatrixMode::POSITION);
-        VIDEO_HARDWARE.geometry_commands.scale_matrix(0x1000, -0x1555, 0x1000);
-        VIDEO_HARDWARE.geometry_commands.translate_matrix(-0x80 * 0x20, -0x58 * 0x20, 0);
-
-        //more init
-        VIDEO_HARDWARE.geometry_commands.pipeline_set_viewport.write(Viewport::WHOLE_SCREEN_DEFAULT);
-        VIDEO_HARDWARE.geometry_commands.material_texture_attributes.write((7 << 20) | (2 <<26) | (1<<29)); //bind font texture
-        VIDEO_HARDWARE.geometry_commands.material_color_palette.write(0); //use color palette 0
-        VIDEO_HARDWARE.geometry_commands.material_polygon_attributes.write(PolygonAttributes::RENDER_BACK_SURFACE | PolygonAttributes::RENDER_FRONT_SURFACE | PolygonAttributes::POLYGON_ALPHA_SOLID);
-        VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
-        VIDEO_HARDWARE.clear_color.write(0b0000111101010100); //greenish color
-
-        
-        loop {
-            reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
-                text_pass.set_color(0x7FFF);
-                text_pass.layout_str(TEST_STRING_UPPER);
-                text_pass.next_line();
-                text_pass.next_line();
-                text_pass.layout_str(&alloc::format!("Lmao, you're pressing: {}", core::ptr::read_volatile(0x400_0130 as *mut u16)));
-            });
-            video_context.next_frame();
-        }
-
-
-        //core::ptr::write_volatile(0x5000000 as *mut u16, 0b0000111101010100);
-        core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
-        //core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);
-    }
-}
-/// Main
-#[no_mangle]
-pub unsafe extern "C" fn _start() {
-    asm!(
-        // Set up the stack pointer to 0x7C00
-        "ldr sp, =0x37DF068",
-
-        // Call the main function
-        "bl {main}",
-
-        // Halt the CPU after main returns (if it does)
-        "1: b 1b", // Infinite loop
-
-        main = sym main, // Link the `main` symbol
-        options(noreturn) // No return possible from this function
-    );
-}
-//Really our code should NEVER panic, but we still need this.
-#[cfg(not(test))] //works to shut up rust-analyzer in vscode. It keeps thinking we still have std...
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe {
-        //enable the 2D engine A, with no backgrounds on.
-        core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
-        //set background color to brat green.
-        core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);
-    }
-    loop {}
+    //we have to do this idiotic thing or cargo craps itself with config.toml
+    print!("Compiling ARM7 binary... ");
+    build::build_crate(arm7_path).unwrap();
+    println!("Success!");
+    print!("Injecting into ARM9...");
+    build::compile_arm7(arm7_elf, arm7_include_path).unwrap();
+    println!("Success!");
+    print!("Compiling ARM9 binary... ");
+    build::build_crate(arm9_path).unwrap();
+    println!("Success!");
+    print!("Resolving MMC image... ");
+    let mmc_image_path = get_arg(&mut args).unwrap();
+    println!("resolved to {:?}", mmc_image_path);
+    println!("Injecting TMD into MMC image...");
+    construct_tmd(arm9_elf, mmc_image_path);
 }

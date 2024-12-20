@@ -33,6 +33,7 @@ unsafe impl GlobalAlloc for DSiAllocator {
     }
 }
 
+#[repr(C)]
 pub struct DualSuperAllocator {
     cell: UnsafeCell<Heap>,
     locked: UnsafeCell<bool>,
@@ -40,7 +41,6 @@ pub struct DualSuperAllocator {
 pub struct LockGuard<'a>(&'a DualSuperAllocator);
 
 //master interrupt enable register.
-const REG_IME: *mut u32 = 0x4000208 as *mut u32;
 const ALLOCATOR_LOCATION: usize = 0x200_0000;
 const HEAP_START: usize = ALLOCATOR_LOCATION + size_of::<DualSuperAllocator>();
 const HEAP_LEN: usize = 0x2ff_C000 - HEAP_START;
@@ -49,12 +49,11 @@ impl DualSuperAllocator {
     ///
     /// This process uses a basic spinlock
     unsafe fn lock(&self) -> LockGuard {
-        let mut ime = 0;
-        ptr::swap(REG_IME, &mut ime);
-        while ptr::replace(self.locked.get(), true) {
-            hint::spin_loop();
-        }
-        ptr::swap(REG_IME, &mut ime);
+        crate::critical_function(|| {
+            while ptr::replace(self.locked.get(), true) {
+                hint::spin_loop();
+            }
+        });
         return LockGuard(self);
     }
 
@@ -62,10 +61,7 @@ impl DualSuperAllocator {
     ///
     /// NOTE: this should only be done when it is GUARANTEED to follow rusts safety rules, i.e whenever a lockguard is dropped.
     unsafe fn unlock(&self) {
-        let mut ime = 0;
-        ptr::swap(REG_IME, &mut ime);
-        ptr::write_volatile(self.locked.get(), false);
-        ptr::swap(REG_IME, &mut ime);
+        crate::critical_function(|| ptr::write_volatile(self.locked.get(), false));
     }
     /// initialize ourself from uninitialized memory
     unsafe fn self_init(&self) {
@@ -106,4 +102,3 @@ impl<'a> Drop for LockGuard<'a> {
         unsafe { self.0.unlock() };
     }
 }
-

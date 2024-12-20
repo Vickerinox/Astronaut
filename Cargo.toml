@@ -4,26 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [ "micro_gui", 
+members = [ "arm7_bin", "arm9_bin", "magic_values", "micro_gui", 
     "reboot_lib"
 ]
 
-[profile.release]
-opt-level = 'z'                             # Optimize for size
-lto = true                                  # Enable link-time optimization
-codegen-units = 1                           # Reduce number of codegen units to increase optimizations
-panic = 'abort'                             # Abort on panic
-strip = true                                # Strip symbols from binary*
-
-[profile.dev]
-panic='abort'
-
-[[bin]]
-name = "DeBoot"
-path = "src/main.rs"
-test = false
-bench = false
-
-
 [dependencies]
-reboot_lib = {path = "./reboot_lib"}
+elf = "0.7.4"
+rfd = "0.15.0"
+fatfs = {path = "C:/Users/vikto/Documents/GitHub/rust-fatfs"}
+sha1 = "0.10.6"
+rust-crypto = "0.2.36"

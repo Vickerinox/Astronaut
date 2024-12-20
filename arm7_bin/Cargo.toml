@@ -1,0 +1,23 @@
+[package]
+name = "arm7_bin"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+opt-level = 'z'                             # Optimize for size
+lto = true                                  # Enable link-time optimization
+codegen-units = 1                           # Reduce number of codegen units to increase optimizations
+panic = 'abort'                             # Abort on panic
+strip = true                                # Strip symbols from binary*
+
+[profile.dev]
+panic='abort'
+
+[[bin]]
+name = "DeBoot_arm7"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+reboot_lib = {path = "../reboot_lib"}

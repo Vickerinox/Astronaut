@@ -1,0 +1,102 @@
+use elf::ParseError;
+use std::{
+    io::{Error, Write},
+    path::PathBuf,
+    process::Output,
+};
+
+#[derive(Debug)]
+pub enum CargoFail {
+    FailedCommand(Error),
+    BadEnvironment(Error),
+    FailedProcess(Output),
+}
+pub fn build_crate(path: PathBuf) -> Result<(), CargoFail> {
+    let restore = std::env::current_dir().map_err(|e| CargoFail::BadEnvironment(e))?;
+    std::env::set_current_dir(path).unwrap();
+    let console = std::process::Command::new("cargo")
+        .arg("build")
+        .arg("-r")
+        .output()
+        .map_err(|e| CargoFail::FailedCommand(e))?;
+
+    if !console.status.success() {
+        return Err(CargoFail::FailedProcess(console));
+    }
+    std::env::set_current_dir(restore).unwrap();
+    Ok(())
+}
+
+#[derive(Debug)]
+pub enum ARM7CompileError {
+    ElfNotFound(Error),
+    ElfParseError(ParseError),
+    ElfSegmentError(ParseError),
+    ElfMissingSegments,
+    BinCreationFailure(Error),
+    BinWriteFailute(Error),
+}
+pub fn compile_arm7(
+    elf_file_path: PathBuf,
+    include_file_path: PathBuf,
+) -> Result<(), ARM7CompileError> {
+    const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x37BA000;
+    const HEADER_SIZE: usize = 4;
+    const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
+
+    let file = std::fs::read(elf_file_path).map_err(|e| ARM7CompileError::ElfNotFound(e))?;
+    let parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&file[..])
+        .map_err(|e| ARM7CompileError::ElfParseError(e))?;
+    let entrypoint = parse.ehdr.e_entry;
+
+    let mut empty_bin = vec![0u8; HEADER_SIZE];
+
+    let segments = parse
+        .segments()
+        .ok_or(ARM7CompileError::ElfMissingSegments)?;
+    let entry_point = entrypoint - (MAGIC_ENTRYPOINT_ADDRESS as u64);
+    let entry_value = ((entry_point as u32) >> 2).wrapping_sub(1) & 0xFFFFFF;
+
+    empty_bin[..HEADER_SIZE]
+        .copy_from_slice(&(BLANK_BRANCH_INSTRUCTION | entry_value).to_ne_bytes());
+
+    println!(
+        "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",
+        entrypoint, entry_point, entry_value
+    );
+    for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
+        let file_offset_start =
+            (segment.p_vaddr as i64) - (MAGIC_ENTRYPOINT_ADDRESS as i64) + (HEADER_SIZE as i64);
+        let file_offset_end = file_offset_start + segment.p_filesz as i64;
+        if file_offset_start.is_negative() {
+            continue;
+        }
+        let data = parse
+            .segment_data(&segment)
+            .map_err(|e| ARM7CompileError::ElfSegmentError(e))?;
+        if empty_bin.len() < file_offset_end as usize {
+            let extra_len = (file_offset_end as usize) - empty_bin.len();
+            empty_bin.append(&mut vec![0; extra_len]);
+        }
+        let file_range = (file_offset_start as usize)..(file_offset_end as usize);
+        println!(
+            "SEGMENT '{}' OCCUPIED {} BYTES, {:x?}, {:x?} {:x?}",
+            segment.p_type, segment.p_filesz, segment.p_vaddr, file_offset_start, file_offset_end
+        );
+        empty_bin[file_range].copy_from_slice(data);
+    }
+
+    let mut bin_file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&include_file_path)
+        .map_err(|e| ARM7CompileError::BinCreationFailure(e))?;
+    bin_file
+        .set_len(empty_bin.len() as _)
+        .map_err(|e| ARM7CompileError::BinWriteFailute(e))?;
+    bin_file
+        .write_all(&empty_bin[..])
+        .map_err(|e| ARM7CompileError::BinWriteFailute(e))?;
+
+    println!("MISSION COMPLETE");
+    Ok(())
+}
