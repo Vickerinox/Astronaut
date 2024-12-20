@@ -34,6 +34,48 @@ impl AESEngine {
     pub unsafe fn wait_aes_busy(&self) {
         while self.master_control.read() & (1 << 31) > 0 {}
     }
+    pub unsafe fn mmc_read_decrypt(&self, data: &mut [u32], ctr_base: &[u32; 4], sector: u32) -> Result<(), ()> {
+        use crate::ndma::{Control, NDMA_HARDWARE};
+        self.master_control.write(0);
+        self.reset();
+        let length = (data.len() << 2) as u32;
+        self.load_iv(&ctr_base);
+        self.set_block_count((length >> 4) as u16);
+        let in_dma = crate::ndma::ChannelConfig {
+            word_count: length >> 2,
+            block_size: 4,
+            timing: 8,
+            fill_mode: 0,
+            control: Control::DST_MODE_FIXED
+                | Control::SRC_MODE_FIXED
+                | Control::BLOCK_SIZE_4
+                | Control::START_ARM7_WRITE_AES
+                | Control::ENABLE,
+        };
+        NDMA_HARDWARE.set_raw_dma(1, in_dma, 0x400490C as _, 0x4004408 as _);
+        let out_dma = crate::ndma::ChannelConfig {
+            word_count: length >> 2,
+            block_size: 4,
+            timing: 8,
+            fill_mode: 0,
+            control: Control::SRC_MODE_FIXED
+                | Control::DST_MODE_INCREMENT
+                | Control::BLOCK_SIZE_4
+                | Control::START_ARM7_READ_AES
+                | Control::ENABLE,
+        };
+        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, data as *mut [u32] as _);
+        self.start((0 << 14) | (3 << 12) | (2 << 28));
+        let a = crate::read_sectors(crate::DeviceSelect::EMMC, sector, core::slice::from_raw_parts_mut(core::ptr::null_mut(), length as usize));
+        NDMA_HARDWARE.await_channel(0);
+        NDMA_HARDWARE.await_channel(1);
+        self.wait_aes_busy();
+        match a {
+            Ok(_) => Ok(()),
+            Err(_) => Err(()),
+        }
+    }
+    //crypt a block of data in place
     pub unsafe fn ctr_crypt_block(&self, data: &mut [u32], ctr: &[u32; 4]) {
         use crate::ndma::{Control, NDMA_HARDWARE};
         self.master_control.write(0);

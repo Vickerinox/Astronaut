@@ -30,36 +30,53 @@ fn add_on_key(key: &mut [u32; 4], add: u32) {
     (key[2], carry3) = key[2].overflowing_add(carry2 as u32);
     key[3] = key[3].wrapping_add(carry3 as u32);
 }
+
+pub unsafe fn nocash_write(str: &[u8]) {
+    const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
+    for byte in str {
+        NOCASH_OUT_CHR.write_volatile(*byte);
+    }
+}
 fn main() {
     unsafe {
         core::ptr::write_volatile(0x200_0000 as *mut u32, 80);
         IPC_FIFO_HARDWARE.enable();
         let nand_buffer = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-        let nand_buffer = core::slice::from_raw_parts_mut(nand_buffer as usize as *mut u8, 512);
+        let nand_buffer_u32 = core::slice::from_raw_parts_mut(nand_buffer as usize as *mut u32, 128);
+        let nand_buffer_u8 = core::slice::from_raw_parts_mut(nand_buffer as usize as *mut u8, 512);
         IPC_FIFO_HARDWARE.set_status(2);
         let nand_init: Result<(), reboot_lib::Status> = Ok(()); //reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot);
 
-        match nand_init {
-            Ok(()) => {
-                let read_mbr = reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, 0, nand_buffer);
-                match read_mbr {
-                    Ok(_) => IPC_FIFO_HARDWARE.send_raw_blocking(0xDEADBEEF),
-                    Err(a) => IPC_FIFO_HARDWARE.send_raw_blocking(a.bits()),
-                }
-            },
-            Err(a) => IPC_FIFO_HARDWARE.send_raw_blocking(a.bits()),
-        }
-        /*
         let mut key = swi::generate_cid_key();
-        add_on_key(&mut key, 1);
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
 
+        for crap in nand_buffer_u32.iter_mut() {
+            *crap = 0;
+        }
         let mut result = [0u32; 128];
+        reboot_lib::AES_HARDWARE.ctr_crypt_block(nand_buffer_u32, &key);
+        IPC_FIFO_HARDWARE.send_raw_blocking(0xDEADBEEF);
+        return;
 
-        reboot_lib::AES_HARDWARE.ctr_crypt_block(&mut result, &key);
-        */
+        match nand_init {
+            Ok(()) => {
+                reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, 0, nand_buffer_u8);
+                reboot_lib::AES_HARDWARE.ctr_crypt_block(nand_buffer_u32, &key);
+                let val = match Ok(()) {
+                    Ok(()) => 0xDEADBEEF,
+                    Err(()) => 0xF4780085,
+                };
+                IPC_FIFO_HARDWARE.send_raw_blocking(val);
+            },
+            Err(a) => IPC_FIFO_HARDWARE.send_raw_blocking(a.bits()),
+        }
+        
+
+
+
+        
 
         loop {}
     }
