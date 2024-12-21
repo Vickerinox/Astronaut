@@ -66,6 +66,9 @@ bitflags! {
         const RX_READY = (1<<24);
         const TX_REQUEST = (1<<25);
 
+        const UNKNOWN = (1<<27);
+
+
         const CMD_BUSY = (1<<30);
         const ERR_ILLEGAL_ACCESS = (1<<31);
 
@@ -86,7 +89,7 @@ pub struct MMC {
     pub block_count: RW<u16>,
     pub response: [RO<u32>; 4],
     pub status: RW<Status>,
-    pub irmask: RW<u32>,
+    pub irmask: RW<Status>,
     pub clock_control: RW<u16>,
     pub block_len: RW<u16>,
     pub options: RW<u16>,
@@ -133,7 +136,7 @@ impl MMC {
         self.soft_reset.write(1);
         self.port_select.write(0);
         self.block_count.write(1);
-        self.irmask.write(STATUS_MASK_DEFAULT);
+        self.irmask.write(Status::UNKNOWN | Status::TX_REQUEST | Status::RX_READY | Status::DAT3_INSERT | Status::DAT3_REMOVE);
         self.clock_control.write(0x80 >> 2);
         self.block_len.write(512);
         self.options.write((1 << 15) | (1 << 14) | ((11 << 4) | 8));
@@ -240,30 +243,6 @@ impl MMC {
         }
     }
 }
-
-const STATUS_MASK_DEFAULT: u32 =
-    (1 << 27) | STATUS_TX_REQ | STATUS_RX_RDY | STATUS_DAT3_INSERT | STATUS_DAT3_REMOVE;
-
-const STATUS_RESP_END: u32 = 1; // (M) Response end.
-const STATUS_DATA_END: u32 = 1 << 2; // (M) Data transfer end (triggers after last block).
-const STATUS_REMOVE: u32 = 1 << 3; // (M) Card got removed.
-const STATUS_INSERT: u32 = 1 << 4; // (M) Card got inserted. Set at the same time as DETECT.
-const STATUS_DETECT: u32 = 1 << 5; // Card detect status (SD_OPTION detection timer). 1 = inserted.
-const STATUS_NO_WRPROT: u32 = 1 << 7; // Write protection slider unlocked (low).
-const STATUS_DAT3_REMOVE: u32 = 1 << 8; // (M) Card DAT3 got removed (low).
-const STATUS_DAT3_INSERT: u32 = 1 << 9; // (M) Card DAT3 got inserted (high).
-const STATUS_DAT3_DETECT: u32 = 1 << 10; // Card DAT3 status. 1 = inserted.
-const STATUS_ERR_CMD_IDX: u32 = 1 << 16; // (M) Bad CMD index in response.
-const STATUS_ERR_CRC: u32 = 1 << 17; // (M) Bad CRC in response.
-const STATUS_ERR_STOP_BIT: u32 = 1 << 18; // (M) Stop bit error. Failed to recognize response frame end?
-const STATUS_ERR_DATA_TIMEOUT: u32 = 1 << 19; // (M) Response data timeout.
-const STATUS_ERR_RX_OVERF: u32 = 1 << 20; // (M) Receive FIFO overflow.
-const STATUS_ERR_TX_UNDERF: u32 = 1 << 21; // (M) Send FIFO underflow.
-const STATUS_ERR_CMD_TIMEOUT: u32 = 1 << 22; // (M) Response start bit timeout.
-const STATUS_SD_BUSY: u32 = 1 << 23; // SD card signals busy if this bit is 0 (DAT0 held low).
-const STATUS_RX_RDY: u32 = 1 << 24; // (M) FIFO ready for read.
-const STATUS_TX_REQ: u32 = 1 << 25; // (M) FIFO write request.
-
 const fn none(command_number: u16) -> u16 {
     command_number | CMD_RESP_NONE
 }

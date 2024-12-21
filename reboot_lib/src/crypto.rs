@@ -36,6 +36,9 @@ impl AESEngine {
     }
     /// read and decrypt the given sectors from NAND using NDMA.
     pub unsafe fn mmc_read_decrypt(&self, data: *mut [crate::StorageSector], ctr_base: &[u32; 4], sector: u32) -> Result<(), ()> {
+
+        
+        let a = crate::read_sectors(crate::DeviceSelect::EMMC, sector, core::slice::from_raw_parts_mut(core::ptr::null_mut(), data.len()));
         
         fn add_on_key(key: &mut [u32; 4], add: u32) {
             let carry;
@@ -46,9 +49,8 @@ impl AESEngine {
             (key[2], carry3) = key[2].overflowing_add(carry2 as u32);
             key[3] = key[3].wrapping_add(carry3 as u32);
         }
-
         let mut key = ctr_base.clone();
-        add_on_key(&mut key, sector);
+        add_on_key(&mut key, sector << 5);
 
         use crate::ndma::{Control, NDMA_HARDWARE};
         self.master_control.write(0);
@@ -82,8 +84,6 @@ impl AESEngine {
                 | Control::ENABLE,
         };
         NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, data as *mut () as _);
-        //begin the NAND transfer
-        let a = crate::read_sectors(crate::DeviceSelect::EMMC, sector, core::slice::from_raw_parts_mut(core::ptr::null_mut(), length as usize));
         //start the AES engine (starting the DMA transfers)
         self.start((0 << 14) | (3 << 12) | (2 << 28));
         

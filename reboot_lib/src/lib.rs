@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(allocator_api)]
 #![feature(vec_into_raw_parts)]
+#![feature(ptr_metadata)]
 extern crate alloc;
 mod allocator;
 mod crypto;
@@ -20,7 +21,7 @@ pub use mmc::driver::*;
 pub use mmc::tmio::*;
 pub use mmc::*;
 pub use video::*;
-
+pub use swi::*;
 pub struct RegisterWrapper<T>(*mut T);
 impl<T> core::ops::Deref for RegisterWrapper<T> {
     type Target = T;
@@ -59,6 +60,7 @@ pub enum Response {
     Error = 2,
 }
 bitflags::bitflags! {
+    #[derive(Clone, Copy)]
     pub struct Buttons: u16 {
         const BUTTON_A = (1 << 0);
         const BUTTON_B = (1 << 1);
@@ -116,4 +118,14 @@ pub unsafe fn arm9_read_sd_sector(start_sector: u32) {
     while IPC_FIFO_HARDWARE.read_status() != 1 {}
     IPC_FIFO_HARDWARE.set_status(0);
 }
-pub type StorageSector = [u32; 128];
+pub unsafe fn arm9_send_arm7_jump(ptr: u32) {
+    IPC_FIFO_HARDWARE.set_status(6);
+    IPC_FIFO_HARDWARE.send_raw_blocking(ptr);
+}
+pub struct  StorageSector([u32; 128]);
+
+impl AsMut<[u8]> for StorageSector {
+    fn as_mut(&mut self) -> &mut [u8] {
+        unsafe { &mut *core::ptr::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>()) }
+    }
+}

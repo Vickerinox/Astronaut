@@ -287,17 +287,17 @@ unsafe fn send_app_command(port: &mut TMIOPort, cmd: CommandNumber, arg: u32, rc
 }
 
 
-pub unsafe fn read_sectors(device: DeviceSelect, sector: u32, buf: *mut [u8]) -> Result<(), Status> {
+pub unsafe fn read_sectors(device: DeviceSelect, sector: u32, buf: *mut [crate::StorageSector]) -> Result<(), Status> {
     let device = &mut DEVICES[device as u8 as usize];
-    let count = buf.len() >> 9;
+    let count = buf.len();
     device.port.buffer = buf as *mut _;
     device.port.blocks = count as u16;
 
-    //let sector = match device.kind {
-    //    None => return Err(Status::all()),
-    //    Some(DeviceType::EMMC) | Some(DeviceType::SDSC) => sector << 9,
-    //    _ => sector,
-    //};
+    let sector = match device.kind {
+        None => return Err(Status::all()),
+        Some(DeviceType::EMMC) | Some(DeviceType::SDSC) => sector << 9,
+        _ => sector,
+    };
     let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::ReadMutliBlocks, sector);
     if !res.is_empty() {
         return Err(res)

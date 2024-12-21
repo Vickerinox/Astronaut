@@ -1,10 +1,9 @@
 #![no_main]
 #![no_std]
+#![feature(ptr_metadata)]
 
 const FONT_FILE: &[u8] = include_bytes!("./font.bin");
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
-const TEST_STRING_UPPER: &str = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG";
-const TEST_STRING_LOWER: &str = "the quick brown fox jumped over the lazy dog";
 
 use core::arch::asm;
 
@@ -15,6 +14,8 @@ use reboot_lib::{
 extern crate alloc;
 
 mod mbr;
+mod nand;
+mod bootloader;
 
 
 pub unsafe fn nocash_write(str: &str) {
@@ -152,47 +153,117 @@ unsafe fn main() {
 
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str(TEST_STRING_UPPER);
-            text_pass.next_line();
             text_pass.layout_str("Waiting on ARM7...");
         });
         video_context.next_frame();
         steal_main_mem();
-        let nand_buffer = alloc::alloc::alloc(alloc::alloc::Layout::new::<[u32; 128]>());
-        let nand_buffer = core::slice::from_raw_parts_mut(nand_buffer as *mut _, 1);
+        let nand_buffer = core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
-        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
-            text_pass.set_color(0x7FFF);
-            text_pass.layout_str("ARM7 SUPER STOLEN!");
-        });
-        video_context.next_frame();
+        read_encrypted_nand(nand_buffer, 0x0);
 
-        read_encrypted_nand(nand_buffer, 0);
+        let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);
+        //let bytes = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const [u8; 64]);
+        
+        let lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
+        let size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
+        let fs = nand::mount_twl_main(lba, size, nand_buffer).unwrap();
 
-        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
-            text_pass.set_color(0x7FFF);
-            text_pass.layout_str("COOL STUFF");
-            text_pass.next_line();
-            text_pass.next_line();
+        let mut working_folder = fs.root_dir();
+        let mut old_controls;
+        let mut new_controls = reboot_lib::Buttons::empty();
+        let mut index = 0usize;
 
-            let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);//core::slice::from_raw_parts_mut(nand_buffer, 128);
-            text_pass.layout_str(&alloc::format!("signature: {:x?}", &mbr.boot_signature));
-            
-            text_pass.next_line();
-
-            for partition in &mbr.partitions {
-                let lba = core::ptr::read_unaligned(core::ptr::addr_of!(partition.lba));
-                let size = core::ptr::read_unaligned(core::ptr::addr_of!(partition.sector_count));
-                text_pass.layout_str(&alloc::format!("partition: lba {:x?}, size {:x?}", lba, size));
-                text_pass.next_line();
-            }
-           
-        });
-        video_context.next_frame();
-
-        //core::ptr::write_volatile(0x5000000 as *mut u16, 0b0000111101010100);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
-        //core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);
+        core::ptr::write_volatile(0x5000000 as *mut u16, 0);
+        loop {
+            old_controls = new_controls;
+            new_controls = read_controller();
+
+            let cont_controls = new_controls.intersection(!old_controls);
+            let increment = if cont_controls.contains(reboot_lib::Buttons::DIRECTION_DOWN) {
+                1
+            } else if cont_controls.contains(reboot_lib::Buttons::DIRECTION_UP) {
+                -1
+            } else {
+                0
+            };
+            let select = cont_controls.contains(reboot_lib::Buttons::BUTTON_A);
+            let mut max = 0;
+            let mut new_folder = None;
+
+            reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+                text_pass.set_color(0x7FFF);
+                text_pass.layout_str("I don't know what to call this yet");
+                text_pass.next_line();
+                text_pass.next_line();
+                for (num, item) in working_folder.iter().enumerate() {
+                    text_pass.set_color(0x7FFF);
+                    max = num;
+                    match item {
+                        Ok(item) => {
+                            if num == index {
+                                text_pass.layout_str(" > ");
+                                if select {
+                                    match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
+                                        Ok(a) => {
+                                            new_folder = Some(alloc::string::String::from(a));
+                                        },
+                                        Err(_) => (),
+                                    }
+                                }
+                            } else {
+                                text_pass.layout_str("   ");
+                            }
+                            if item.is_dir() {
+                                text_pass.set_color(0x7FF2);
+                            } else if item.is_file() {
+                                let len = item.short_file_name_as_bytes().len() - 4;
+                                if &item.short_file_name_as_bytes()[len..] == b".APP" {
+                                    text_pass.set_color(0x3FF4);
+                                } else {
+                                    text_pass.set_color(0x7FFF);
+                                }
+                                
+                            }
+                            for byte in item.short_file_name_as_bytes() {
+                                text_pass.layout_char(*byte);
+                            }
+                            text_pass.next_line();
+                        },
+                        Err(error) => {
+                            text_pass.layout_str("ERROR");
+                            text_pass.next_line();
+                        },
+                    }
+                }
+            });
+            video_context.next_frame();
+            index = index.saturating_add_signed(increment).clamp(0, max);
+                if let Some(folder) = new_folder {
+                    let extension_point = folder.len()-4;
+                    if folder.is_char_boundary(extension_point){
+                        if &folder[extension_point..] == ".APP" {
+                            match working_folder.open_file(&folder) {
+                                Ok(file) => match bootloader::boot_app(file) {
+                                    Ok(()) => unreachable!(),
+                                    Err(_) => (),
+                                },
+                                Err(_) => (),
+                            }
+                        }
+                    }
+                    
+                    match working_folder.open_dir(&folder) {
+                        Ok(ok) => {
+                            working_folder = ok;
+                        },
+                        Err(_) => (),
+                    }
+                }
+            
+            //reboot_lib::swi_vblank();
+            
+        }
     }
 }
 #[no_mangle]
@@ -217,13 +288,31 @@ fn read_encrypted_nand(buffer: *mut [reboot_lib::StorageSector], start_sector: u
         reboot_lib::arm9_read_nand_sector_encrypted(start_sector);
     }
 }
+fn read_controller() -> reboot_lib::Buttons {
+    unsafe {
+        reboot_lib::arm9_send_controller_read();
+        let bits = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
+        reboot_lib::Buttons::from_bits_retain(bits as u16)
+    }
+}
+
+#[cfg(target_arch = "arm")]
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
         //enable the 2D engine A, with no backgrounds on.
-        core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
+        //core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
         //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);
+
+        let mut video_context = reboot_lib::VideoHardwareHandle::new();
+
+        video_context.next_frame();
+        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.layout_str(&alloc::format!("{:?} {}",info.location(), info.message()));
+        });
+        video_context.next_frame();
     }
     loop {}
 }

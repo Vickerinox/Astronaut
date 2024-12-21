@@ -40,7 +40,7 @@ fn main() {
             let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
             match IPC_FIFO_HARDWARE.read_status() {
                 1 => {
-                    let controls = core::ptr::read_volatile(0x4000130 as *const u16);
+                    let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
                     IPC_FIFO_HARDWARE.send_raw_blocking(controls as u32);
                 }
                 2 => {
@@ -55,6 +55,10 @@ fn main() {
                 }
                 5 => {
         
+                }
+                6 => {
+                    let new_start = arg as *mut extern "C" fn();
+                    (*new_start)();
                 }
                 _ => ()
             }
