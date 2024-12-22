@@ -9,7 +9,7 @@ mod fs;
 mod ipc;
 mod memory;
 mod mmc;
-mod ndma;
+pub mod ndma;
 mod spi;
 mod swi;
 mod video;
@@ -129,3 +129,5 @@ impl AsMut<[u8]> for StorageSector {
         unsafe { &mut *core::ptr::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>()) }
     }
 }
+
+

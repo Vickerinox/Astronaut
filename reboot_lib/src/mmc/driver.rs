@@ -103,6 +103,7 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
     if device_number == DeviceSelect::SDCardSlot {
         //dev.protection = crate::mmc::MMC_CONTROLLER.tmio_card_writable();
     }
+    //nocash_write("powerup!");
     MMC_CONTROLLER.tmio_powerup(&mut dev.port);
     match go_idle_state(&mut dev.port) {
         Ok(_) => (),
@@ -110,20 +111,21 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
     }
     let device_kind = init_idle_state(&mut dev.port)?;
     dev.port.clock = (1 << 9) | (1 << 8) | 0x20;
-    let ready_state = go_ready_state(dev)?;
+    go_ready_state(dev)?;
     let rca = go_ident_state(dev, device_kind)?;
-    dev.port.clock = (1 << 9) | (1 << 8) | 0x20;
+    dev.port.clock = (1 << 9) | (1 << 8) | 0x01;
     let spec_version = go_standby_state(dev, device_kind, rca)?;
     dev.kind = Some(device_kind);
     Ok(())
 }
 unsafe fn go_standby_state(device: &mut Device, kind: DeviceType, rca: u32) -> Result<u8, Status> {
-    //let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::SendCSD, rca);
-    //if !res.is_empty() {
-    //    return Err(res)
-    //}
-    //let csd = parse_csd(device, kind);
-
+    /* 
+    let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::SendCSD, rca);
+    if !res.is_empty() {
+        return Err(res)
+    }
+    let csd = parse_csd(device, kind);
+    */
     let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::SelectCard, rca);
     if !res.is_empty() {
         return Err(res);
@@ -218,11 +220,9 @@ unsafe fn go_idle_state(port: &mut TMIOPort) -> Result<(), Status> {
 }
 unsafe fn init_idle_state(port: &mut TMIOPort) -> Result<DeviceType, Status> {
     let res = MMC_CONTROLLER.send_command(port, CommandNumber::SendIfCondition, (1 << 8) | 0xAA);
-    //match res {
-    //    Status::ERR_CMD_TIMEOUT => (),
-    //    Status::EMPTY => if port.response[0] != ((1<<8) | 0xAA) {crate::IPC_FIFO_HARDWARE.send_value_raw(port.response[0]); return Err(res)},
-    //    _ => return Err(res),
-    //}
+    if res != Status::empty() {
+        return Err(res);
+    }
     let app_command_arg = (1 << 20) | (res.bits() << 8 ^ (1 << 30));
     let res = send_app_command(port, CommandNumber::AppSendOpCondition, app_command_arg, 0);
     let is_mmc = match port.port_num {
@@ -257,7 +257,7 @@ unsafe fn init_idle_state(port: &mut TMIOPort) -> Result<DeviceType, Status> {
             crate::swi::swi_delay(41890);
         }
     } else {
-        let mut ocr = 0;
+        let mut ocr;
         for _ in 0..200 {
             ocr = port.response[0];
             //confirmed working and supports specified voltage
@@ -289,9 +289,7 @@ unsafe fn send_app_command(port: &mut TMIOPort, cmd: CommandNumber, arg: u32, rc
 
 pub unsafe fn read_sectors(device: DeviceSelect, sector: u32, buf: *mut [crate::StorageSector]) -> Result<(), Status> {
     let device = &mut DEVICES[device as u8 as usize];
-    let count = buf.len();
     device.port.buffer = buf as *mut _;
-    device.port.blocks = count as u16;
 
     let sector = match device.kind {
         None => return Err(Status::all()),
@@ -303,5 +301,12 @@ pub unsafe fn read_sectors(device: DeviceSelect, sector: u32, buf: *mut [crate::
         return Err(res)
     } else {
         return  Ok(());
+    }
+}
+
+pub unsafe fn nocash_write(str: &str) {
+    const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
+    for byte in str.as_bytes() {
+        NOCASH_OUT_CHR.write_volatile(*byte);
     }
 }

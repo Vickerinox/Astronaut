@@ -1,16 +1,25 @@
 
-pub unsafe fn mount_twl_main(lba: u32, size: u32, buffer: &mut [reboot_lib::StorageSector]) -> Result<fatfs::FileSystem<NandSectorCursor<&mut [reboot_lib::StorageSector], EncryptedNandAccessor, 9>>, fatfs::Error<NandError>> {
-    let cursor = NandSectorCursor::new(EncryptedNandAccessor {start: lba, size}, buffer);
+pub unsafe fn mount_twl_main(lba: u32, size: u32, buffer: &mut [reboot_lib::StorageSector]) -> Result<fatfs::FileSystem<SDMMCCursor<&mut [reboot_lib::StorageSector], EncryptedNandAccessor, 9>>, fatfs::Error<SDMMCError>> {
+    let cursor = SDMMCCursor::new(EncryptedNandAccessor {lba, size}, buffer);
+    fatfs::FileSystem::new(cursor, fatfs::FsOptions::new())
+}
+pub unsafe fn mount_sd_card_partition(lba: u32, size: u32, buffer: &mut [reboot_lib::StorageSector]) -> Result<fatfs::FileSystem<SDMMCCursor<&mut [reboot_lib::StorageSector], SDCardAccessor, 9>>, fatfs::Error<SDMMCError>> {
+    let cursor = SDMMCCursor::new(SDCardAccessor {lba, size}, buffer);
     fatfs::FileSystem::new(cursor, fatfs::FsOptions::new())
 }
 pub struct EncryptedNandAccessor {
-    start: u32,
+    lba: u32,
     size: u32,
 }
 
-impl NandSectorAccess<9> for EncryptedNandAccessor {
+pub struct SDCardAccessor {
+    lba: u32,
+    size: u32,
+}
+
+impl SectorAccess<9> for EncryptedNandAccessor {
     fn read_sector(&mut self, sector: usize, buf: &mut [reboot_lib::StorageSector]) {
-        crate::read_encrypted_nand(buf, sector as u32 + self.start);
+        crate::read_encrypted_nand(buf, sector as u32 + self.lba);
     }
 
     fn write_sector(&mut self, sector: usize, buf: &[reboot_lib::StorageSector]) {
@@ -21,14 +30,27 @@ impl NandSectorAccess<9> for EncryptedNandAccessor {
         (self.size << 9) as usize
     }
 }
-pub struct NandSectorCursor<T: AsMut<[reboot_lib::StorageSector]>, I: NandSectorAccess<N>, const N: usize = 9> {
+impl SectorAccess<9> for SDCardAccessor {
+    fn read_sector(&mut self, sector: usize, buf: &mut [reboot_lib::StorageSector]) {
+        crate::read_sd_card(buf, sector as u32 + self.lba);
+    }
+
+    fn write_sector(&mut self, sector: usize, buf: &[reboot_lib::StorageSector]) {
+        
+    }
+
+    fn size(&mut self) -> usize {
+        (self.size << 9) as usize
+    }
+}
+pub struct SDMMCCursor<T: AsMut<[reboot_lib::StorageSector]>, I: SectorAccess<N>, const N: usize = 9> {
     buffer: T,
     buf_sector: usize,
     pos: usize,
     interface: I,
     flush_on_next: bool,
 }
-impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<N>> NandSectorCursor<T, I, N> {
+impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>> SDMMCCursor<T, I, N> {
     /// Size of a block
     const BLOCK_SIZE: usize = (1 << N);
     /// Create a new instance of this struct
@@ -95,8 +117,8 @@ impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<
         (offset as usize, max_len)
     }
 }
-impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<N>> fatfs::Read for NandSectorCursor<T, I, N> {
-    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, NandError> {
+impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>> fatfs::Read for SDMMCCursor<T, I, N> {
+    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, SDMMCError> {
         let mut reads = 0;
         while buf.len() > 0 {
             let (offset, len) = self.load_sector_and_offsets(buf.len());
@@ -114,8 +136,8 @@ impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<
         Ok(reads)
     }
 }
-impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<N>> fatfs::Write for NandSectorCursor<T, I, N> {
-    fn write(&mut self, mut buf: &[u8]) -> Result<usize, NandError> {
+impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>> fatfs::Write for SDMMCCursor<T, I, N> {
+    fn write(&mut self, mut buf: &[u8]) -> Result<usize, SDMMCError> {
 
         let mut writes = 0;
         while buf.len() > 0 {
@@ -134,32 +156,32 @@ impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<
         }
         Ok(writes)
     }
-    fn flush(&mut self) -> Result<(), NandError> {
-        return Err(NandError);
+    fn flush(&mut self) -> Result<(), SDMMCError> {
+        return Err(SDMMCError);
         self.write_loaded_sector();
         Ok(())
     }
 }
 #[derive(Debug)]
-pub struct NandError;
-impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<N>> fatfs::IoBase  for NandSectorCursor<T, I, N> {
-    type Error = NandError;
+pub struct SDMMCError;
+impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>> fatfs::IoBase  for SDMMCCursor<T, I, N> {
+    type Error = SDMMCError;
 }
-impl fatfs::IoError for NandError {
+impl fatfs::IoError for SDMMCError {
     fn is_interrupted(&self) -> bool {
         false
     }
 
     fn new_unexpected_eof_error() -> Self {
-        NandError
+        SDMMCError
     }
 
     fn new_write_zero_error() -> Self {
-        NandError
+        SDMMCError
     }
 }
-impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<N>> fatfs::Seek for NandSectorCursor<T, I, N> {
-    fn seek(&mut self, pos: fatfs::SeekFrom) -> Result<u64, NandError> {
+impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>> fatfs::Seek for SDMMCCursor<T, I, N> {
+    fn seek(&mut self, pos: fatfs::SeekFrom) -> Result<u64, SDMMCError> {
         use fatfs::SeekFrom;
         let (base_pos, offset) = match pos {
             SeekFrom::Start(n) => {
@@ -174,11 +196,11 @@ impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<
                 self.pos = n;
                 Ok(self.pos as u64)
             }
-            None => Err(NandError),
+            None => Err(SDMMCError),
         }
     }
 }
-impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: NandSectorAccess<N>> Drop for NandSectorCursor<T, I, N> {
+impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>> Drop for SDMMCCursor<T, I, N> {
     fn drop(&mut self) {
         self.write_loaded_sector();
     }
@@ -195,7 +217,7 @@ impl<T: AsMut<[u8]>> NandWrapper<T, 9> {
 ///
 /// The functions should not encrypt or decrypt the data.
 /// This should instead be handled by further interfaces.
-pub trait NandSectorAccess<const N: usize> {
+pub trait SectorAccess<const N: usize> {
     fn read_sector(&mut self, sector: usize, buf: &mut [reboot_lib::StorageSector]);
     fn write_sector(&mut self, sector: usize, buf: &[reboot_lib::StorageSector]);
     fn size(&mut self) -> usize;

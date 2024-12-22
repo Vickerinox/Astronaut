@@ -52,9 +52,8 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
     r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
 
     video_context.next_frame();
-    let arg = header.arm9_entry;
-    let new_start = arg as *mut extern "C" fn();
 
+    let new_start = header.arm9_entry as *mut extern "C" fn();
     (*new_start)();
     
     loop {}

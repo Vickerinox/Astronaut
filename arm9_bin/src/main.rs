@@ -158,17 +158,36 @@ unsafe fn main() {
         video_context.next_frame();
         steal_main_mem();
         let nand_buffer = core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
+        let sd_buffer = core::slice::from_raw_parts_mut(0x2FFFC00 as *mut reboot_lib::StorageSector, 1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
-        read_encrypted_nand(nand_buffer, 0x0);
+        let status = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
 
-        let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);
-        //let bytes = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const [u8; 64]);
+        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.layout_str("reading mbr...");
+        });
+        video_context.next_frame();
+
+        read_sd_card(sd_buffer, 0x0);
+        let sd_mbr = &*(sd_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);
+        let sign = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.boot_signature));
+
         
-        let lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-        let size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
-        let fs = nand::mount_twl_main(lba, size, nand_buffer).unwrap();
+        read_encrypted_nand(nand_buffer, 0x0);
+        
+        let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);
+        let bytes = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const [u8; 64]);
+        
+        let sd_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
+        let sd_size = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].sector_count));
 
-        let mut working_folder = fs.root_dir();
+        let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
+        let twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
+
+        let sd_fs = nand::mount_sd_card_partition(sd_lba, sd_size, sd_buffer).unwrap();
+        let nand_fs = nand::mount_twl_main(twl_lba, twl_size, nand_buffer).unwrap();
+
+        let mut working_folder = sd_fs.root_dir();
         let mut old_controls;
         let mut new_controls = reboot_lib::Buttons::empty();
         let mut index = 0usize;
@@ -217,8 +236,7 @@ unsafe fn main() {
                             if item.is_dir() {
                                 text_pass.set_color(0x7FF2);
                             } else if item.is_file() {
-                                let len = item.short_file_name_as_bytes().len() - 4;
-                                if &item.short_file_name_as_bytes()[len..] == b".APP" {
+                                if is_bootable(item.short_file_name_as_bytes()) {
                                     text_pass.set_color(0x3FF4);
                                 } else {
                                     text_pass.set_color(0x7FFF);
@@ -242,7 +260,7 @@ unsafe fn main() {
                 if let Some(folder) = new_folder {
                     let extension_point = folder.len()-4;
                     if folder.is_char_boundary(extension_point){
-                        if &folder[extension_point..] == ".APP" {
+                        if is_bootable(folder.as_bytes()) {
                             match working_folder.open_file(&folder) {
                                 Ok(file) => match bootloader::boot_app(file) {
                                     Ok(()) => unreachable!(),
@@ -266,6 +284,13 @@ unsafe fn main() {
         }
     }
 }
+
+pub fn is_bootable(str: &[u8]) -> bool {
+    let len = str.len()-4;
+    &str[len..] == b".APP" ||
+    &str[len..] == b".NDS" ||
+    &str[len..] == b".DSI"
+} 
 #[no_mangle]
 pub unsafe extern "C" fn _start() {
     asm!(
@@ -286,6 +311,12 @@ fn read_encrypted_nand(buffer: *mut [reboot_lib::StorageSector], start_sector: u
     unsafe { 
         reboot_lib::arm9_set_buffer(buffer); 
         reboot_lib::arm9_read_nand_sector_encrypted(start_sector);
+    }
+}
+fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) {
+    unsafe { 
+        reboot_lib::arm9_set_buffer(buffer); 
+        reboot_lib::arm9_read_sd_sector(start_sector);
     }
 }
 fn read_controller() -> reboot_lib::Buttons {

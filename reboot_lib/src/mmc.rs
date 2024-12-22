@@ -164,7 +164,7 @@ impl MMC {
     unsafe fn tmio_powerup(&self, port: &mut TMIOPort) {
         port.clock = (1 << 8) | (0x80 >> 2);
         self.tmio_set_port(port);
-        crate::swi::swi_delay(0x9000);
+        crate::swi::swi_delay(0x900);
     }
     unsafe fn tmio_get_response(&self, port: &mut TMIOPort, cmd: u16) {
         if cmd & (7 << 8) != (6 << 8) {
@@ -180,8 +180,7 @@ impl MMC {
         let mut status = Status::empty();
 
         self.tmio_set_port(port);
-        let blocks = port.blocks;
-        self.block_count.write(blocks);
+        self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
         self.param.write(argument);
 
@@ -206,38 +205,26 @@ impl MMC {
         status |= self.status.read();
         status.intersection(Status::ALL_ERRORS)
     }
-    unsafe fn cpu_transfer(&self, command: u16, mut buf: *mut u8, status: &mut Status) {
-        let block_len = self.block_len.read() as usize;
-        let mut block_count = self.block_count.read();
+    unsafe fn cpu_transfer(&self, command: u16, buf: *mut [crate::StorageSector], status: &mut Status) {
         if command & CMD_DATA_R > 0 {
             *status |= self.status.read();
-            while !status.intersects(Status::ALL_ERRORS) && block_count > 0 {
-                if self.data_control_32.read() & (1 << 8) > 0 {
-                    let block_end = buf as usize + block_len;
-                    while block_end > buf as usize {
-                        let mut data = self.data_fifo_32.read();
-                        for _ in 0..4 {
-                            *buf = data as u8;
-                            data >>= 8;
-                            buf = buf.add(1);
-                        }
+            for sector in (&mut *buf).iter_mut() {
+                if !status.intersects(Status::ALL_ERRORS) {
+                    while self.data_control_32.read() & (1 << 8) == 0 {}
+                    for word in &mut sector.0 {
+                        *word = self.data_fifo_32.read()
                     }
-                    block_count -= 1;
                 }
             }
+
         } else {
             *status |= self.status.read();
-            while !status.intersects(Status::ALL_ERRORS) && block_count > 0 {
-                if self.data_control_32.read() & (1 << 9) == 0 {
-                    let block_end = buf as usize + block_len;
-                    while block_end > buf as usize {
-                        let mut data = *buf as u32;
-                        data |= (*buf.add(1) as u32) << 8;
-                        data |= (*buf.add(2) as u32) << 16;
-                        data |= (*buf.add(3) as u32) << 24;
-                        self.data_fifo_32.write(data);
+            for sector in (&*buf).iter() {
+                if !status.intersects(Status::ALL_ERRORS) {
+                    while self.data_control_32.read() & (1 << 9) != 0 {}
+                    for word in &sector.0 {
+                        self.data_fifo_32.write(*word)
                     }
-                    block_count -= 1;
                 }
             }
         }
@@ -380,8 +367,7 @@ pub struct TMIOPort {
     pub clock: u16,
     pub block_len: u16,
     pub option: u16,
-    pub buffer: *mut u8,
-    pub blocks: u16,
+    pub buffer: *mut [crate::StorageSector],
     pub response: [u32; 4],
 }
 impl TMIOPort {
@@ -391,8 +377,7 @@ impl TMIOPort {
             clock: 0x80 >> 2,
             block_len: 512,
             option: (1 << 15) | (1 << 14) | ((11 << 4) | 8),
-            buffer: core::ptr::null_mut(),
-            blocks: 0,
+            buffer: unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
             response: [0; 4],
         }
     }
@@ -410,8 +395,7 @@ impl Default for TMIOPort {
             clock: Default::default(),
             block_len: Default::default(),
             option: Default::default(),
-            buffer: core::ptr::null_mut(),
-            blocks: Default::default(),
+            buffer:  unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
             response: Default::default(),
         }
     }

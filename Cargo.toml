@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [ "arm7_bin", "arm9_bin", "magic_values", "micro_gui", 
+members = [ "arm7_bin", "arm7_bootstrap", "arm9_bin", "arm9_bootstrap", "common", "magic_values", "micro_gui", 
     "reboot_lib"
 ]
 
