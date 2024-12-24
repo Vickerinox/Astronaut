@@ -6,7 +6,14 @@ pub unsafe fn mount_twl_main(
     fatfs::FileSystem<SDMMCCursor<&mut [reboot_lib::StorageSector], SDMMCAccessor, 9>>,
     fatfs::Error<SDMMCError>,
 > {
-    let cursor = SDMMCCursor::new(SDMMCAccessor { lba, size, nand_e: true }, buffer);
+    let cursor = SDMMCCursor::new(
+        SDMMCAccessor {
+            lba,
+            size,
+            nand_e: true,
+        },
+        buffer,
+    );
     fatfs::FileSystem::new(cursor, fatfs::FsOptions::new())
 }
 pub unsafe fn mount_sd_card_partition(
@@ -17,7 +24,14 @@ pub unsafe fn mount_sd_card_partition(
     fatfs::FileSystem<SDMMCCursor<&mut [reboot_lib::StorageSector], SDMMCAccessor, 9>>,
     fatfs::Error<SDMMCError>,
 > {
-    let cursor = SDMMCCursor::new(SDMMCAccessor { lba, size, nand_e: false}, buffer);
+    let cursor = SDMMCCursor::new(
+        SDMMCAccessor {
+            lba,
+            size,
+            nand_e: false,
+        },
+        buffer,
+    );
     fatfs::FileSystem::new(cursor, fatfs::FsOptions::new())
 }
 pub struct SDMMCAccessor {
@@ -33,7 +47,6 @@ impl SectorAccess<9> for SDMMCAccessor {
         } else {
             crate::read_sd_card(buf, sector as u32 + self.lba);
         }
-        
     }
 
     fn write_sector(&mut self, sector: usize, buf: &[reboot_lib::StorageSector]) {}

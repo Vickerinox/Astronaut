@@ -4,13 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [ "arm7_bin", "arm7_bootstrap", "arm9_bin", "arm9_bootstrap", "common", "magic_values", "micro_gui", 
+members = [
+    "arm7_bin",
+    "arm7_bootstrap",
+    "arm9_bin",
+    "arm9_bootstrap",
+    "common",
+    "magic_values",
+    "micro_gui",
     "reboot_lib"
 ]
 
 [dependencies]
 elf = "0.7.4"
 rfd = "0.15.0"
-fatfs = {path = "C:/Users/vikto/Documents/GitHub/rust-fatfs"}
+fatfs = {git="https://github.com/rafalh/rust-fatfs.git", rev="c4bb76929eb115f228720631b4110f827b998653"}
 sha1 = "0.10.6"
 rust-crypto = "0.2.36"

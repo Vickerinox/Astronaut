@@ -88,7 +88,6 @@ unsafe fn main() {
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
         steal_arm7();
 
-        
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
         core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
 

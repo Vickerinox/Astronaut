@@ -1,1 +1,0 @@
-C:\Users\vikto\Documents\GitHub\ReBoot\arm9_bootstrap\../bs-target\armv5te-none-eabi\release\arm9_bootstrap: C:\Users\vikto\Documents\GitHub\ReBoot\arm9_bootstrap\src\main.rs C:\Users\vikto\Documents\GitHub\ReBoot\common\src\bootstrap.rs C:\Users\vikto\Documents\GitHub\ReBoot\common\src\lib.rs

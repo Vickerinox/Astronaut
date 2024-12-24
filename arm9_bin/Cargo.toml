@@ -22,5 +22,5 @@ bench = false
 [dependencies]
 
 reboot_lib = {path = "../reboot_lib"}
-fatfs = {path = "C:/Users/vikto/Documents/GitHub/rust-fatfs", default-features = false, features = []}
+fatfs = {git="https://github.com/rafalh/rust-fatfs.git", rev="c4bb76929eb115f228720631b4110f827b998653", default-features = false, features = []}
 common = {path = "../common"}
