@@ -1,9 +1,11 @@
+use fatfs::SeekFrom;
+
 pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::Error> {
     let (header, bootstrap) = (*BOOTLOADER_MEM).split_at_mut_unchecked(0x1000);
-    
+
     r.read_exact(header)?;
     let header = &mut *(header as *mut [u8] as *mut u8 as *mut HeaderNDS);
-    
+
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|h| {
         h.set_color(0x7FFF);
@@ -19,46 +21,90 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
 
         h.layout_str("ARM9 offsets:");
         h.next_line();
-        h.layout_str(&alloc::format!("o:{:X} l:{:X} e:{:X} s:{:X}", header.arm9_offset, header.arm9_load, header.arm9_entry, header.arm9_size));
+        h.layout_str(&alloc::format!(
+            "o:{:X} l:{:X} e:{:X} s:{:X}",
+            header.arm9_offset,
+            header.arm9_load,
+            header.arm9_entry,
+            header.arm9_size
+        ));
         h.next_line();
         h.layout_str("ARM7 offsets:");
         h.next_line();
-        h.layout_str(&alloc::format!("o:{:X} l:{:X} e:{:X} s:{:X}", header.arm7_offset, header.arm7_load, header.arm7_entry, header.arm7_size));
+        h.layout_str(&alloc::format!(
+            "o:{:X} l:{:X} e:{:X} s:{:X}",
+            header.arm7_offset,
+            header.arm7_load,
+            header.arm7_entry,
+            header.arm7_size
+        ));
         h.next_line();
         h.layout_str("ARM9i offsets:");
         h.next_line();
-        h.layout_str(&alloc::format!("o:{:X} l:{:X} s:{:X}", header.arm9i_offset, header.arm9i_load, header.arm9i_size));
+        h.layout_str(&alloc::format!(
+            "o:{:X} l:{:X} s:{:X}",
+            header.arm9i_offset,
+            header.arm9i_load,
+            header.arm9i_size
+        ));
         h.next_line();
         h.layout_str("ARM7i offsets:");
         h.next_line();
-        h.layout_str(&alloc::format!("o:{:X} l:{:X} s:{:X}", header.arm7i_offset, header.arm7i_load, header.arm7i_size));
+        h.layout_str(&alloc::format!(
+            "o:{:X} l:{:X} s:{:X}",
+            header.arm7i_offset,
+            header.arm7i_load,
+            header.arm7i_size
+        ));
     });
     video_context.next_frame();
 
-    r.seek(fatfs::SeekFrom::Start(header.arm9_offset as u64)).expect("Failed to seek to ARM9 Binary");
-    let arm9_ram = core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
+    r.seek(SeekFrom::Start(header.arm9_offset as u64))
+        .expect("Failed to seek to ARM9 Binary");
+    let arm9_ram =
+        core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM9 Binary");
 
-    r.seek(fatfs::SeekFrom::Start(header.arm9_offset as u64)).expect("Failed to seek to ARM7 Binary");
-    let arm9_ram = core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
+    r.seek(SeekFrom::Start(header.arm7_offset as u64))
+        .expect("Failed to seek to ARM7 Binary");
+    let arm9_ram =
+        core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7 Binary");
 
-    r.seek(fatfs::SeekFrom::Start(header.arm9_offset as u64)).expect("Failed to seek to ARM9i Binary");
-    let arm9_ram = core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
+    r.seek(SeekFrom::Start(header.arm9i_offset as u64))
+        .expect("Failed to seek to ARM9i Binary");
+    let arm9_ram =
+        core::slice::from_raw_parts_mut(header.arm9i_load as *mut u8, header.arm9i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM9i Binary");
 
-    r.seek(fatfs::SeekFrom::Start(header.arm9_offset as u64)).expect("Failed to seek to ARM7i Binary");
-    let arm9_ram = core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
+    r.seek(SeekFrom::Start(header.arm7i_offset as u64))
+        .expect("Failed to seek to ARM7i Binary");
+    let arm9_ram =
+        core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
 
     video_context.next_frame();
 
-    let new_start = header.arm9_entry as *mut extern "C" fn();
-    (*new_start)();
-    
-    loop {}
+    inject_bootstrap();
+
+    reboot_lib::arm9_send_arm7_jump(common::bootstrap::ARM7_EN as u32);
+    #[cfg(target_arch = "arm")]
+    core::arch::asm!(
+        "mov pc, r0",
+        in("r0") common::bootstrap::ARM9_EN,
+    );
+    Ok(())
 }
-const BOOTLOADER_MEM: *mut [u8] = unsafe { core::slice::from_raw_parts_mut(0x2FFC000 as *mut u8, 0x4000) };
+pub unsafe fn inject_bootstrap() {
+    let bootstrap = core::slice::from_raw_parts_mut(
+        common::bootstrap::BOOTLOADER_MEM,
+        crate::BOOTSTRAP_BINARY.len(),
+    );
+    bootstrap.copy_from_slice(crate::BOOTSTRAP_BINARY);
+}
+
+const BOOTLOADER_MEM: *mut [u8] =
+    unsafe { core::slice::from_raw_parts_mut(0x2FFC000 as *mut u8, 0x4000) };
 #[repr(C)]
 struct HeaderNDS {
     title: [u8; 12],
@@ -102,7 +148,7 @@ struct HeaderNDS {
 
     arm9_autoload: u32,
     arm7_autoload: u32,
-    
+
     secure_disable: [u8; 8],
 
     ntr_rom_size: u32,
@@ -159,7 +205,7 @@ struct HeaderNDS {
     private_save_size: u32,
     _reserved3: [u8; 176],
     unknown4: [u32; 4],
-    
+
     arm9_sha1: [u32; 5],
     arm7_sha1: [u32; 5],
     digest_sha1: [u32; 5],

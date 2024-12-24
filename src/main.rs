@@ -76,14 +76,34 @@ fn main() {
     let env_us = env::current_dir().unwrap();
     let arm9_path = env_us.clone().join("arm9_bin");
     let arm7_path = env_us.clone().join("arm7_bin");
+
+    let arm9_bootstrap_path = env_us.clone().join("arm9_bootstrap");
+    let arm7_bootstrap_path = env_us.clone().join("arm7_bootstrap");
+
     let arm9_elf = env_us
         .clone()
         .join("target/armv5te-none-eabi/release/DeBoot_arm9");
     let arm7_elf = env_us
         .clone()
         .join("target/armv4t-none-eabi/release/DeBoot_arm7");
-    let arm7_include_path = env_us.clone().join("arm9_bin/src/arm7.bin");
 
+    let arm9_bs_elf = env_us
+        .clone()
+        .join("bs-target/armv5te-none-eabi/release/arm9_bootstrap");
+    let arm7_bs_elf = env_us
+        .clone()
+        .join("bs-target/armv4t-none-eabi/release/arm7_bootstrap");
+
+    let arm7_include_path = env_us.clone().join("arm9_bin/src/arm7.bin");
+    let bootstrap_include_path = env_us.clone().join("arm9_bin/src/bootstrap.bin");
+
+    print!("Compiling bootstrap...");
+    build::build_crate(arm9_bootstrap_path).unwrap();
+    build::build_crate(arm7_bootstrap_path).unwrap();
+
+    build::compile_bootstrap(arm9_bs_elf, arm7_bs_elf, bootstrap_include_path).unwrap();
+
+    println!("Done!");
     //we have to do this idiotic thing or cargo craps itself with config.toml
     print!("Compiling ARM7 binary... ");
     build::build_crate(arm7_path).unwrap();

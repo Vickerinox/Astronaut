@@ -119,7 +119,7 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
     Ok(())
 }
 unsafe fn go_standby_state(device: &mut Device, kind: DeviceType, rca: u32) -> Result<u8, Status> {
-    /* 
+    /*
     let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::SendCSD, rca);
     if !res.is_empty() {
         return Err(res)
@@ -286,8 +286,11 @@ unsafe fn send_app_command(port: &mut TMIOPort, cmd: CommandNumber, arg: u32, rc
     }
 }
 
-
-pub unsafe fn read_sectors(device: DeviceSelect, sector: u32, buf: *mut [crate::StorageSector]) -> Result<(), Status> {
+pub unsafe fn read_sectors(
+    device: DeviceSelect,
+    sector: u32,
+    buf: *mut [crate::StorageSector],
+) -> Result<(), Status> {
     let device = &mut DEVICES[device as u8 as usize];
     device.port.buffer = buf as *mut _;
 
@@ -298,9 +301,9 @@ pub unsafe fn read_sectors(device: DeviceSelect, sector: u32, buf: *mut [crate::
     };
     let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::ReadMutliBlocks, sector);
     if !res.is_empty() {
-        return Err(res)
+        return Err(res);
     } else {
-        return  Ok(());
+        return Ok(());
     }
 }
 

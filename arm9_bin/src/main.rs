@@ -4,6 +4,7 @@
 
 const FONT_FILE: &[u8] = include_bytes!("./font.bin");
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
+const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use core::arch::asm;
 
@@ -13,10 +14,9 @@ use reboot_lib::{
 };
 extern crate alloc;
 
+mod bootloader;
 mod mbr;
 mod nand;
-mod bootloader;
-
 
 pub unsafe fn nocash_write(str: &str) {
     const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
@@ -24,6 +24,7 @@ pub unsafe fn nocash_write(str: &str) {
         NOCASH_OUT_CHR.write_volatile(*byte);
     }
 }
+
 /// This function steals control of the ARM7 CPU assuming it is running in the sync loop within the bootloader.
 /// The way it does this is by stealing some unused WRAM, writing a jump table to "stabilize" it,
 /// binary at the destination of the jump table, and mapping it to the memory where the ARM7 is executing
@@ -72,7 +73,6 @@ pub unsafe fn steal_main_mem() {
 }
 unsafe fn main() {
     unsafe {
-
         //enable the 2D engine A, with no backgrounds on.
         core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
         core::ptr::write_volatile(0x4001000 as *mut u32, 0b000000000000000010000000000000000);
@@ -82,7 +82,7 @@ unsafe fn main() {
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
 
         core::ptr::write_volatile(0x200_0000 as *mut u32, 0);
-        
+
         reboot_lib::IPC_FIFO_HARDWARE.enable();
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
         steal_arm7();
@@ -157,8 +157,11 @@ unsafe fn main() {
         });
         video_context.next_frame();
         steal_main_mem();
-        let nand_buffer = core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
-        let sd_buffer = core::slice::from_raw_parts_mut(0x2FFFC00 as *mut reboot_lib::StorageSector, 1);
+        bootloader::inject_bootstrap();
+        let nand_buffer =
+            core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
+        let sd_buffer =
+            core::slice::from_raw_parts_mut(0x2FFFC00 as *mut reboot_lib::StorageSector, 1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
         let status = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
 
@@ -169,25 +172,33 @@ unsafe fn main() {
         video_context.next_frame();
 
         read_sd_card(sd_buffer, 0x0);
-        let sd_mbr = &*(sd_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);
+        let sd_mbr = &*(sd_buffer as *mut [reboot_lib::StorageSector]
+            as *const reboot_lib::StorageSector as *const ()
+            as *const mbr::MBR);
         let sign = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.boot_signature));
 
-        
         read_encrypted_nand(nand_buffer, 0x0);
-        
-        let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const mbr::MBR);
-        let bytes = &*(nand_buffer as *mut [reboot_lib::StorageSector] as *const reboot_lib::StorageSector as *const () as *const [u8; 64]);
-        
+
+        let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector]
+            as *const reboot_lib::StorageSector as *const ()
+            as *const mbr::MBR);
+        let bytes = &*(nand_buffer as *mut [reboot_lib::StorageSector]
+            as *const reboot_lib::StorageSector as *const ()
+            as *const [u8; 64]);
+
         let sd_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
-        let sd_size = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].sector_count));
+        let sd_size =
+            core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].sector_count));
 
         let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-        let twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
+        let twl_size =
+            core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
 
-        let sd_fs = nand::mount_sd_card_partition(sd_lba, sd_size, sd_buffer).unwrap();
+        let sd_fs = nand::mount_sd_card_partition(sd_lba, sd_size, sd_buffer).ok();
         let nand_fs = nand::mount_twl_main(twl_lba, twl_size, nand_buffer).unwrap();
 
-        let mut working_folder = sd_fs.root_dir();
+        let mut working_folder = nand_fs.root_dir();
+        let mut showing = "Currently showing: NAND";
         let mut old_controls;
         let mut new_controls = reboot_lib::Buttons::empty();
         let mut index = 0usize;
@@ -206,13 +217,21 @@ unsafe fn main() {
             } else {
                 0
             };
+            if cont_controls.contains(reboot_lib::Buttons::BUTTON_START) {
+                working_folder = sd_fs.root_dir();
+                showing = "Currently showing: SD CARD";
+            }
+            if cont_controls.contains(reboot_lib::Buttons::BUTTON_SELECT) {
+                working_folder = nand_fs.root_dir();
+                showing = "Currently showing: NAND";
+            }
             let select = cont_controls.contains(reboot_lib::Buttons::BUTTON_A);
             let mut max = 0;
             let mut new_folder = None;
 
             reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
                 text_pass.set_color(0x7FFF);
-                text_pass.layout_str("I don't know what to call this yet");
+                text_pass.layout_str(&showing);
                 text_pass.next_line();
                 text_pass.next_line();
                 for (num, item) in working_folder.iter().enumerate() {
@@ -226,7 +245,7 @@ unsafe fn main() {
                                     match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
                                         Ok(a) => {
                                             new_folder = Some(alloc::string::String::from(a));
-                                        },
+                                        }
                                         Err(_) => (),
                                     }
                                 }
@@ -241,56 +260,50 @@ unsafe fn main() {
                                 } else {
                                     text_pass.set_color(0x7FFF);
                                 }
-                                
                             }
                             for byte in item.short_file_name_as_bytes() {
                                 text_pass.layout_char(*byte);
                             }
                             text_pass.next_line();
-                        },
+                        }
                         Err(error) => {
                             text_pass.layout_str("ERROR");
                             text_pass.next_line();
-                        },
+                        }
                     }
                 }
             });
             video_context.next_frame();
             index = index.saturating_add_signed(increment).clamp(0, max);
-                if let Some(folder) = new_folder {
-                    let extension_point = folder.len()-4;
-                    if folder.is_char_boundary(extension_point){
-                        if is_bootable(folder.as_bytes()) {
-                            match working_folder.open_file(&folder) {
-                                Ok(file) => match bootloader::boot_app(file) {
-                                    Ok(()) => unreachable!(),
-                                    Err(_) => (),
-                                },
+            if let Some(folder) = new_folder {
+                let extension_point = folder.len() - 4;
+                if folder.is_char_boundary(extension_point) {
+                    if is_bootable(folder.as_bytes()) {
+                        match working_folder.open_file(&folder) {
+                            Ok(file) => match bootloader::boot_app(file) {
+                                Ok(()) => unreachable!(),
                                 Err(_) => (),
-                            }
+                            },
+                            Err(_) => (),
                         }
                     }
-                    
-                    match working_folder.open_dir(&folder) {
-                        Ok(ok) => {
-                            working_folder = ok;
-                        },
-                        Err(_) => (),
-                    }
                 }
-            
-            //reboot_lib::swi_vblank();
-            
+
+                match working_folder.open_dir(&folder) {
+                    Ok(ok) => {
+                        working_folder = ok;
+                    }
+                    Err(_) => (),
+                }
+            }
         }
     }
 }
 
 pub fn is_bootable(str: &[u8]) -> bool {
-    let len = str.len()-4;
-    &str[len..] == b".APP" ||
-    &str[len..] == b".NDS" ||
-    &str[len..] == b".DSI"
-} 
+    let len = str.len() - 4;
+    &str[len..] == b".APP" || &str[len..] == b".NDS" || &str[len..] == b".DSI"
+}
 #[no_mangle]
 pub unsafe extern "C" fn _start() {
     asm!(
@@ -308,14 +321,14 @@ pub unsafe extern "C" fn _start() {
     );
 }
 fn read_encrypted_nand(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) {
-    unsafe { 
-        reboot_lib::arm9_set_buffer(buffer); 
+    unsafe {
+        reboot_lib::arm9_set_buffer(buffer);
         reboot_lib::arm9_read_nand_sector_encrypted(start_sector);
     }
 }
 fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) {
-    unsafe { 
-        reboot_lib::arm9_set_buffer(buffer); 
+    unsafe {
+        reboot_lib::arm9_set_buffer(buffer);
         reboot_lib::arm9_read_sd_sector(start_sector);
     }
 }
@@ -341,7 +354,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         video_context.next_frame();
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str(&alloc::format!("{:?} {}",info.location(), info.message()));
+            text_pass.layout_str(&alloc::format!("{:?} {}", info.location(), info.message()));
         });
         video_context.next_frame();
     }

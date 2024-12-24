@@ -21,17 +21,17 @@ pub unsafe extern "C" fn _start() {
     );
 }
 
-
 fn main() {
     unsafe {
         IPC_FIFO_HARDWARE.enable();
-        IPC_FIFO_HARDWARE.set_status(0);   
-        let mut key = [0u32;4];
+        IPC_FIFO_HARDWARE.set_status(0);
+        let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
-        let mut buffer: *mut [reboot_lib::StorageSector] = core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0);
+        let mut buffer: *mut [reboot_lib::StorageSector] =
+            core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0);
         match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
             Ok(()) => IPC_FIFO_HARDWARE.send_raw_blocking(0xDEADBEEF),
             Err(a) => IPC_FIFO_HARDWARE.send_raw_blocking(a.bits()),
@@ -52,17 +52,18 @@ fn main() {
                 3 => {
                     mmc_read_decrypt(buffer, &key, arg);
                 }
-                4 => {
-        
-                }
+                4 => {}
                 5 => {
                     sd_read_sectors(buffer, arg);
                 }
                 6 => {
-                    let new_start = arg as *mut extern "C" fn();
-                    (*new_start)();
+                    #[cfg(target_arch = "arm")]
+                    core::arch::asm!(
+                        "mov pc, r0",
+                        in("r0") arg,
+                    );
                 }
-                _ => ()
+                _ => (),
             }
             IPC_FIFO_HARDWARE.set_status(1);
             while IPC_FIFO_HARDWARE.read_status() != 0 {}
@@ -81,11 +82,17 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 use reboot_lib::AES_HARDWARE;
 
 /// read and decrypt the given sectors from NAND using NDMA.
-pub unsafe fn mmc_read_decrypt(data: *mut [reboot_lib::StorageSector], ctr_base: &[u32; 4], sector: u32) -> Result<(), ()> {
+pub unsafe fn mmc_read_decrypt(
+    data: *mut [reboot_lib::StorageSector],
+    ctr_base: &[u32; 4],
+    sector: u32,
+) -> Result<(), ()> {
+    let a = reboot_lib::read_sectors(
+        reboot_lib::DeviceSelect::EMMC,
+        sector,
+        core::slice::from_raw_parts_mut(core::ptr::null_mut(), data.len()),
+    );
 
-        
-    let a = reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, core::slice::from_raw_parts_mut(core::ptr::null_mut(), data.len()));
-    
     fn add_on_key(key: &mut [u32; 4], add: u32) {
         let carry;
         let carry2;
@@ -132,7 +139,7 @@ pub unsafe fn mmc_read_decrypt(data: *mut [reboot_lib::StorageSector], ctr_base:
     NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, data as *mut () as _);
     //start the AES engine (starting the DMA transfers)
     AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28));
-    
+
     //await for everything to finish
     NDMA_HARDWARE.await_channel(0);
     NDMA_HARDWARE.await_channel(1);
@@ -143,9 +150,11 @@ pub unsafe fn mmc_read_decrypt(data: *mut [reboot_lib::StorageSector], ctr_base:
     }
 }
 
-
 /// read from the SD card using NDMA.
-pub unsafe fn sd_read_sectors(data: *mut [reboot_lib::StorageSector], sector: u32) -> Result<(), ()> {
+pub unsafe fn sd_read_sectors(
+    data: *mut [reboot_lib::StorageSector],
+    sector: u32,
+) -> Result<(), ()> {
     use reboot_lib::ndma::{Control, NDMA_HARDWARE};
 
     let a = reboot_lib::read_sectors(reboot_lib::DeviceSelect::SDCardSlot, sector, data);

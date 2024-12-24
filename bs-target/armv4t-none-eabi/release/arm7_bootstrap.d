@@ -1,0 +1,1 @@
+C:\Users\vikto\Documents\GitHub\ReBoot\arm7_bootstrap\../bs-target\armv4t-none-eabi\release\arm7_bootstrap: C:\Users\vikto\Documents\GitHub\ReBoot\arm7_bootstrap\src\main.rs C:\Users\vikto\Documents\GitHub\ReBoot\common\src\bootstrap.rs C:\Users\vikto\Documents\GitHub\ReBoot\common\src\lib.rs

@@ -136,7 +136,13 @@ impl MMC {
         self.soft_reset.write(1);
         self.port_select.write(0);
         self.block_count.write(1);
-        self.irmask.write(Status::UNKNOWN | Status::TX_REQUEST | Status::RX_READY | Status::DAT3_INSERT | Status::DAT3_REMOVE);
+        self.irmask.write(
+            Status::UNKNOWN
+                | Status::TX_REQUEST
+                | Status::RX_READY
+                | Status::DAT3_INSERT
+                | Status::DAT3_REMOVE,
+        );
         self.clock_control.write(0x80 >> 2);
         self.block_len.write(512);
         self.options.write((1 << 15) | (1 << 14) | ((11 << 4) | 8));
@@ -175,7 +181,12 @@ impl MMC {
             }
         }
     }
-    pub unsafe fn send_command(&self, port: &mut TMIOPort, command: CommandNumber, argument: u32) -> Status {
+    pub unsafe fn send_command(
+        &self,
+        port: &mut TMIOPort,
+        command: CommandNumber,
+        argument: u32,
+    ) -> Status {
         let command = command as u16;
         let mut status = Status::empty();
 
@@ -205,7 +216,12 @@ impl MMC {
         status |= self.status.read();
         status.intersection(Status::ALL_ERRORS)
     }
-    unsafe fn cpu_transfer(&self, command: u16, buf: *mut [crate::StorageSector], status: &mut Status) {
+    unsafe fn cpu_transfer(
+        &self,
+        command: u16,
+        buf: *mut [crate::StorageSector],
+        status: &mut Status,
+    ) {
         if command & CMD_DATA_R > 0 {
             *status |= self.status.read();
             for sector in (&mut *buf).iter_mut() {
@@ -216,7 +232,6 @@ impl MMC {
                     }
                 }
             }
-
         } else {
             *status |= self.status.read();
             for sector in (&*buf).iter() {
@@ -313,8 +328,8 @@ pub enum CommandNumber {
 
     LockUnlock = r1_w(42), //  R1, [31:0] Reserved bits (Set all 0).
 
-    AppCommand = r1(55), //  R1, [31:16] RCA [15:0] stuff bits.
-    GenericCommandRead = r1_r(56), //  R1, [31:1] stuff bits. [0]: RD/WR = 1.
+    AppCommand = r1(55),            //  R1, [31:16] RCA [15:0] stuff bits.
+    GenericCommandRead = r1_r(56),  //  R1, [31:1] stuff bits. [0]: RD/WR = 1.
     GenertiCommandWrite = r1_w(56), //  R1, [31:1] stuff bits. [0]: RD/WR = 0.
 
     AppSetBusWidth = acmd_r1(6), //  R1, [31:2] stuff bits [1:0] bus width.
@@ -339,7 +354,6 @@ pub enum CommandNumber {
     QueueWriteTask = r1_w(47), //  R1, [31:21] Reserved [20:16] Task ID [15:0] Reserved.
 
     MMCSendOptionalCondition = r3(1),
-
 }
 
 const CMD_RESP_AUTO: u16 = 0; // Response type auto. Only works with certain commands.
@@ -355,11 +369,9 @@ const CMD_RESP_R3: u16 = 7 << 8; // Response type R3 48 bit OCR without CRC.
 const CMD_RESP_R4: u16 = CMD_RESP_R3; // Response type R4 48 bit OCR without CRC.
 const CMD_RESP_MASK: u16 = CMD_RESP_R3;
 
-const CMD_DATA_EN : u16 =  1<<11;
-const CMD_DATA_R  : u16 =  1<<12;
-const CMD_DATA_W  : u16 =  0;
-
-
+const CMD_DATA_EN: u16 = 1 << 11;
+const CMD_DATA_R: u16 = 1 << 12;
+const CMD_DATA_W: u16 = 0;
 
 #[derive(Debug)]
 pub struct TMIOPort {
@@ -395,7 +407,7 @@ impl Default for TMIOPort {
             clock: Default::default(),
             block_len: Default::default(),
             option: Default::default(),
-            buffer:  unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
+            buffer: unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
             response: Default::default(),
         }
     }

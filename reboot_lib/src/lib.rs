@@ -20,8 +20,8 @@ pub use ipc::IPC_FIFO_HARDWARE;
 pub use mmc::driver::*;
 pub use mmc::tmio::*;
 pub use mmc::*;
-pub use video::*;
 pub use swi::*;
+pub use video::*;
 pub struct RegisterWrapper<T>(*mut T);
 impl<T> core::ops::Deref for RegisterWrapper<T> {
     type Target = T;
@@ -92,7 +92,7 @@ pub unsafe fn arm9_send_controller_read() {
     IPC_FIFO_HARDWARE.send_raw_blocking(0);
     while IPC_FIFO_HARDWARE.read_status() != 1 {}
     IPC_FIFO_HARDWARE.set_status(0);
-} 
+}
 pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) {
     IPC_FIFO_HARDWARE.set_status(2);
     IPC_FIFO_HARDWARE.send_raw_blocking(slice as *mut StorageSector as u32);
@@ -122,12 +122,12 @@ pub unsafe fn arm9_send_arm7_jump(ptr: u32) {
     IPC_FIFO_HARDWARE.set_status(6);
     IPC_FIFO_HARDWARE.send_raw_blocking(ptr);
 }
-pub struct  StorageSector([u32; 128]);
+pub struct StorageSector([u32; 128]);
 
 impl AsMut<[u8]> for StorageSector {
     fn as_mut(&mut self) -> &mut [u8] {
-        unsafe { &mut *core::ptr::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>()) }
+        unsafe {
+            &mut *core::ptr::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>())
+        }
     }
 }
-
-

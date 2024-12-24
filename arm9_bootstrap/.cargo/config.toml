@@ -1,0 +1,17 @@
+[profile.release]
+opt-level = 'z'                             # Optimize for size
+lto = true                                  # Enable link-time optimization
+codegen-units = 1                           # Reduce number of codegen units to increase optimizations
+panic = 'abort'                             # Abort on panic
+strip = true                                # Strip symbols from binary*
+
+
+[target.armv5te-none-eabi]                # All targets
+rustflags = ["-C", "linker-flavor=ld.lld", "-C", "relocation-model=pic","-C", "link-arg=-Tlink_bootstrap.x"]
+
+
+[build]
+target = "armv5te-none-eabi"
+target-dir = "../bs-target"
+[unstable]
+build-std = ["core"]
