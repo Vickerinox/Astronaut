@@ -73,6 +73,7 @@ pub unsafe fn steal_main_mem() {
 }
 unsafe fn main() {
     unsafe {
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b100001110);
         //enable the 2D engine A, with no backgrounds on.
         core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
         core::ptr::write_volatile(0x4001000 as *mut u32, 0b000000000000000010000000000000000);
@@ -87,7 +88,7 @@ unsafe fn main() {
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
         steal_arm7();
 
-        core::ptr::write_volatile(0x4000304 as *mut u16, 12);
+        
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
         core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
 
@@ -218,8 +219,10 @@ unsafe fn main() {
                 0
             };
             if cont_controls.contains(reboot_lib::Buttons::BUTTON_START) {
-                working_folder = sd_fs.root_dir();
-                showing = "Currently showing: SD CARD";
+                if let Some(fs) = &sd_fs {
+                    working_folder = fs.root_dir();
+                    showing = "Currently showing: SD CARD";
+                }
             }
             if cont_controls.contains(reboot_lib::Buttons::BUTTON_SELECT) {
                 working_folder = nand_fs.root_dir();

@@ -19,7 +19,8 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) {
         0, 0, 0, 0, 1, 0, 0, 0, 192, 14, 127, 3, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
     const M_STATE_OFFSET: usize = 0x13250;
-    const MINIMUM_EXPLOIT_LEN: usize = 0x13C01;
+    const MIN_EXPLOIT_LEN: usize = 0x13C01;
+    const USED_EXPLOIT_LEN: usize = 81400;
     const MAGIC_START_POINT: usize = 0x37DF06C;
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
@@ -29,7 +30,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) {
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..]).unwrap();
     let entrypoint = parse.ehdr.e_entry;
     //let rodata = parse.section_header_by_name(".rodata").unwrap().unwrap();
-    let mut empty_tmd = vec![0u8; MINIMUM_EXPLOIT_LEN];
+    let mut empty_tmd = vec![0u8; USED_EXPLOIT_LEN];
 
     let Some(segments) = parse.segments() else {
         return;
