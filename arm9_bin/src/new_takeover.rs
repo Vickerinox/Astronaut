@@ -2,11 +2,12 @@
 unsafe fn mysterious_function_1() {
     nocash_memcopy(0x6020000 as *mut u8, 0x6860000 as *mut u8, 0x20000); //memcpy binary from VRAM A to VRAM D
     flush_mmc(); //mpu reset? see below
-    //Remaps VRAM D,C,B,A
+                 //Remaps VRAM D,C,B,A
     core::ptr::write_volatile(0x0400_0240 as *mut u32, 0x8A848981);
 }
 
 pub unsafe fn flush_mmc() {
+    #[cfg(target_arch = "arm")]
     core::arch::asm!(
         "MCR p15, 0, r0, c7, c10, 4",
         in("r0") 0,
@@ -15,6 +16,7 @@ pub unsafe fn flush_mmc() {
     let mut carry = false;
     while !carry {
         while arg & 0x400 == 0 {
+            #[cfg(target_arch = "arm")]
             core::arch::asm!(
                 "MCR p15, 0, r0, c7, c10, 2",
                 inout("r0") arg,
@@ -24,6 +26,7 @@ pub unsafe fn flush_mmc() {
         (arg, carry) = (arg & !0x400).overflowing_add(0x40000000);
     }
 
+    #[cfg(target_arch = "arm")]
     core::arch::asm!(
         "MCR p15, 0, r0, c7, c10, 4",
         "MCR p15, 0, r0, c7, c5, 0",
@@ -32,12 +35,12 @@ pub unsafe fn flush_mmc() {
     );
 }
 
-unsafe fn nocash_memcopy(r0: *mut u8, r1: * mut u8, size: usize) {
+unsafe fn nocash_memcopy(r0: *mut u8, r1: *mut u8, size: usize) {
     core::ptr::copy(r0, r1, size);
 }
 
 unsafe fn mysterious_function_2() {
-    //WRAM C set to appear on arm9, 
+    //WRAM C set to appear on arm9,
     core::ptr::write_volatile(0x400405c as *mut u32, 0x0C003800);
     core::ptr::write_volatile(0x4004050 as *mut u8, 0x80);
 
@@ -62,7 +65,7 @@ unsafe fn mysterious_function_2() {
 }
 
 pub unsafe fn our_mysterious_function() {
-    //WRAM C set to appear on arm9, 
+    //WRAM C set to appear on arm9,
     core::ptr::write_volatile(0x400405c as *mut u32, 0x0C003800);
     core::ptr::write_volatile(0x4004050 as *mut u8, 0x80);
 
@@ -85,3 +88,4 @@ pub unsafe fn our_mysterious_function() {
     let r0 = r0 & 0xFF00FF00 | 0x99;
     core::ptr::write_volatile(0x4004050 as *mut u32, r0);
 }
+

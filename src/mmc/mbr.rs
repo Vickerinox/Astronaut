@@ -1,11 +1,11 @@
+use std::io::Error as IoError;
 use std::io::Read;
-
 pub trait ByteDecode: Sized {
     type Error;
     fn from_reads<R: Read>(reader: &mut R) -> Result<Self, Self::Error>;
 }
 impl ByteDecode for PartitionEntry {
-    type Error = ();
+    type Error = IoError;
 
     fn from_reads<R: Read>(reader: &mut R) -> Result<Self, Self::Error> {
         let status: [u8; 1] = read_direct(reader)?;
@@ -42,17 +42,20 @@ enum PartitionTypes {
 }
 #[derive(Debug)]
 pub enum MBRError {
-    BadBootstrap,
-    BadPartitions,
+    FailedBootstrapRead(IoError),
+    FailedPartitionRead(IoError),
     BadSignature,
+    FailedSignatureRead(IoError),
 }
 impl ByteDecode for MBR {
     type Error = MBRError;
 
     fn from_reads<R: Read>(reader: &mut R) -> Result<Self, Self::Error> {
-        let bootstrap = read_direct(reader).map_err(|e| MBRError::BadBootstrap)?;
-        let partitions = core::array::from_fn(|_| PartitionEntry::from_reads(reader).unwrap());
-        let boot_signature = read_direct(reader).map_err(|e| MBRError::BadSignature)?;
+        let bootstrap = read_direct(reader).map_err(|e| MBRError::FailedBootstrapRead(e))?;
+
+        let partitions = core::array::try_from_fn(|_| PartitionEntry::from_reads(reader))
+            .map_err(|e| MBRError::FailedPartitionRead(e))?;
+        let boot_signature = read_direct(reader).map_err(|e| MBRError::FailedSignatureRead(e))?;
         if boot_signature != [0x55, 0xAA] {
             return Err(MBRError::BadSignature);
         }
@@ -63,14 +66,14 @@ impl ByteDecode for MBR {
         })
     }
 }
-fn read_direct<const N: usize, R: Read>(reader: &mut R) -> Result<[u8; N], ()> {
+fn read_direct<const N: usize, R: Read>(reader: &mut R) -> Result<[u8; N], IoError> {
     let mut buf = [0; N];
     match reader.read_exact(&mut buf) {
         Ok(()) => Ok(buf),
-        Err(_) => Err(()),
+        Err(e) => Err(e),
     }
 }
-fn read_byte<R: Read>(reader: &mut R) -> Result<u8, ()> {
+fn read_byte<R: Read>(reader: &mut R) -> Result<u8, IoError> {
     let buf: [u8; 1] = read_direct(reader)?;
     Ok(buf[0])
 }

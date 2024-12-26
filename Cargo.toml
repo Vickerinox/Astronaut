@@ -21,3 +21,6 @@ rfd = "0.15.0"
 fatfs = {git="https://github.com/rafalh/rust-fatfs.git", rev="c4bb76929eb115f228720631b4110f827b998653"}
 sha1 = "0.10.6"
 rust-crypto = "0.2.36"
+clap = { version = "4.5.23", features = ["derive"] }
+thiserror = "2.0.9"
+hexify = "0.0.3"

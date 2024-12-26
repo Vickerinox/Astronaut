@@ -72,7 +72,7 @@ fn test_le_be_operations() {
         u32::from_le_bytes(le)
     );
 
-    let val = u128::from_be_bytes(b"YouSuckOmegaAss!".to_vec().try_into().unwrap());
+    let _val = u128::from_be_bytes(b"YouSuckOmegaAss!".to_vec().try_into().unwrap());
 }
 impl Encryptor {
     fn subrot(temp: &mut [u8; 4], i: usize) {

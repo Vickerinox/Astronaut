@@ -1,59 +1,46 @@
-use elf::ParseError;
-use std::{
-    io::{Error, Write},
-    path::PathBuf,
-    process::Output,
-};
+use std::{io::Write, path::PathBuf, process::Stdio};
 
-#[derive(Debug)]
-pub enum CargoFail {
-    FailedCommand(Error),
-    BadEnvironment(Error),
-    FailedProcess(Output),
-}
-pub fn build_crate(path: PathBuf) -> Result<(), CargoFail> {
-    let restore = std::env::current_dir().map_err(|e| CargoFail::BadEnvironment(e))?;
-    std::env::set_current_dir(path).unwrap();
-    let console = std::process::Command::new("cargo")
+use crate::errors::{CargoError, CompileError};
+
+pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
+    let mut cwd = std::process::Command::new("cargo")
         .arg("build")
-        .arg("-r")
-        .output()
-        .map_err(|e| CargoFail::FailedCommand(e))?;
+        .arg("-r").current_dir(&path)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| CargoError::SpawnChild(e))?;
 
-    if !console.status.success() {
-        return Err(CargoFail::FailedProcess(console));
+    if !cwd
+        .wait()
+        .map_err(|e| CargoError::FailedCommand(e))?
+        .success()
+    {
+        eprintln!(
+            "failed to run `cargo build -r` in {}`",
+            path.to_str().expect("already checked")
+        );
+        return Err(CargoError::FailedProcess);
     }
-    std::env::set_current_dir(restore).unwrap();
     Ok(())
 }
 
-#[derive(Debug)]
-pub enum ARM7CompileError {
-    ElfNotFound(Error),
-    ElfParseError(ParseError),
-    ElfSegmentError(ParseError),
-    ElfMissingSegments,
-    BinCreationFailure(Error),
-    BinWriteFailute(Error),
-}
 pub fn compile_arm7(
     elf_file_path: PathBuf,
     include_file_path: PathBuf,
-) -> Result<(), ARM7CompileError> {
+) -> Result<(), CompileError> {
     const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x37BA000;
     const HEADER_SIZE: usize = 4;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
-    let file = std::fs::read(elf_file_path).map_err(|e| ARM7CompileError::ElfNotFound(e))?;
+    let file = std::fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
     let parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&file[..])
-        .map_err(|e| ARM7CompileError::ElfParseError(e))?;
+        .map_err(|e| CompileError::ElfParseError(e))?;
     let entrypoint = parse.ehdr.e_entry;
 
     let mut empty_bin = vec![0u8; HEADER_SIZE];
 
-    let segments = parse
-        .segments()
-        .ok_or(ARM7CompileError::ElfMissingSegments)?;
+    let segments = parse.segments().ok_or(CompileError::ElfMissingSegments)?;
     let entry_point = entrypoint - (MAGIC_ENTRYPOINT_ADDRESS as u64);
     let entry_value = ((entry_point as u32) >> 2).wrapping_sub(1) & 0xFFFFFF;
 
@@ -73,7 +60,7 @@ pub fn compile_arm7(
         }
         let data = parse
             .segment_data(&segment)
-            .map_err(|e| ARM7CompileError::ElfSegmentError(e))?;
+            .map_err(|e| CompileError::ElfSegmentError(e))?;
         if empty_bin.len() < file_offset_end as usize {
             let extra_len = (file_offset_end as usize) - empty_bin.len();
             empty_bin.append(&mut vec![0; extra_len]);
@@ -89,46 +76,36 @@ pub fn compile_arm7(
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)
         .open(&include_file_path)
-        .map_err(|e| ARM7CompileError::BinCreationFailure(e))?;
+        .map_err(|e| CompileError::BinCreationFailure(e))?;
     bin_file
         .set_len(empty_bin.len() as _)
-        .map_err(|e| ARM7CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::BinWriteFailute(e))?;
     bin_file
         .write_all(&empty_bin[..])
-        .map_err(|e| ARM7CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::BinWriteFailute(e))?;
 
     println!("MISSION COMPLETE");
     Ok(())
-}
-
-#[derive(Debug)]
-pub enum BootstrapCompileError {
-    ElfNotFound(Error),
-    ElfParseError(ParseError),
-    ElfSegmentError(ParseError),
-    ElfMissingSegments,
-    BinCreationFailure(Error),
-    BinWriteFailute(Error),
 }
 
 pub fn compile_bootstrap(
     elf9_file_path: PathBuf,
     elf7_file_path: PathBuf,
     bootstrap_file_path: PathBuf,
-) -> Result<(), ARM7CompileError> {
+) -> Result<(), CompileError> {
     const HEADER_SIZE: usize = 12;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
-    let arm9_file = std::fs::read(elf9_file_path).map_err(|e| ARM7CompileError::ElfNotFound(e))?;
+    let arm9_file = std::fs::read(elf9_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
     let arm9_parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&arm9_file[..])
-        .map_err(|e| ARM7CompileError::ElfParseError(e))?;
+        .map_err(|e| CompileError::ElfParseError(e))?;
     let arm9_entrypoint = arm9_parse.ehdr.e_entry;
 
     let mut empty_bin = vec![255u8; HEADER_SIZE];
 
     let arm9_segments = arm9_parse
         .segments()
-        .ok_or(ARM7CompileError::ElfMissingSegments)?;
+        .ok_or(CompileError::ElfMissingSegments)?;
     let arm9_entry_point = arm9_entrypoint;
     let arm9_entry_value = ((arm9_entry_point as u32) >> 2).wrapping_add(1) & 0xFFFFFF;
 
@@ -151,7 +128,7 @@ pub fn compile_bootstrap(
         arm7_start = arm7_start.max(file_offset_end - HEADER_SIZE as i64);
         let data = arm9_parse
             .segment_data(&segment)
-            .map_err(|e| ARM7CompileError::ElfSegmentError(e))?;
+            .map_err(|e| CompileError::ElfSegmentError(e))?;
         if empty_bin.len() < file_offset_end as usize {
             let extra_len = (file_offset_end as usize) - empty_bin.len();
             empty_bin.append(&mut vec![0; extra_len]);
@@ -164,14 +141,14 @@ pub fn compile_bootstrap(
         empty_bin[file_range].copy_from_slice(data);
     }
 
-    let arm7_file = std::fs::read(elf7_file_path).map_err(|e| ARM7CompileError::ElfNotFound(e))?;
+    let arm7_file = std::fs::read(elf7_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
     let arm7_parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&arm7_file[..])
-        .map_err(|e| ARM7CompileError::ElfParseError(e))?;
+        .map_err(|e| CompileError::ElfParseError(e))?;
     let arm7_entrypoint = arm7_parse.ehdr.e_entry;
 
     let arm7_segments = arm7_parse
         .segments()
-        .ok_or(ARM7CompileError::ElfMissingSegments)?;
+        .ok_or(CompileError::ElfMissingSegments)?;
     let arm7_entry_point = arm7_entrypoint + arm7_start as u64;
     let arm7_entry_value = ((arm7_entry_point as u32) >> 2) & 0xFFFFFF;
 
@@ -192,7 +169,7 @@ pub fn compile_bootstrap(
         }
         let data = arm7_parse
             .segment_data(&segment)
-            .map_err(|e| ARM7CompileError::ElfSegmentError(e))?;
+            .map_err(|e| CompileError::ElfSegmentError(e))?;
         if empty_bin.len() < file_offset_end as usize {
             let extra_len = (file_offset_end as usize) - empty_bin.len();
             empty_bin.append(&mut vec![0; extra_len]);
@@ -204,17 +181,16 @@ pub fn compile_bootstrap(
         );
         empty_bin[file_range].copy_from_slice(data);
     }
-
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)
         .open(&bootstrap_file_path)
-        .map_err(|e| ARM7CompileError::BinCreationFailure(e))?;
+        .map_err(|e| CompileError::BinCreationFailure(e))?;
     bin_file
         .set_len(empty_bin.len() as _)
-        .map_err(|e| ARM7CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::BinWriteFailute(e))?;
     bin_file
         .write_all(&empty_bin[..])
-        .map_err(|e| ARM7CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::BinWriteFailute(e))?;
 
     println!("MISSION COMPLETE");
     Ok(())

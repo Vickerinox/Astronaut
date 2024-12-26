@@ -2,6 +2,7 @@
 #![feature(allocator_api)]
 #![feature(vec_into_raw_parts)]
 #![feature(ptr_metadata)]
+#![allow(unused)]
 extern crate alloc;
 mod allocator;
 mod crypto;

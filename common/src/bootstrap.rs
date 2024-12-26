@@ -12,6 +12,7 @@ pub unsafe fn boot_arm9() {
         w((0x4004040 as *mut u32).add(i), value);
     }
     while READY_FLAG_0.read_volatile() != READY_VALUE {}
+    #[allow(unused)]
     let entry = (*HEADER_MEM).arm9_entry;
     #[cfg(target_arch = "arm")]
     core::arch::asm!("bx r0",in("r0") entry,);
@@ -28,6 +29,7 @@ pub unsafe fn boot_arm7() {
     while VCOUNT_REG.read_volatile() != 192 {}
     READY_FLAG_0.write_volatile(READY_VALUE);
 
+    #[allow(unused)]
     let entry = (*HEADER_MEM).arm7_entry;
     #[cfg(target_arch = "arm")]
     core::arch::asm!("bx r0",in("r0") entry,);
