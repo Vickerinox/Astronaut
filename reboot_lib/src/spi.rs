@@ -45,6 +45,19 @@ impl SerialPeripheralInterface {
     }
 }
 
+pub unsafe fn write_powerman(reg: u8, value: u8) {
+    SPI_HARDWARE.wait_busy();
+    SPI_HARDWARE
+        .control_and_status
+        .write(SPIControl::ENABLE_BUS | SPIControl::DEVICE_POWERMAN | SPIControl::SELECT_HOLD);
+    SPI_HARDWARE.write_raw_value(reg);
+    SPI_HARDWARE
+        .control_and_status
+        .write(SPIControl::ENABLE_BUS | SPIControl::DEVICE_POWERMAN);
+    SPI_HARDWARE.write_raw_value(value);
+}
+
+
 unsafe fn write_tsc(reg: u8, value: u8) {
     SPI_HARDWARE.wait_busy();
     SPI_HARDWARE

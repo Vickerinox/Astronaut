@@ -9,14 +9,14 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 use core::arch::asm;
 
 use reboot_lib::{
-    MatrixMode, PolygonAttributes, PrimaryDisplayControl, VideoPowerControl, Viewport,
-    VIDEO_HARDWARE,
+    Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, VideoPowerControl, Viewport, VIDEO_HARDWARE
 };
 extern crate alloc;
 
 mod bootloader;
 mod mbr;
 mod nand;
+pub mod new_takeover;
 
 pub unsafe fn nocash_write(str: &str) {
     const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
@@ -32,7 +32,7 @@ pub unsafe fn steal_arm7() {
     //offsets in words (4 bytes) into the WRAM were about to steal
     //JT here means "jump table", offsets could likely be tweaked, but i've not bothered to tune them.
     const ENTRYPOINT_OFFSET: usize = 0x7FF; //cannot be within the jumptable, hopefully for obvious reasons.
-    const JT_START: usize = 0x500;
+    const JT_START: usize = 0x100;
     const JT_END: usize = 0x780;
     const BRANCH_BASE: usize = ENTRYPOINT_OFFSET - 2; //because ARM instructions are "special", this is correct.
 
@@ -47,6 +47,7 @@ pub unsafe fn steal_arm7() {
     //map WRAM-C4 to 0x0300_0000..0x0300_8000 on our side. Which should also be unused right now.
     core::ptr::write_volatile(0x400405C as *mut u32, 1 << 19);
 
+    new_takeover::flush_mmc();
     //Write our jump table to the WRAM
     for i in JT_START..JT_END {
         core::ptr::write_volatile(
@@ -60,6 +61,7 @@ pub unsafe fn steal_arm7() {
         core::ptr::write_volatile(BINARY_ENTRY_ADDR.add(j), stuff);
     }
 
+    new_takeover::flush_mmc();
     //overwrite the WRAM bank the arm7 is currently executing in with ours
     //Set WRAM-C4 to slot 7 on arm7, replacing the bank it's currently executing in. (WRAM-C7)
     core::ptr::write_volatile((0x4004050) as *mut u8, 0b10011101);
@@ -73,22 +75,27 @@ pub unsafe fn steal_main_mem() {
 }
 unsafe fn main() {
     unsafe {
-        core::ptr::write_volatile(0x4000304 as *mut u32, 0b100001110);
-        //enable the 2D engine A, with no backgrounds on.
-        core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
-        core::ptr::write_volatile(0x4001000 as *mut u32, 0b000000000000000010000000000000000);
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
         //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
+        core::ptr::write_volatile(0x5000002 as *mut u16, 0xFFFF);
+        core::ptr::write_volatile(0x5000004 as *mut u16, 0xFFFF);
+        core::ptr::write_volatile(0x5000006 as *mut u16, 0xFFFF);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
 
         core::ptr::write_volatile(0x200_0000 as *mut u32, 0);
 
         reboot_lib::IPC_FIFO_HARDWARE.enable();
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
-        steal_arm7();
+        
 
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
+
+        //enable the 2D engine A, with no backgrounds on.
+        core::ptr::write_volatile(0x4000000 as *mut u32, 0b0000000000000000100000011_0000_0000);
+        core::ptr::write_volatile(0x4001000 as *mut u32, 0b0000000000000000100000011_0000_0000);
+
         core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
 
         //write to "color palette 0"
@@ -96,7 +103,8 @@ unsafe fn main() {
         core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
         core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-
+        
+        new_takeover::our_mysterious_function();
         //copy font to vram
         for (i, w) in FONT_FILE.chunks_exact(4).enumerate() {
             let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
@@ -110,7 +118,7 @@ unsafe fn main() {
         VIDEO_HARDWARE.primary_display_control.write(
             PrimaryDisplayControl::BG_MODE_0
                 | PrimaryDisplayControl::ENABLE_3D
-                | PrimaryDisplayControl::ENABLE_BG_0,
+                | PrimaryDisplayControl::ENABLE_BG_0
         );
         VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
         video_context.next_frame(); //swap geometry buffers
@@ -149,15 +157,15 @@ unsafe fn main() {
                     | PolygonAttributes::POLYGON_ALPHA_SOLID,
             );
         VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
-                                                  //VIDEO_HARDWARE.clear_color.write(reboot_lib::Color::CONFIRM_GREEN); //greenish color
-
+        steal_main_mem();
+        
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
             text_pass.layout_str("Waiting on ARM7...");
         });
         video_context.next_frame();
-        steal_main_mem();
-        bootloader::inject_bootstrap();
+        
+
         let nand_buffer =
             core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
         let sd_buffer =
@@ -198,9 +206,9 @@ unsafe fn main() {
         let nand_fs = nand::mount_twl_main(twl_lba, twl_size, nand_buffer).unwrap();
 
         let mut working_folder = nand_fs.root_dir();
-        let mut showing = "Currently showing: NAND";
+        let mut showing = "Currently in: NAND";
         let mut old_controls;
-        let mut new_controls = reboot_lib::Buttons::empty();
+        let mut new_controls = Buttons::empty();
         let mut index = 0usize;
 
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
@@ -210,24 +218,24 @@ unsafe fn main() {
             new_controls = read_controller();
 
             let cont_controls = new_controls.intersection(!old_controls);
-            let increment = if cont_controls.contains(reboot_lib::Buttons::DIRECTION_DOWN) {
+            let increment = if cont_controls.contains(Buttons::DIRECTION_DOWN) {
                 1
-            } else if cont_controls.contains(reboot_lib::Buttons::DIRECTION_UP) {
+            } else if cont_controls.contains(Buttons::DIRECTION_UP) {
                 -1
             } else {
                 0
             };
-            if cont_controls.contains(reboot_lib::Buttons::BUTTON_START) {
+            if cont_controls.contains(Buttons::BUTTON_START) {
                 if let Some(fs) = &sd_fs {
                     working_folder = fs.root_dir();
-                    showing = "Currently showing: SD CARD";
+                    showing = "Currently in: SD CARD";
                 }
             }
-            if cont_controls.contains(reboot_lib::Buttons::BUTTON_SELECT) {
+            if cont_controls.contains(Buttons::BUTTON_SELECT) {
                 working_folder = nand_fs.root_dir();
-                showing = "Currently showing: NAND";
+                showing = "Currently in: NAND";
             }
-            let select = cont_controls.contains(reboot_lib::Buttons::BUTTON_A);
+            let select = cont_controls.contains(Buttons::BUTTON_A);
             let mut max = 0;
             let mut new_folder = None;
 
@@ -334,11 +342,11 @@ fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) {
         reboot_lib::arm9_read_sd_sector(start_sector);
     }
 }
-fn read_controller() -> reboot_lib::Buttons {
+fn read_controller() -> Buttons {
     unsafe {
         reboot_lib::arm9_send_controller_read();
         let bits = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
-        reboot_lib::Buttons::from_bits_retain(bits as u16)
+        Buttons::from_bits_retain(bits as u16)
     }
 }
 
@@ -346,9 +354,6 @@ fn read_controller() -> reboot_lib::Buttons {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
-        //enable the 2D engine A, with no backgrounds on.
-        //core::ptr::write_volatile(0x4000000 as *mut u32, 0b000000000000000010000000000000000);
-        //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);
 
         let mut video_context = reboot_lib::VideoHardwareHandle::new();

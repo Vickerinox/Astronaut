@@ -23,6 +23,8 @@ pub unsafe extern "C" fn _start() {
 
 fn main() {
     unsafe {
+        reboot_lib::spi::write_powerman(0, 0b1100);
+        reboot_lib::spi::write_powerman(4, 3);
         IPC_FIFO_HARDWARE.enable();
         IPC_FIFO_HARDWARE.set_status(0);
         let mut key = [0u32; 4];

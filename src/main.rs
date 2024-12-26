@@ -10,6 +10,9 @@ mod build;
 mod mmc;
 
 fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) {
+
+    let mut og_tmd = std::fs::read("./title.tmd").unwrap();
+
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
     const M_STATE_OVERWRITE: &[u8] = &[
         84, 72, 73, 83, 32, 73, 83, 0, 0, 0, 0, 0, 223, 0, 0, 0, 87, 72, 69, 82, 69, 32, 84, 72,
@@ -31,6 +34,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) {
     let entrypoint = parse.ehdr.e_entry;
     //let rodata = parse.section_header_by_name(".rodata").unwrap().unwrap();
     let mut empty_tmd = vec![0u8; USED_EXPLOIT_LEN];
+    empty_tmd[..og_tmd.len()].copy_from_slice(&og_tmd);
 
     let Some(segments) = parse.segments() else {
         return;
@@ -55,7 +59,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) {
     empty_tmd[M_STATE_OFFSET..][..M_STATE_OVERWRITE.len()].copy_from_slice(M_STATE_OVERWRITE);
     let values = entry_value.to_le_bytes();
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
-
+    
     mmc::write_tmd_to_image(mmc_file_path, &empty_tmd).unwrap();
 
     println!("MISSION COMPLETE");

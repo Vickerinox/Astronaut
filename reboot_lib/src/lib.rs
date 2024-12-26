@@ -10,7 +10,7 @@ mod ipc;
 mod memory;
 mod mmc;
 pub mod ndma;
-mod spi;
+pub mod spi;
 mod swi;
 mod video;
 
