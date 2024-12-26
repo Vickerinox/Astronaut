@@ -8,7 +8,7 @@ use reboot_lib::IPC_FIFO_HARDWARE;
 pub unsafe extern "C" fn _start() {
     asm!(
         // Set up the stack pointer to 0x7C00
-        "ldr sp, =0x037B9FFC",
+        "ldr sp, =0x037EFFFC",
 
         // Call the main function
         "bl {main}",
@@ -23,6 +23,7 @@ pub unsafe extern "C" fn _start() {
 
 fn main() {
     unsafe {
+        core::ptr::write_volatile(0x4000210 as *mut u32, 0);
         reboot_lib::spi::write_powerman(0, 0b1100);
         reboot_lib::spi::write_powerman(4, 3);
         IPC_FIFO_HARDWARE.enable();
@@ -32,8 +33,15 @@ fn main() {
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
+        //(0x4000500 as *mut u32).write_volatile(0x8040);
+        //(0x4000504 as *mut u32).write_volatile(0x200);
+        //(0x4000498 as *mut u16).write_volatile(38000);
+        //(0x4000490 as *mut u32).write_volatile((0x40) | (0x40 << 16) | (1<<27) | (3<<29) | (1<<31));
+
         let mut buffer: *mut [reboot_lib::StorageSector] =
             core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0);
+
+            //reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
         match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
             Ok(()) => IPC_FIFO_HARDWARE.send_raw_blocking(0xDEADBEEF),
             Err(a) => IPC_FIFO_HARDWARE.send_raw_blocking(a.bits()),
@@ -44,7 +52,12 @@ fn main() {
             let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
             match IPC_FIFO_HARDWARE.read_status() {
                 1 => {
+
                     let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
+                    if controls & (1 << 8) > 0 {
+                        i2c_write(0x4A, 0x70, 1);
+                        i2c_write(0x4A, 0x11, 1);
+                    }
                     IPC_FIFO_HARDWARE.send_raw_blocking(controls as u32);
                 }
                 2 => {
@@ -174,4 +187,53 @@ pub unsafe fn nocash_write(str: &str) {
     for byte in str.as_bytes() {
         NOCASH_OUT_CHR.write_volatile(*byte);
     }
+}
+
+
+unsafe fn i2c_write(device: u8, reg: u8, data: u8) -> bool {
+    let delay = i2c_get_delay(device);
+    for _ in 0..8 {
+        if i2c_select_device(device) && i2c_select_register(reg) {
+            i2c_wait_busy();
+            reboot_lib::swi_delay(delay as u32);
+            (0x4004500 as *mut u8).write_volatile(data);
+            reboot_lib::swi_delay(delay as u32);
+            (0x4004501 as *mut u8).write_volatile((1<<7) | 1);
+            reboot_lib::swi_delay(delay as u32);
+            reboot_lib::swi_delay(delay as u32);
+            (0x4004501 as *mut u8).write_volatile((1<<7) | 1 | 4);
+            if i2c_get_result() {
+                return true
+            }
+            
+        }
+    }
+    false
+}
+unsafe fn i2c_get_delay(device: u8) -> u16 {
+    if device == 0x4A {
+        0x180
+    } else {
+        0
+    }
+}
+unsafe fn i2c_select_device(device: u8) -> bool {
+    i2c_wait_busy();
+    (0x4004500 as *mut u8).write_volatile(device);
+    (0x4004501 as *mut u8).write_volatile((1<<7) | (1<<1));
+    return i2c_get_result()
+}
+unsafe fn i2c_select_register(register: u8) -> bool {
+    i2c_wait_busy();
+    (0x4004500 as *mut u8).write_volatile(register);
+    (0x4004501 as *mut u8).write_volatile(1<<7);
+    return i2c_get_result()
+}
+
+unsafe fn i2c_get_result() -> bool {
+    i2c_wait_busy();
+    return (0x4004501 as *mut u8).read_volatile() & 1 != 0;
+}
+unsafe fn i2c_wait_busy() {
+    while (0x4004501 as *mut u8).read_volatile() & 0x80 > 0 {}
 }

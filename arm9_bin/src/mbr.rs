@@ -57,3 +57,8 @@ impl CHS {
         self.0[2] as u16 | ((self.0[1] as u16) & 0b11000000 << 2)
     }
 }
+impl MBR {
+    pub fn has_valid_signature(&self) -> bool {
+        self.boot_signature == [0x55, 0xAA]
+    }
+}

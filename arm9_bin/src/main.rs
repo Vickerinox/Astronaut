@@ -25,51 +25,6 @@ pub unsafe fn nocash_write(str: &str) {
     }
 }
 
-/// This function steals control of the ARM7 CPU assuming it is running in the sync loop within the bootloader.
-/// The way it does this is by stealing some unused WRAM, writing a jump table to "stabilize" it,
-/// binary at the destination of the jump table, and mapping it to the memory where the ARM7 is executing
-pub unsafe fn steal_arm7() {
-    //offsets in words (4 bytes) into the WRAM were about to steal
-    //JT here means "jump table", offsets could likely be tweaked, but i've not bothered to tune them.
-    const ENTRYPOINT_OFFSET: usize = 0x7FF; //cannot be within the jumptable, hopefully for obvious reasons.
-    const JT_START: usize = 0x100;
-    const JT_END: usize = 0x780;
-    const BRANCH_BASE: usize = ENTRYPOINT_OFFSET - 2; //because ARM instructions are "special", this is correct.
-
-    //some magic constants never hurt ;)
-    const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
-    const STOLEN_WRAM: *mut u32 = 0x03000000 as *mut u32;
-    const BINARY_ENTRY_ADDR: *mut u32 =
-        (0x03000000 + (ENTRYPOINT_OFFSET * size_of::<u32>())) as *mut u32;
-
-    //steal WRAM-C4 from the arm7, as it *should* be unused. It is owned by the arm9 in slot0
-    core::ptr::write_volatile(0x4004050 as *mut u8, 0b10000000);
-    //map WRAM-C4 to 0x0300_0000..0x0300_8000 on our side. Which should also be unused right now.
-    core::ptr::write_volatile(0x400405C as *mut u32, 1 << 19);
-
-    new_takeover::flush_mmc();
-    //Write our jump table to the WRAM
-    for i in JT_START..JT_END {
-        core::ptr::write_volatile(
-            STOLEN_WRAM.add(i),
-            BLANK_BRANCH_INSTRUCTION | ((BRANCH_BASE - i) & 0xFFFFFF) as u32,
-        );
-    }
-    //Write our binary (for now an infinte loop instruction)
-    for (j, c) in ARM7_BINARY.chunks_exact(4).enumerate() {
-        let stuff = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
-        core::ptr::write_volatile(BINARY_ENTRY_ADDR.add(j), stuff);
-    }
-
-    new_takeover::flush_mmc();
-    //overwrite the WRAM bank the arm7 is currently executing in with ours
-    //Set WRAM-C4 to slot 7 on arm7, replacing the bank it's currently executing in. (WRAM-C7)
-    core::ptr::write_volatile((0x4004050) as *mut u8, 0b10011101);
-    //disable the old WRAM bank (WRAM-C7) entirely (unneccesary maybe?)
-    core::ptr::write_volatile((0x4004053) as *mut u8, 0);
-
-    //congrats! Now the arm7 is stolen. Since it will immediately jump to it's entrypoint.
-}
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
 }
@@ -88,13 +43,13 @@ unsafe fn main() {
 
         reboot_lib::IPC_FIFO_HARDWARE.enable();
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
-        
+        new_takeover::mysterious_takeover_function();
 
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
 
         //enable the 2D engine A, with no backgrounds on.
         core::ptr::write_volatile(0x4000000 as *mut u32, 0b0000000000000000100000011_0000_0000);
-        core::ptr::write_volatile(0x4001000 as *mut u32, 0b0000000000000000100000011_0000_0000);
+        core::ptr::write_volatile(0x4001000 as *mut u32, 0b0000000000000000100000000_0000_0000);
 
         core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
 
@@ -104,7 +59,7 @@ unsafe fn main() {
         core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
         core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
         
-        new_takeover::our_mysterious_function();
+        
         //copy font to vram
         for (i, w) in FONT_FILE.chunks_exact(4).enumerate() {
             let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
@@ -183,29 +138,37 @@ unsafe fn main() {
         let sd_mbr = &*(sd_buffer as *mut [reboot_lib::StorageSector]
             as *const reboot_lib::StorageSector as *const ()
             as *const mbr::MBR);
-        let sign = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.boot_signature));
+
+        let sd_fs = if sd_mbr.has_valid_signature() {
+            let sd_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
+            let sd_size =
+                core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].sector_count));
+            nand::mount_sd_card_partition(sd_lba, sd_size, sd_buffer).ok()
+        } else {
+            None
+        };
+
 
         read_encrypted_nand(nand_buffer, 0x0);
 
         let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector]
             as *const reboot_lib::StorageSector as *const ()
             as *const mbr::MBR);
-        let bytes = &*(nand_buffer as *mut [reboot_lib::StorageSector]
-            as *const reboot_lib::StorageSector as *const ()
-            as *const [u8; 64]);
 
-        let sd_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
-        let sd_size =
-            core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].sector_count));
+        let nand_fs = if mbr.has_valid_signature() {
+            let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
+            let twl_size =
+                core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
+                nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
+        } else {
+            None
+        };
 
-        let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-        let twl_size =
-            core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
-
-        let sd_fs = nand::mount_sd_card_partition(sd_lba, sd_size, sd_buffer).ok();
-        let nand_fs = nand::mount_twl_main(twl_lba, twl_size, nand_buffer).unwrap();
-
-        let mut working_folder = nand_fs.root_dir();
+        let mut working_folder = if let Some(folder) = nand_fs.as_ref().or(sd_fs.as_ref()) {
+            folder.root_dir()
+        } else {
+            panic!("No filesystem could be initialized, aborting...")
+        };
         let mut showing = "Currently in: NAND";
         let mut old_controls;
         let mut new_controls = Buttons::empty();
@@ -232,8 +195,10 @@ unsafe fn main() {
                 }
             }
             if cont_controls.contains(Buttons::BUTTON_SELECT) {
-                working_folder = nand_fs.root_dir();
-                showing = "Currently in: NAND";
+                if let Some(fs) = &nand_fs {
+                    working_folder = fs.root_dir();
+                    showing = "Currently in: NAND";
+                }
             }
             let select = cont_controls.contains(Buttons::BUTTON_A);
             let mut max = 0;
@@ -354,14 +319,23 @@ fn read_controller() -> Buttons {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
-        core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000000001);
+        core::ptr::write_volatile(0x5000000 as *mut u16, 0b0000000000111111);
+        core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000000000111111);
 
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
 
         video_context.next_frame();
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str(&alloc::format!("{:?} {}", info.location(), info.message()));
+            text_pass.layout_str("Panic occured:");
+            text_pass.next_line();
+            text_pass.next_line();
+            text_pass.layout_str(&alloc::format!("message: {}",  info.message()));
+            text_pass.next_line();
+            text_pass.next_line();
+            if let Some(loc) = info.location() {
+                text_pass.layout_str(&alloc::format!("location: {}",  loc));
+            }
         });
         video_context.next_frame();
     }
