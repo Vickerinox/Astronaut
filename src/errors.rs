@@ -2,6 +2,7 @@ use crate::mmc;
 use crate::mmc::mbr::MBRError;
 use elf::ParseError;
 use fatfs::Error as FatFsError;
+use std::borrow::{self, Cow};
 use std::fmt::Display;
 use std::io::Error as IoError;
 use std::path::{Path, PathBuf};
@@ -95,11 +96,18 @@ pub enum TMDCompileError {
     #[error("fat fs file {path} not found {source:?}")]
     FileNotFound {
         source: FatFsError<IoError>,
-        path: String,
+        path: Cow<'static, str>,
     },
     #[error("TMD file verification failed")]
     FileVerification,
 }
+impl<C: Into<Cow<'static, str>>> From<(FatFsError<IoError>, C)> for TMDCompileError {
+    fn from(value: (FatFsError<IoError>, C)) -> Self {
+        let (source, p) = value;
+        Self::FileNotFound { source, path: p.into() }
+    }
+}
+
 
 #[derive(Error, Debug)]
 pub enum CargoError {
