@@ -72,6 +72,8 @@ impl From<TMDCompileError> for CompileError {
 }
 #[derive(Error, Debug)]
 pub enum TMDCompileError {
+    #[error("tmd file not found at {0:?}")]
+    TMDFileMissing(PathBuf),
     #[error("missing TMP footer")]
     MissingFooter,
     #[error("could not find mmc {0}")]
@@ -86,6 +88,10 @@ pub enum TMDCompileError {
     IOWrite(IoError),
     #[error("fat fs {0:?}")]
     Fatfs(FatFsError<IoError>),
+    #[error("Could not find sys {0}, file system is likely corrupted")]
+    SYSNotFound(FatFsError<IoError>),
+    #[error("HWINFO.DAT not found {0:?}, is filesystem corrupted? ")]
+    HWINFONotFound(FatFsError<IoError>),
     #[error("fat fs file {path} not found {source:?}")]
     FileNotFound {
         source: FatFsError<IoError>,

@@ -1,3 +1,5 @@
+use tracing::{debug, info};
+
 const PRECOMPUTED_SBOX: [u8; 256] = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
     0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -46,7 +48,7 @@ fn xtime(x: u8) -> u8 {
 #[test]
 fn xtime_table() {
     let x_table: [u8; 256] = core::array::from_fn(|i| xtime(i as u8));
-    println!("{x_table:#04x?}");
+    debug!("{x_table:#04x?}");
 }
 
 #[test]
@@ -54,7 +56,7 @@ fn test_le_be_operations() {
     let key = u128::from_be_bytes(b"WhyAreYuLikeThis".to_vec().try_into().unwrap());
     let be_encryptor = Encryptor::new(&key);
     let le_encryptor = Encryptor::new_le(&key);
-    println!(
+    debug!(
         "{:#34x?} {:#34x?} {}",
         u128::from_be_bytes(be_encryptor.rkeys[1]),
         u128::from_le_bytes(le_encryptor.rkeys[1]),
@@ -66,7 +68,7 @@ fn test_le_be_operations() {
 
     Encryptor::subrot(&mut be, 8);
     Encryptor::subrot_le(&mut le, 8);
-    println!(
+    debug!(
         "{:#10x?} {:#10x?}",
         u32::from_be_bytes(be),
         u32::from_le_bytes(le)

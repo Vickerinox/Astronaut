@@ -1,22 +1,28 @@
 use std::{io::Write, path::PathBuf, process::Stdio};
 
+use tracing::{debug, error, info};
+
 use crate::errors::{CargoError, CompileError};
 
 pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     let mut cwd = std::process::Command::new("cargo")
         .arg("build")
-        .arg("-r").current_dir(&path)
+        .arg("-r")
+        .current_dir(&path)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
         .map_err(|e| CargoError::SpawnChild(e))?;
-
+    info!(
+        "Spawning cargo command cargo build -r in {}",
+        path.to_str().expect("already checked")
+    );
     if !cwd
         .wait()
         .map_err(|e| CargoError::FailedCommand(e))?
         .success()
     {
-        eprintln!(
+        error!(
             "failed to run `cargo build -r` in {}`",
             path.to_str().expect("already checked")
         );
@@ -47,7 +53,7 @@ pub fn compile_arm7(
     empty_bin[..HEADER_SIZE]
         .copy_from_slice(&(BLANK_BRANCH_INSTRUCTION | entry_value).to_ne_bytes());
 
-    println!(
+    debug!(
         "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",
         entrypoint, entry_point, entry_value
     );
@@ -66,7 +72,7 @@ pub fn compile_arm7(
             empty_bin.append(&mut vec![0; extra_len]);
         }
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
-        println!(
+        debug!(
             "SEGMENT '{}' OCCUPIED {} BYTES, {:x?}, {:x?} {:x?}",
             segment.p_type, segment.p_filesz, segment.p_vaddr, file_offset_start, file_offset_end
         );
@@ -84,7 +90,7 @@ pub fn compile_arm7(
         .write_all(&empty_bin[..])
         .map_err(|e| CompileError::BinWriteFailute(e))?;
 
-    println!("MISSION COMPLETE");
+    info!("MISSION COMPLETE");
     Ok(())
 }
 
@@ -111,7 +117,7 @@ pub fn compile_bootstrap(
 
     empty_bin[..4].copy_from_slice(&(BLANK_BRANCH_INSTRUCTION | arm9_entry_value).to_ne_bytes());
 
-    println!(
+    debug!(
         "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",
         arm9_entrypoint, arm9_entry_point, arm9_entry_value
     );
@@ -134,7 +140,7 @@ pub fn compile_bootstrap(
             empty_bin.append(&mut vec![0; extra_len]);
         }
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
-        println!(
+        debug!(
             "SEGMENT OCCUPIED {} BYTES, {:x?} {:x?}",
             segment.p_filesz, file_offset_start, file_offset_end
         );
@@ -154,7 +160,7 @@ pub fn compile_bootstrap(
 
     empty_bin[4..8].copy_from_slice(&(BLANK_BRANCH_INSTRUCTION | arm7_entry_value).to_ne_bytes());
 
-    println!(
+    debug!(
         "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",
         arm7_entrypoint, arm7_entry_point, arm7_entry_value
     );
@@ -175,7 +181,7 @@ pub fn compile_bootstrap(
             empty_bin.append(&mut vec![0; extra_len]);
         }
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
-        println!(
+        debug!(
             "SEGMENT OCCUPIED {} BYTES, {:x?} {:x?}",
             segment.p_filesz, file_offset_start, file_offset_end
         );
@@ -192,6 +198,6 @@ pub fn compile_bootstrap(
         .write_all(&empty_bin[..])
         .map_err(|e| CompileError::BinWriteFailute(e))?;
 
-    println!("MISSION COMPLETE");
+    info!("MISSION COMPLETE");
     Ok(())
 }

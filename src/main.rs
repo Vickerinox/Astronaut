@@ -9,8 +9,9 @@ use std::{
 use clap::Parser;
 use elf::{endian::AnyEndian, ElfBytes};
 use rfd::FileDialog;
+use tracing::{debug, error, info, span, Level};
 
-use self::errors::{BuildError, CompileError, Crate};
+use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
 mod build;
 mod errors;
 mod mmc;
@@ -30,8 +31,8 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
     const MAGIC_START_POINT: usize = 0x37DF06C;
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
-    println!("SELECTED ELF: {:?}", &elf_file_path);
-    println!("SELECTED MMC: {:?}", &mmc_file_path);
+    info!("SELECTED ELF: {:?}", &elf_file_path);
+    info!("SELECTED MMC: {:?}", &mmc_file_path);
     let file =
         fs::read(elf_file_path).map_err(|e| Crate::TMD.err()(CompileError::ElfNotFound(e)))?;
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..]).unwrap();
@@ -47,7 +48,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
     };
     let entry_point = entrypoint - (MAGIC_START_POINT as u64);
     let entry_value = (entrypoint as u32) + 4;
-    println!("{} {:x} {:x}", entrypoint, entry_point, entry_value);
+    info!("{} {:x} {:x}", entrypoint, entry_point, entry_value);
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
         let file_offset_start = (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64);
         let file_offset_end = file_offset_start + segment.p_filesz as i64;
@@ -58,7 +59,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
             .segment_data(&segment)
             .map_err(|e| Crate::TMD.err()(CompileError::ElfSegmentError(e)))?;
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
-        println!(
+        debug!(
             "OCCUPIED {} BYTES, {:x?} {:x?}",
             segment.p_filesz, file_offset_start, file_offset_end
         );
@@ -70,7 +71,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
 
     mmc::write_tmd_to_image(mmc_file_path, &empty_tmd).map_err(Crate::TMD.err())?;
 
-    println!("MISSION COMPLETE");
+    info!("MISSION COMPLETE");
     Ok(())
 }
 #[derive(Parser)]
@@ -118,29 +119,49 @@ impl FixedCompilerArgs {
         let arm7_include_path = env_us.clone().join("arm9_bin/src/arm7.bin");
         let bootstrap_include_path = env_us.clone().join("arm9_bin/src/bootstrap.bin");
 
-        print!("Compiling bootstrap...");
+        let span = span!(Level::TRACE, "Compiling Bootstrap");
+        let _enter = span.enter();
         build::build_crate(arm9_bootstrap_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
+        debug!("Built arm9 bootstrap");
         build::build_crate(arm7_bootstrap_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
-
+        debug!("Built arm7 bootstrap");
         build::compile_bootstrap(arm9_bs_elf, arm7_bs_elf, bootstrap_include_path)
             .map_err(Crate::BootStrap.err())?;
-
-        println!("Done!");
+        debug!("Done compiling bootstraps!");
+        drop(_enter);
+        let span = span!(Level::TRACE, "Arm7 binary");
+        let _enter = span.enter();
         //we have to do this idiotic thing or cargo craps itself with config.toml
-        print!("Compiling ARM7 binary... ");
+        info!("Compiling ARM7 binary... ");
         build::build_crate(arm7_path).map_err(|e| (e, Crate::Arm7))?;
-        println!("Success!");
-        print!("Injecting into ARM7...");
-        build::compile_arm7(arm7_elf, arm7_include_path).map_err(Crate::Arm7.err())?;
+        debug!("Done building AMR7!");
 
-        println!("Success!");
-        print!("Compiling ARM9 binary... ");
+        drop(_enter);
+        let span = span!(Level::TRACE, "Arm7 binary injection");
+        let _enter = span.enter();
+        info!("Injecting into ARM7...");
+        build::compile_arm7(arm7_elf, arm7_include_path).map_err(Crate::Arm7.err())?;
+        debug!("Done injecting AMR7!");
+        drop(_enter);
+        let span = span!(Level::TRACE, "Arm9 binary");
+        let _enter = span.enter();
+        info!("Compiling ARM9 binary... ");
         build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
-        println!("Success!");
-        print!("Resolving MMC image... ");
-        let mmc_image_path = std::path::absolute(self.tmd_file).expect("Failed to make absolute");
-        println!("resolved to {:?}", mmc_image_path);
-        println!("Injecting TMD into MMC image...");
+        debug!("Done building ARM9!");
+        drop(_enter);
+        let span = span!(Level::TRACE, "Arm9 binary injection");
+        let _enter = span.enter();
+        info!("Resolving MMC image... ");
+        debug!("Done building ARM9!");
+        drop(_enter);
+        let span = span!(Level::TRACE, "tmd");
+        let _enter = span.enter();
+        let mmc_image_path = std::fs::canonicalize(&self.tmd_file).map_err(|e| BuildError {
+            compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(self.tmd_file)),
+            crate_type: Crate::TMD,
+        })?;
+        debug!("resolved to {:?}", mmc_image_path);
+        info!("Injecting TMD into MMC image...");
         construct_tmd(arm9_elf, mmc_image_path)?;
         Ok(())
     }
@@ -151,18 +172,21 @@ fn get_file() -> Option<PathBuf> {
         .pick_file()
 }
 fn main() {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
     let args: FixedCompilerArgs = match CompilerArgs::parse()
         .try_into()
         .map_err(|e: &'static str| e.to_owned())
     {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("Could not get TMD file {e:?}");
+            error!("Could not get TMD file {e:?}");
             exit(1)
         }
     };
     match args.build() {
-        Ok(()) => println!("Done"),
-        Err(e) => eprintln!("Failed to build {}", e),
+        Ok(()) => info!("Done"),
+        Err(e) => error!("Failed to build {}", e),
     }
 }
