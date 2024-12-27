@@ -1,22 +1,24 @@
 use crate::errors::{CompileError, TMDCompileError};
 use core::array;
-use std::fs;
+use console::Style;
 use fatfs::Error as FatFsError;
 use fatfs::{FileSystem, FsOptions, StdIoWrapper};
 use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
 use sha1::{Digest, Sha1};
+use similar::{ChangeTag, TextDiff};
+use std::fmt::Formatter;
+use std::fs;
 use std::io::Error as IoError;
 use std::{
     fs::OpenOptions,
-    io::{Read, Write, Seek, SeekFrom},
+    io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
 use tracing::{debug, error, info, warn};
 pub mod aes_ecb;
 pub mod mbr;
 pub mod nandcursor;
-
 
 const HWINFO_PATH: &str = "/sys/HWINFO_S.dat";
 const REGULAR_TMD_LEN: usize = 520;
@@ -78,7 +80,7 @@ fn open_main_twl<'a>(
 pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), CompileError> {
     print!("Loading MMC Image... ");
     let mut mmc_image = fs::read(&mmc_path).map_err(|e| TMDCompileError::MMCNotFound(e))?;
-    
+
     println!("Done.");
     print!("Mounting TWL_MAIN... ");
     let fs = open_main_twl(&mut mmc_image)?;
@@ -88,9 +90,15 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     let root = fs.root_dir();
     let tid = {
         let mut tid_buffer = [0u8; 4];
-        let mut hw_info = root.open_file(HWINFO_PATH).map_err(|e| TMDCompileError::from((e, HWINFO_PATH)) )?;
-        hw_info.seek(SeekFrom::Start(0xA0)).map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
-        hw_info.read_exact(&mut tid_buffer).map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
+        let mut hw_info = root
+            .open_file(HWINFO_PATH)
+            .map_err(|e| TMDCompileError::from((e, HWINFO_PATH)))?;
+        hw_info
+            .seek(SeekFrom::Start(0xA0))
+            .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
+        hw_info
+            .read_exact(&mut tid_buffer)
+            .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
         u32::from_le_bytes(tid_buffer)
     };
     println!("Done.");
@@ -100,8 +108,9 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     print!("Modifying Title.TMD... ");
     let mut file = root
         .open_file(&tmd_path)
-        .map_err(|e| TMDCompileError::from((e, tmd_path.to_string())) )?;
-    file.seek(SeekFrom::Start(REGULAR_TMD_LEN as u64)).map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
+        .map_err(|e| TMDCompileError::from((e, tmd_path.to_string())))?;
+    file.seek(SeekFrom::Start(REGULAR_TMD_LEN as u64))
+        .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
     file.write_all(&tmd[REGULAR_TMD_LEN..])
         .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
     file.truncate().map_err(|e| TMDCompileError::Fatfs(e))?;
@@ -141,8 +150,18 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         Ok(())
     } else {
         println!("Failed, aborting...");
-        let diff = hexify::format_hex_dump_comparison_width(&vec, &tmd, 16);
-        eprintln!("{}", diff);
+
+        let should_be = hexify::format_hex(&vec);
+        let actual = hexify::format_hex(&tmd);
+        let diff = TextDiff::from_lines(&should_be, &actual);
+        for change in diff.iter_all_changes() {
+            let (sign, style) = match change.tag() {
+                ChangeTag::Delete => ("-", Style::new().red()),
+                ChangeTag::Insert => ("+", Style::new().green()),
+                ChangeTag::Equal => continue,
+            };
+            eprint!("{}{}", style.apply_to(sign).bold(), style.apply_to(change));
+        }
         Err(CompileError::TMD(TMDCompileError::FileVerification))
     }
 }
