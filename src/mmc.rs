@@ -116,7 +116,7 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
     //verify the file
     print!("Verifying TMD... ");
-    if &vec == &tmd {
+    if &vec[REGULAR_TMD_LEN..] == &tmd[REGULAR_TMD_LEN..] {
         drop(root);
         drop(file);
         debug!("TMD is valid");
