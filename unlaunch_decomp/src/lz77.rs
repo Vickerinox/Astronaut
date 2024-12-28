@@ -170,7 +170,7 @@ fn decompress(data: &[u8]) -> Vec<u8> {
 }
 #[cfg(test)]
 mod test {
-    const FUZZING_AMOUNT: usize = 100_000;
+    const FUZZING_AMOUNT: usize = 10_000_000;
     use std::fmt::Write as _;
     use std::fs::File;
     use std::io::BufRead;
@@ -284,7 +284,7 @@ mod test {
         let start = Instant::now();
         let new_inputs = (0..FUZZING_AMOUNT)
             .par_bridge()
-            .map(|_| (0..2000).map(|_| rand::random()).collect());
+            .map(|_| (0..20_000).map(|_| rand::random()).collect());
         let failed = inputs
             .into_par_iter()
             .progress()
