@@ -17,7 +17,6 @@ mod bootloader;
 mod mbr;
 mod nand;
 pub mod new_takeover;
-pub mod unlaunch;
 
 pub unsafe fn nocash_write(str: &str) {
     const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;

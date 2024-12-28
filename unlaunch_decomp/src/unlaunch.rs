@@ -24,6 +24,7 @@ unsafe fn arm7_main() {
     }
     //0x6023D64
 
+    /* 
     //0x6023db0
     fun_06027568(); //dsi wifi init
     fun_060267a0(); //gpio init?
@@ -44,7 +45,7 @@ unsafe fn arm7_main() {
     fun_6027128(); //changing wram
     //aes stuff is done here too (shouldn't we already have done that?)
 
-
+    */
     //0x6024010
     //ndma stuff is set up
     //more controller reads (meant for dev consoles?)

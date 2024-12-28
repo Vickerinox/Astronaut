@@ -13,7 +13,7 @@ members = [
     "magic_values",
     "micro_gui",
     "reboot_lib"
-]
+, "unlaunch_decomp"]
 
 [dependencies]
 elf = "0.7.4"
