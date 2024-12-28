@@ -20,3 +20,5 @@ Cargo.lock
 
 # pls no sue nintuende
 title.tmd
+unlaunch_decomp/unlaunchc.bin
+unlaunch_decomp/src/unlaunch.decomp.bin

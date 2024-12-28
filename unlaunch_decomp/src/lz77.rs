@@ -4,11 +4,20 @@ fn unlaunch_bin() {
 	let data = decompress(input);
 	let compress_again = compress(&data);
 	let double_check = decompress(&compress_again);
+	//std::fs::write("./unlaunchc.bin", &compress_again);
 	assert_eq!(&data, &double_check);
-	println!("{} {}", input.len(), compress_again.len());
+	/* 
+	let dec_1 = decomp(&input[4..]);
+	let dec_2 = decomp(&compress_again[4..]);
+	println!("{} {}", dec_1.len(), dec_2.len());
+	for (a,b) in dec_1.into_iter().zip(dec_2.into_iter()) {
+		println!("{:02x?} vs {:02x?}", a,b);
+	}
+	
+	*/
 }
 
-
+#[derive(Debug)]
 pub enum Block {
 	Uncompressed(u8),
 	Compressed {
@@ -16,23 +25,23 @@ pub enum Block {
 		len: u8,
 	}
 }
-
-fn compress(data : &[u8]) -> Vec<u8> {
+fn decomp(data: &[u8]) -> Vec<Block> {
 	let mut output = Vec::new();
 	let mut pos = 0;
 	while pos < data.len() {
 		let (disp, len) = find_longest_match(data, pos);
-		
 		if len < 3 {
 			output.push(Block::Uncompressed(data[pos]));
 			pos += 1;
 		} else {
-			
 			output.push(Block::Compressed { disp: disp as u16, len: len as u8 });
-			pos = pos + (len as usize);
+			pos += len;
 		}
 	}
-	let output: Vec<u8> = output.chunks(8).map(|i| {
+	output
+}
+fn compress(data : &[u8]) -> Vec<u8> {
+	let output: Vec<u8> = decomp(data).chunks(8).map(|i| {
 		let mut output = vec![0u8];
 		
 		for block in i {
@@ -73,7 +82,7 @@ fn find_longest_match(data : &[u8], pos : usize) -> (usize, usize) {
 	
 	for offset in start..pos {
 		let len = matching_len(data, offset, pos);
-		if len > best_len {
+		if len >= best_len {
 			best_offset = pos - (offset as usize) - 1;
 			best_len = len;
 		}
@@ -91,11 +100,51 @@ fn matching_len(data : &[u8], mut offset : usize, mut pos : usize) -> usize {
 	return len;
 }
 
-fn decompress(data : &[u8]) -> Vec<u8> {
 
+fn decomp_parse(data : &[u8]) -> Vec<Block> {
+	let mut output = Vec::new();
+	let mut iter = data.into_iter();
+
+	while let Some(mut flags) = iter.next().copied() {
+		for _ in 0..8 {
+			flags = flags.rotate_left(1);
+			if flags & 1 == 0 {
+				let Some(next_byte) = iter.next().copied() else {break};
+				output.push(Block::Uncompressed(next_byte));
+				
+			} else {
+				let Some(hi_byte) = iter.next().copied() else {break};
+				let Some(lo_byte) = iter.next().copied() else {break};
+
+				let len = 3 + (hi_byte>>4);
+				let disp = 1 + u16::from_be_bytes([hi_byte & 0xf, lo_byte]) as usize;
+
+				output.push(Block::Compressed { disp: disp as u16, len: len as u8 });
+			}
+		}
+	}
+	output
+}
+fn decompress(data : &[u8]) -> Vec<u8> {
 	let signature = data[0];
-	assert!(signature == 16);
 	let size = u32::from_le_bytes([data[1], data[2], data[3], 0]) as usize;
+	assert!(signature == 16);
+	let decomp = decomp_parse(&data[4..]);
+
+	let mut output = Vec::new();
+	for block in decomp {
+		match block {
+			Block::Uncompressed(byte) => output.push(byte),
+			Block::Compressed { disp, len } => {
+				for _ in 0..len {
+					output.push(output[output.len()-disp as usize]);
+				} 
+			},
+		}
+	}
+	assert_eq!(output.len(),size);
+	output
+	/* 
 	let mut output = vec![0u8; size];
 	println!("sign: {signature} size: {size}");
 	let mut src_pos = 4;
@@ -129,4 +178,5 @@ fn decompress(data : &[u8]) -> Vec<u8> {
 		//println!("dst: {dst_pos}, src: {src_pos}");
 	}
 	output
+	*/
 }
