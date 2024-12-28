@@ -5,6 +5,7 @@ fn unlaunch_bin() {
 	let compress_again = compress(&data);
 	let double_check = decompress(&compress_again);
 	assert_eq!(&data, &double_check);
+	println!("{} {}", input.len(), compress_again.len());
 }
 
 
@@ -22,7 +23,7 @@ fn compress(data : &[u8]) -> Vec<u8> {
 	while pos < data.len() {
 		let (disp, len) = find_longest_match(data, pos);
 		
-		if disp < 2  || len < 3 {
+		if len < 3 {
 			output.push(Block::Uncompressed(data[pos]));
 			pos += 1;
 		} else {
@@ -58,7 +59,7 @@ fn compress(data : &[u8]) -> Vec<u8> {
 	final_output
 }
 
-const MAX_DIST: usize = 0xFFF;
+const MAX_DIST: usize = 0x1000;
 const MAX_LEN: usize = 3+0xF;
 // pos is current position in input value
 fn find_longest_match(data : &[u8], pos : usize) -> (usize, usize) {
@@ -71,7 +72,7 @@ fn find_longest_match(data : &[u8], pos : usize) -> (usize, usize) {
 	};
 	
 	for offset in start..pos {
-		let len = matcher(data, offset, pos);
+		let len = matching_len(data, offset, pos);
 		if len > best_len {
 			best_offset = pos - (offset as usize) - 1;
 			best_len = len;
@@ -80,7 +81,7 @@ fn find_longest_match(data : &[u8], pos : usize) -> (usize, usize) {
 	return (best_offset, best_len);
 }
 
-fn matcher(data : &[u8], mut offset : usize, mut pos : usize) -> usize {
+fn matching_len(data : &[u8], mut offset : usize, mut pos : usize) -> usize {
 	let mut len = 0;
 	while pos < data.len() && data[offset] == data[pos] && len < MAX_LEN {
 		offset += 1;
