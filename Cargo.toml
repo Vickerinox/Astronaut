@@ -23,8 +23,8 @@ sha1 = "0.10.6"
 rust-crypto = "0.2.36"
 clap = { version = "4.5.23", features = ["derive"] }
 thiserror = "2.0.9"
-hexify = "0.0.3"
 tracing = { version = "0.1.41", features = ["log-always"] }
 tracing-subscriber = { version = "0.3.19", features = ["time"] }
 similar = "2.6.0"
+hexify = "0.0.3"
 console = "0.15.10"

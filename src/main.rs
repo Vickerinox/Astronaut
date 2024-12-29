@@ -35,7 +35,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
     info!("SELECTED MMC: {:?}", &mmc_file_path);
     let file =
         fs::read(elf_file_path).map_err(|e| Crate::TMD.err()(CompileError::ElfNotFound(e)))?;
-    let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..]).unwrap();
+    let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])?;
     let entrypoint = parse.ehdr.e_entry;
     //let rodata = parse.section_header_by_name(".rodata").unwrap().unwrap();
     let mut empty_tmd = vec![0u8; USED_EXPLOIT_LEN];

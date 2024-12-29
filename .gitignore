@@ -22,3 +22,4 @@ Cargo.lock
 title.tmd
 unlaunch_decomp/unlaunchc.bin
 unlaunch_decomp/src/unlaunch.decomp.bin
+unlaunch_decomp/failed_inputs.txt
