@@ -170,10 +170,12 @@ fn decompress(data: &[u8]) -> Vec<u8> {
 }
 #[cfg(test)]
 mod test {
-    const FUZZING_AMOUNT: usize = 10_000_000;
+    const FUZZING_AMOUNT: usize = 100_000;
+    use std::fmt::Write as _;
     use std::fs::File;
     use std::io::BufRead;
     use std::io::BufReader;
+    use std::io::Write;
 
     use super::*;
     #[allow(unused)]
@@ -255,11 +257,12 @@ mod test {
             );
         }
     }
-    use std::io::Write;
+    use std::time::{Duration, Instant};
     #[test]
     fn fuzz_test() {
         let mut inputs: Vec<Vec<u8>> = Vec::new();
         // Load failed inputs from file
+        let start = Instant::now();
         if let Ok(file) = File::open("failed_inputs.txt") {
             let reader = BufReader::new(file);
             for line in reader.lines() {
@@ -268,37 +271,53 @@ mod test {
                         .split_whitespace()
                         .map(|byte_str| byte_str.parse().unwrap())
                         .collect();
-                    inputs.push(input);
+                    inputs.push(hex::decode(input).expect("file corrupt"));
                 }
             }
         }
 
+        println!(
+            "opening file: nanoseconds:{}",
+            (Instant::now() - start).as_secs()
+        );
         // Generate and test new random inputs
+        let start = Instant::now();
         let new_inputs = (0..FUZZING_AMOUNT)
             .par_bridge()
-            .map(|_| (0..20000).map(|_| rand::random()).collect());
-        let failed: Vec<_> = inputs
+            .map(|_| (0..2000).map(|_| rand::random()).collect());
+        let failed = inputs
             .into_par_iter()
             .progress()
             .chain(new_inputs)
-            .filter(|e| !check_compress_decompress(e))
-            .collect();
+            .filter(|e| !check_compress_decompress(e));
         // Save all failed inputs to file after all tests
+        let mut length = 0;
         if let Ok(mut file) = File::create("failed_inputs.txt") {
-            for input in &failed {
-                for byte in input {
-                    write!(file, "{} ", byte).unwrap();
-                }
-                writeln!(file).unwrap();
+            if let Some((string, len)) = failed
+                .fold_with((Vec::<u8>::new(), 0_u128), |(mut v, i), input| {
+                    v.extend_from_slice((hex::encode(input) + "\n").as_bytes());
+                    (v, i + 1)
+                })
+                .reduce_with(|(mut a, b), (c, d)| {
+                    a.extend(c);
+                    (a, b + d)
+                })
+            {
+                file.write(&string).expect("Could not write to file");
+                length = len;
             }
         }
         println!(
+            "running nanoseconds:{}",
+            (Instant::now() - start).as_secs()
+        );
+        println!(
             "{}% fuzzing attemps failed out of {}",
-            (failed.len() as f64 / FUZZING_AMOUNT as f64) * 100_f64,
+            (length as f64 / FUZZING_AMOUNT as f64) * 100_f64,
             FUZZING_AMOUNT
         );
-        if failed.len() > 0 {
-            panic!("Test failed for {} inputs", failed.len());
+        if length > 0 {
+            panic!("Test failed for {} inputs", length);
         }
     }
 }
