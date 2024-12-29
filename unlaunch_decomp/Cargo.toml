@@ -4,3 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+
+[dev-dependencies]
+hex = "0.4.3"
+rand = "0.8.5"
+rayon = "1.10.0"
+hexify = "0.0.3"
+console = "0.15.10"
+similar = { version = "2.6.0", features = ["bytes"] }
+indicatif = { version = "0.17.9", features = ["rayon"] }
+
+#enabeling a lot of optimization for dependacies like rayon and rand
+[profile.test]
+opt-level = 3              # Optimize for speed
+debug = false               # Disable debug symbols
+rpath = false               # Disable rpath
+lto = true                 # Enable Link Time Optimization
+codegen-units = 1          # Reduce codegen units for faster linking
