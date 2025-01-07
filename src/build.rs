@@ -126,7 +126,7 @@ pub fn compile_bootstrap(
         .iter()
         .filter(|f| f.p_type == 1 && f.p_filesz != 0)
     {
-        let file_offset_start = ((segment.p_vaddr as i64) + (HEADER_SIZE as i64));
+        let file_offset_start = (segment.p_vaddr as i64) + (HEADER_SIZE as i64);
         let file_offset_end = file_offset_start + segment.p_filesz as i64;
         if file_offset_start.is_negative() {
             continue;

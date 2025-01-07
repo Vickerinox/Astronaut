@@ -12,6 +12,7 @@ mod memory;
 mod mmc;
 pub mod ndma;
 pub mod spi;
+pub mod i2c;
 mod swi;
 mod video;
 
@@ -122,6 +123,12 @@ pub unsafe fn arm9_read_sd_sector(start_sector: u32) {
 pub unsafe fn arm9_send_arm7_jump(ptr: u32) {
     IPC_FIFO_HARDWARE.set_status(6);
     IPC_FIFO_HARDWARE.send_raw_blocking(ptr);
+}
+pub unsafe fn arm9_read_firmware(start_address: u32) {
+    IPC_FIFO_HARDWARE.set_status(7);
+    IPC_FIFO_HARDWARE.send_raw_blocking(start_address);
+    while IPC_FIFO_HARDWARE.read_status() != 1 {}
+    IPC_FIFO_HARDWARE.set_status(0);
 }
 pub struct StorageSector([u32; 128]);
 

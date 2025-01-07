@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 #![feature(ptr_metadata)]
+#![feature(str_from_utf16_endian)]
 
 const FONT_FILE: &[u8] = include_bytes!("./font.bin");
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
@@ -9,7 +10,7 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 use core::arch::asm;
 
 use reboot_lib::{
-    Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, VideoPowerControl, Viewport, VIDEO_HARDWARE
+    spi::firmware::{FirmwareHeader, UserData}, Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, VideoPowerControl, Viewport, VIDEO_HARDWARE
 };
 extern crate alloc;
 
@@ -30,7 +31,7 @@ pub unsafe fn steal_main_mem() {
 }
 unsafe fn main() {
     unsafe {
-        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
 
         //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
@@ -48,8 +49,8 @@ unsafe fn main() {
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
 
         //enable the 2D engine A, with no backgrounds on.
-        core::ptr::write_volatile(0x4000000 as *mut u32, 0b0000000000000000100000011_0000_0000);
-        core::ptr::write_volatile(0x4001000 as *mut u32, 0b0000000000000000100000000_0000_0000);
+        core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000000000001_0000_0001_0000_0_000);
+        core::ptr::write_volatile(0x4001000 as *mut u32, 0b00000000000000001_0000_0000_0000_0_000);
 
         core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
 
@@ -125,8 +126,13 @@ unsafe fn main() {
             core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
         let sd_buffer =
             core::slice::from_raw_parts_mut(0x2FFFC00 as *mut reboot_lib::StorageSector, 1);
+        
+        let firmware_buffer = 
+            core::slice::from_raw_parts_mut(0x2FFFA00 as *mut reboot_lib::StorageSector, 1);
+        
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
-        let status = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
+        assert_eq!(reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking(), 0xDEADBEEF);
+        
 
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
@@ -134,10 +140,27 @@ unsafe fn main() {
         });
         video_context.next_frame();
 
+        /* 
+        read_firmware(firmware_buffer, 0x0);
+        let firmware_header: &FirmwareHeader = &*transmute_slice(firmware_buffer);
+
+        
+        let settings_offset = (firmware_header.user_settings_location as u32) << 3;
+        if settings_offset == 0 {
+            panic!("couldn't read ds firmware");
+        }
+        
+        read_firmware(firmware_buffer, settings_offset);
+        let user_settings: &UserData = &*transmute_slice(firmware_buffer);
+
+        let nickname = alloc::format!("{:x?}", &user_settings.nickname);
+        */
+
+        
+
+        
         read_sd_card(sd_buffer, 0x0);
-        let sd_mbr = &*(sd_buffer as *mut [reboot_lib::StorageSector]
-            as *const reboot_lib::StorageSector as *const ()
-            as *const mbr::MBR);
+        let sd_mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
 
         let sd_fs = if sd_mbr.has_valid_signature() {
             let sd_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
@@ -151,9 +174,7 @@ unsafe fn main() {
 
         read_encrypted_nand(nand_buffer, 0x0);
 
-        let mbr = &*(nand_buffer as *mut [reboot_lib::StorageSector]
-            as *const reboot_lib::StorageSector as *const ()
-            as *const mbr::MBR);
+        let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
 
         let nand_fs = if mbr.has_valid_signature() {
             let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
@@ -179,6 +200,8 @@ unsafe fn main() {
         loop {
             old_controls = new_controls;
             new_controls = read_controller();
+            let touching = new_controls.contains(Buttons::PEN_DOWN);
+
 
             let cont_controls = new_controls.intersection(!old_controls);
             let increment = if cont_controls.contains(Buttons::DIRECTION_DOWN) {
@@ -206,6 +229,10 @@ unsafe fn main() {
 
             reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
                 text_pass.set_color(0x7FFF);
+                text_pass.layout_str("Welcome");
+                text_pass.layout_str(&alloc::format!(" {:04b}", new_controls.bits()));
+                text_pass.layout_str("!");
+                text_pass.next_line();
                 text_pass.layout_str(&showing);
                 text_pass.next_line();
                 text_pass.next_line();
@@ -314,6 +341,12 @@ fn read_controller() -> Buttons {
         Buttons::from_bits_retain(bits as u16)
     }
 }
+fn read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
+    unsafe {
+        reboot_lib::arm9_set_buffer(buffer);
+        reboot_lib::arm9_read_firmware(start_offset);
+    }
+}
 
 #[cfg(target_arch = "arm")]
 #[panic_handler]
@@ -340,4 +373,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         video_context.next_frame();
     }
     loop {}
+}
+
+unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
+    slice as *mut T as *mut () as *mut U
 }

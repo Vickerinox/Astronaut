@@ -1,11 +1,11 @@
-use crate::mmc;
+
 use crate::mmc::mbr::MBRError;
 use elf::ParseError;
 use fatfs::Error as FatFsError;
-use std::borrow::{self, Cow};
+use std::borrow::Cow;
 use std::fmt::Display;
 use std::io::Error as IoError;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Debug)]

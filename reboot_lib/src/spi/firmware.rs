@@ -1,0 +1,54 @@
+#[repr(C)]
+pub struct FirmwareHeader {
+    pub part3_location: u16,
+    pub part4_location: u16,
+    pub part_3_4_crc: u16,
+    pub part_1_2_crc: u16,
+    pub firmware_identity: u32,
+    pub part1_arm9_location: u16,
+    pub part1_arm7_location: u16,
+    pub part2_arm9_location: u16,
+    pub part2_arm7_location: u16,
+    pub shift: u16,
+    pub part5_location: u16,
+    
+    pub build_minute: u8,
+    pub build_hour: u8,
+    pub build_day: u8,
+    pub build_month: u8,
+    pub build_year: u8,
+    
+    pub console_type: u8,
+    pub unused_1e: u16,
+    pub user_settings_location: u16,
+    pub unknown1: u16,
+    pub unknown2: u16,
+    pub part5_crc: u16,
+    pub unused_28: u16,
+    pub wifi_calibration_data: [u8; 0x1D4]
+}
+
+
+#[repr(C)]
+pub struct UserData {
+    pub version: u16,
+    pub favorite_color: u8,
+    pub birthday_month: u8,
+    pub birthday_day: u8,
+    pub unused: u8,
+    pub nickname: [u8; 20],
+    pub nickname_len: u16,
+    pub alarm_hour: u8,
+    pub alarm_minute: u8,
+    pub unknown: u16,
+    pub alarm_enable: u8,
+    pub zero: u8,
+    pub touch_screen_calibration_points: [u8; 12],
+    pub language_and_flags: u16,
+    pub year: u8,
+    pub unknown2: u8,
+    pub rtc_offset: u32,
+    pub unused2: u32,
+    pub update_counter: u16,
+    pub crc: u16,
+}
