@@ -26,36 +26,22 @@ impl ByteDecode for PartitionEntry {
         })
     }
 }
-#[repr(u8)]
-enum PartitionTypes {
-    Empty = 0,
-    Fat12 = 1,
-    XENIXroot = 2,
-    XENIXuser = 3,
-    Fat16Small = 4,
-    Extended = 5,
-    Fat16Large = 6,
-    ExFat = 7,
-    LogicalSectoredFat = 8,
-    Fat32CHS = 0x0B,
-    Far32LBA = 0x0E,
-}
 #[derive(Debug)]
 pub enum MBRError {
-    FailedBootstrapRead(IoError),
-    FailedPartitionRead(IoError),
+    FailedBootstrapRead,
+    FailedPartitionRead,
     BadSignature,
-    FailedSignatureRead(IoError),
+    FailedSignatureRead,
 }
 impl ByteDecode for MBR {
     type Error = MBRError;
 
     fn from_reads<R: Read>(reader: &mut R) -> Result<Self, Self::Error> {
-        let bootstrap = read_direct(reader).map_err(|e| MBRError::FailedBootstrapRead(e))?;
+        let bootstrap = read_direct(reader).map_err(|_e| MBRError::FailedBootstrapRead)?;
 
         let partitions = core::array::try_from_fn(|_| PartitionEntry::from_reads(reader))
-            .map_err(|e| MBRError::FailedPartitionRead(e))?;
-        let boot_signature = read_direct(reader).map_err(|e| MBRError::FailedSignatureRead(e))?;
+            .map_err(|_e| MBRError::FailedPartitionRead)?;
+        let boot_signature = read_direct(reader).map_err(|_e| MBRError::FailedSignatureRead)?;
         if boot_signature != [0x55, 0xAA] {
             return Err(MBRError::BadSignature);
         }
@@ -72,10 +58,6 @@ fn read_direct<const N: usize, R: Read>(reader: &mut R) -> Result<[u8; N], IoErr
         Ok(()) => Ok(buf),
         Err(e) => Err(e),
     }
-}
-fn read_byte<R: Read>(reader: &mut R) -> Result<u8, IoError> {
-    let buf: [u8; 1] = read_direct(reader)?;
-    Ok(buf[0])
 }
 #[repr(C)]
 #[derive(Debug)]

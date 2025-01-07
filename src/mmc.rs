@@ -7,16 +7,14 @@ use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
 use sha1::{Digest, Sha1};
 use similar::{ChangeTag, TextDiff};
-use std::fmt::Formatter;
 use std::fs;
-use std::io::Error as IoError;
 use std::{
     fs::OpenOptions,
     io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
-use tracing::{debug, error, info, warn};
-pub mod aes_ecb;
+use tracing::{debug, info, error};
+//pub mod aes_ecb;
 pub mod mbr;
 pub mod nandcursor;
 
@@ -78,21 +76,22 @@ fn open_main_twl<'a>(
 }
 
 pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), CompileError> {
-    print!("Loading MMC Image... ");
-    let mut mmc_image = fs::read(&mmc_path).map_err(|e| TMDCompileError::MMCNotFound(e))?;
+    info!("Loading MMC Image... ");
+    let mut mmc_image = fs::read(&mmc_path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => TMDCompileError::MMCNotFound(e),
+        _ => TMDCompileError::MMCRead(e),
+    })?;
 
-    println!("Done.");
-    print!("Mounting TWL_MAIN... ");
+    info!("Mounting TWL_MAIN... ");
     let fs = open_main_twl(&mut mmc_image)?;
-    debug!("Done mounting twl_main.");
 
-    print!("Inspecting HWINFO_S.dat... ");
+    info!("Inspecting HWINFO_S.dat... ");
     let root = fs.root_dir();
     let tid = {
         let mut tid_buffer = [0u8; 4];
         let mut hw_info = root
             .open_file(HWINFO_PATH)
-            .map_err(|e| TMDCompileError::from((e, HWINFO_PATH)))?;
+            .map_err(|e| TMDCompileError::HWINFONotFound(e))?;
         hw_info
             .seek(SeekFrom::Start(0xA0))
             .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
@@ -101,11 +100,10 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
             .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
         u32::from_le_bytes(tid_buffer)
     };
-    println!("Done.");
 
     let tmd_path = format!("/title/00030017/{tid:08x}/content/title.tmd");
 
-    print!("Modifying Title.TMD... ");
+    info!("Modifying Title.TMD... ");
     let mut file = root
         .open_file(&tmd_path)
         .map_err(|e| TMDCompileError::from((e, tmd_path.to_string())))?;
@@ -124,14 +122,12 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     file.read_exact(&mut vec)
         .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
     //verify the file
-    print!("Verifying TMD... ");
+    info!("Verifying TMD... ");
     if &vec[REGULAR_TMD_LEN..] == &tmd[REGULAR_TMD_LEN..] {
         drop(root);
         drop(file);
-        debug!("TMD is valid");
         info!("Unmounting TWL_MAIN... ");
         fs.unmount().map_err(|e| TMDCompileError::Fatfs(e))?;
-        debug!("Done umounting TWL_MAIN.");
 
         let mut file = OpenOptions::new()
             .read(true)
@@ -145,11 +141,10 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
             mmc_image.len() as u64
         );
         info!("Rewriting NAND image... ");
-        file.write_all(&mmc_image).unwrap();
-        info!("Finished writing tmd to image.");
+        file.write_all(&mmc_image).map_err(|e| TMDCompileError::IOWrite(e))?;
         Ok(())
     } else {
-        println!("Failed, aborting...");
+        error!("Failed verifying tmd, aborting...");
 
         let should_be = hexify::format_hex(&vec);
         let actual = hexify::format_hex(&tmd);

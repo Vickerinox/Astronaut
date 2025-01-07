@@ -51,7 +51,7 @@ fn main() {
         let mut buffer: *mut [reboot_lib::StorageSector] =
             core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0);
 
-            //reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
+            reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
 
         
         IPC_FIFO_HARDWARE.enable();

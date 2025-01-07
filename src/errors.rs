@@ -89,8 +89,6 @@ pub enum TMDCompileError {
     IOWrite(IoError),
     #[error("fat fs {0:?}")]
     Fatfs(FatFsError<IoError>),
-    #[error("Could not find sys {0}, file system is likely corrupted")]
-    SYSNotFound(FatFsError<IoError>),
     #[error("HWINFO.DAT not found {0:?}, is filesystem corrupted? ")]
     HWINFONotFound(FatFsError<IoError>),
     #[error("fat fs file {path} not found {source:?}")]

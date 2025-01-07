@@ -31,7 +31,7 @@ pub unsafe fn steal_main_mem() {
 }
 unsafe fn main() {
     unsafe {
-        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
         //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
@@ -133,12 +133,12 @@ unsafe fn main() {
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
         assert_eq!(reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking(), 0xDEADBEEF);
         
+        
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
+        //core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000000000001_0000_0001_0000_0_000);
+        //core::ptr::write_volatile(0x4001000 as *mut u32, 0b00000000000000001_0000_0000_0000_0_000);
 
-        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
-            text_pass.set_color(0x7FFF);
-            text_pass.layout_str("reading mbr...");
-        });
-        video_context.next_frame();
+
 
         /* 
         read_firmware(firmware_buffer, 0x0);
@@ -154,7 +154,7 @@ unsafe fn main() {
         let user_settings: &UserData = &*transmute_slice(firmware_buffer);
 
         let nickname = alloc::format!("{:x?}", &user_settings.nickname);
-        */
+        
 
         
 
@@ -170,9 +170,21 @@ unsafe fn main() {
         } else {
             None
         };
+        */
+        let sd_fs = None;
 
-
+        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.layout_str("reading nand mbr...");
+        });
+        video_context.next_frame();
         read_encrypted_nand(nand_buffer, 0x0);
+
+        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.layout_str("mounting nand...");
+        });
+        video_context.next_frame();
 
         let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
 

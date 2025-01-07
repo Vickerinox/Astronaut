@@ -26,7 +26,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
         0, 0, 0, 0, 1, 0, 0, 0, 192, 14, 127, 3, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
     const M_STATE_OFFSET: usize = 0x13250;
-    const MIN_EXPLOIT_LEN: usize = 0x13C01;
+    const _MIN_EXPLOIT_LEN: usize = 0x13C01;
     const USED_EXPLOIT_LEN: usize = 81400;
     const MAGIC_START_POINT: usize = 0x37DF06C;
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
@@ -70,8 +70,6 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
 
     mmc::write_tmd_to_image(mmc_file_path, &empty_tmd).map_err(Crate::TMD.err())?;
-
-    info!("MISSION COMPLETE");
     Ok(())
 }
 #[derive(Parser)]
@@ -156,7 +154,7 @@ impl FixedCompilerArgs {
         drop(_enter);
         let span = span!(Level::TRACE, "tmd");
         let _enter = span.enter();
-        let mmc_image_path = std::fs::canonicalize(&self.tmd_file).map_err(|e| BuildError {
+        let mmc_image_path = std::fs::canonicalize(&self.tmd_file).map_err(|_| BuildError {
             compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(self.tmd_file)),
             crate_type: Crate::TMD,
         })?;
@@ -181,7 +179,7 @@ fn main() {
     {
         Ok(e) => e,
         Err(e) => {
-            error!("Could not get TMD file {e:?}");
+            error!("Could not get MMC file {e:?}");
             exit(1)
         }
     };

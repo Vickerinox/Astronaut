@@ -1,7 +1,7 @@
 unsafe fn arm7_main() {
     //0x6023D04
-    fun_0602bfc8();
-    fun_0602bfdc();
+    fun_0602bfc8(); // set 0x4000210 to 0 (disables interrupts)
+    fun_0602bfdc(); // set 0x4000218 to 0 (disables interrupts)
     fun_060244b0();
     let r1 = 0x400_4020;
     let r0 = 1;
@@ -25,6 +25,21 @@ unsafe fn arm7_main() {
     //0x6023D64
 
     /* 
+    fun_602b738();
+    
+    fun_602c1a8();
+    fun_6025bf4();
+    
+    fun_602bfb4();
+
+    fun_602bfb4();
+    fun_60255f0();
+
+    fun_60253e0();
+
+    fun_60254d0();
+    fun_60244b0();
+
     //0x6023db0
     fun_06027568(); //dsi wifi init
     fun_060267a0(); //gpio init?
@@ -52,6 +67,8 @@ unsafe fn arm7_main() {
     //scfg stuff
 
     //jump to 0x380f700?
+
+    //0x60244F4 Main program loop?
 }
 
 unsafe fn fun_06026698() {
