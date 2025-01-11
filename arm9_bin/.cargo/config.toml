@@ -12,7 +12,7 @@ rustflags = ["-C", "linker-flavor=ld.lld", "-C", "relocation-model=pic","-C", "l
 
 [build]
 target = "armv5te-none-eabi"
-
+target-dir = "../target-binary"
 
 [unstable]
 build-std = ["core", "alloc"]

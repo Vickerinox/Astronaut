@@ -133,7 +133,7 @@ pub struct MMC {
     pub ext_card_detect_dat3: RW<u16>,
     pub ext_card_detect_mask: RW<u16>,
     pub ext_card_detect_dat3_mask: RW<u16>,
-    pub data_control_32: RW<u16>,
+    pub data_control_32: RW<DataControl32>,
     _0x102: u16,
     pub block_len_32: RW<u16>,
     _0x106: u16,
@@ -142,18 +142,33 @@ pub struct MMC {
     pub data_fifo_32: RW<u32>,
 }
 
+
+bitflags::bitflags! { 
+    #[derive(Clone, Copy)]
+    pub struct DataControl32: u16 {
+        const ENABLE_RX_IRQ = (1 << 11);
+        const ENABLE_TX_IRQ = (1 << 12);
+        const CLEAR_FIFO_32 = (1 << 10);
+        const RX_READY = (1 << 8);
+        const TX_READY = (1 << 9);
+        const USE_DATA32 = (1 << 1);
+    }
+}
 // A rust implementation of profi2000's TMIO in pure rust. And awful.
 
 impl MMC {
     pub unsafe fn tmio_init(&self) {
-        self.data_control_32.write(2 | (1 << 10)); // enable and clear data32 fifo
+        self.data_control_32.write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32); // enable and clear data32 fifo
         self.block_len_32.write(512);
         self.block_count_32.write(1);
-        self.data_control.write(Control::from_bits_retain(1)); // enable DMA requests? (gbatek says data32 mode?)
+        self.data_control.write(Control::USE_DATA32); // enable DMA requests? (gbatek says data32 mode?)
 
+        
         //reset and un-reset
         self.soft_reset.write(0);
         self.soft_reset.write(1);
+
+        
         self.port_select.write(0);
         self.block_count.write(1);
         self.irmask.write(
@@ -204,7 +219,7 @@ impl MMC {
     pub unsafe fn send_command(
         &self,
         port: &mut TMIOPort,
-        command: CommandNumber,
+        command: Command,
         argument: u32,
     ) -> Status {
         let command = command as u16;
@@ -224,7 +239,7 @@ impl MMC {
         self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
 
-        self.data_control_32.modify(|f| (f & !0x1800) | 0x402);
+        self.data_control_32.modify(|f| (f & !(DataControl32::ENABLE_RX_IRQ | DataControl32::ENABLE_TX_IRQ)) | DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
         self.block_len_32.write(port.block_len);
         self.param.write(argument);
         let cmd = command;
@@ -236,12 +251,12 @@ impl MMC {
             let control = self.data_control_32.read();
             status = self.status.read();
             if use_buf {
-                if control & 0x100 > 0 || status.contains(Status::RX_READY) {
+                if control.contains(DataControl32::RX_READY) || status.contains(Status::RX_READY) {
                     for i in 0..(port.block_len >> 2) {
                         (ptr as *mut u32).add(i as usize).write_volatile(self.data_fifo_32.read());
                     }
                 }
-                if control & 0x200 > 0 {
+                if control.contains(DataControl32::TX_READY) {
                     //what now? (Write)
                 }
             }
@@ -288,7 +303,7 @@ impl MMC {
             *status |= self.status.read();
             for sector in (&mut *buf).iter_mut() {
                 if !status.intersects(Status::ALL_ERRORS) {
-                    while self.data_control_32.read() & (1 << 8) == 0 {}
+                    while self.data_control_32.read().intersection(DataControl32::RX_READY).is_empty() {}
                     for word in &mut sector.0 {
                         *word = self.data_fifo_32.read()
                     }
@@ -298,7 +313,7 @@ impl MMC {
             *status |= self.status.read();
             for sector in (&*buf).iter() {
                 if !status.intersects(Status::ALL_ERRORS) {
-                    while self.data_control_32.read() & (1 << 9) != 0 {}
+                    while self.data_control_32.read().contains(DataControl32::TX_READY) {}
                     for word in &sector.0 {
                         self.data_fifo_32.write(*word)
                     }
@@ -351,7 +366,7 @@ const fn acmd_r1_r(command_number: u16) -> u16 {
     command_number | CMD_RESP_R1 | CMD_DATA_EN | CMD_DATA_R | (1 << 6)
 }
 #[repr(u16)]
-pub enum CommandNumber {
+pub enum Command {
     //basic commands (class 0)
     GoIdleState = none(0),
     AllSendCID = r2(2),

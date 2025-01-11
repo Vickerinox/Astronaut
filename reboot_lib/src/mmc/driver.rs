@@ -1,6 +1,6 @@
 use core::num::NonZeroU32;
 
-use super::{CommandNumber, Status, TMIOPort, MMC_CONTROLLER};
+use super::{Command, Status, TMIOPort, MMC_CONTROLLER};
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -30,15 +30,6 @@ pub struct Info {
     clock: u32,
     cid: [u32; 4],
 }
-pub struct Command<'a> {
-    command_code: CommandCode,
-    argument: u32,
-    response: [u32; 4],
-    buffer: &'a mut [u32],
-    block_len: u16,
-    block_count: u16,
-}
-pub enum CommandCode {}
 
 #[derive(Default)]
 pub struct Device {
@@ -89,14 +80,22 @@ impl Device {
 #[repr(u8)]
 pub enum DeviceInitializationError {
     AlreadyInitialized,
-    IdleStateTransitionError,
+    IdleStateTransitionError, 
     BadIfConditionResponse,
     IdentificationFail,
 }
 
 static mut DEVICES: [Device; 2] = [Device::sd_card(0), Device::nand(1)];
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
+    
+    MMC_CONTROLLER.soft_reset.write(0);
     let dev = &mut DEVICES[device_number as u8 as usize];
+    MMC_CONTROLLER.soft_reset.write(1);
+    MMC_CONTROLLER.data_control_32.write(super::DataControl32::CLEAR_FIFO_32 | super::DataControl32::USE_DATA32);
+
+
+
+    
 
     MMC_CONTROLLER.tmio_powerup(&mut dev.port);
 
@@ -106,32 +105,32 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
         },
         DeviceSelect::EMMC => {
             dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::GoIdleState, 0);
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
             if !res.successful() {
                 return Err(Status::from_bits_retain(1) | res);
             }
             crate::swi_delay(0xf000);
             let mut card_calming_down = true;
             while card_calming_down {
-                if MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::MMCSendOptionalCondition, (1<<20)).successful() {
+                if MMC_CONTROLLER.send_command(&mut dev.port, Command::MMCSendOptionalCondition, (1<<20)).successful() {
                     card_calming_down = MMC_CONTROLLER.response[0].read() & 0x80000000 == 0
                 }
             }
             
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::AllSendCID, 0);
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::AllSendCID, 0);
             if !res.successful() {
                 return Err(Status::from_bits_retain(2) | res);
             }
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::SetSendRelativeAddr, 0x20000);
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SetSendRelativeAddr, 0x20000);
             if !res.successful() {
                 return Err(Status::from_bits_retain(0xBA) | res);
             }
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::SelectCard, 0x20000);
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SelectCard, 0x20000);
             if !res.successful() {
                 return Err(Status::from_bits_retain(4) | res);
             }
-            dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_16M | super::ClockCnt::AUTO_STOP;
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::SetBlockLen, 0x200);
+            dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_8M | super::ClockCnt::AUTO_STOP;
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SetBlockLen, 0x200);
             if !res.successful() {
                 return Err(Status::from_bits_retain(5) | res);
             }
@@ -164,7 +163,7 @@ unsafe fn go_standby_state(device: &mut Device, kind: DeviceType, rca: u32) -> R
     }
     let csd = parse_csd(device, kind);
     */
-    let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::SelectCard, rca);
+    let res = MMC_CONTROLLER.send_command(&mut device.port, Command::SelectCard, rca);
     if !res.is_empty() {
         return Err(res);
     }
@@ -221,7 +220,7 @@ unsafe fn go_ident_state(device: &mut Device, kind: DeviceType) -> Result<u32, S
             let rca = 1 << 16;
             let res = MMC_CONTROLLER.send_command(
                 &mut device.port,
-                CommandNumber::SetSendRelativeAddr,
+                Command::SetSendRelativeAddr,
                 rca,
             );
             (res, rca)
@@ -229,7 +228,7 @@ unsafe fn go_ident_state(device: &mut Device, kind: DeviceType) -> Result<u32, S
         DeviceType::SDSC | DeviceType::SDHC => {
             let res = MMC_CONTROLLER.send_command(
                 &mut device.port,
-                CommandNumber::SetSendRelativeAddr,
+                Command::SetSendRelativeAddr,
                 0,
             );
             let rca = device.port.response[0] & 0xFFFF0000;
@@ -242,7 +241,7 @@ unsafe fn go_ident_state(device: &mut Device, kind: DeviceType) -> Result<u32, S
     }
 }
 unsafe fn go_ready_state(device: &mut Device) -> Result<(), Status> {
-    let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::AllSendCID, 0);
+    let res = MMC_CONTROLLER.send_command(&mut device.port, Command::AllSendCID, 0);
     if res.is_empty() {
         device.cid = device.port.response;
         Ok(())
@@ -251,18 +250,18 @@ unsafe fn go_ready_state(device: &mut Device) -> Result<(), Status> {
     }
 }
 unsafe fn go_idle_state(port: &mut TMIOPort) -> Result<(), Status> {
-    match MMC_CONTROLLER.send_command(port, CommandNumber::GoIdleState, 0) {
+    match MMC_CONTROLLER.send_command(port, Command::GoIdleState, 0) {
         Status::EMPTY => Ok(()),
         a => Err(a),
     }
 }
 unsafe fn init_idle_state(port: &mut TMIOPort) -> Result<DeviceType, Status> {
-    let res = MMC_CONTROLLER.send_command(port, CommandNumber::SendIfCondition, (1 << 8) | 0xAA);
+    let res = MMC_CONTROLLER.send_command(port, Command::SendIfCondition, (1 << 8) | 0xAA);
     if res != Status::empty() {
         return Err(res);
     }
     let app_command_arg = (1 << 20) | (res.bits() << 8 ^ (1 << 30));
-    let res = send_app_command(port, CommandNumber::AppSendOpCondition, app_command_arg, 0);
+    let res = send_app_command(port, Command::AppSendOpCondition, app_command_arg, 0);
     let is_mmc = match port.port_num {
         1 => true,
         0 => false,
@@ -274,7 +273,7 @@ unsafe fn init_idle_state(port: &mut TMIOPort) -> Result<DeviceType, Status> {
         for _ in 0..200 {
             let res = MMC_CONTROLLER.send_command(
                 port,
-                CommandNumber::MMCSendOptionalCondition,
+                Command::MMCSendOptionalCondition,
                 (1 << 20) | (2 << 29),
             );
             if !res.is_empty() {
@@ -308,7 +307,7 @@ unsafe fn init_idle_state(port: &mut TMIOPort) -> Result<DeviceType, Status> {
             }
             //5 MS
             crate::swi::swi_delay(41890);
-            let res = send_app_command(port, CommandNumber::AppSendOpCondition, app_command_arg, 0);
+            let res = send_app_command(port, Command::AppSendOpCondition, app_command_arg, 0);
 
             if !res.is_empty() {
                 return Err(res);
@@ -317,8 +316,8 @@ unsafe fn init_idle_state(port: &mut TMIOPort) -> Result<DeviceType, Status> {
     }
     Err(res)
 }
-unsafe fn send_app_command(port: &mut TMIOPort, cmd: CommandNumber, arg: u32, rca: u32) -> Status {
-    match MMC_CONTROLLER.send_command(port, CommandNumber::AppCommand, rca) {
+unsafe fn send_app_command(port: &mut TMIOPort, cmd: Command, arg: u32, rca: u32) -> Status {
+    match MMC_CONTROLLER.send_command(port, Command::AppCommand, rca) {
         Status::EMPTY => MMC_CONTROLLER.send_command(port, cmd, arg),
         a => a,
     }
@@ -340,7 +339,7 @@ pub unsafe fn read_sectors(
         _ => sector,
     };
     
-    let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::ReadMutliBlocks, sector);
+    let res = MMC_CONTROLLER.send_command(&mut device.port, Command::ReadMutliBlocks, sector);
     if res.successful() {
         Ok(())
     } else {

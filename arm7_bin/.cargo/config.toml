@@ -5,13 +5,12 @@ codegen-units = 1                           # Reduce number of codegen units to 
 panic = 'abort'                             # Abort on panic
 strip = true                                # Strip symbols from binary*
 
-
 [target.armv4t-none-eabi]                # All targets
 rustflags = ["-C", "linker-flavor=ld.lld", "-C", "relocation-model=pic","-C", "link-arg=-Tlink_arm7.x"]
 
-
 [build]
 target = "armv4t-none-eabi"
+target-dir = "../target-binary"
 
 [unstable]
 build-std = ["core", "alloc"]

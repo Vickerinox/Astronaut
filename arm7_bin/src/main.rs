@@ -43,10 +43,7 @@ fn main() {
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
-        //(0x4000500 as *mut u32).write_volatile(0x8040);
-        //(0x4000504 as *mut u32).write_volatile(0x200);
-        //(0x4000498 as *mut u16).write_volatile(38000);
-        //(0x4000490 as *mut u32).write_volatile((0x40) | (0x40 << 16) | (1<<27) | (3<<29) | (1<<31));
+        
 
         let mut buffer: *mut [reboot_lib::StorageSector] =
             core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0);
@@ -61,6 +58,8 @@ fn main() {
         //    Ok(()) => (),
         //    Err(a) => (),
         //}
+        reboot_lib::MMC_CONTROLLER.tmio_init();
+
         let mut response = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
             Ok(_) => 0xDEADBEEF,
             Err(res) => res.bits(),

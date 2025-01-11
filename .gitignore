@@ -2,7 +2,10 @@
 # will have compiled files and executables
 debug/
 target/
-bs-target/
+target-bootstrap/
+target-binary/
+arm9_bin/src/arm7.bin
+
 # Remove Cargo.lock from gitignore if creating an executable, leave it for libraries
 # More information here https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html
 Cargo.lock
@@ -19,7 +22,6 @@ Cargo.lock
 /target
 
 # pls no sue nintuende
-title.tmd
 unlaunch_decomp/unlaunchc.bin
 unlaunch_decomp/src/unlaunch.decomp.bin
 unlaunch_decomp/failed_inputs.txt
