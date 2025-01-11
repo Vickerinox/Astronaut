@@ -89,46 +89,42 @@ pub struct Controls {
     touch_x: u8,
     touch_y: u8,
 }
-pub unsafe fn arm9_send_controller_read() {
-    IPC_FIFO_HARDWARE.set_status(1);
-    IPC_FIFO_HARDWARE.send_raw_blocking(0);
-    while IPC_FIFO_HARDWARE.read_status() != 1 {}
+unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), u32> {
+    while IPC_FIFO_HARDWARE.read_status() != 0 {}
+    for data in data_out.into_iter().copied() {
+        IPC_FIFO_HARDWARE.send_raw_blocking(data);
+    }
+    IPC_FIFO_HARDWARE.set_status(opcode);
+    let value = IPC_FIFO_HARDWARE.recieve_raw_blocking();
     IPC_FIFO_HARDWARE.set_status(0);
+    while IPC_FIFO_HARDWARE.read_status() == 0 {}
+    if value != 0 {
+        Err(value)
+    } else {
+        Ok(())
+    }
 }
-pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) {
-    IPC_FIFO_HARDWARE.set_status(2);
-    IPC_FIFO_HARDWARE.send_raw_blocking(slice as *mut StorageSector as u32);
-    IPC_FIFO_HARDWARE.send_raw_blocking(slice.len() as u32);
-    while IPC_FIFO_HARDWARE.read_status() != 1 {}
-    IPC_FIFO_HARDWARE.set_status(0);
+pub unsafe fn arm9_send_controller_read() -> Buttons {
+    let value = com_arm9(1, &[]).err().unwrap_or(0);
+    Buttons::from_bits_retain(value as u16)
 }
-pub unsafe fn arm9_read_nand_sector_encrypted(start_sector: u32) {
-    IPC_FIFO_HARDWARE.set_status(3);
-    IPC_FIFO_HARDWARE.send_raw_blocking(start_sector);
-    while IPC_FIFO_HARDWARE.read_status() != 1 {}
-    IPC_FIFO_HARDWARE.set_status(0);
+pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), u32> {
+    com_arm9(2, &[slice as *mut () as u32, slice.len() as u32])
 }
-pub unsafe fn arm9_read_nand_sector_unencrypted(start_sector: u32) {
-    IPC_FIFO_HARDWARE.set_status(4);
-    IPC_FIFO_HARDWARE.send_raw_blocking(start_sector);
-    while IPC_FIFO_HARDWARE.read_status() != 1 {}
-    IPC_FIFO_HARDWARE.set_status(0);
+pub unsafe fn arm9_read_nand_sector_encrypted(start_sector: u32) -> Result<(), u32> {
+    com_arm9(3, &[start_sector])
 }
-pub unsafe fn arm9_read_sd_sector(start_sector: u32) {
-    IPC_FIFO_HARDWARE.set_status(5);
-    IPC_FIFO_HARDWARE.send_raw_blocking(start_sector);
-    while IPC_FIFO_HARDWARE.read_status() != 1 {}
-    IPC_FIFO_HARDWARE.set_status(0);
+pub unsafe fn arm9_read_nand_sector_unencrypted(start_sector: u32) -> Result<(), u32> {
+    com_arm9(4, &[start_sector])
 }
-pub unsafe fn arm9_send_arm7_jump(ptr: u32) {
-    IPC_FIFO_HARDWARE.set_status(6);
-    IPC_FIFO_HARDWARE.send_raw_blocking(ptr);
+pub unsafe fn arm9_read_sd_sector(start_sector: u32) -> Result<(), u32> {
+    com_arm9(5, &[start_sector])
 }
-pub unsafe fn arm9_read_firmware(start_address: u32) {
-    IPC_FIFO_HARDWARE.set_status(7);
-    IPC_FIFO_HARDWARE.send_raw_blocking(start_address);
-    while IPC_FIFO_HARDWARE.read_status() != 1 {}
-    IPC_FIFO_HARDWARE.set_status(0);
+pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), u32> {
+    com_arm9(6, &[ptr])
+}
+pub unsafe fn arm9_read_firmware(start_address: u32) -> Result<(), u32> {
+    com_arm9(7, &[start_address])
 }
 pub struct StorageSector([u32; 128]);
 
@@ -137,5 +133,10 @@ impl AsMut<[u8]> for StorageSector {
         unsafe {
             &mut *core::ptr::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>())
         }
+    }
+}
+impl AsMut<[u32]> for StorageSector {
+    fn as_mut(&mut self) -> &mut [u32] {
+        &mut self.0[..]
     }
 }

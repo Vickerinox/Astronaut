@@ -9,7 +9,7 @@ pub unsafe fn init() {
     I2C_HARDWARE.write_register(PowerRegister::CAMLED, 1);
     I2C_HARDWARE.write_register(PowerRegister::WIFILED, 1);
 }
-
+#[repr(C)]
 pub struct I2CInterface {
     data: RW<u8>,
     control: RW<u8>,

@@ -1,4 +1,5 @@
 pub struct SHA1State([u32; 25]);
+#[allow(unused_variables)]
 pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
     #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER
     reboot_lib::critical_function(|| {

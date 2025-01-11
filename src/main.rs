@@ -16,7 +16,9 @@ mod build;
 mod errors;
 mod mmc;
 
-fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), BuildError> {
+
+
+fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf, export: Option<PathBuf>) -> Result<(), BuildError> {
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
     const M_STATE_OVERWRITE: &[u8] = &[
         84, 72, 73, 83, 32, 73, 83, 0, 0, 0, 0, 0, 223, 0, 0, 0, 87, 72, 69, 82, 69, 32, 84, 72,
@@ -69,12 +71,17 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf) -> Result<(), B
     let values = entry_value.to_le_bytes();
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
 
-    mmc::write_tmd_to_image(mmc_file_path, &empty_tmd).map_err(Crate::TMD.err())?;
+    mmc::write_tmd_to_image(&mmc_file_path, &empty_tmd).map_err(Crate::TMD.err())?;
+    
+    if let Some(path) = export {
+        fs::write(path, &empty_tmd[520..]).unwrap();
+    }
     Ok(())
 }
 #[derive(Parser)]
 struct CompilerArgs {
     tmd_file: Option<PathBuf>,
+    export_tmd: Option<PathBuf>,
 }
 impl TryFrom<CompilerArgs> for FixedCompilerArgs {
     type Error = &'static str;
@@ -85,11 +92,14 @@ impl TryFrom<CompilerArgs> for FixedCompilerArgs {
                 .tmd_file
                 .or_else(get_file)
                 .ok_or("No path specified")?,
+            export_tmd:  value
+            .export_tmd,
         })
     }
 }
 struct FixedCompilerArgs {
     tmd_file: PathBuf,
+    export_tmd: Option<PathBuf>,
 }
 impl FixedCompilerArgs {
     fn build(self) -> Result<(), BuildError> {
@@ -160,7 +170,7 @@ impl FixedCompilerArgs {
         })?;
         debug!("resolved to {:?}", mmc_image_path);
         info!("Injecting TMD into MMC image...");
-        construct_tmd(arm9_elf, mmc_image_path)?;
+        construct_tmd(arm9_elf, mmc_image_path, self.export_tmd)?;
         Ok(())
     }
 }

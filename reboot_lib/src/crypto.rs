@@ -24,6 +24,18 @@ pub struct KeySlot {
     pub key_x: [WO<u32>; 4],
     pub key_y: [WO<u32>; 4],
 }
+impl KeySlot {
+    pub unsafe fn load_key_x(&self, key: &[u32; 4]) {
+        for (reg, value) in self.key_x.iter().zip(key) {
+            reg.write(*value);
+        }
+    }
+    pub unsafe fn load_key_y(&self, key: &[u32; 4]) {
+        for (reg, value) in self.key_y.iter().zip(key) {
+            reg.write(*value);
+        }
+    }
+}
 
 impl AESEngine {
     pub fn load_keys(slot: usize, key_x: &[u8], key_y: &[u8]) {}
@@ -36,6 +48,9 @@ impl AESEngine {
     }
     //crypt a block of data in place
     pub unsafe fn ctr_crypt_block(&self, data: &mut [u32], ctr: &[u32; 4]) {
+        
+        (0x400_0008 as *mut u32).write_volatile((0x400_0008 as *const u32).read_volatile() | (1<<17));
+        (0x400_0004 as *mut u32).write_volatile((0x400_0004 as *const u32).read_volatile() | (1<<2));
         use crate::ndma::{Control, NDMA_HARDWARE};
         self.master_control.write(0);
         self.reset();

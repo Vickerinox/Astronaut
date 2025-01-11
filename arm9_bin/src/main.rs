@@ -122,23 +122,19 @@ unsafe fn main() {
         video_context.next_frame();
         
 
+        while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
+
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
+
+        let value = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
+        assert_eq!(value, 0xDEADBEEF, "{value:x?}");
+
         let nand_buffer =
             core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
         let sd_buffer =
             core::slice::from_raw_parts_mut(0x2FFFC00 as *mut reboot_lib::StorageSector, 1);
-        
         let firmware_buffer = 
             core::slice::from_raw_parts_mut(0x2FFFA00 as *mut reboot_lib::StorageSector, 1);
-        
-        while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
-        assert_eq!(reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking(), 0xDEADBEEF);
-        
-        
-        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
-        //core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000000000001_0000_0001_0000_0_000);
-        //core::ptr::write_volatile(0x4001000 as *mut u32, 0b00000000000000001_0000_0000_0000_0_000);
-
-
 
         /* 
         read_firmware(firmware_buffer, 0x0);
@@ -178,7 +174,7 @@ unsafe fn main() {
             text_pass.layout_str("reading nand mbr...");
         });
         video_context.next_frame();
-        read_encrypted_nand(nand_buffer, 0x0);
+        read_encrypted_nand(nand_buffer, 0).unwrap();
 
         reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
@@ -188,12 +184,19 @@ unsafe fn main() {
 
         let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
 
+        
         let nand_fs = if mbr.has_valid_signature() {
             let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
+            read_encrypted_nand(nand_buffer, twl_lba).unwrap();
+
+            //panic!("TWL main ({twl_lba:x}) header: {:02x?}", &AsMut::<[u8]>::as_mut(&mut nand_buffer[0])[..100]);
             let twl_size =
                 core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
-                nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
+            
+            
+            nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
         } else {
+            panic!("NAND mbr: {:02x?}", &AsMut::<[u8]>::as_mut(&mut nand_buffer[0])[0x1BE..]);
             None
         };
 
@@ -334,23 +337,23 @@ pub unsafe extern "C" fn _start() {
         options(noreturn) // No return possible from this function
     );
 }
-fn read_encrypted_nand(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) {
+fn read_encrypted_nand(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> Result<(), u32> {
     unsafe {
-        reboot_lib::arm9_set_buffer(buffer);
-        reboot_lib::arm9_read_nand_sector_encrypted(start_sector);
+        reboot_lib::arm9_set_buffer(buffer)?;
+        reboot_lib::arm9_read_nand_sector_encrypted(start_sector)?;
     }
+    Ok(())
 }
-fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) {
+fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> Result<(), u32> {
     unsafe {
-        reboot_lib::arm9_set_buffer(buffer);
-        reboot_lib::arm9_read_sd_sector(start_sector);
+        reboot_lib::arm9_set_buffer(buffer)?;
+        reboot_lib::arm9_read_sd_sector(start_sector)?;
     }
+    Ok(())
 }
 fn read_controller() -> Buttons {
     unsafe {
-        reboot_lib::arm9_send_controller_read();
-        let bits = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
-        Buttons::from_bits_retain(bits as u16)
+        reboot_lib::arm9_send_controller_read()
     }
 }
 fn read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {

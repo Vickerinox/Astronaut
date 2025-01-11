@@ -8,7 +8,7 @@ pub mod touchscreen;
 
 pub const SPI_HARDWARE: RegisterWrapper<SerialPeripheralInterface> =
     RegisterWrapper(0x40001C0 as *mut SerialPeripheralInterface);
-
+#[repr(C)]
 pub struct SerialPeripheralInterface {
     control_and_status: RW<SPIControl>,
     data: RW<u16>,

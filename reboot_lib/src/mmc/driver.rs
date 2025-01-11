@@ -97,12 +97,49 @@ pub enum DeviceInitializationError {
 static mut DEVICES: [Device; 2] = [Device::sd_card(0), Device::nand(1)];
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
     let dev = &mut DEVICES[device_number as u8 as usize];
-    if dev.kind.is_some() {
-        //return Err(DeviceInitializationError::AlreadyInitialized);
+
+    MMC_CONTROLLER.tmio_powerup(&mut dev.port);
+
+    match device_number {
+        DeviceSelect::SDCardSlot => {
+            
+        },
+        DeviceSelect::EMMC => {
+            dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::GoIdleState, 0);
+            if !res.successful() {
+                return Err(Status::from_bits_retain(1) | res);
+            }
+            crate::swi_delay(0xf000);
+            let mut card_calming_down = true;
+            while card_calming_down {
+                if MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::MMCSendOptionalCondition, (1<<20)).successful() {
+                    card_calming_down = MMC_CONTROLLER.response[0].read() & 0x80000000 == 0
+                }
+            }
+            
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::AllSendCID, 0);
+            if !res.successful() {
+                return Err(Status::from_bits_retain(2) | res);
+            }
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::SetSendRelativeAddr, 0x20000);
+            if !res.successful() {
+                return Err(Status::from_bits_retain(0xBA) | res);
+            }
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::SelectCard, 0x20000);
+            if !res.successful() {
+                return Err(Status::from_bits_retain(4) | res);
+            }
+            dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_16M | super::ClockCnt::AUTO_STOP;
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, CommandNumber::SetBlockLen, 0x200);
+            if !res.successful() {
+                return Err(Status::from_bits_retain(5) | res);
+            }
+            return Ok(())
+        },
     }
-    if device_number == DeviceSelect::SDCardSlot {
-        //dev.protection = crate::mmc::MMC_CONTROLLER.tmio_card_writable();
-    }
+
+     
     //nocash_write("powerup!");
     MMC_CONTROLLER.tmio_powerup(&mut dev.port);
     match go_idle_state(&mut dev.port) {
@@ -110,13 +147,14 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
         Err(a) => return Err(a),
     }
     let device_kind = init_idle_state(&mut dev.port)?;
-    dev.port.clock = (1 << 9) | (1 << 8) | 0x20;
+    dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::AUTO_STOP | super::ClockCnt::FREQ_262K;
     go_ready_state(dev)?;
     let rca = go_ident_state(dev, device_kind)?;
-    dev.port.clock = (1 << 9) | (1 << 8) | 0x01;
+    dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::AUTO_STOP | super::ClockCnt::FREQ_16M;
     let spec_version = go_standby_state(dev, device_kind, rca)?;
     dev.kind = Some(device_kind);
     Ok(())
+    
 }
 unsafe fn go_standby_state(device: &mut Device, kind: DeviceType, rca: u32) -> Result<u8, Status> {
     /*
@@ -296,14 +334,17 @@ pub unsafe fn read_sectors(
 
     let sector = match device.kind {
         None => return Err(Status::all()),
-        Some(DeviceType::EMMC) | Some(DeviceType::SDSC) => sector << 9,
+        Some(DeviceType::SDSC) | Some(DeviceType::EMMC) => {
+            sector << 9
+        },
         _ => sector,
     };
+    
     let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::ReadMutliBlocks, sector);
-    if !res.is_empty() {
-        return Err(res);
+    if res.successful() {
+        Ok(())
     } else {
-        return Ok(());
+        Err(res)
     }
 }
 

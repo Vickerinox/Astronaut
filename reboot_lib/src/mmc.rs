@@ -5,6 +5,7 @@ use volatile_register::*;
 
 pub mod driver;
 pub mod tmio;
+pub mod new_driver;
 
 pub const MMC_CONTROLLER: RegisterWrapper<MMC> = RegisterWrapper(0x4004800 as *mut MMC);
 
@@ -20,6 +21,25 @@ const TMIO_STAT1_TXRQ: u16 = 0x0200;
 const TMIO_STAT1_ILL_FUNC: u16 = 0x2000;
 const TMIO_STAT1_CMD_BUSY: u16 = 0x4000;
 const TMIO_STAT1_ILL_ACCESS: u16 = 0x8000;
+
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    pub struct ClockCnt: u16 {
+        const ENABLE = (1<<8);
+        const AUTO_STOP = (1<<9);
+
+        const FREQ_65K = (0x80 >> 0);
+        const FREQ_131K = (0x80 >> 1);
+        const FREQ_262K = (0x80 >> 2);
+        const FREQ_523K = (0x80 >> 3);
+        const FREQ_1M = (0x80 >> 4);
+        const FREQ_2M = (0x80 >> 5);
+        const FREQ_4M = (0x80 >> 6);
+        const FREQ_8M = (0x80 >> 7);
+        const FREQ_16M = (0x80 >> 8);
+    }
+}
+
 
 const TMIO_MASK_GW: u16 = (TMIO_STAT1_ILL_ACCESS
     | TMIO_STAT1_CMDTIMEOUT
@@ -90,7 +110,7 @@ pub struct MMC {
     pub response: [RO<u32>; 4],
     pub status: RW<Status>,
     pub irmask: RW<Status>,
-    pub clock_control: RW<u16>,
+    pub clock_control: RW<ClockCnt>,
     pub block_len: RW<u16>,
     pub options: RW<u16>,
     _unused: [u16; 1],
@@ -126,7 +146,7 @@ pub struct MMC {
 
 impl MMC {
     pub unsafe fn tmio_init(&self) {
-        self.data_control_32.write(1 | (1 << 10)); // enable and clear data32 fifo
+        self.data_control_32.write(2 | (1 << 10)); // enable and clear data32 fifo
         self.block_len_32.write(512);
         self.block_count_32.write(1);
         self.data_control.write(Control::from_bits_retain(1)); // enable DMA requests? (gbatek says data32 mode?)
@@ -143,7 +163,7 @@ impl MMC {
                 | Status::DAT3_INSERT
                 | Status::DAT3_REMOVE,
         );
-        self.clock_control.write(0x80 >> 2);
+        self.clock_control.write(ClockCnt::FREQ_262K);
         self.block_len.write(512);
         self.options.write((1 << 15) | (1 << 14) | ((11 << 4) | 8));
         self.ext_card_detect_mask.write(0xFFFF);
@@ -168,7 +188,7 @@ impl MMC {
         self.status.read().contains(Status::WRITEABLE)
     }
     unsafe fn tmio_powerup(&self, port: &mut TMIOPort) {
-        port.clock = (1 << 8) | (0x80 >> 2);
+        port.clock = ClockCnt::FREQ_262K | ClockCnt::ENABLE;
         self.tmio_set_port(port);
         crate::swi::swi_delay(0x900);
     }
@@ -190,16 +210,57 @@ impl MMC {
         let command = command as u16;
         let mut status = Status::empty();
 
+        let flags = if command & (1<<11) > 0 {
+            Status::DATA_END
+        } else {
+            Status::empty()
+        };
         self.tmio_set_port(port);
+
+        
+        self.irmask.write(Status::empty());
+        self.status.write(Status::empty());
+
         self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
+
+        self.data_control_32.modify(|f| (f & !0x1800) | 0x402);
+        self.block_len_32.write(port.block_len);
         self.param.write(argument);
+        let cmd = command;
+        self.command.write(cmd);
+
+        let (ptr, len) = port.buffer.to_raw_parts();
+        let use_buf = !ptr.is_null();
+        loop {
+            let control = self.data_control_32.read();
+            status = self.status.read();
+            if use_buf {
+                if control & 0x100 > 0 || status.contains(Status::RX_READY) {
+                    for i in 0..(port.block_len >> 2) {
+                        (ptr as *mut u32).add(i as usize).write_volatile(self.data_fifo_32.read());
+                    }
+                }
+                if control & 0x200 > 0 {
+                    //what now? (Write)
+                }
+            }
+            if status.contains(Status::ALL_ERRORS) {
+                break;
+            }
+            if !status.intersects(Status::CMD_BUSY) {
+                if status.contains(flags) {
+                    break;
+                }
+            }
+        }
+        let resp = status.intersection(Status::ALL_ERRORS | Status::DATA_END | Status::RESPONSE_END);
+        self.status.write(Status::empty());
+        self.tmio_get_response(port, cmd);
+        return resp;
 
         let buf = port.buffer;
-        let control = (1 << 10) | (1 << 1);
-        self.data_control_32.write(control);
-        let cmd = command | (1 << 13);
-        self.command.write(cmd);
+
 
         while !status.intersects(Status::RESPONSE_END) {
             status |= self.status.read();
@@ -213,6 +274,7 @@ impl MMC {
                 status |= self.status.read();
             }
         }
+        while self.status.read().contains(Status::CMD_BUSY) {}
         status |= self.status.read();
         status.intersection(Status::ALL_ERRORS)
     }
@@ -308,7 +370,7 @@ pub enum CommandNumber {
     //block oriented commands
     SetBlockLen = r1(16),
     ReadSingleBlock = r1_r(17),
-    ReadMutliBlocks = r1_r(18),
+    ReadMutliBlocks = r1_r(18) | CMD_DATA_MULTI,
     SendTuningBlock = r1_r(19),
     SpeedClassControl = r1b(20),
     AddressExtension = r1(22),
@@ -371,12 +433,13 @@ const CMD_RESP_MASK: u16 = CMD_RESP_R3;
 
 const CMD_DATA_EN: u16 = 1 << 11;
 const CMD_DATA_R: u16 = 1 << 12;
+const CMD_DATA_MULTI: u16 = 1 << 13;
 const CMD_DATA_W: u16 = 0;
 
 #[derive(Debug)]
 pub struct TMIOPort {
     pub port_num: u8,
-    pub clock: u16,
+    pub clock: ClockCnt,
     pub block_len: u16,
     pub option: u16,
     pub buffer: *mut [crate::StorageSector],
@@ -386,25 +449,19 @@ impl TMIOPort {
     pub const fn init(port_num: u8) -> Self {
         Self {
             port_num,
-            clock: 0x80 >> 2,
+            clock: ClockCnt::FREQ_262K,
             block_len: 512,
             option: (1 << 15) | (1 << 14) | ((11 << 4) | 8),
             buffer: unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
             response: [0; 4],
         }
     }
-    pub fn post_init(&mut self, port_num: u8) {
-        self.port_num = port_num;
-        self.clock = 0x80 >> 2;
-        self.block_len = 512;
-        self.option = (1 << 15) | (1 << 14) | ((11 << 4) | 8);
-    }
 }
 impl Default for TMIOPort {
     fn default() -> Self {
         Self {
             port_num: Default::default(),
-            clock: Default::default(),
+            clock: ClockCnt::empty(),
             block_len: Default::default(),
             option: Default::default(),
             buffer: unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
