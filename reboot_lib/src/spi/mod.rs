@@ -74,7 +74,7 @@ pub enum PowerRegiser {
     MicrophoneAmp(MicrophoneAmp),
     MicrophoneGain(MicrophoneGain),
     Backlight(Backlight),
-    Reset(),
+    Reset(Reset),
 }
 bitflags::bitflags! {
     pub struct Control: u8 {
@@ -82,9 +82,10 @@ bitflags::bitflags! {
         const MUTE_SOUND_AMP = (1 << 1);
         const ENABLE_LOWER_BACKLIGHT = (1 << 2);
         const ENABLE_UPPER_BACKLIGHT = (1 << 3);
+        const ENABLE_BACKLIGHTS = (0b11 << 2);
         const POWER_LED_BLINK = (1 << 4);
         const POWER_LED_SPEED = (1 << 5);
-        const DS_SYSTEM_POWER = (1 << 6);
+        const SHUT_DOWN_POWER = (1 << 6);
     }
     pub struct BatteryStatus: u8 {
         const POWER_IS_LOW = (1 << 0);
@@ -93,9 +94,29 @@ bitflags::bitflags! {
         const ENABLE = (1 << 0);
     }
     pub struct Backlight: u8 {
-        
+        const BACKLIGHT_LOW = (0 << 0);
+        const BACKLIGHT_MED = (1 << 0);
+        const BACKLIGHT_HIGH = (2 << 0);
+        const BACKLIGHT_MAX = (3 << 0);
+        const FORCE_MAX_WHEN_CHARGING = (1<<2);
+        const IS_CHARGING = (1<<3);
+    }
+    pub struct Reset: u8 {
+        const RESET = (1<<0);
     }
 
+}
+impl PowerRegiser {
+    fn as_reg_and_value(self) -> (u8, u8) {
+        match self {
+            PowerRegiser::Control(control) => (0, control.bits()),
+            PowerRegiser::BatteryStatus(battery_status) => (1, battery_status.bits()),
+            PowerRegiser::MicrophoneAmp(microphone_amp) => (2, microphone_amp.bits()),
+            PowerRegiser::MicrophoneGain(microphone_gain) => (3, microphone_gain as u8),
+            PowerRegiser::Backlight(backlight) => (4, backlight.bits()),
+            PowerRegiser::Reset(reset) => (0x10, reset.bits()),
+        }
+    }
 }
 #[repr(u8)]
 pub enum MicrophoneGain {
@@ -105,7 +126,8 @@ pub enum MicrophoneGain {
     Max = 3,
 }
 
-pub unsafe fn write_powerman(reg: u8, value: u8) {
+pub unsafe fn write_powerman(reg: PowerRegiser) {
+    let (reg, value) = reg.as_reg_and_value();
     crate::critical_function(|| {
         SPI_HARDWARE.wait_busy();
         SPI_HARDWARE

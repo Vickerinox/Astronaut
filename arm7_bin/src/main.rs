@@ -32,7 +32,7 @@ fn main() {
         core::ptr::write_volatile(0x4000210 as *mut u32, 0);
         reboot_lib::spi::touchscreen::init_tsc();
 
-        reboot_lib::spi::write_powerman(0, 0b1100);
+        reboot_lib::spi::write_powerman(reboot_lib::spi::PowerRegiser::Control(reboot_lib::spi::Control::ENABLE_BACKLIGHTS));
         reboot_lib::i2c::init();
 
         
