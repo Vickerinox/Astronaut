@@ -1,7 +1,7 @@
-use crate::RegisterWrapper;
+use crate::MemoryWrapper;
 use volatile_register::*;
 
-pub const AES_HARDWARE: RegisterWrapper<AESEngine> = RegisterWrapper(0x4004400 as *mut AESEngine);
+pub const AES_HARDWARE: MemoryWrapper<AESEngine> = MemoryWrapper(0x4004400 as *mut AESEngine);
 
 pub const NAND_KEY_Y: [u8; 16] = 0xFFFEFB4E_29590258_2A680F5F_1A4F3E79u128.to_le_bytes();
 

@@ -112,17 +112,17 @@ impl FixedCompilerArgs {
 
         let arm9_elf = env_us
             .clone()
-            .join("target/armv5te-none-eabi/release/DeBoot_arm9");
+            .join("target-binary/armv5te-none-eabi/release/DeBoot_arm9");
         let arm7_elf = env_us
             .clone()
-            .join("target/armv4t-none-eabi/release/DeBoot_arm7");
+            .join("target-binary/armv4t-none-eabi/release/DeBoot_arm7");
 
         let arm9_bs_elf = env_us
             .clone()
-            .join("bs-target/armv5te-none-eabi/release/arm9_bootstrap");
+            .join("target-bootstrap/armv5te-none-eabi/release/arm9_bootstrap");
         let arm7_bs_elf = env_us
             .clone()
-            .join("bs-target/armv4t-none-eabi/release/arm7_bootstrap");
+            .join("target-bootstrap/armv4t-none-eabi/release/arm7_bootstrap");
 
         let arm7_include_path = env_us.clone().join("arm9_bin/src/arm7.bin");
         let bootstrap_include_path = env_us.clone().join("arm9_bin/src/bootstrap.bin");

@@ -24,15 +24,15 @@ pub use mmc::tmio::*;
 pub use mmc::*;
 pub use swi::*;
 pub use video::*;
-pub struct RegisterWrapper<T>(*mut T);
-impl<T> core::ops::Deref for RegisterWrapper<T> {
+pub struct MemoryWrapper<T>(*mut T);
+impl<T> core::ops::Deref for MemoryWrapper<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.0 }
     }
 }
-impl<T> core::ops::DerefMut for RegisterWrapper<T> {
+impl<T> core::ops::DerefMut for MemoryWrapper<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.0 }
     }

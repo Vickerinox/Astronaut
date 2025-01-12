@@ -1,12 +1,22 @@
 use core::marker::PhantomData;
 
-use crate::RegisterWrapper;
+use crate::MemoryWrapper;
 use bitflags::bitflags;
 use volatile_register::{RO, RW, WO};
 
 ///Public access to the DS video hardware registers
-pub const VIDEO_HARDWARE: RegisterWrapper<VideoHardware> =
-    RegisterWrapper(0x0400_0000 as *mut VideoHardware);
+pub const VIDEO_HARDWARE: MemoryWrapper<VideoHardware> =
+    MemoryWrapper(0x0400_0000 as *mut VideoHardware);
+
+pub const ENGINE_A_BG_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0000 as *mut [u16; 256]);
+pub const ENGINE_A_OBJ_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0200 as *mut [u16; 256]);
+pub const ENGINE_B_BG_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0400 as *mut [u16; 256]);
+pub const ENGINE_B_OBJ_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0600 as *mut [u16; 256]);
+
+pub const ENGINE_A_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0000 as *mut [u16; 512]);
+pub const ENGINE_B_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0400 as *mut [u16; 512]);
+
+
 
 pub struct VideoHardwareHandle;
 pub struct VideoHardwareInUseError;

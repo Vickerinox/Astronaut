@@ -1,13 +1,13 @@
 use volatile_register::RW;
 
-use crate::RegisterWrapper;
+use crate::MemoryWrapper;
 
 pub mod firmware;
 pub mod touchscreen;
 ///SPI bus functions
 
-pub const SPI_HARDWARE: RegisterWrapper<SerialPeripheralInterface> =
-    RegisterWrapper(0x40001C0 as *mut SerialPeripheralInterface);
+pub const SPI_HARDWARE: MemoryWrapper<SerialPeripheralInterface> =
+    MemoryWrapper(0x40001C0 as *mut SerialPeripheralInterface);
 #[repr(C)]
 pub struct SerialPeripheralInterface {
     control_and_status: RW<SPIControl>,
@@ -66,6 +66,43 @@ impl SerialPeripheralInterface {
             self.control_and_status.write(SPIControl::DISABLE);
         });
     }
+}
+
+pub enum PowerRegiser {
+    Control(Control),
+    BatteryStatus(BatteryStatus),
+    MicrophoneAmp(MicrophoneAmp),
+    MicrophoneGain(MicrophoneGain),
+    Backlight(Backlight),
+    Reset(),
+}
+bitflags::bitflags! {
+    pub struct Control: u8 {
+        const ENABLE_SOUND_AMP = (1 << 0);
+        const MUTE_SOUND_AMP = (1 << 1);
+        const ENABLE_LOWER_BACKLIGHT = (1 << 2);
+        const ENABLE_UPPER_BACKLIGHT = (1 << 3);
+        const POWER_LED_BLINK = (1 << 4);
+        const POWER_LED_SPEED = (1 << 5);
+        const DS_SYSTEM_POWER = (1 << 6);
+    }
+    pub struct BatteryStatus: u8 {
+        const POWER_IS_LOW = (1 << 0);
+    }
+    pub struct MicrophoneAmp: u8 {
+        const ENABLE = (1 << 0);
+    }
+    pub struct Backlight: u8 {
+        
+    }
+
+}
+#[repr(u8)]
+pub enum MicrophoneGain {
+    Low = 0,
+    Med = 1,
+    High = 2,
+    Max = 3,
 }
 
 pub unsafe fn write_powerman(reg: u8, value: u8) {

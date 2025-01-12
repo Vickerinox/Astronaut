@@ -1,6 +1,6 @@
-use crate::RegisterWrapper;
+use crate::MemoryWrapper;
 use volatile_register::*;
-pub const NDMA_HARDWARE: RegisterWrapper<NDMA> = RegisterWrapper(0x4004100 as *mut NDMA);
+pub const NDMA_HARDWARE: MemoryWrapper<NDMA> = MemoryWrapper(0x4004100 as *mut NDMA);
 
 #[repr(C)]
 pub struct NDMA {

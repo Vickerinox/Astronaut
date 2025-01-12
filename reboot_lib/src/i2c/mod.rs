@@ -1,7 +1,7 @@
-use crate::RegisterWrapper;
+use crate::MemoryWrapper;
 use volatile_register::RW;
-pub const I2C_HARDWARE: RegisterWrapper<I2CInterface> =
-    RegisterWrapper(0x4004500 as *mut I2CInterface);
+pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> =
+    MemoryWrapper(0x4004500 as *mut I2CInterface);
 
 
 pub unsafe fn init() {

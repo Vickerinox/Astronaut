@@ -1,10 +1,10 @@
-use crate::RegisterWrapper;
+use crate::MemoryWrapper;
 use alloc::alloc::Global;
 use bitflags::bitflags;
 use volatile_register::*;
-pub const IPC_FIFO_HARDWARE: RegisterWrapper<IPCFifoHardware> =
-    RegisterWrapper(0x4000180 as *mut IPCFifoHardware);
-const IPC_FIFO_RECIEVE: RegisterWrapper<RO<u32>> = RegisterWrapper(0x4100000 as *mut RO<u32>);
+pub const IPC_FIFO_HARDWARE: MemoryWrapper<IPCFifoHardware> =
+    MemoryWrapper(0x4000180 as *mut IPCFifoHardware);
+const IPC_FIFO_RECIEVE: MemoryWrapper<RO<u32>> = MemoryWrapper(0x4100000 as *mut RO<u32>);
 
 #[repr(C)]
 pub struct IPCFifoHardware {

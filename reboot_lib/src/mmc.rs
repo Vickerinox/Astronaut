@@ -1,13 +1,13 @@
 use core::ops::{BitAndAssign, BitOrAssign, Not};
 
-use crate::RegisterWrapper;
+use crate::MemoryWrapper;
 use volatile_register::*;
 
 pub mod driver;
 pub mod tmio;
 pub mod new_driver;
 
-pub const MMC_CONTROLLER: RegisterWrapper<MMC> = RegisterWrapper(0x4004800 as *mut MMC);
+pub const MMC_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004800 as *mut MMC);
 
 const TMIO_STAT1_CMD_IDX_ERR: u16 = 0x0001;
 const TMIO_STAT1_CRCFAIL: u16 = 0x0002;

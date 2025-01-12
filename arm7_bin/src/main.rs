@@ -33,8 +33,6 @@ fn main() {
         reboot_lib::spi::touchscreen::init_tsc();
 
         reboot_lib::spi::write_powerman(0, 0b1100);
-        reboot_lib::spi::write_powerman(0x10, 0b1100);
-        reboot_lib::spi::write_powerman(4, 3);
         reboot_lib::i2c::init();
 
         
