@@ -6,6 +6,7 @@ use volatile_register::*;
 pub mod driver;
 pub mod tmio;
 pub mod new_driver;
+pub mod newer_driver;
 
 pub const MMC_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004800 as *mut MMC);
 
@@ -269,7 +270,7 @@ impl MMC {
                 }
             }
         }
-        let resp = status.intersection(Status::ALL_ERRORS | Status::DATA_END | Status::RESPONSE_END);
+        let resp = status.intersection(Status::ALL_ERRORS);
         self.status.write(Status::empty());
         self.tmio_get_response(port, cmd);
         return resp;

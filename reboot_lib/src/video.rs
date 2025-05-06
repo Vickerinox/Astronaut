@@ -38,6 +38,7 @@ impl VideoHardwareHandle {
             .matrix_mode
             .write(MatrixMode::PROJECTION);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
+        
         VIDEO_HARDWARE
             .geometry_commands
             .matrix_mode
@@ -53,6 +54,7 @@ impl VideoHardwareHandle {
             .matrix_mode
             .write(MatrixMode::VECTOR);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
+        
     }
     #[inline]
     unsafe fn begin_vertex_list(&mut self, primitive_type: VertexListType) {
@@ -81,78 +83,6 @@ impl VideoHardwareHandle {
     }
 }
 
-pub struct VideoTextPass<'a>(&'a mut VideoHardwareHandle);
-
-impl<'a> VideoTextPass<'a> {
-    pub fn new(hardware: &'a mut VideoHardwareHandle) -> Self {
-        Self(hardware)
-    }
-    pub unsafe fn text_pass<R, F: FnOnce(&mut TextLayoutHandle) -> R>(self, closure: F) -> R {
-        self.0.begin_vertex_list(VertexListType::IndividualQuads);
-        let mut host = TextLayoutHandle {
-            current_position: (0, 0),
-            host: VertexListHost(PhantomData),
-        };
-        let ret = closure(&mut host);
-        self.0.end_vertex_list();
-        ret
-    }
-}
-pub struct TextLayoutHandle<'a> {
-    current_position: (u8, u8),
-    host: VertexListHost<'a>,
-}
-impl<'a> TextLayoutHandle<'a> {
-    pub fn set_color(&mut self, color: u32) {
-        self.host.set_vertex_color(color);
-    }
-    pub fn layout_str(&mut self, str: &str) {
-        for byte in str.as_bytes() {
-            if !byte.is_ascii() {
-                continue;
-            }
-            self.layout_char(*byte);
-        }
-    }
-    pub fn set_position(&mut self, x: u8, y: u8) {
-        self.current_position = (x, y);
-    }
-    pub fn next_line(&mut self) {
-        self.current_position.0 = 0;
-        self.current_position.1 += 8;
-    }
-    pub fn layout_char(&mut self, ascii_value: u8) {
-        const CHAR_WIDTH: i16 = 7 << 4; //(i.e, 1*7 texels)
-        let old_x = self.current_position.0;
-        let index = CHAR_WIDTH * ascii_value as i16;
-        let movement = match ascii_value {
-            b'j' => 5,
-            b'l' => 3,
-            b'i' => 2,
-            _ => 6,
-        };
-        self.current_position.0 = self.current_position.0.wrapping_add(movement);
-        if old_x > self.current_position.0 {
-            self.current_position.0 = movement;
-            self.current_position.1 += 8;
-        }
-        let x = (self.current_position.0 as i16) << 5;
-        let y = (self.current_position.1 as i16) << 5;
-        unsafe {
-            self.host
-                .vertex_set_texture_coordinate(index + CHAR_WIDTH, 0x80);
-            self.host.add_vertex_double(x, y, 0);
-            self.host.vertex_set_texture_coordinate(index, 0x80);
-            self.host.add_vertex_relative_raw(0b1111111111 - 223);
-            self.host.vertex_set_texture_coordinate(index, 0);
-            self.host
-                .add_vertex_relative_raw((0b1111111111 - 240) << 10);
-            self.host
-                .vertex_set_texture_coordinate(index + CHAR_WIDTH, 0);
-            self.host.add_vertex_relative_raw(224);
-        }
-    }
-}
 // VideoHardwareHandle is a ZST since it directly interacts with video hardware. why hold a pointer to
 // it when we can only pretend to for the sake of leveraging rust lifetimes, without wasting memory?
 pub struct VertexListHost<'a>(PhantomData<&'a mut VideoHardwareHandle>);
@@ -164,6 +94,9 @@ impl<'a> VertexListHost<'a> {
                 .vertex_set_color
                 .write(color)
         };
+    }
+    pub unsafe fn to_owned(&mut self) -> Self {
+        Self(self.0)
     }
     pub fn vertex_set_texture_coordinate(&mut self, x: i16, y: i16) {
         let x = x as u32;
@@ -256,6 +189,8 @@ bitflags! {
         const RENDER_FAR_POLYGONS = (1<<12);
         const RENDER_SMALL_POLYGONS = (1<<13);
         const RENDER_FOG = (1<<15);
+
+        const DEPTH_TEST_EQ = (1<<14);
 
         const POLYGON_ALPHA_SOLID = (31<<16);
         const POLYGON_ALPHA_WIREFRAME = (0<<16);

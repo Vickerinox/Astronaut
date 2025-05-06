@@ -17,7 +17,7 @@ pub struct Channel {
     fill_mode: WO<u32>,
     control: RW<Control>,
 }
-
+#[repr(C)]
 pub struct ChannelConfig {
     pub word_count: u32,
     pub block_size: u32,

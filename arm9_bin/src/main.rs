@@ -9,6 +9,8 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use core::arch::asm;
 
+use gui::VideoTextPass;
+use micro_imgui::{widgets::{button::Button, label::Label}, Sizing, Vec2};
 use reboot_lib::{
     spi::firmware::{FirmwareHeader, UserData}, Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, VideoPowerControl, Viewport, VIDEO_HARDWARE
 };
@@ -18,6 +20,7 @@ mod bootloader;
 mod mbr;
 mod nand;
 pub mod new_takeover;
+mod gui;
 
 pub unsafe fn nocash_write(str: &str) {
     const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
@@ -86,10 +89,14 @@ unsafe fn main() {
             .select_matrix_stack(MatrixMode::POSITION);
         VIDEO_HARDWARE
             .geometry_commands
-            .scale_matrix(0x1000, -0x1555, 0x1000);
+            .scale_matrix(0x1000, -0x1555, -0x1000);
         VIDEO_HARDWARE
             .geometry_commands
-            .translate_matrix(-0x80 * 0x20, -0x58 * 0x20, 0);
+            .scale_matrix(0x2000, 0x2000, 0x2000);
+
+        VIDEO_HARDWARE
+            .geometry_commands
+            .translate_matrix(-0x80 * 0x10, -0x60 * 0x10, 100);
 
         //more init
         VIDEO_HARDWARE
@@ -114,21 +121,29 @@ unsafe fn main() {
             );
         VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
         steal_main_mem();
+        const SCREEN_RECT: micro_imgui::Rect = micro_imgui::Rect { min: Vec2::ZERO, max: Vec2::new(255, 191) };
         
-        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+        gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("Waiting on ARM7...");
+            text_pass.layout_str("Waiting on ARM7...", 8);
         });
         video_context.next_frame();
         
-
+        
+        while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
+        reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
+        reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
 
-        let value = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
-        assert_eq!(value, 0xDEADBEEF, "{value:x?}");
+        //let value = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
+        //assert_eq!(value, 0xDEADBEEF, "{value:x?}");
+        
 
+        
+        
+        
         let nand_buffer =
             core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
         let sd_buffer =
@@ -169,22 +184,22 @@ unsafe fn main() {
         */
         let sd_fs = None;
 
-        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+        VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("reading nand mbr...");
+            text_pass.layout_str("reading nand mbr...", 8);
         });
         video_context.next_frame();
         read_encrypted_nand(nand_buffer, 0).unwrap();
 
-        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+        VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("mounting nand...");
+            text_pass.layout_str("mounting nand...", 8);
         });
         video_context.next_frame();
 
         let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
 
-        
+
         let nand_fs = if mbr.has_valid_signature() {
             let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
             read_encrypted_nand(nand_buffer, twl_lba).unwrap();
@@ -196,10 +211,45 @@ unsafe fn main() {
             
             nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
         } else {
-            panic!("NAND mbr: {:02x?}", &AsMut::<[u8]>::as_mut(&mut nand_buffer[0])[0x1BE..]);
-            None
+            let mut modal_open = false;
+            let backend = gui::DSMicroGuiBackend::new(video_context);
+            
+            micro_imgui::run(backend, (), |f, _| {
+                f.central_panel(|ui| {
+                    ui.add(Label::new("Viks weird project", 16));
+                    ui.add_space(5);
+                    ui.add(Label::new("If you see this, then NAND init failed, but no worries! thats normal TwT", 8));
+                    ui.add_space(3);
+                    if ui.add(Button::new("Open weird NAND menu!".into(), Sizing::Automatic)).clicked() {
+                        modal_open = true;
+                    }
+                    ui.add_space(1);
+                    ui.add(Button::new("This is a button actually!".into(), Sizing::Automatic)); 
+
+                    ui.add(Label::new(alloc::format!("pen: {}", ui.input_down(Buttons::PEN_DOWN.into())), 8));
+                });
+                if modal_open {
+                    f.window(micro_imgui::Rect::from_center_size(Vec2::new(128, 96), Vec2::new(90, 70)), |ui| {
+                        ui.add(Label::new("NAND Menu", 16));
+                        ui.add(Label::new(alloc::format!("NAND mbr: {:02x?}", &AsMut::<[u8]>::as_mut(&mut nand_buffer[0])[0x1BE..]), 8));
+                        ui.add_space(3);
+                        if ui.add(Button::new("close modal".into(), Sizing::Automatic)).clicked() {
+                            modal_open = false;
+                        }
+                        if ui.add(Button::new("re-read NAND mbr".into(), Sizing::Automatic)).clicked() {
+                            read_encrypted_nand(nand_buffer, 0).unwrap();
+                        }
+                    });
+                }
+                
+            });
+            panic!("Crap.")
         };
 
+        if nand_fs.is_none() {
+            
+        } else {
+            
         let mut working_folder = if let Some(folder) = nand_fs.as_ref().or(sd_fs.as_ref()) {
             folder.root_dir()
         } else {
@@ -242,13 +292,13 @@ unsafe fn main() {
             let mut max = 0;
             let mut new_folder = None;
 
-            reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+            VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
                 text_pass.set_color(0x7FFF);
-                text_pass.layout_str("Welcome");
-                text_pass.layout_str(&alloc::format!(" {:04b}", new_controls.bits()));
-                text_pass.layout_str("!");
+                text_pass.layout_str("Welcome", 8);
+                text_pass.layout_str(&alloc::format!(" {:04b}", new_controls.bits()), 8);
+                text_pass.layout_str("!", 8);
                 text_pass.next_line();
-                text_pass.layout_str(&showing);
+                text_pass.layout_str(&showing, 8);
                 text_pass.next_line();
                 text_pass.next_line();
                 for (num, item) in working_folder.iter().enumerate() {
@@ -257,7 +307,7 @@ unsafe fn main() {
                     match item {
                         Ok(item) => {
                             if num == index {
-                                text_pass.layout_str(" > ");
+                                text_pass.layout_str(" > ", 8);
                                 if select {
                                     match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
                                         Ok(a) => {
@@ -267,7 +317,7 @@ unsafe fn main() {
                                     }
                                 }
                             } else {
-                                text_pass.layout_str("   ");
+                                text_pass.layout_str("   ", 8);
                             }
                             if item.is_dir() {
                                 text_pass.set_color(0x7FF2);
@@ -279,12 +329,12 @@ unsafe fn main() {
                                 }
                             }
                             for byte in item.short_file_name_as_bytes() {
-                                text_pass.layout_char(*byte);
+                                text_pass.layout_char(*byte, 8);
                             }
                             text_pass.next_line();
                         }
                         Err(error) => {
-                            text_pass.layout_str("ERROR");
+                            text_pass.layout_str("ERROR", 8);
                             text_pass.next_line();
                         }
                     }
@@ -313,6 +363,7 @@ unsafe fn main() {
                     Err(_) => (),
                 }
             }
+        }
         }
     }
 }
@@ -351,7 +402,7 @@ fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> 
     }
     Ok(())
 }
-fn read_controller() -> Buttons {
+pub fn read_controller() -> Buttons {
     unsafe {
         reboot_lib::arm9_send_controller_read()
     }
@@ -373,16 +424,16 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
 
         video_context.next_frame();
-        reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|text_pass| {
+        gui::VideoTextPass::new(&mut video_context, micro_imgui::Rect::from_min_size(Vec2::ZERO, Vec2::new(255, 191))).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("Panic occured:");
+            text_pass.layout_str("Panic occured:", 8);
             text_pass.next_line();
             text_pass.next_line();
-            text_pass.layout_str(&alloc::format!("message: {}",  info.message()));
+            text_pass.layout_str(&alloc::format!("message: {}",  info.message()), 8);
             text_pass.next_line();
             text_pass.next_line();
             if let Some(loc) = info.location() {
-                text_pass.layout_str(&alloc::format!("location: {}",  loc));
+                text_pass.layout_str(&alloc::format!("location: {}",  loc), 8);
             }
         });
         video_context.next_frame();

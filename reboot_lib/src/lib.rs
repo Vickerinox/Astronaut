@@ -42,9 +42,9 @@ impl<T> core::ops::DerefMut for MemoryWrapper<T> {
 const REG_IME: *mut u32 = 0x4000208 as *mut u32;
 pub unsafe fn critical_function<F: FnOnce()>(closure: F) {
     let mut ime = 0;
-    core::ptr::swap(REG_IME, &mut ime);
+    REG_IME.swap(&mut ime);
     closure();
-    core::ptr::swap(REG_IME, &mut ime);
+    REG_IME.swap(&mut ime);
 }
 
 #[repr(u8)]
@@ -62,7 +62,7 @@ pub enum Response {
     Error = 2,
 }
 bitflags::bitflags! {
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq)]
     pub struct Buttons: u16 {
         const BUTTON_A = (1 << 0);
         const BUTTON_B = (1 << 1);
@@ -90,14 +90,13 @@ pub struct Controls {
     touch_y: u8,
 }
 unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), u32> {
-    while IPC_FIFO_HARDWARE.read_status() != 0 {}
+    
+    IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
     for data in data_out.into_iter().copied() {
         IPC_FIFO_HARDWARE.send_raw_blocking(data);
     }
-    IPC_FIFO_HARDWARE.set_status(opcode);
+    
     let value = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-    IPC_FIFO_HARDWARE.set_status(0);
-    while IPC_FIFO_HARDWARE.read_status() == 0 {}
     if value != 0 {
         Err(value)
     } else {
@@ -105,7 +104,7 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), u32> {
     }
 }
 pub unsafe fn arm9_send_controller_read() -> Buttons {
-    let value = com_arm9(1, &[]).err().unwrap_or(0);
+    let value = com_arm9(1, &[0]).err().unwrap_or(0);
     Buttons::from_bits_retain(value as u16)
 }
 pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), u32> {

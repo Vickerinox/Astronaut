@@ -6,59 +6,6 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
     r.read_exact(header)?;
     let header = &mut *(header as *mut [u8] as *mut u8 as *mut HeaderNDS);
 
-    let mut video_context = reboot_lib::VideoHardwareHandle::new();
-    reboot_lib::VideoTextPass::new(&mut video_context).text_pass(|h| {
-        h.set_color(0x7FFF);
-        h.layout_str("App Metadata:");
-        h.next_line();
-        h.next_line();
-        h.layout_str("Title: ");
-        for char in header.title {
-            h.layout_char(char);
-        }
-        h.next_line();
-        h.next_line();
-
-        h.layout_str("ARM9 offsets:");
-        h.next_line();
-        h.layout_str(&alloc::format!(
-            "o:{:X} l:{:X} e:{:X} s:{:X}",
-            header.arm9_offset,
-            header.arm9_load,
-            header.arm9_entry,
-            header.arm9_size
-        ));
-        h.next_line();
-        h.layout_str("ARM7 offsets:");
-        h.next_line();
-        h.layout_str(&alloc::format!(
-            "o:{:X} l:{:X} e:{:X} s:{:X}",
-            header.arm7_offset,
-            header.arm7_load,
-            header.arm7_entry,
-            header.arm7_size
-        ));
-        h.next_line();
-        h.layout_str("ARM9i offsets:");
-        h.next_line();
-        h.layout_str(&alloc::format!(
-            "o:{:X} l:{:X} s:{:X}",
-            header.arm9i_offset,
-            header.arm9i_load,
-            header.arm9i_size
-        ));
-        h.next_line();
-        h.layout_str("ARM7i offsets:");
-        h.next_line();
-        h.layout_str(&alloc::format!(
-            "o:{:X} l:{:X} s:{:X}",
-            header.arm7i_offset,
-            header.arm7i_load,
-            header.arm7i_size
-        ));
-    });
-    video_context.next_frame();
-
     r.seek(SeekFrom::Start(header.arm9_offset as u64))
         .expect("Failed to seek to ARM9 Binary");
     let arm9_ram =
@@ -82,8 +29,6 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
-
-    video_context.next_frame();
 
     inject_bootstrap();
 

@@ -5,9 +5,30 @@ pub const AES_HARDWARE: MemoryWrapper<AESEngine> = MemoryWrapper(0x4004400 as *m
 
 pub const NAND_KEY_Y: [u8; 16] = 0xFFFEFB4E_29590258_2A680F5F_1A4F3E79u128.to_le_bytes();
 
+
+bitflags::bitflags! {
+    #[derive(Clone, Copy)]
+    pub struct AESCnt: u32 {
+        const FLUSH_WRITE_FIFO = (1<<10);
+        const FLUSH_READ_FIFO = (1<<11);
+        const KEY_SELECT = (1<<24);
+        const KEY_SLOT_0 = (0<<26);
+        const KEY_SLOT_1 = (1<<26);
+        const KEY_SLOT_2 = (2<<26);
+        const KEY_SLOT_3 = (3<<26);
+        const KEY_BUSY = (1<<25);
+        const MODE_CCM_DEC = (0<<28);
+        const MODE_CCM_ENC = (1<<28);
+        const MODE_CTR = (2<<28);
+        const START = (1<<31);
+    }
+
+}
+
+
 #[repr(C)]
 pub struct AESEngine {
-    pub master_control: RW<u32>,
+    pub master_control: RW<AESCnt>,
     pub extra_blocks: WO<u16>,
     pub payload_blocks: WO<u16>,
     pub write_fifo: WO<u32>,
@@ -40,26 +61,27 @@ impl KeySlot {
 impl AESEngine {
     pub fn load_keys(slot: usize, key_x: &[u8], key_y: &[u8]) {}
     pub unsafe fn reset(&self) {
-        self.master_control.write((1 << 10) | (1 << 11));
-        self.master_control.write((1 << 10) | (1 << 11));
+        self.master_control.write(AESCnt::FLUSH_WRITE_FIFO | AESCnt::FLUSH_READ_FIFO);
+        self.master_control.write(AESCnt::FLUSH_WRITE_FIFO | AESCnt::FLUSH_READ_FIFO);
     }
     pub unsafe fn wait_aes_busy(&self) {
-        while self.master_control.read() & (1 << 31) > 0 {}
+        while self.master_control.read().contains(AESCnt::START) {}
     }
     //crypt a block of data in place
-    pub unsafe fn ctr_crypt_block(&self, data: &mut [u32], ctr: &[u32; 4]) {
+    pub unsafe fn ctr_crypt_block(&self, src: *mut u32, dst: *mut u32, len: u32, ctr: &[u32; 4]) {
         
+        let len = 128;
         (0x400_0008 as *mut u32).write_volatile((0x400_0008 as *const u32).read_volatile() | (1<<17));
         (0x400_0004 as *mut u32).write_volatile((0x400_0004 as *const u32).read_volatile() | (1<<2));
         use crate::ndma::{Control, NDMA_HARDWARE};
-        self.master_control.write(0);
+        self.master_control.write(AESCnt::empty());
+        
         self.reset();
-        let length = (data.len() << 2) as u32;
         self.load_iv(ctr);
-        self.set_block_count((length >> 4) as u16);
+        self.set_block_count((len >> 2) as u16);
 
         let in_dma = crate::ndma::ChannelConfig {
-            word_count: length >> 2,
+            word_count: len,
             block_size: 4,
             timing: 8,
             fill_mode: 0,
@@ -69,9 +91,8 @@ impl AESEngine {
                 | Control::START_ARM7_WRITE_AES
                 | Control::ENABLE,
         };
-        NDMA_HARDWARE.set_raw_dma(1, in_dma, data as *mut [u32] as _, 0x4004408 as _);
         let out_dma = crate::ndma::ChannelConfig {
-            word_count: length >> 2,
+            word_count: len,
             block_size: 4,
             timing: 8,
             fill_mode: 0,
@@ -81,15 +102,27 @@ impl AESEngine {
                 | Control::START_ARM7_READ_AES
                 | Control::ENABLE,
         };
-        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, data as *mut [u32] as _);
+        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, dst as _);
+        NDMA_HARDWARE.set_raw_dma(1, in_dma, src as _, 0x4004408 as _);
         self.start((0 << 14) | (3 << 12) | (2 << 28));
-
+        let mut dest = dst;
+        /* 
+        for word in core::slice::from_raw_parts_mut(src, len as usize).chunks_exact(4) {
+            for i in word {
+                AES_HARDWARE.write_fifo.write(*i);
+            }
+            for _ in 0..4 {
+                *dest = AES_HARDWARE.read_fifo.read();
+                dest = dest.add(1);
+            }
+        }
+        */
         NDMA_HARDWARE.await_channel(0);
         NDMA_HARDWARE.await_channel(1);
         self.wait_aes_busy();
     }
     pub unsafe fn start(&self, flags: u32) {
-        self.master_control.write(flags | (1 << 31));
+        self.master_control.write(AESCnt::from_bits_retain(flags) | AESCnt::START);
     }
     pub unsafe fn set_block_count(&self, count: u16) {
         self.payload_blocks.write(count);
@@ -100,13 +133,13 @@ impl AESEngine {
         }
     }
     pub unsafe fn wait_key_busy(&self) {
-        while self.master_control.read() & (1 << 25) > 0 {}
+        while self.master_control.read().contains(AESCnt::KEY_BUSY) {}
     }
     pub unsafe fn set_key_slot(&self, slot: usize) {
         self.wait_key_busy();
-        let read = self.master_control.read();
+        let read = self.master_control.read().bits();
         let write = (read & !(3 << 26)) | (1 << 24) | ((slot as u32) << 26);
-        self.master_control.write(write);
+        self.master_control.write(AESCnt::from_bits_retain(write));
     }
 }
 
@@ -121,7 +154,7 @@ pub unsafe fn nand_crypt_init(keyslot: usize) {
     let keyslot = (keyslot as u32) & 3;
     AES_HARDWARE
         .master_control
-        .write((2 << 28) | (keyslot << 26) | (1 << 24) | (1 << 31) | (2 << 12) | (1 << 14));
+        .write(AESCnt::MODE_CTR | AESCnt::from_bits_retain(keyslot << 26) | AESCnt::KEY_SELECT);
     AES_HARDWARE.set_key_slot(0);
     AES_HARDWARE.wait_key_busy();
 }

@@ -4,7 +4,7 @@
 mod swi;
 
 use core::arch::asm;
-use reboot_lib::IPC_FIFO_HARDWARE;
+use reboot_lib::{spi::{Control, PowerRegiser}, IPC_FIFO_HARDWARE};
 #[no_mangle]
 pub unsafe extern "C" fn _start() {
     asm!(
@@ -24,18 +24,19 @@ pub unsafe extern "C" fn _start() {
 
 fn main() {
     unsafe {
-        
-        
-
-
+        IPC_FIFO_HARDWARE.enable();
 
         core::ptr::write_volatile(0x4000210 as *mut u32, 0);
+        (0x4000208 as *mut u32).write_volatile(0);
         reboot_lib::spi::touchscreen::init_tsc();
-
-        reboot_lib::spi::write_powerman(reboot_lib::spi::PowerRegiser::Control(reboot_lib::spi::Control::ENABLE_BACKLIGHTS));
         reboot_lib::i2c::init();
+        reboot_lib::spi::write_powerman(PowerRegiser::Control(Control::ENABLE_BACKLIGHTS));
+        
 
         
+        (0x400_0008 as *mut u32).write_volatile((0x400_0008 as *const u32).read_volatile() | (1<<17));
+        (0x400_0004 as *mut u32).write_volatile((0x400_0004 as *const u32).read_volatile() | (1<<2));
+      
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
         reboot_lib::load_nand_key_x(0);
@@ -47,38 +48,28 @@ fn main() {
             core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0);
 
             
-
-        
-        IPC_FIFO_HARDWARE.enable();
-        IPC_FIFO_HARDWARE.set_status(0);
-
-        //match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
-        //    Ok(()) => (),
-        //    Err(a) => (),
-        //}
         reboot_lib::MMC_CONTROLLER.tmio_init();
+        reboot_lib::MMC_CONTROLLER.status.read();
+        reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
+        reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot);
 
-        let mut response = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
-            Ok(_) => 0xDEADBEEF,
-            Err(res) => res.bits(),
-        };
 
         
+        reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
+        while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
+        reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
+
         loop {
-            IPC_FIFO_HARDWARE.send_raw_blocking(response);
-            IPC_FIFO_HARDWARE.set_status(1);
-            while IPC_FIFO_HARDWARE.read_status() != 0 {}
-            IPC_FIFO_HARDWARE.set_status(0);
-            while IPC_FIFO_HARDWARE.read_status() == 0 {}
-            response = 0;
-            match IPC_FIFO_HARDWARE.read_status() {
+            while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
+            let mut response = 0;
+            match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
-                    let Some([]) = gather_args() else { response = 0x8000_0000; continue;};
+                    let Some([0]) = gather_args() else { response = 0x8000_0000; continue;};
                     let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
                     let mut controls = reboot_lib::Buttons::from_bits_retain(controls);
-                    if !reboot_lib::spi::touchscreen::is_pen_down() {
-                        controls ^= reboot_lib::Buttons::PEN_DOWN;
-                    }
+                    //if !reboot_lib::spi::touchscreen::is_pen_down() {
+                    //    controls ^= reboot_lib::Buttons::PEN_DOWN;
+                    //}
                     response = controls.bits() as u32;
                 }
                 2 => {
@@ -113,6 +104,7 @@ fn main() {
                 }
                 _ => {response = 0x8000_0000},
             }
+            IPC_FIFO_HARDWARE.send_raw_blocking(response);
         }
     }
 }
@@ -124,7 +116,7 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     }
     loop {}
 }
-use reboot_lib::AES_HARDWARE;
+
 pub unsafe fn firmware_read(
     data: *mut [reboot_lib::StorageSector],
     offset: u32,
@@ -139,13 +131,15 @@ pub unsafe fn mmc_read_decrypt(
     ctr_base: &[u32; 4],
     sector: u32,
 ) -> Result<(), reboot_lib::Status> {
+    
     let a = reboot_lib::read_sectors(
         reboot_lib::DeviceSelect::EMMC,
         sector,
-        data,
+        core::slice::from_raw_parts_mut(0x0380_0000 as *mut reboot_lib::StorageSector, 1),
     );
-    return a;
-    /* 
+    
+    
+
     fn add_on_key(key: &mut [u32; 4], add: u32) {
         let carry;
         let carry2;
@@ -159,9 +153,9 @@ pub unsafe fn mmc_read_decrypt(
     add_on_key(&mut key, sector << 5);
     let ptr = data as *mut ();
     let len = data.len();
-    reboot_lib::AES_HARDWARE.ctr_crypt_block(core::slice::from_raw_parts_mut(ptr as *mut _, len<<6), &key);
-    a
-    */
+    reboot_lib::AES_HARDWARE.ctr_crypt_block(0x0380_0000 as *mut _, ptr as *mut _, (len<<6) as u32, &key);
+    Ok(())
+    
 }
 
 /// read from the SD card using NDMA.
@@ -191,7 +185,7 @@ pub unsafe fn nocash_write(str: &str) {
 unsafe fn gather_args<const N: usize>() -> Option<[u32; N]> {
     let mut array = [0u32; N];
     for data in array.iter_mut() {
-        *data = IPC_FIFO_HARDWARE.recieve_value_raw().ok()?
+        *data = IPC_FIFO_HARDWARE.recieve_raw_blocking();
     }
-    IPC_FIFO_HARDWARE.recieve_value_raw().is_err().then_some(array)
+    Some(array)
 }

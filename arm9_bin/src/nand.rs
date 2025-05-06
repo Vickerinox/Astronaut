@@ -1,9 +1,9 @@
 pub unsafe fn mount_twl_main(
     lba: u32,
     size: u32,
-    buffer: &mut [reboot_lib::StorageSector],
+    buffer: &'static mut [reboot_lib::StorageSector],
 ) -> Result<
-    fatfs::FileSystem<SDMMCCursor<&mut [reboot_lib::StorageSector], SDMMCAccessor, 9>>,
+    fatfs::FileSystem<SDMMCCursor<&'static mut [reboot_lib::StorageSector], SDMMCAccessor, 9>>,
     fatfs::Error<SDMMCError>,
 > {
     let cursor = SDMMCCursor::new(

@@ -23,6 +23,9 @@ pub enum RecieveFifoError {
     FifoDisabled,
 }
 impl IPCFifoHardware {
+    pub unsafe fn recv_fifo_empty(&self) -> bool {
+        self.control.read().contains(IPCCNT::RECV_FIFO_EMPTY)
+    }
     pub unsafe fn enable(&self) {
         self.control
             .write(IPCCNT::ENABLE_FIFOS | IPCCNT::FLUSH_SEND_FIFO);
@@ -56,7 +59,7 @@ impl IPCFifoHardware {
         Ok(IPC_FIFO_RECIEVE.read())
     }
     pub unsafe fn recieve_raw_blocking(&self) -> u32 {
-        while self.control.read().contains(IPCCNT::RECV_FIFO_EMPTY) {}
+        while self.recv_fifo_empty() {}
         IPC_FIFO_RECIEVE.read()
     }
     pub unsafe fn send_raw_blocking(&self, value: u32) {

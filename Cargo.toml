@@ -11,7 +11,7 @@ members = [
     "arm9_bootstrap",
     "common",
     "magic_values",
-    "micro_gui",
+    "micro_imgui",
     "reboot_lib"
 , "unlaunch_decomp"]
 

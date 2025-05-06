@@ -1,6 +1,6 @@
 use core::num::NonZeroU32;
 
-use super::{Command, Status, TMIOPort, MMC_CONTROLLER};
+use super::{ClockCnt, Command, Status, TMIOPort, MMC_CONTROLLER};
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -87,24 +87,57 @@ pub enum DeviceInitializationError {
 
 static mut DEVICES: [Device; 2] = [Device::sd_card(0), Device::nand(1)];
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
-    
-    MMC_CONTROLLER.soft_reset.write(0);
     let dev = &mut DEVICES[device_number as u8 as usize];
-    MMC_CONTROLLER.soft_reset.write(1);
+
+    
+    MMC_CONTROLLER.tmio_powerup(&mut dev.port);
+    /* 
+    dev.port.clock = ClockCnt::FREQ_16M;
+    MMC_CONTROLLER.tmio_set_port(&mut dev.port);
+    let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::StopTransmission, 0);
+    let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, 0);
+    let status = MMC_CONTROLLER.response[0].read();
+
+    if status & 0xF00 == 0x900 {
+        return Ok(())
+    }
+
+    return Err(Status::from_bits_retain(0x80000000 | res.bits()));
+    */
+
     MMC_CONTROLLER.data_control_32.write(super::DataControl32::CLEAR_FIFO_32 | super::DataControl32::USE_DATA32);
 
-
-
-    
-
-    MMC_CONTROLLER.tmio_powerup(&mut dev.port);
-
     match device_number {
+
         DeviceSelect::SDCardSlot => {
+            dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
+            crate::swi_delay(0x2000);
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
+            if !res.successful() {
+                return Err(Status::from_bits_retain(1) | res);
+            }
+
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendIfCondition, 0x1AA);
+            let mut temp = 0;
+            if !res.successful() {
+                temp |= 0x80000000;
+            }
+            let mut res = MMC_CONTROLLER.send_command(&mut dev.port, Command::AppCommand, 0);
+            res = MMC_CONTROLLER.send_command(&mut dev.port, Command::AppSendOpCondition, 0x00FF8000 | temp);
+            let mut temp2 = 1;
+            while dev.port.response[0] & 0x8000_0000 == 0 {
+                while !res.successful() {
+                    MMC_CONTROLLER.send_command(&mut dev.port, Command::AppCommand, 0);
+                    res = MMC_CONTROLLER.send_command(&mut dev.port, Command::AppSendOpCondition, 0x00FF8000 | temp);
+                }
+            }
             
+
         },
         DeviceSelect::EMMC => {
             dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
+
+            crate::swi_delay(0xf000);
             let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
             if !res.successful() {
                 return Err(Status::from_bits_retain(1) | res);
