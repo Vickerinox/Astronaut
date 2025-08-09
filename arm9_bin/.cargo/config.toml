@@ -7,7 +7,7 @@ strip = true                                # Strip symbols from binary*
 
 
 [target.armv5te-none-eabi]                # All targets
-rustflags = ["-C", "linker-flavor=ld.lld", "-C", "relocation-model=pic","-C", "link-arg=-Tlink_arm9.x"]
+rustflags = ["-C", "linker-flavor=ld.lld","-C", "link-arg=-Tlink_arm9.x"]
 
 
 [build]

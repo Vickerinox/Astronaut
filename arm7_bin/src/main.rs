@@ -52,13 +52,13 @@ fn main() {
         reboot_lib::MMC_CONTROLLER.status.read();
         reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
         reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot);
-
-
         
         reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
+        loop {}
+        /* 
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
@@ -87,7 +87,8 @@ fn main() {
                     
                 }
                 5 => {
-                    //sd_read_sectors(buffer, arg);
+                    let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
+                    sd_read_sectors(buffer, arg);
                 }
                 6 => {
                     let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
@@ -106,6 +107,7 @@ fn main() {
             }
             IPC_FIFO_HARDWARE.send_raw_blocking(response);
         }
+        */
     }
 }
 

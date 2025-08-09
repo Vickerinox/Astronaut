@@ -29,6 +29,25 @@ pub unsafe fn nocash_write(str: &str) {
     }
 }
 
+unsafe fn interrupt_handler() {
+    #[cfg(target_arch = "arm")]
+
+    core::arch::asm!(
+        "push {{r14}}",
+        "push {{r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12}}",
+        "ldr r0, =0xDEADBEEF",
+        out("r0") _,
+    );
+    FRAME_COUNTER += 1;
+    core::ptr::write_volatile(0x4000214 as *mut u32, 0xFFFFFF7F);
+    core::ptr::write_volatile(0x2FE_3FF8 as *mut u32, 0xFFFFFF7F);
+    #[cfg(target_arch = "arm")]
+    core::arch::asm!(
+        "pop {{r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12}}",
+        "pop {{r15}}",
+    );
+}
+static mut FRAME_COUNTER: usize = 0;
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
 }
@@ -137,58 +156,45 @@ unsafe fn main() {
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
 
-        //let value = reboot_lib::IPC_FIFO_HARDWARE.recieve_raw_blocking();
-        //assert_eq!(value, 0xDEADBEEF, "{value:x?}");
-        
-
-        
-        
-        
-        let nand_buffer =
-            core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
-        let sd_buffer =
-            core::slice::from_raw_parts_mut(0x2FFFC00 as *mut reboot_lib::StorageSector, 1);
-        let firmware_buffer = 
-            core::slice::from_raw_parts_mut(0x2FFFA00 as *mut reboot_lib::StorageSector, 1);
-
-        /* 
-        read_firmware(firmware_buffer, 0x0);
-        let firmware_header: &FirmwareHeader = &*transmute_slice(firmware_buffer);
-
-        
-        let settings_offset = (firmware_header.user_settings_location as u32) << 3;
-        if settings_offset == 0 {
-            panic!("couldn't read ds firmware");
-        }
-        
-        read_firmware(firmware_buffer, settings_offset);
-        let user_settings: &UserData = &*transmute_slice(firmware_buffer);
-
-        let nickname = alloc::format!("{:x?}", &user_settings.nickname);
-        
-
-        
-
-        
-        read_sd_card(sd_buffer, 0x0);
-        let sd_mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
-
-        let sd_fs = if sd_mbr.has_valid_signature() {
-            let sd_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
-            let sd_size =
-                core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].sector_count));
-            nand::mount_sd_card_partition(sd_lba, sd_size, sd_buffer).ok()
-        } else {
-            None
-        };
-        */
-        let sd_fs = None;
+ 
 
         VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("reading nand mbr...", 8);
+            text_pass.layout_str("starting up...", 8);
         });
         video_context.next_frame();
+
+        let mut dtcm: u32 = 0x2FE_000A;
+
+        
+        core::arch::asm!(
+            "mcr p15, 0, {0}, c9, c1, 0",
+            "mrc p15, 0, {0}, c9, c1, 0",
+            inout(reg) dtcm,
+        );
+        
+        VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.layout_str(&alloc::format!("DTCM: {}", dtcm), 8);
+        });
+        video_context.next_frame();
+    core::ptr::write_volatile(0x2FE_3FFC as *mut u32, interrupt_handler as unsafe fn() as u32 );
+    new_takeover::flush_mmc();
+    core::ptr::write_volatile(0x4000210 as *mut u32, 0xFFFFFF7F);    
+    core::ptr::write_volatile(0x4000208 as *mut u32, 1);
+
+    let mut generations = 0;
+        loop {
+            VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
+                text_pass.set_color(0x7FFF);
+                text_pass.layout_str(&alloc::format!("Frame: {}", unsafe { FRAME_COUNTER}), 8);
+                text_pass.next_line();
+                text_pass.layout_str(&alloc::format!("Generations: {}", generations), 8);
+            });
+            generations += 1;
+            video_context.next_frame();
+        }
+        /* 
         read_encrypted_nand(nand_buffer, 0).unwrap();
 
         VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
@@ -199,6 +205,13 @@ unsafe fn main() {
 
         let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
 
+        VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.layout_str("just one more thing before trying to start...", 8);
+        });
+        video_context.next_frame();
+
+        
 
         let nand_fs = if mbr.has_valid_signature() {
             let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
@@ -364,7 +377,9 @@ unsafe fn main() {
                 }
             }
         }
+        
         }
+        */
     }
 }
 

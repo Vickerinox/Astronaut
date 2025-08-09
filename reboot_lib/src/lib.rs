@@ -15,6 +15,7 @@ pub mod spi;
 pub mod i2c;
 mod swi;
 mod video;
+mod interupts;
 
 pub use allocator::ALLOCATOR;
 pub use crypto::*;
@@ -24,6 +25,7 @@ pub use mmc::tmio::*;
 pub use mmc::*;
 pub use swi::*;
 pub use video::*;
+pub use interupts::*;
 pub struct MemoryWrapper<T>(*mut T);
 impl<T> core::ops::Deref for MemoryWrapper<T> {
     type Target = T;
