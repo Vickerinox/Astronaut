@@ -93,11 +93,7 @@ fn main() {
                 6 => {
                     let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
-                    #[cfg(target_arch = "arm")]
-                    core::arch::asm!(
-                        "mov pc, r0",
-                        in("r0") arg,
-                    );
+                    (*(arg as *mut () as *mut unsafe extern fn()))();            
                 }
                 7 => {
                     let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
