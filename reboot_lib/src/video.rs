@@ -8,15 +8,17 @@ use volatile_register::{RO, RW, WO};
 pub const VIDEO_HARDWARE: MemoryWrapper<VideoHardware> =
     MemoryWrapper(0x0400_0000 as *mut VideoHardware);
 
-pub const ENGINE_A_BG_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0000 as *mut [u16; 256]);
-pub const ENGINE_A_OBJ_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0200 as *mut [u16; 256]);
-pub const ENGINE_B_BG_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0400 as *mut [u16; 256]);
-pub const ENGINE_B_OBJ_PALETTES: MemoryWrapper<[u16; 256]> = MemoryWrapper(0x0500_0600 as *mut [u16; 256]);
+pub const ENGINE_A_BG_PALETTES: MemoryWrapper<[u16; 256]> =
+    MemoryWrapper(0x0500_0000 as *mut [u16; 256]);
+pub const ENGINE_A_OBJ_PALETTES: MemoryWrapper<[u16; 256]> =
+    MemoryWrapper(0x0500_0200 as *mut [u16; 256]);
+pub const ENGINE_B_BG_PALETTES: MemoryWrapper<[u16; 256]> =
+    MemoryWrapper(0x0500_0400 as *mut [u16; 256]);
+pub const ENGINE_B_OBJ_PALETTES: MemoryWrapper<[u16; 256]> =
+    MemoryWrapper(0x0500_0600 as *mut [u16; 256]);
 
 pub const ENGINE_A_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0000 as *mut [u16; 512]);
 pub const ENGINE_B_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0400 as *mut [u16; 512]);
-
-
 
 pub struct VideoHardwareHandle;
 pub struct VideoHardwareInUseError;
@@ -39,7 +41,7 @@ impl VideoHardwareHandle {
             .matrix_mode
             .write(MatrixMode::PROJECTION);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        
+
         VIDEO_HARDWARE
             .geometry_commands
             .matrix_mode
@@ -55,7 +57,6 @@ impl VideoHardwareHandle {
             .matrix_mode
             .write(MatrixMode::VECTOR);
         VIDEO_HARDWARE.geometry_commands.matrix_identity.write(0); //loads an identity matrix into the selected stack
-        
     }
     #[inline]
     unsafe fn begin_vertex_list(&mut self, primitive_type: VertexListType) {

@@ -1,6 +1,10 @@
 use alloc::borrow::Cow;
 
-use crate::{primitives::Sizing, ui::{AutoAdd, Ui}, Backend, Color, Response, Sense, Shape, Vec2};
+use crate::{
+    primitives::Sizing,
+    ui::{AutoAdd, Ui},
+    Backend, Color, Response, Sense, Shape, Vec2,
+};
 
 pub struct Button<'a> {
     text: Cow<'a, str>,
@@ -19,9 +23,19 @@ impl<'t> AutoAdd for Button<'t> {
             Sizing::Cropped(vec2) => vec2.max(Vec2::new(0, 8)),
             Sizing::Padded(vec2) => vec2.max(Vec2::new(0, 8)),
         };
-        let bounds = ui.prepare_complication(prep_size).0.translate(Vec2::unit(2)).include_point(ui.clip_rect().max);
+        let bounds = ui
+            .prepare_complication(prep_size)
+            .0
+            .translate(Vec2::unit(2))
+            .include_point(ui.clip_rect().max);
         let box_shaper = ui.reserve_shape();
-        let rect = ui.draw(Shape::Text { bounds, str: text, color: Color::new(200, 200, 200), outline: Color::new(0, 0, 0), size: 8 });
+        let rect = ui.draw(Shape::Text {
+            bounds,
+            str: text,
+            color: Color::new(200, 200, 200),
+            outline: Color::new(0, 0, 0),
+            size: 8,
+        });
         let resp = ui.allocate_size(rect.scale_uniform(2).size(), Sense::clickable());
 
         let (outline_color, fill) = if resp.stats.intersects(Sense::PRESSED) {
@@ -32,7 +46,16 @@ impl<'t> AutoAdd for Button<'t> {
             (Color::new(0, 0, 0), Color::new(100, 100, 100))
         };
 
-        ui.draw_under(Shape::Rectangle { area: resp.rect, fill, rounding: 1, outline_color, outline_size: 1 }, box_shaper);
+        ui.draw_under(
+            Shape::Rectangle {
+                area: resp.rect,
+                fill,
+                rounding: 1,
+                outline_color,
+                outline_size: 1,
+            },
+            box_shaper,
+        );
         resp
     }
 }

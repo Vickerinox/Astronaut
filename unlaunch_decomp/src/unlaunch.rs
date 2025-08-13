@@ -18,18 +18,18 @@ unsafe fn arm7_main() {
     let r0 = 0x6D00;
     (r4 as *mut u32).byte_add(0x180).write_volatile(r0);
     let mut r0 = 0x100;
-    while r0  & 0xF != 0xD {
+    while r0 & 0xF != 0xD {
         r0 = 0x100;
         r0 = (r4 as *mut u32).byte_add(0x180).read_volatile();
     }
     //0x6023D64
 
-    /* 
+    /*
     fun_602b738();
-    
+
     fun_602c1a8();
     fun_6025bf4();
-    
+
     fun_602bfb4();
 
     fun_602bfb4();
@@ -78,7 +78,7 @@ unsafe fn fun_06026698() {
     let mut r0 = 1;
     fun_0602668c(&mut r0);
     let r0 = 0x77;
-}   
+}
 unsafe fn fun_06027604(r1: &mut u32) {
     fun_06026698();
     let mut r0 = 0x4E;
@@ -121,20 +121,14 @@ unsafe fn fun_0602668c(r0: &mut u32) {
 }
 
 //EDO:: POSSIBLE ENTRY POINT
-unsafe fn fun_06025710() {
-
-}
+unsafe fn fun_06025710() {}
 //EDO:: POWER MANAGEMENT
-unsafe fn fun_06026fc0() {
+unsafe fn fun_06026fc0() {}
 
-}
-
-//EDO:: sends i2c commands 
-unsafe fn fun_06026ff8() {
-
-}
+//EDO:: sends i2c commands
+unsafe fn fun_06026ff8() {}
 unsafe fn fun_060277ec() {
-    let mut r1= 0x4000;
+    let mut r1 = 0x4000;
     let mut r0 = 0x100;
     fun_06027b48(&mut r1, &mut r0);
 }
@@ -166,7 +160,6 @@ unsafe fn fun_06028018(r0: &mut u32, r1: &mut u32, r2: &mut u32) {
     let r3 = !(*r2 | 0x200);
     r4 |= r3;
     //... stuff with dsi wifi
-
 }
 unsafe fn fun_06027810() {
     //fun_06029c90();
@@ -184,9 +177,7 @@ unsafe fn fun_06027cb8(r0: &mut u32) {
         fun_06027c7c();
     }
 }
-unsafe fn fun_06027c7c() {
-    
-}
+unsafe fn fun_06027c7c() {}
 //seems like it's a full init of the dsi wifi.
 //this is in no way accurate to the real asm, but just for a picture on what to analyze.
 unsafe fn fun_06027568() {
@@ -195,15 +186,14 @@ unsafe fn fun_06027568() {
     let mut r2 = 1;
     fun_06025518(&mut r0, &mut r1, &mut r2); //does stuff with the SPI BUS
     fun_06027604(&mut r1); //does stuff with the RTC??
-    
-    
+
     fun_060276c4(); // does stuff with the DSi Wifi
     let r8 = r0;
     fun_060277ec(); // further dsi wifi things
     if r8 != 0 {
         fun_06027810(); //no clue, but does something related to CRC eventually
     }
-    /* 
+    /*
     fun_06027820(); // EVEN MORE dswifi?????
     if r8 != 0 {
         fun_06027894(); // probably something similar to 06027810
@@ -213,7 +203,7 @@ unsafe fn fun_06027568() {
     fun_060279bc(); // more wifi things, but this one is also mass copying stuff around, hmm.....
 
 
-    let r0 = 0x60284e6; 
+    let r0 = 0x60284e6;
     fun_06027aac(); // more copying memory around
     let r1 = 0x418;
     let r0 = 0;
@@ -231,13 +221,11 @@ unsafe fn fun_06027568() {
     let r0 = 0;
     fun_06027f2c(); // :|
     */
-
 }
 unsafe fn fun_060276c4() {
     let r1 = 4;
     //fun_06027f20();
     let r9 = 0x400_4A00;
-
 }
 
 //also related to spi?????
@@ -251,10 +239,10 @@ unsafe fn fun_06025518(r0: &mut u32, r1: &mut u32, r2: &mut u32) {
         *r1 += 1;
     }
 }
-unsafe fn fun_060254f8(r2: &mut u32,r3: &mut u32, r0: &mut u32) {
+unsafe fn fun_060254f8(r2: &mut u32, r3: &mut u32, r0: &mut u32) {
     *r2 += 4;
     let mut r6 = 0x18;
-    *r0 = *r3<<r6;
+    *r0 = *r3 << r6;
     while r6 > 0 {
         fun_06025484(r2, r0);
         r6 -= 8;
@@ -283,7 +271,6 @@ unsafe fn fun_06025484(r2: &mut u32, r0: &mut u32) {
     *r2 -= 1;
 }
 
-
 //ENABLE INTERRUPTS
 unsafe fn fun_0602bfb4(arg: u32) {
     let r1 = 0x400_0210 as *mut u32;
@@ -292,7 +279,7 @@ unsafe fn fun_0602bfb4(arg: u32) {
     r1.write_volatile(r2);
 }
 
-//FIFO RELATED 
+//FIFO RELATED
 unsafe fn fun_06025c58() {
     let r1 = 0x400_0000;
     let r0 = 0x8408;

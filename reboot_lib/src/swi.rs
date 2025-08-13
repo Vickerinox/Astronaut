@@ -14,3 +14,7 @@ pub unsafe fn swi_vblank() {
         core::arch::asm!("SWI 0x50000",);
     });
 }
+pub unsafe fn swi_halt() {
+    #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER
+    core::arch::asm!("SWI 0x60000",);
+}

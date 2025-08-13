@@ -34,7 +34,7 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
 
     reboot_lib::arm9_send_arm7_jump(common::bootstrap::ARM7_EN as u32);
     (*(common::bootstrap::ARM9_EN as *mut () as *mut unsafe fn()))();
-    /* 
+    /*
     #[cfg(target_arch = "arm")]
     core::arch::asm!(
         "mov pc, r0",

@@ -4,9 +4,9 @@ use crate::MemoryWrapper;
 use volatile_register::*;
 
 pub mod driver;
-pub mod tmio;
 pub mod new_driver;
 pub mod newer_driver;
+pub mod tmio;
 
 pub const MMC_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004800 as *mut MMC);
 
@@ -40,7 +40,6 @@ bitflags::bitflags! {
         const FREQ_16M = (0x80 >> 8);
     }
 }
-
 
 const TMIO_MASK_GW: u16 = (TMIO_STAT1_ILL_ACCESS
     | TMIO_STAT1_CMDTIMEOUT
@@ -89,6 +88,7 @@ bitflags! {
 
         const UNKNOWN = (1<<27);
 
+        
 
         const CMD_BUSY = (1<<30);
         const ERR_ILLEGAL_ACCESS = (1<<31);
@@ -143,8 +143,7 @@ pub struct MMC {
     pub data_fifo_32: RW<u32>,
 }
 
-
-bitflags::bitflags! { 
+bitflags::bitflags! {
     #[derive(Clone, Copy)]
     pub struct DataControl32: u16 {
         const ENABLE_RX_IRQ = (1 << 11);
@@ -159,17 +158,16 @@ bitflags::bitflags! {
 
 impl MMC {
     pub unsafe fn tmio_init(&self) {
-        self.data_control_32.write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32); // enable and clear data32 fifo
+        self.data_control_32
+            .write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32); // enable and clear data32 fifo
         self.block_len_32.write(512);
         self.block_count_32.write(1);
         self.data_control.write(Control::USE_DATA32); // enable DMA requests? (gbatek says data32 mode?)
 
-        
         //reset and un-reset
         self.soft_reset.write(0);
         self.soft_reset.write(1);
 
-        
         self.port_select.write(0);
         self.block_count.write(1);
         self.irmask.write(
@@ -226,21 +224,24 @@ impl MMC {
         let command = command as u16;
         let mut status = Status::empty();
 
-        let flags = if command & (1<<11) > 0 {
+        let flags = if command & (1 << 11) > 0 {
             Status::DATA_END
         } else {
             Status::empty()
         };
         self.tmio_set_port(port);
 
-        
         self.irmask.write(Status::empty());
         self.status.write(Status::empty());
 
         self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
 
-        self.data_control_32.modify(|f| (f & !(DataControl32::ENABLE_RX_IRQ | DataControl32::ENABLE_TX_IRQ)) | DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
+        self.data_control_32.modify(|f| {
+            (f & !(DataControl32::ENABLE_RX_IRQ | DataControl32::ENABLE_TX_IRQ))
+                | DataControl32::CLEAR_FIFO_32
+                | DataControl32::USE_DATA32
+        });
         self.block_len_32.write(port.block_len);
         self.param.write(argument);
         let cmd = command;
@@ -254,7 +255,9 @@ impl MMC {
             if use_buf {
                 if control.contains(DataControl32::RX_READY) || status.contains(Status::RX_READY) {
                     for i in 0..(port.block_len >> 2) {
-                        (ptr as *mut u32).add(i as usize).write_volatile(self.data_fifo_32.read());
+                        (ptr as *mut u32)
+                            .add(i as usize)
+                            .write_volatile(self.data_fifo_32.read());
                     }
                 }
                 if control.contains(DataControl32::TX_READY) {
@@ -276,7 +279,6 @@ impl MMC {
         return resp;
 
         let buf = port.buffer;
-
 
         while !status.intersects(Status::RESPONSE_END) {
             status |= self.status.read();
@@ -304,7 +306,12 @@ impl MMC {
             *status |= self.status.read();
             for sector in (&mut *buf).iter_mut() {
                 if !status.intersects(Status::ALL_ERRORS) {
-                    while self.data_control_32.read().intersection(DataControl32::RX_READY).is_empty() {}
+                    while self
+                        .data_control_32
+                        .read()
+                        .intersection(DataControl32::RX_READY)
+                        .is_empty()
+                    {}
                     for word in &mut sector.0 {
                         *word = self.data_fifo_32.read()
                     }
@@ -314,7 +321,11 @@ impl MMC {
             *status |= self.status.read();
             for sector in (&*buf).iter() {
                 if !status.intersects(Status::ALL_ERRORS) {
-                    while self.data_control_32.read().contains(DataControl32::TX_READY) {}
+                    while self
+                        .data_control_32
+                        .read()
+                        .contains(DataControl32::TX_READY)
+                    {}
                     for word in &sector.0 {
                         self.data_fifo_32.write(*word)
                     }
@@ -367,6 +378,7 @@ const fn acmd_r1_r(command_number: u16) -> u16 {
     command_number | CMD_RESP_R1 | CMD_DATA_EN | CMD_DATA_R | (1 << 6)
 }
 #[repr(u16)]
+#[derive(Debug, Clone, Copy)]
 pub enum Command {
     //basic commands (class 0)
     GoIdleState = none(0),
@@ -432,6 +444,15 @@ pub enum Command {
     QueueWriteTask = r1_w(47), //  R1, [31:21] Reserved [20:16] Task ID [15:0] Reserved.
 
     MMCSendOptionalCondition = r3(1),
+}
+
+impl Command {
+    pub fn transmits_data(&self) -> bool {
+        *self as u16 & CMD_DATA_EN > 0
+    }
+    pub fn reads_data(&self) -> bool {
+        *self as u16 & CMD_DATA_R > 0
+    }
 }
 
 const CMD_RESP_AUTO: u16 = 0; // Response type auto. Only works with certain commands.

@@ -1,28 +1,26 @@
 use super::SPIControl;
-struct RawTouchData {
+struct RawTouchData {}
 
-}
-
-/* 
+/*
 pub struct TouchReadError;
 unsafe fn touch_read_data() -> Result<RawTouchData, TouchReadError> {
     crate::critical_function(||{
-        
+
     });
 }
 */
 
 #[repr(u8)]
 pub enum CdcRegister {
-    Control(CntReg),     //= 0x00, //< Chip control
-    Sound(SndReg),       //= 0x01, //< ADC/DAC control
-    TouchCnt(TouchCntReg),//    = 0x03, //< TSC control
+    Control(CntReg),       //= 0x00, //< Chip control
+    Sound(SndReg),         //= 0x01, //< ADC/DAC control
+    TouchCnt(TouchCntReg), //    = 0x03, //< TSC control
     AdcCoefficients(u8),
     BufferModeData(u8),
 }
 impl CdcRegister {
     pub const fn as_bank_and_reg(self) -> (u8, u8) {
-        match self  {
+        match self {
             Self::Control(reg) => (0, reg as u8),
             Self::Sound(reg) => (1, reg as u8),
             Self::TouchCnt(reg) => (3, reg as u8),
@@ -60,12 +58,11 @@ pub enum TouchCntReg {
     ScanModeTimerClock = 0x10,
     SarAdcClock = 0x11,
     DebouncePenup = 0x12,
-    
-    DebouncePendown = 0x14
+
+    DebouncePendown = 0x14,
 }
 #[repr(u8)]
-pub enum CntReg
-{
+pub enum CntReg {
     Reset = 0x01,
     ClockMux = 0x04,
     PllPr = 0x05,
@@ -147,11 +144,17 @@ pub unsafe fn init_tsc() {
     cdc_write_reg(TouchCntReg::ScanModeTimerClock, 0x88);
 
     //sound init?
-    cdc_write_array(CdcRegister::AdcCoefficients(0x8), &[0x7F,0xE1,0x80,0x1F,0x7F,0xC1]);
+    cdc_write_array(
+        CdcRegister::AdcCoefficients(0x8),
+        &[0x7F, 0xE1, 0x80, 0x1F, 0x7F, 0xC1],
+    );
     cdc_write_reg(CntReg::DacVolumeLeft, 8);
     cdc_write_reg(CntReg::DacVolumeRight, 8);
     cdc_write_reg(CntReg::GPIO3Pin, 0);
-    cdc_write_array(CdcRegister::AdcCoefficients(0x8), &[0x7F,0xE1,0x80,0x1F,0x7F,0xC1]);
+    cdc_write_array(
+        CdcRegister::AdcCoefficients(0x8),
+        &[0x7F, 0xE1, 0x80, 0x1F, 0x7F, 0xC1],
+    );
     cdc_write_reg(SndReg::MicGain, 0x2B);
 
     cdc_write_reg(SndReg::FineGain, 0x40);
@@ -198,7 +201,7 @@ pub unsafe fn init_tsc() {
     cdc_write_mask(TouchCntReg::PrechargeSense, 0b111, 2);
     cdc_write_mask(TouchCntReg::PrechargeSense, 0b1110000, 0x40);
     cdc_write_mask(TouchCntReg::DebouncePenup, 0b111, 0);
-    cdc_write_mask(TouchCntReg::TwlPenDown, (1<<7), (1<<7));
+    cdc_write_mask(TouchCntReg::TwlPenDown, (1 << 7), (1 << 7));
 }
 pub unsafe fn cdc_write_mask(reg: impl Into<CdcRegister>, mask: u8, value: u8) {
     let (bank, reg) = reg.into().as_bank_and_reg();
@@ -206,11 +209,9 @@ pub unsafe fn cdc_write_mask(reg: impl Into<CdcRegister>, mask: u8, value: u8) {
     let original = read_tsc(reg);
     write_tsc(reg, (original & !mask) | (value & mask));
     super::SPI_HARDWARE.wait_busy();
-
 }
 pub unsafe fn is_pen_down() -> bool {
-    cdc_read_reg(TouchCntReg::Status) & 0x40 == 0 &&
-    cdc_read_reg(TouchCntReg::TwlPenDown) & 3 == 0
+    cdc_read_reg(TouchCntReg::Status) & 0x40 == 0 && cdc_read_reg(TouchCntReg::TwlPenDown) & 3 == 0
 }
 unsafe fn bank_switch_tsc(bank: u8) {
     write_tsc(0, bank);
@@ -225,13 +226,13 @@ unsafe fn cdc_write_reg(reg: impl Into<CdcRegister>, value: u8) {
     bank_switch_tsc(bank);
     write_tsc(reg, value);
     super::SPI_HARDWARE.wait_busy();
-
 }
 pub unsafe fn cdc_write_array(start_reg: impl Into<CdcRegister>, data: &[u8]) {
     let (bank, reg) = start_reg.into().as_bank_and_reg();
     bank_switch_tsc(bank);
-    super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
-    super::SPI_HARDWARE.write_value(reg<<1);
+    super::SPI_HARDWARE
+        .set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
+    super::SPI_HARDWARE.write_value(reg << 1);
     for byte in data {
         super::SPI_HARDWARE.write_value(*byte);
     }
@@ -241,8 +242,9 @@ pub unsafe fn cdc_read_array(start_reg: CdcRegister, data: &mut [u8]) {
     let (bank, reg) = start_reg.as_bank_and_reg();
     bank_switch_tsc(bank);
     super::SPI_HARDWARE.wait_busy();
-    super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
-    super::SPI_HARDWARE.write_value(reg<<1 | 1);
+    super::SPI_HARDWARE
+        .set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
+    super::SPI_HARDWARE.write_value(reg << 1 | 1);
 
     for byte in data {
         *byte = super::SPI_HARDWARE.read_value();
@@ -250,15 +252,17 @@ pub unsafe fn cdc_read_array(start_reg: CdcRegister, data: &mut [u8]) {
 }
 unsafe fn write_tsc(reg: u8, value: u8) {
     super::SPI_HARDWARE.wait_busy();
-    super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
-    super::SPI_HARDWARE.write_value(reg<<1);
+    super::SPI_HARDWARE
+        .set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
+    super::SPI_HARDWARE.write_value(reg << 1);
     super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC);
     super::SPI_HARDWARE.write_value(value);
 }
 unsafe fn read_tsc(reg: u8) -> u8 {
     super::SPI_HARDWARE.wait_busy();
-    super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
-    super::SPI_HARDWARE.write_value(reg<<1 | 1);
+    super::SPI_HARDWARE
+        .set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
+    super::SPI_HARDWARE.write_value(reg << 1 | 1);
     super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC);
     super::SPI_HARDWARE.read_value()
 }

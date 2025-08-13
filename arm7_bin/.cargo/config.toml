@@ -6,7 +6,7 @@ panic = 'abort'                             # Abort on panic
 strip = true                                # Strip symbols from binary*
 
 [target.armv4t-none-eabi]                # All targets
-rustflags = ["-C", "linker-flavor=ld.lld", "-C", "relocation-model=pic","-C", "link-arg=-Tlink_arm7.x"]
+rustflags = ["-C", "linker-flavor=ld.lld","-C", "link-arg=-Tlink_arm7.x"]
 
 [build]
 target = "armv4t-none-eabi"

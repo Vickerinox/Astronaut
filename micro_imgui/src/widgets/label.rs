@@ -1,6 +1,10 @@
 use alloc::borrow::Cow;
 
-use crate::{primitives::Sizing, ui::{AutoAdd, Ui}, Backend, Color, Response, Sense, Shape, Vec2};
+use crate::{
+    primitives::Sizing,
+    ui::{AutoAdd, Ui},
+    Backend, Color, Response, Sense, Shape, Vec2,
+};
 
 pub struct Label<'a> {
     text: Cow<'a, str>,
@@ -8,7 +12,10 @@ pub struct Label<'a> {
 }
 impl<'a> Label<'a> {
     pub fn new(text: impl Into<Cow<'a, str>>, size: u8) -> Self {
-        Self { text: text.into(), size}
+        Self {
+            text: text.into(),
+            size,
+        }
     }
 }
 impl<'t> AutoAdd for Label<'t> {
@@ -18,7 +25,13 @@ impl<'t> AutoAdd for Label<'t> {
 
         let bounds = ui.prepare_complication(prep_size);
         let bounds = bounds.0.include_point(ui.clip_rect().max);
-        let rect = ui.draw(Shape::Text { bounds, str: text, color: Color::new(200, 200, 200), outline: Color::new(0, 0, 0), size });
+        let rect = ui.draw(Shape::Text {
+            bounds,
+            str: text,
+            color: Color::new(200, 200, 200),
+            outline: Color::new(0, 0, 0),
+            size,
+        });
         let resp = ui.allocate_size(rect.size(), Sense::hovered());
         resp
     }

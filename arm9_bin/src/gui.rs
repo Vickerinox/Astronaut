@@ -1,7 +1,7 @@
 use core::num::NonZeroU16;
 
-use reboot_lib::{Buttons, VertexListHost, VertexListType, VideoHardwareHandle};
 use micro_imgui::{LayerId, Rect, Vec2};
+use reboot_lib::{Buttons, VertexListHost, VertexListType, VideoHardwareHandle};
 
 pub struct DSMicroGuiBackend {
     input: Inputs,
@@ -10,19 +10,23 @@ pub struct DSMicroGuiBackend {
 }
 impl DSMicroGuiBackend {
     pub fn new(video: reboot_lib::VideoHardwareHandle) -> Self {
-        Self { input: Inputs {
-            buttons_now: Buttons::empty(),
-            buttons_then: Buttons::empty(),
-            last_touch_coord: Vec2::ZERO,
-            other_last_touch_coord: Vec2::ZERO,
-        }, video, layer: 4 }
+        Self {
+            input: Inputs {
+                buttons_now: Buttons::empty(),
+                buttons_then: Buttons::empty(),
+                last_touch_coord: Vec2::ZERO,
+                other_last_touch_coord: Vec2::ZERO,
+            },
+            video,
+            layer: 4,
+        }
     }
     fn advance_layer(&mut self) -> LayerId {
         unsafe {
             let layer = LayerId(NonZeroU16::new_unchecked(self.layer));
             reboot_lib::VIDEO_HARDWARE
-            .geometry_commands
-            .translate_matrix(0, 0, 1<<3);
+                .geometry_commands
+                .translate_matrix(0, 0, 1 << 3);
             self.layer += 1;
             layer
         }
@@ -54,7 +58,6 @@ impl micro_imgui::InputEvent for Input {
     const FOCUS_PREVIOUS: Self = Self(Buttons::DIRECTION_LEFT);
 }
 
-
 impl micro_imgui::Backend for DSMicroGuiBackend {
     type InputQuery = Input;
 
@@ -79,7 +82,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
             VIDEO_HARDWARE
                 .geometry_commands
                 .scale_matrix(0x2000, 0x2000, 0x2000);
-    
+
             VIDEO_HARDWARE
                 .geometry_commands
                 .translate_matrix(-0x80 * 0x10, -0x60 * 0x10, 100);
@@ -91,53 +94,67 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     }
 
     fn draw_shape(&mut self, shape: micro_imgui::Shape, regression: Option<LayerId>) -> Rect {
-
-        
-        
-        let translation = regression.map(|i| self.layer.wrapping_sub(i.0.get())<<3).unwrap_or(0);
+        let translation = regression
+            .map(|i| self.layer.wrapping_sub(i.0.get()) << 3)
+            .unwrap_or(0);
         if translation != 0 {
             unsafe {
                 reboot_lib::VIDEO_HARDWARE
-                .geometry_commands
-                .translate_matrix(0, 0, -(translation as i32));
+                    .geometry_commands
+                    .translate_matrix(0, 0, -(translation as i32));
             }
         }
-        
+
         self.advance_layer();
-        
+
         let space = match shape {
-            micro_imgui::Shape::Rectangle { area, fill: color, rounding, outline_color, outline_size } => {
-                
-                let Rect {min: micro_imgui::Vec2 {x,y}, max: Vec2 { x: x2, y: y2 }} = area;
+            micro_imgui::Shape::Rectangle {
+                area,
+                fill: color,
+                rounding,
+                outline_color,
+                outline_size,
+            } => {
+                let Rect {
+                    min: micro_imgui::Vec2 { x, y },
+                    max: Vec2 { x: x2, y: y2 },
+                } = area;
                 let x = x << 4;
                 let y = y << 4;
                 let x2 = x2 << 4;
                 let y2 = y2 << 4;
                 let outline_size = outline_size << 4;
                 unsafe {
-                    self.video.create_vertex_list(reboot_lib::VertexListType::IndividualQuads, |f| {
-                        f.vertex_set_texture_coordinate(234 << 4, 1 << 4);
-                        f.set_vertex_color(outline_color.0 as u32);
-                        f.add_vertex_double(x, y, 0);
-                        f.add_vertex_double(x, y2, 0);
-                        f.add_vertex_double(x2, y2, 0);
-                        f.add_vertex_double(x2, y, 0);
-                        f.set_vertex_color(color.0 as u32);
-                        let x = x.wrapping_add_unsigned(outline_size);
-                        let y = y.wrapping_add_unsigned(outline_size);
-                        let x2 = x2.wrapping_sub_unsigned(outline_size);
-                        let y2 = y2.wrapping_sub_unsigned(outline_size);
-                        f.add_vertex_double(x, y, 1);
-                        f.add_vertex_double(x, y2, 1);
-                        f.add_vertex_double(x2, y2, 1);
-                        f.add_vertex_double(x2, y, 1);
-
-                        
-                    });
+                    self.video.create_vertex_list(
+                        reboot_lib::VertexListType::IndividualQuads,
+                        |f| {
+                            f.vertex_set_texture_coordinate(234 << 4, 1 << 4);
+                            f.set_vertex_color(outline_color.0 as u32);
+                            f.add_vertex_double(x, y, 0);
+                            f.add_vertex_double(x, y2, 0);
+                            f.add_vertex_double(x2, y2, 0);
+                            f.add_vertex_double(x2, y, 0);
+                            f.set_vertex_color(color.0 as u32);
+                            let x = x.wrapping_add_unsigned(outline_size);
+                            let y = y.wrapping_add_unsigned(outline_size);
+                            let x2 = x2.wrapping_sub_unsigned(outline_size);
+                            let y2 = y2.wrapping_sub_unsigned(outline_size);
+                            f.add_vertex_double(x, y, 1);
+                            f.add_vertex_double(x, y2, 1);
+                            f.add_vertex_double(x2, y2, 1);
+                            f.add_vertex_double(x2, y, 1);
+                        },
+                    );
                 }
                 area
-            },
-            micro_imgui::Shape::Text { bounds, str, color, outline, size } => {
+            }
+            micro_imgui::Shape::Text {
+                bounds,
+                str,
+                color,
+                outline,
+                size,
+            } => {
                 let coord = bounds.min;
                 let x = coord.x as u8;
                 let y = coord.y as u8;
@@ -149,17 +166,17 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                         f.used_space()
                     })
                 }
-            },
+            }
         };
-        
+
         if translation != 0 {
             unsafe {
                 reboot_lib::VIDEO_HARDWARE
-                .geometry_commands
-                .translate_matrix(0, 0, translation as i32 );
-            } 
+                    .geometry_commands
+                    .translate_matrix(0, 0, translation as i32);
+            }
         }
-        
+
         space
     }
 
@@ -182,12 +199,11 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     fn second_last_known_pointer_location(&self) -> Vec2 {
         self.input.last_touch_coord
     }
-    
+
     fn reserve_layer(&mut self) -> LayerId {
         self.advance_layer()
     }
 }
-
 
 pub struct Inputs {
     buttons_now: Buttons,
@@ -215,11 +231,10 @@ impl Inputs {
             self.other_last_touch_coord = self.last_touch_coord;
             self.last_touch_coord = touch_coord;
         }
-        (self.buttons_now != self.buttons_then) || (self.other_last_touch_coord != self.last_touch_coord)
+        (self.buttons_now != self.buttons_then)
+            || (self.other_last_touch_coord != self.last_touch_coord)
     }
 }
-
-
 
 pub struct VideoTextPass<'a>(&'a mut VideoHardwareHandle, micro_imgui::Rect);
 
@@ -233,9 +248,7 @@ impl<'a> VideoTextPass<'a> {
             let mut host = TextLayoutHandle {
                 available_space,
                 cursor: available_space.min,
-                host: unsafe {
-                     h.to_owned()
-                },
+                host: unsafe { h.to_owned() },
                 used_space: Rect::from_two_pos(available_space.min, available_space.min),
             };
             closure(&mut host)
@@ -271,7 +284,6 @@ impl<'a> TextLayoutHandle<'a> {
         self.cursor.y += 8;
     }
     pub fn layout_char(&mut self, ascii_value: u8, size: u8) {
-        
         let y_size = size as i16;
 
         const CHAR_WIDTH: i16 = 7 << 4; //(i.e, 1*7 texels)
@@ -284,12 +296,14 @@ impl<'a> TextLayoutHandle<'a> {
         };
         let movement = (movement * y_size) >> 3;
         self.cursor.x += movement;
-        
+
         if self.available_space.max.x < self.cursor.x {
             self.cursor.x = self.available_space.min.x + movement;
             self.cursor.y += y_size as i16;
         }
-        self.used_space = self.used_space.include_point(Vec2::new(self.cursor.x-1, self.cursor.y+y_size));
+        self.used_space = self
+            .used_space
+            .include_point(Vec2::new(self.cursor.x - 1, self.cursor.y + y_size));
         let x = (self.cursor.x as i16 + 1) << 4;
         let y = (self.cursor.y as i16) << 4;
         unsafe {
@@ -297,13 +311,15 @@ impl<'a> TextLayoutHandle<'a> {
                 .vertex_set_texture_coordinate(index + CHAR_WIDTH, 0x0);
             self.host.add_vertex_double(x, y, 0);
             self.host.vertex_set_texture_coordinate(index, 0x00);
-            self.host.add_vertex_relative_raw(0b1111111111 - ((7 * size as u32 )<<(4-3)) + 1);
+            self.host
+                .add_vertex_relative_raw(0b1111111111 - ((7 * size as u32) << (4 - 3)) + 1);
             self.host.vertex_set_texture_coordinate(index, 0x80);
             self.host
                 .add_vertex_relative_raw(((size as u32) << 4) << 10);
             self.host
                 .vertex_set_texture_coordinate(index + CHAR_WIDTH, 0x80);
-            self.host.add_vertex_relative_raw((7 * size as u32 )<<(4-3));
+            self.host
+                .add_vertex_relative_raw((7 * size as u32) << (4 - 3));
         }
     }
 }

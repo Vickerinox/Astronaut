@@ -5,7 +5,6 @@ pub const AES_HARDWARE: MemoryWrapper<AESEngine> = MemoryWrapper(0x4004400 as *m
 
 pub const NAND_KEY_Y: [u8; 16] = 0xFFFEFB4E_29590258_2A680F5F_1A4F3E79u128.to_le_bytes();
 
-
 bitflags::bitflags! {
     #[derive(Clone, Copy)]
     pub struct AESCnt: u32 {
@@ -24,7 +23,6 @@ bitflags::bitflags! {
     }
 
 }
-
 
 #[repr(C)]
 pub struct AESEngine {
@@ -61,21 +59,24 @@ impl KeySlot {
 impl AESEngine {
     pub fn load_keys(slot: usize, key_x: &[u8], key_y: &[u8]) {}
     pub unsafe fn reset(&self) {
-        self.master_control.write(AESCnt::FLUSH_WRITE_FIFO | AESCnt::FLUSH_READ_FIFO);
-        self.master_control.write(AESCnt::FLUSH_WRITE_FIFO | AESCnt::FLUSH_READ_FIFO);
+        self.master_control
+            .write(AESCnt::FLUSH_WRITE_FIFO | AESCnt::FLUSH_READ_FIFO);
+        self.master_control
+            .write(AESCnt::FLUSH_WRITE_FIFO | AESCnt::FLUSH_READ_FIFO);
     }
     pub unsafe fn wait_aes_busy(&self) {
         while self.master_control.read().contains(AESCnt::START) {}
     }
     //crypt a block of data in place
     pub unsafe fn ctr_crypt_block(&self, src: *mut u32, dst: *mut u32, len: u32, ctr: &[u32; 4]) {
-        
         let len = 128;
-        (0x400_0008 as *mut u32).write_volatile((0x400_0008 as *const u32).read_volatile() | (1<<17));
-        (0x400_0004 as *mut u32).write_volatile((0x400_0004 as *const u32).read_volatile() | (1<<2));
+        (0x400_0008 as *mut u32)
+            .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
+        (0x400_0004 as *mut u32)
+            .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 2));
         use crate::ndma::{Control, NDMA_HARDWARE};
         self.master_control.write(AESCnt::empty());
-        
+
         self.reset();
         self.load_iv(ctr);
         self.set_block_count((len >> 2) as u16);
@@ -106,7 +107,7 @@ impl AESEngine {
         NDMA_HARDWARE.set_raw_dma(1, in_dma, src as _, 0x4004408 as _);
         self.start((0 << 14) | (3 << 12) | (2 << 28));
         let mut dest = dst;
-        /* 
+        /*
         for word in core::slice::from_raw_parts_mut(src, len as usize).chunks_exact(4) {
             for i in word {
                 AES_HARDWARE.write_fifo.write(*i);
@@ -122,7 +123,8 @@ impl AESEngine {
         self.wait_aes_busy();
     }
     pub unsafe fn start(&self, flags: u32) {
-        self.master_control.write(AESCnt::from_bits_retain(flags) | AESCnt::START);
+        self.master_control
+            .write(AESCnt::from_bits_retain(flags) | AESCnt::START);
     }
     pub unsafe fn set_block_count(&self, count: u16) {
         self.payload_blocks.write(count);

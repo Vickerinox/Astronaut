@@ -16,9 +16,11 @@ mod build;
 mod errors;
 mod mmc;
 
-
-
-fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf, export: Option<PathBuf>) -> Result<(), BuildError> {
+fn construct_tmd(
+    elf_file_path: PathBuf,
+    mmc_file_path: PathBuf,
+    export: Option<PathBuf>,
+) -> Result<(), BuildError> {
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
     const M_STATE_OVERWRITE: &[u8] = &[
         84, 72, 73, 83, 32, 73, 83, 0, 0, 0, 0, 0, 223, 0, 0, 0, 87, 72, 69, 82, 69, 32, 84, 72,
@@ -37,7 +39,8 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf, export: Option<
     info!("SELECTED MMC: {:?}", &mmc_file_path);
     let file =
         fs::read(elf_file_path).map_err(|e| Crate::TMD.err()(CompileError::ElfNotFound(e)))?;
-    let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..]).map_err(|e| Crate::TMD.err()(CompileError::ElfParseError(e)))?;
+    let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
+        .map_err(|e| Crate::TMD.err()(CompileError::ElfParseError(e)))?;
     let entrypoint = parse.ehdr.e_entry;
     //let rodata = parse.section_header_by_name(".rodata").unwrap().unwrap();
     let mut empty_tmd = vec![0u8; USED_EXPLOIT_LEN];
@@ -50,7 +53,10 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf, export: Option<
     };
     let entry_point = entrypoint - (MAGIC_START_POINT as u64);
     let entry_value = (entrypoint as u32) + 4;
-    info!("{} {:x} {:x}", entrypoint, entry_point, entry_value);
+    info!(
+        "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
+        entrypoint, entry_point, entry_value
+    );
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
         let file_offset_start = (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64);
         let file_offset_end = file_offset_start + segment.p_filesz as i64;
@@ -62,7 +68,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf, export: Option<
             .map_err(|e| Crate::TMD.err()(CompileError::ElfSegmentError(e)))?;
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
         debug!(
-            "OCCUPIED {} BYTES, {:x?} {:x?}",
+            "Processing segment: {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
             segment.p_filesz, file_offset_start, file_offset_end
         );
         empty_tmd[file_range].copy_from_slice(data);
@@ -72,7 +78,7 @@ fn construct_tmd(elf_file_path: PathBuf, mmc_file_path: PathBuf, export: Option<
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
 
     mmc::write_tmd_to_image(&mmc_file_path, &empty_tmd).map_err(Crate::TMD.err())?;
-    
+
     if let Some(path) = export {
         fs::write(path, &empty_tmd[520..]).unwrap();
     }
@@ -92,8 +98,7 @@ impl TryFrom<CompilerArgs> for FixedCompilerArgs {
                 .tmd_file
                 .or_else(get_file)
                 .ok_or("No path specified")?,
-            export_tmd:  value
-            .export_tmd,
+            export_tmd: value.export_tmd,
         })
     }
 }

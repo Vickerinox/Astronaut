@@ -1,8 +1,6 @@
 use crate::MemoryWrapper;
 use volatile_register::RW;
-pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> =
-    MemoryWrapper(0x4004500 as *mut I2CInterface);
-
+pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as *mut I2CInterface);
 
 pub unsafe fn init() {
     I2C_HARDWARE.write_register(PowerRegister::BACKLIGHT, 2);
@@ -18,7 +16,7 @@ impl I2CInterface {
     unsafe fn okay(&self) -> bool {
         self.wait_busy();
         self.control.read() & 0x10 > 0
-    } 
+    }
     unsafe fn wait_busy(&self) {
         while self.control.read() & 0x80 > 0 {}
     }
@@ -26,27 +24,31 @@ impl I2CInterface {
         self.wait_busy();
         crate::swi_delay(0x180);
         self.data.write(device);
-        self.control.write((1<<7) | (1<<1));
+        self.control.write((1 << 7) | (1 << 1));
         self.get_result()
     }
     unsafe fn set_register(&self, register: u8) -> Result<I2CSuccess, I2CFailure> {
         self.wait_busy();
         crate::swi_delay(0x180);
         self.data.write(register);
-        self.control.write((1<<7));
+        self.control.write((1 << 7));
         self.get_result()
     }
-    pub unsafe fn write_register(&self, register: impl Into<I2CRegister>, value: u8) -> Result<I2CSuccess, I2CFailure> {
+    pub unsafe fn write_register(
+        &self,
+        register: impl Into<I2CRegister>,
+        value: u8,
+    ) -> Result<I2CSuccess, I2CFailure> {
         let (device, register) = register.into().as_chip_and_reg();
         for i in 0..8 {
             if self.set_device(device).is_ok() && self.set_register(register).is_ok() {
                 crate::swi_delay(0x180);
                 self.data.write(value);
                 if self.get_result().is_ok() {
-                    return Ok(I2CSuccess)
+                    return Ok(I2CSuccess);
                 }
             }
-            self.control.write((1<<7) | (1<<2) | 1);
+            self.control.write((1 << 7) | (1 << 2) | 1);
         }
         Err(I2CFailure)
     }
@@ -61,12 +63,12 @@ impl I2CInterface {
 
 pub enum I2CRegister {
     I2cCam0,
-    I2cCam1, 
-    I2cUnk1, 
-    I2cUnk2, 
+    I2cCam1,
+    I2cUnk1,
+    I2cUnk2,
     I2cPower(PowerRegister),
-    I2cUnk3, 
-    I2cGpio, 
+    I2cUnk3,
+    I2cGpio,
 }
 impl I2CRegister {
     pub fn as_chip_and_reg(self) -> (u8, u8) {
@@ -83,16 +85,16 @@ impl I2CRegister {
 }
 #[repr(u8)]
 pub enum PowerRegister {
-    BATUNK    =   0x00,
-    PWRIF     =   0x10,
-    PWRCNT    =   0x11,
-    MMCPWR    =   0x12,
-    BATTERY   =   0x20,
-    WIFILED   =   0x30,
-    CAMLED    =   0x31,
-    VOL       =   0x40,
-    BACKLIGHT =   0x41,
-    RESETFLAG =   0x70,
+    BATUNK = 0x00,
+    PWRIF = 0x10,
+    PWRCNT = 0x11,
+    MMCPWR = 0x12,
+    BATTERY = 0x20,
+    WIFILED = 0x30,
+    CAMLED = 0x31,
+    VOL = 0x40,
+    BACKLIGHT = 0x41,
+    RESETFLAG = 0x70,
 }
 impl Into<I2CRegister> for PowerRegister {
     fn into(self) -> I2CRegister {

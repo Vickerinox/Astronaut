@@ -1,7 +1,8 @@
 use crate::{
-    context::{ Ctx, Frame},
+    context::{Ctx, Frame},
     primitives::{Id, Rect, Vec2},
-    response::{Response, Sense}, Backend, LayerId,
+    response::{Response, Sense},
+    Backend, LayerId,
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -20,11 +21,11 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         }
     }
     /// This is the libraries big hack for issues where the coupling between systems clash
-    /// 
+    ///
     /// This function assumes two things:
     /// 1. the id of the widget you're about to prepare is the same one you'll be allocating after this
     /// 2. the id of the widget hasn't imporantly changed in the last frame
-    /// 
+    ///
     /// if you meet these conditions, you now have premature response that assumes you want EVERYTHING
     pub fn prepare_complication(&self, size: Vec2) -> (Rect, Sense) {
         let Layout(direction, align) = self.layout;
@@ -35,7 +36,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             Direction::RightLeft => self.clip_rect.top_right() - Vec2::x(size.x),
         };
         let response = self.ctx.id_statistics(unsafe { self.id.current() });
-        (Rect::from_two_pos(rect_min, rect_min+size), response )
+        (Rect::from_two_pos(rect_min, rect_min + size), response)
     }
     pub fn input_down(&self, input: B::InputQuery) -> bool {
         self.ctx.input_active(input)
@@ -65,7 +66,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             Direction::BottomUp => self.clip_rect.bottom_left() - Vec2::y(size.y),
             Direction::RightLeft => self.clip_rect.top_right() - Vec2::x(size.x),
         };
-        let rect = Rect::from_two_pos(rect_min, rect_min+size);
+        let rect = Rect::from_two_pos(rect_min, rect_min + size);
         let rect = match (direction, align) {
             (Direction::TopDown, Align::Middle) | (Direction::BottomUp, Align::Middle) => {
                 rect.translate(Vec2::x((self.clip_rect.width() - size.x) >> 1))
@@ -100,12 +101,11 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
     pub fn add_space(&mut self, ammount: i16) {
         match self.layout.0 {
-            Direction::RightLeft => {self.clip_rect.min.x += ammount}   
-            Direction::TopDown => {self.clip_rect.min.y += ammount}   
-            Direction::LeftRight => {self.clip_rect.max.x -= ammount}   
-            Direction::BottomUp => {self.clip_rect.max.y -= ammount}   
+            Direction::RightLeft => self.clip_rect.min.x += ammount,
+            Direction::TopDown => self.clip_rect.min.y += ammount,
+            Direction::LeftRight => self.clip_rect.max.x -= ammount,
+            Direction::BottomUp => self.clip_rect.max.y -= ammount,
         }
-
     }
     pub fn clip_rect(&self) -> Rect {
         self.clip_rect

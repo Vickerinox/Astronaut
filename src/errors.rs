@@ -1,4 +1,3 @@
-
 use crate::mmc::mbr::MBRError;
 use elf::ParseError;
 use fatfs::Error as FatFsError;
@@ -102,10 +101,12 @@ pub enum TMDCompileError {
 impl<C: Into<Cow<'static, str>>> From<(FatFsError<IoError>, C)> for TMDCompileError {
     fn from(value: (FatFsError<IoError>, C)) -> Self {
         let (source, p) = value;
-        Self::FileNotFound { source, path: p.into() }
+        Self::FileNotFound {
+            source,
+            path: p.into(),
+        }
     }
 }
-
 
 #[derive(Error, Debug)]
 pub enum CargoError {

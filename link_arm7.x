@@ -1,7 +1,7 @@
 /* Memory layout of ourself once we've been taken over by the arm9 */
 MEMORY
 {
-  SACRED_MEM_2 : ORIGIN = 0x037BA000, LENGTH = 0x6000
+  SACRED_MEM_2 : ORIGIN = 0x037F0004, LENGTH = 0x6000
 }
 
 /* The entry point */

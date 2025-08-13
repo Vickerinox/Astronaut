@@ -29,5 +29,4 @@ impl Sense {
     pub fn hovered() -> Self {
         Self::HOVERED
     }
-     
 }

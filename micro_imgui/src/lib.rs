@@ -1,15 +1,15 @@
 #![no_std]
 #![feature(nonzero_ops)]
 
-use context::{ Ctx, Frame};
+use context::{Ctx, Frame};
 extern crate alloc;
 
-pub mod widgets;
 mod context;
 mod event;
 mod primitives;
 mod response;
 mod ui;
+pub mod widgets;
 pub use primitives::*;
 pub use response::*;
 

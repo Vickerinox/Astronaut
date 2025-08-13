@@ -1,5 +1,7 @@
 use crate::{
-    primitives::{Backend, Id, InputEvent, Rect, Vec2}, response::{Response, Sense}, ui::Ui
+    primitives::{Backend, Id, InputEvent, Rect, Vec2},
+    response::{Response, Sense},
+    ui::Ui,
 };
 
 pub struct Ctx<B> {
@@ -10,9 +12,7 @@ pub struct Ctx<B> {
     released_response: Option<Id>,
     pub(crate) wants_repaint: bool,
 }
-pub struct Style {
-    
-}
+pub struct Style {}
 pub struct Frame<'a, B: Backend> {
     ctx: &'a mut Ctx<B>,
     availble_ground_space: Rect,
@@ -38,7 +38,6 @@ impl<'a, B: Backend> core::ops::DerefMut for Frame<'a, B> {
     }
 }
 
-
 impl<'a, B: Backend> Frame<'a, B> {
     pub(crate) fn id_statistics(&self, id: Id) -> Sense {
         let mut stats = Sense::empty();
@@ -57,26 +56,39 @@ impl<'a, B: Backend> Frame<'a, B> {
         stats
     }
     pub fn interact(&mut self, rect: Rect, clip_rect: Rect, id: Id, sense: Sense) -> Response {
-        let Self { ctx, pressed_response, focused_response, released_response, prev_focus, next_focus, .. } = self;
+        let Self {
+            ctx,
+            pressed_response,
+            focused_response,
+            released_response,
+            prev_focus,
+            next_focus,
+            ..
+        } = self;
 
-        
         let interact_rect = rect.intersect(clip_rect);
         let focused = ctx.focused_response == Some(id);
-        let hovered = rect.contains(ctx.backend.last_known_pointer_location()) && ctx.backend.input_active(B::InputQuery::POINTER_DOWN);
-        let pressed = (focused && ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS)) || (hovered && ctx.backend.input_active(B::InputQuery::POINTER_PRESS));
-        let released = (focused && ctx.backend.input_released(B::InputQuery::FOCUSED_PRESS)) || (ctx.pressed_response == Some(id) && ctx.backend.input_released(B::InputQuery::POINTER_PRESS));
-        
+        let hovered = rect.contains(ctx.backend.last_known_pointer_location())
+            && ctx.backend.input_active(B::InputQuery::POINTER_DOWN);
+        let pressed = (focused && ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS))
+            || (hovered && ctx.backend.input_active(B::InputQuery::POINTER_PRESS));
+        let released = (focused && ctx.backend.input_released(B::InputQuery::FOCUSED_PRESS))
+            || (ctx.pressed_response == Some(id)
+                && ctx.backend.input_released(B::InputQuery::POINTER_PRESS));
+
         if focused {
             *focused_response = Some(id)
         } else {
-            if sense.contains(Sense::FOCUSED){
+            if sense.contains(Sense::FOCUSED) {
                 if ctx.focused_response.is_none() {
                     next_focus.get_or_insert(id);
                     *prev_focus = Some(id)
                 } else {
                     match focused_response.is_some() {
-                        true => {next_focus.get_or_insert(id);},
-                        false => {*prev_focus = Some(id)},
+                        true => {
+                            next_focus.get_or_insert(id);
+                        }
+                        false => *prev_focus = Some(id),
                     }
                 }
             }
@@ -87,9 +99,7 @@ impl<'a, B: Backend> Frame<'a, B> {
         if released {
             *released_response = Some(id)
         }
-        if hovered {
-
-        }
+        if hovered {}
         let stats = self.id_statistics(id).intersection(sense);
         Response {
             id,
@@ -102,12 +112,24 @@ impl<'a, B: Backend> Frame<'a, B> {
     pub fn central_panel<R, F: FnOnce(&mut Ui<B>) -> R>(&mut self, f: F) -> R {
         let rect = self.availble_ground_space;
         let mut ui = Ui::new(self, Id::START, rect.scale_uniform(-4));
-        ui.draw(crate::Shape::Rectangle { area: rect, fill: crate::Color::new(60, 60, 60), rounding: 0, outline_color: crate::Color::new(0, 0, 0), outline_size: 0 });
+        ui.draw(crate::Shape::Rectangle {
+            area: rect,
+            fill: crate::Color::new(60, 60, 60),
+            rounding: 0,
+            outline_color: crate::Color::new(0, 0, 0),
+            outline_size: 0,
+        });
         f(&mut ui)
     }
     pub fn window<R, F: FnOnce(&mut Ui<B>) -> R>(&mut self, rect: Rect, f: F) -> R {
         let mut ui = Ui::new(self, Id::from_layer(2), rect.scale_uniform(-4));
-        ui.draw(crate::Shape::Rectangle { area: rect, fill: crate::Color::new(60, 60, 60), rounding: 0, outline_color: crate::Color::new(0, 0, 0), outline_size: 1 });
+        ui.draw(crate::Shape::Rectangle {
+            area: rect,
+            fill: crate::Color::new(60, 60, 60),
+            rounding: 0,
+            outline_color: crate::Color::new(0, 0, 0),
+            outline_size: 1,
+        });
         f(&mut ui)
     }
 }
@@ -122,15 +144,12 @@ impl<B> Ctx<B> {
             wants_repaint: false,
         }
     }
-
-
-    
 }
 impl<B: Backend> Ctx<B> {
     pub fn process_frame<R, T, F: FnMut(&mut Frame<B>, &mut T) -> R>(
         &mut self,
         mut f: F,
-        t: &mut T
+        t: &mut T,
     ) -> R {
         let mut frame = self.start_frame();
         let ret = f(&mut frame, t);
@@ -156,9 +175,18 @@ impl<B: Backend> Ctx<B> {
 }
 impl<'a, B: Backend> Drop for Frame<'a, B> {
     fn drop(&mut self) {
-        let Self { ctx, pressed_response, hovered_response, mut focused_response, released_response, prev_focus, next_focus, .. } = self;
+        let Self {
+            ctx,
+            pressed_response,
+            hovered_response,
+            mut focused_response,
+            released_response,
+            prev_focus,
+            next_focus,
+            ..
+        } = self;
         ctx.wants_repaint = false;
-        if !ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS) {    
+        if !ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS) {
             if ctx.backend.input_pressed(B::InputQuery::FOCUS_NEXT) {
                 focused_response = *next_focus;
             }
@@ -174,7 +202,6 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
         if *hovered_response != ctx.hovered_response {
             ctx.hovered_response = *hovered_response;
             ctx.wants_repaint = true;
-
         }
         if focused_response != ctx.focused_response {
             ctx.focused_response = focused_response;
@@ -184,7 +211,5 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
             ctx.released_response = *released_response;
             ctx.wants_repaint = true;
         }
-        
-        
     }
 }

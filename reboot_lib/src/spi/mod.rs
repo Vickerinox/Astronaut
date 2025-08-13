@@ -29,7 +29,7 @@ bitflags::bitflags! {
 
 impl SerialPeripheralInterface {
     //loop until spi is not busy
-    
+
     #[inline(always)]
     fn wait_busy(&self) {
         while self.control_and_status.read().contains(SPIControl::BUSY) {}
@@ -48,13 +48,12 @@ impl SerialPeripheralInterface {
     unsafe fn read_value(&self) -> u8 {
         self.exchange_raw_value(0)
     }
-    unsafe fn bank_switch_tsc(bank: u8) {
-        
-    }
+    unsafe fn bank_switch_tsc(bank: u8) {}
     pub unsafe fn read_firmware(&self, buffer: &mut [u8], start: u32) {
         crate::critical_function(|| {
             self.wait_busy();
-            self.control_and_status.write(SPIControl::ENABLE | SPIControl::DEVICE_FIRMWARE | SPIControl::SELECT_HOLD);
+            self.control_and_status
+                .write(SPIControl::ENABLE | SPIControl::DEVICE_FIRMWARE | SPIControl::SELECT_HOLD);
             self.wait_busy();
             self.write_value(0x3);
             self.write_value((start >> 16) as u8);
@@ -141,7 +140,6 @@ pub unsafe fn write_powerman(reg: PowerRegiser) {
         SPI_HARDWARE.control_and_status.write(SPIControl::DISABLE);
     });
 }
-
 
 unsafe fn write_tsc(reg: u8, value: u8) {
     SPI_HARDWARE.wait_busy();

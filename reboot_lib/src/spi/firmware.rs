@@ -11,13 +11,13 @@ pub struct FirmwareHeader {
     pub part2_arm7_location: u16,
     pub shift: u16,
     pub part5_location: u16,
-    
+
     pub build_minute: u8,
     pub build_hour: u8,
     pub build_day: u8,
     pub build_month: u8,
     pub build_year: u8,
-    
+
     pub console_type: u8,
     pub unused_1e: u16,
     pub user_settings_location: u16,
@@ -25,9 +25,8 @@ pub struct FirmwareHeader {
     pub unknown2: u16,
     pub part5_crc: u16,
     pub unused_28: u16,
-    pub wifi_calibration_data: [u8; 0x1D4]
+    pub wifi_calibration_data: [u8; 0x1D4],
 }
-
 
 #[repr(C)]
 pub struct UserData {

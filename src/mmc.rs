@@ -1,6 +1,6 @@
 use crate::errors::{CompileError, TMDCompileError};
-use core::array;
 use console::Style;
+use core::array;
 use fatfs::Error as FatFsError;
 use fatfs::{FileSystem, FsOptions, StdIoWrapper};
 use mbr::ByteDecode;
@@ -13,7 +13,7 @@ use std::{
     io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
-use tracing::{debug, info, error};
+use tracing::{debug, error, info};
 //pub mod aes_ecb;
 pub mod mbr;
 pub mod nandcursor;
@@ -141,7 +141,8 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
             mmc_image.len() as u64
         );
         info!("Rewriting NAND image... ");
-        file.write_all(&mmc_image).map_err(|e| TMDCompileError::IOWrite(e))?;
+        file.write_all(&mmc_image)
+            .map_err(|e| TMDCompileError::IOWrite(e))?;
         Ok(())
     } else {
         error!("Failed verifying tmd, aborting...");

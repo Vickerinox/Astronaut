@@ -1,4 +1,3 @@
-
 pub unsafe fn flush_mmc() {
     #[cfg(target_arch = "arm")]
     core::arch::asm!(
@@ -23,7 +22,6 @@ pub unsafe fn flush_mmc() {
         in("r0") 0,
     );
 }
-
 
 unsafe fn mysterious_function_2() {
     //WRAM C set to appear on arm9,
@@ -51,26 +49,28 @@ unsafe fn mysterious_function_2() {
 }
 
 pub unsafe fn mysterious_takeover_function() {
-    //WRAM C set to appear on arm9, 
+    //WRAM C set to appear on arm9,
     core::ptr::write_volatile(0x400405c as *mut u32, 0x0C003800);
     core::ptr::write_volatile(0x4004050 as *mut u8, 0x80);
 
     flush_mmc();
-    
+
     //remember this is where the wram appears on the arm9
     //when we map this back it will appear at  0x37F0000..=0x37F7FFF
     const MAGIC_JUMP_START: *mut u32 = 0x3803040 as *mut u32;
     const BINARY_ENTRY_ADDR_ARM9: *mut u32 = 0x3800000 as *mut u32;
     const BINARY_ENTRY_ADDR_ARM7: u32 = 0x37F0000;
-    
+
     for (i, c) in crate::ARM7_BINARY.chunks_exact(4).enumerate() {
         let stuff = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
         BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(stuff);
     }
     for i in 0..0x70 {
-        MAGIC_JUMP_START.add(i).write_volatile(BINARY_ENTRY_ADDR_ARM7);
+        MAGIC_JUMP_START
+            .add(i)
+            .write_volatile(BINARY_ENTRY_ADDR_ARM7);
     }
-    
+
     flush_mmc();
 
     //Remap WRAM C Back to arm7.
@@ -78,4 +78,3 @@ pub unsafe fn mysterious_takeover_function() {
     let r0 = r0 & 0xFF00FF00 | 0x99;
     core::ptr::write_volatile(0x4004050 as *mut u32, r0);
 }
-

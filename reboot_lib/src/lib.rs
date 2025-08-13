@@ -7,25 +7,25 @@ extern crate alloc;
 mod allocator;
 mod crypto;
 mod fs;
+pub mod i2c;
+mod interupts;
 mod ipc;
 mod memory;
-mod mmc;
+pub mod mmc;
 pub mod ndma;
 pub mod spi;
-pub mod i2c;
 mod swi;
 mod video;
-mod interupts;
 
 pub use allocator::ALLOCATOR;
 pub use crypto::*;
+pub use interupts::*;
 pub use ipc::IPC_FIFO_HARDWARE;
 pub use mmc::driver::*;
 pub use mmc::tmio::*;
 pub use mmc::*;
 pub use swi::*;
 pub use video::*;
-pub use interupts::*;
 pub struct MemoryWrapper<T>(*mut T);
 impl<T> core::ops::Deref for MemoryWrapper<T> {
     type Target = T;
@@ -92,12 +92,11 @@ pub struct Controls {
     touch_y: u8,
 }
 unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), u32> {
-    
     IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
     for data in data_out.into_iter().copied() {
         IPC_FIFO_HARDWARE.send_raw_blocking(data);
     }
-    
+
     let value = IPC_FIFO_HARDWARE.recieve_raw_blocking();
     if value != 0 {
         Err(value)
@@ -139,5 +138,12 @@ impl AsMut<[u8]> for StorageSector {
 impl AsMut<[u32]> for StorageSector {
     fn as_mut(&mut self) -> &mut [u32] {
         &mut self.0[..]
+    }
+}
+impl StorageSector {
+    pub fn bytes(&self) -> &[u8] {
+        unsafe {
+            &*core::ptr::from_raw_parts(self as *const Self as *const u8, size_of::<Self>())
+        }
     }
 }

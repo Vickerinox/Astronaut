@@ -2,7 +2,6 @@ use core::num::NonZeroU16;
 
 use alloc::borrow::Cow;
 
-
 pub struct LayerId(pub NonZeroU16);
 
 #[derive(Clone, Copy, Hash, PartialEq)]
@@ -35,7 +34,10 @@ pub struct Vec2 {
 }
 impl Vec2 {
     pub fn abs(self) -> Self {
-        Self { x: self.x.abs(), y: self.y.abs() }
+        Self {
+            x: self.x.abs(),
+            y: self.y.abs(),
+        }
     }
 }
 
@@ -99,7 +101,10 @@ impl Rect {
     }
     pub fn from_center_size(center: Vec2, expansion: Vec2) -> Self {
         let expansion = expansion.abs();
-        Self { min: center-expansion, max: center+expansion }
+        Self {
+            min: center - expansion,
+            max: center + expansion,
+        }
     }
     pub fn intersects(self, other: Self) -> bool {
         self.min.x > other.max.x
@@ -174,7 +179,7 @@ impl Rect {
         }
     }
     pub fn size(self) -> Vec2 {
-        self.max-self.min
+        self.max - self.min
     }
 }
 #[derive(Debug, Clone, Copy, Default)]
@@ -212,8 +217,8 @@ pub trait Backend {
     fn input_released(&self, pattern: Self::InputQuery) -> bool;
 
     /// Last known location of whatever pointer device is used
-    fn last_known_pointer_location(&self) -> Vec2; 
-    fn second_last_known_pointer_location(&self) -> Vec2; 
+    fn last_known_pointer_location(&self) -> Vec2;
+    fn second_last_known_pointer_location(&self) -> Vec2;
 }
 pub trait InputEvent {
     //if the pointer is down, for example on computers this is always the case. However on touch devices like phones it may not be.
@@ -230,8 +235,6 @@ pub trait InputEvent {
 
     const FOCUS_NEXT: Self;
     const FOCUS_PREVIOUS: Self;
-
-
 }
 pub struct Color(pub u16);
 impl Color {
@@ -239,7 +242,7 @@ impl Color {
         let r = (r as u16 & 0b11111000) >> 3;
         let g = (g as u16 & 0b11111000) << 2;
         let b = (b as u16 & 0b11111000) << 7;
-        Self(r|g|b)
+        Self(r | g | b)
     }
 }
 pub enum Sizing {
