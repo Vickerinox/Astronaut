@@ -1,8 +1,7 @@
+use alloc::borrow::Cow;
+
 use crate::{
-    context::{Ctx, Frame},
-    primitives::{Id, Rect, Vec2},
-    response::{Response, Sense},
-    Backend, LayerId,
+    context::{Ctx, Frame}, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::button::Button, Backend, LayerId
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -19,6 +18,9 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             id,
             layout: Layout::default(),
         }
+    }
+    pub fn button<'c>(&mut self, text: impl Into<Cow<'c, str>>) -> response::Response {
+        self.add(Button::new(text.into(), crate::Sizing::Automatic))
     }
     /// This is the libraries big hack for issues where the coupling between systems clash
     ///

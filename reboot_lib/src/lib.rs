@@ -8,7 +8,7 @@ mod allocator;
 mod crypto;
 mod fs;
 pub mod i2c;
-mod interupts;
+pub mod interupts;
 mod ipc;
 mod memory;
 pub mod mmc;
@@ -16,6 +16,7 @@ pub mod ndma;
 pub mod spi;
 mod swi;
 mod video;
+mod sound;
 
 pub use allocator::ALLOCATOR;
 pub use crypto::*;

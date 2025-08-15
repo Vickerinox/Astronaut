@@ -1,6 +1,9 @@
+
+mod arm7;
+
 use crate::MemoryWrapper;
 use volatile_register::*;
-
+pub use arm7::*;
 pub const INTERUPT_HARDWARE: MemoryWrapper<InteruptRegisters> =
     MemoryWrapper(0x4000208 as *mut InteruptRegisters);
 

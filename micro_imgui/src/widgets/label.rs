@@ -27,7 +27,7 @@ impl<'t> AutoAdd for Label<'t> {
         let bounds = bounds.0.include_point(ui.clip_rect().max);
         let rect = ui.draw(Shape::Text {
             bounds,
-            str: text,
+            str: &text,
             color: Color::new(200, 200, 200),
             outline: Color::new(0, 0, 0),
             size,

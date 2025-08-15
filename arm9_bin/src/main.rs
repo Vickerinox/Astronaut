@@ -114,6 +114,7 @@ fn vblank_interrupt() {
 }
 unsafe fn main() {
     unsafe {
+        reboot_lib::swi_delay(50000);
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
         //set background color to brat green.
@@ -255,7 +256,39 @@ unsafe fn main() {
         let nand_buffer =
             core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
 
-        let status = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+
+
+
+        let mut modal_open = false;
+        let backend = gui::DSMicroGuiBackend::new(video_context);
+
+        let mut sector_selector = 0;
+        assert_eq!(1, IPC_FIFO_HARDWARE.recieve_raw_blocking());
+
+        micro_imgui::run(backend, (), |f, _| {
+            f.central_panel(|ui| {
+                ui.add(Label::new("Viks weird project", 16));
+                ui.add_space(3);
+                
+                ui.add(Label::new(alloc::format!("selected sector: {}", sector_selector), 8));
+                
+                if ui.button("<").clicked() {
+                    sector_selector -= 1;
+                }
+                if ui.button("read").clicked() {
+                    read_encrypted_nand(nand_buffer, sector_selector);
+                }
+                if ui.button(">").clicked() {
+                    sector_selector += 1;
+                }
+                ui.add_space(5);
+                ui.add(Label::new(alloc::format!("nand_data: {:x?}", &nand_buffer[0].bytes()[0..64]), 8));
+                
+                ui.add(Label::new(alloc::format!("pen: {}", ui.input_down(Buttons::PEN_DOWN.into())), 8));
+            });
+        });
+
+        /* 
         loop {
             if let Ok(value) = IPC_FIFO_HARDWARE.recieve_value_raw() {
                 nand_status = value;
@@ -263,13 +296,8 @@ unsafe fn main() {
 
             VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
                 text_pass.set_color(0x7FFF);
-                if nand_status == 0xB00BB00B {
-                    text_pass.layout_str(&alloc::format!("nand: {:x?} {status}", &nand_buffer[0].bytes()[..64]), 8);
-                    text_pass.next_line();
-                } else {
-                    text_pass.layout_str(&alloc::format!("nand: {:x?}", nand_status), 8);
-                    text_pass.next_line();
-                }
+                text_pass.layout_str(&alloc::format!("nand: {:x?} {nand_status:x?}", &nand_buffer[0].bytes()[0x1C0..]), 8);
+                text_pass.next_line();
                 text_pass.layout_str(&alloc::format!("Frame: {}", unsafe { FRAME_COUNTER }), 8);
                 text_pass.next_line();
                 text_pass.layout_str(&alloc::format!("Generations: {}", generations), 8);
@@ -277,6 +305,7 @@ unsafe fn main() {
             generations += 1;
             video_context.next_frame();
         }
+        */
         /*
         read_encrypted_nand(nand_buffer, 0).unwrap();
 

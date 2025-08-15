@@ -84,7 +84,13 @@ pub enum DeviceInitializationError {
     BadIfConditionResponse,
     IdentificationFail,
 }
+fn sdmmc_ignore() {
 
+}
+unsafe fn init_sdmmc_general() {
+    crate::set_interrupt_function(crate::ARM7Interrupt::SDMMC, sdmmc_ignore as _);
+    crate::enable_interrupt(crate::ARM7Interrupt::SDMMC);
+}
 static mut DEVICES: [Device; 2] = [Device::sd_card(0), Device::nand(1)];
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
     let dev = &mut DEVICES[device_number as u8 as usize];
@@ -360,7 +366,10 @@ unsafe fn send_app_command(port: &mut TMIOPort, cmd: Command, arg: u32, rca: u32
         a => a,
     }
 }
-
+pub unsafe fn device_response(device: DeviceSelect) -> [u32; 4] {
+    let device = &mut DEVICES[device as u8 as usize];
+    device.port.response.clone()
+}
 pub unsafe fn read_sectors(
     device: DeviceSelect,
     sector: u32,

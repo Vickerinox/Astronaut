@@ -1,10 +1,8 @@
 use reboot_lib::{mmc::Command, swi_delay, swi_halt, ClockCnt, Control, DataControl32, Status, INTERUPT_HARDWARE, IPC_FIFO_HARDWARE, MMC, MMC_CONTROLLER};
 
-use crate::INTERRUPT_TABLE_AUX;
-
-static mut NAND_DEVICE: Device = Device {
+pub static mut SD_DEVICE: Device = Device {
     port: TMIOPort { 
-        num: 1, 
+        num: 0, 
         sd_clk_ctrl: ClockCnt::empty(), 
         sd_blocklen: 0, 
         sd_option: 0, 
@@ -27,10 +25,10 @@ pub struct TMIOPort {
     sd_option: u16,
     buffer: *mut u32,
     blocks: u16,
-    response: [u32; 4],
+    pub response: [u32; 4],
 }
 pub struct Device {
-    port: TMIOPort,
+    pub port: TMIOPort,
     kind: DeviceType,
     protection: u8,
     rca: u16,
@@ -40,7 +38,7 @@ pub struct Device {
     cid: [u32; 4],
 }
 
-static mut MMCSD_STATUS: Status = Status::empty();
+ static mut MMCSD_STATUS: Status = Status::empty();
 
 unsafe fn tmio_mmc_irq() {
     //update our status copy
@@ -50,7 +48,8 @@ unsafe fn tmio_mmc_irq() {
 }
 pub unsafe fn init_all() -> Result<(), Status>{
     tmio_mmc_init();
-    sdmmc_init(&mut NAND_DEVICE)
+    sdmmc_init(&mut SD_DEVICE);
+    Ok(())
 }
 pub fn read_mmc_sectors(
     data: *mut [reboot_lib::StorageSector],
@@ -58,35 +57,33 @@ pub fn read_mmc_sectors(
 ) -> Result<(), Status> {
     unsafe {
         let blocks = data.len();
-        let sector = match NAND_DEVICE.kind {
+        let sector = match SD_DEVICE.kind {
             DeviceType::SDSC => sector << 9,
             DeviceType::SDHC => sector,
             DeviceType::MMC => sector << 9,
             DeviceType::MMCHC => sector,
         };
-        NAND_DEVICE.port.buffer = data as *mut _;
-        NAND_DEVICE.port.blocks = blocks as _;
+        SD_DEVICE.port.buffer = data as *mut _;
+        SD_DEVICE.port.blocks = blocks as _;
 
-        match NAND_DEVICE.port.send_command(Command::SendStatus, 512) {
+        match SD_DEVICE.port.send_command(Command::ReadMutliBlocks, 512) {
             Status::EMPTY => Ok(()),
             err => Err(err),
         };
-        Err(Status::from_bits_retain(NAND_DEVICE.port.response[0]))
+        Ok(())
     }
 }
 unsafe fn tmio_mmc_init() {
-     
-    INTERRUPT_TABLE_AUX[8] = tmio_mmc_irq as _;
-    let old_enable = INTERUPT_HARDWARE.enable2.read();
-    INTERUPT_HARDWARE.enable2.write(old_enable | (1<<8));
+    reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::SDMMC, tmio_mmc_irq as _);
+    reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::SDMMC);
 
     let MMC { port_select, block_count, irmask, clock_control, block_len, options, sdio_mode, sdio_mask, data_control, soft_reset, ext_sdio_irq, ext_card_detect_mask, ext_card_detect_dat3_mask, data_control_32, block_len_32, block_count_32, .. } = &*MMC_CONTROLLER;
     data_control_32.write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
     block_len_32.write(512);
     block_count_32.write(1);
     data_control.write(Control::USE_DATA32);
-    soft_reset.write(0);
-    soft_reset.write(1);
+    //soft_reset.write(0);
+    //soft_reset.write(1);
 
     port_select.write(0);
     block_count.write(1);
@@ -105,6 +102,7 @@ unsafe fn tmio_mmc_init() {
 unsafe fn sdmmc_init(device: &mut Device) -> Result<(), Status> {
     device.port.init(0);
     device.port.powerup();
+    
     match device.go_idle_state() {
         Status::EMPTY => (),
         err => return Err(err),
@@ -129,6 +127,8 @@ unsafe fn sdmmc_init(device: &mut Device) -> Result<(), Status> {
     };
     device.init_trans_state(device_type, rca, spec);
     device.kind = device_type;
+    
+    device.port.send_command(Command::SendStatus, 0);
     Ok(())
     
 }
@@ -161,21 +161,19 @@ impl TMIOPort {
             (false, true) => DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32 | DataControl32::ENABLE_RX_IRQ,
             (false, false) => DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32 | DataControl32::ENABLE_TX_IRQ,
         };
-        
+
         MMC_CONTROLLER.data_control_32.write(control);
         MMC_CONTROLLER.status.write(Status::empty());
         MMC_CONTROLLER.command.write(command as u16);
-        while !MMCSD_STATUS.contains(Status::RESPONSE_END) { swi_halt(); }
+        while !core::ptr::read_volatile(&MMCSD_STATUS).contains(Status::RESPONSE_END) { swi_halt(); }
         get_response(self);
-
         if command.transmits_data() {
-            if self.buffer.is_null() {
-                while !MMCSD_STATUS.contains(Status::DATA_END) { swi_halt(); }
+            if buffer.is_null() {
+                while !core::ptr::read_volatile(&MMCSD_STATUS).contains(Status::DATA_END) { }
             } else {
-                do_cpu_transfer(self, command);
+                return do_cpu_transfer(self, command)
             }
         }
-
         MMCSD_STATUS & Status::ALL_ERRORS
     }
 
@@ -354,23 +352,31 @@ const fn extract_bits(response: &[u32; 4], start: u32, size: u32) -> u32 {
         {res |= response[(off - 1) as usize]<<((32 - shift) & 31);}
     res & mask
 }
-
-unsafe fn do_cpu_transfer(port: &mut TMIOPort, command: Command) {
+#[inline]
+unsafe fn do_cpu_transfer(port: &mut TMIOPort, command: Command) -> Status {
     let block_len = MMC_CONTROLLER.block_len.read();
-    let mut block_count = MMC_CONTROLLER.block_count.read();
+    let mut block_count = port.blocks;
+    let mut status = core::ptr::read_volatile(&MMCSD_STATUS);
     if command.reads_data() {
-        while !MMCSD_STATUS.intersects(Status::ALL_ERRORS) && block_count > 0 {
-            if MMC_CONTROLLER.data_control_32.read().contains(DataControl32::RX_READY) {
-                let block_end = port.buffer.byte_add(block_len as usize);
-                while port.buffer < block_end {
-                    port.buffer.write_volatile(MMC_CONTROLLER.data_fifo_32.read());
-                    port.buffer = port.buffer.add(1);
-                }
-                block_count -= 1;
+        
+        while block_count > 0 {
+            status = core::ptr::read_volatile(&MMCSD_STATUS);
+            if MMC_CONTROLLER.data_control_32.read().contains(DataControl32::RX_READY) || status.intersects(Status::RX_READY) {
+                let ptr = port.buffer;
+                for i in 0..(port.sd_blocklen >> 2) {
+                        (ptr as *mut u32)
+                            .add(i as usize)
+                            .write_volatile(MMC_CONTROLLER.data_fifo_32.read());
+                    }
+            } else if status.intersects(Status::ALL_ERRORS) {
+                return status;
+            } else if !status.contains(Status::CMD_BUSY) {
+                return status;
             } else {
                 swi_halt();
             }
         }
+        
     } else {
         while !MMCSD_STATUS.intersects(Status::ALL_ERRORS) && block_count > 0 {
             if MMC_CONTROLLER.data_control_32.read().contains(DataControl32::TX_READY) {
@@ -385,6 +391,7 @@ unsafe fn do_cpu_transfer(port: &mut TMIOPort, command: Command) {
             }
         }
     }
+    status
 }
 unsafe fn get_response(port: &mut TMIOPort) {
     port.response[0] = MMC_CONTROLLER.response[0].read();

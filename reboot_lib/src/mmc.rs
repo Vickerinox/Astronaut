@@ -247,14 +247,15 @@ impl MMC {
         let cmd = command;
         self.command.write(cmd);
 
-        let (ptr, len) = port.buffer.to_raw_parts();
+        let (mut ptr, mut len) = port.buffer.to_raw_parts();
         let use_buf = !ptr.is_null();
         loop {
             let control = self.data_control_32.read();
             status = self.status.read();
             if use_buf {
-                if control.contains(DataControl32::RX_READY) || status.contains(Status::RX_READY) {
-                    for i in 0..(port.block_len >> 2) {
+                let word_count = (port.block_len >> 2);
+                if control.contains(DataControl32::RX_READY) {
+                    for i in 0..word_count {
                         (ptr as *mut u32)
                             .add(i as usize)
                             .write_volatile(self.data_fifo_32.read());
@@ -263,11 +264,17 @@ impl MMC {
                 if control.contains(DataControl32::TX_READY) {
                     //what now? (Write)
                 }
+                len -= 1;
+                ptr.add(word_count as usize);
             }
+
             if status.contains(Status::ALL_ERRORS) {
                 break;
             }
             if !status.intersects(Status::CMD_BUSY) {
+                if len == 0 {
+                    break;
+                }
                 if status.contains(flags) {
                     break;
                 }

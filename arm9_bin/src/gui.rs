@@ -303,7 +303,7 @@ impl<'a> TextLayoutHandle<'a> {
         }
         self.used_space = self
             .used_space
-            .include_point(Vec2::new(self.cursor.x - 1, self.cursor.y + y_size));
+            .include_point(Vec2::new(self.cursor.x + 1, self.cursor.y + y_size));
         let x = (self.cursor.x as i16 + 1) << 4;
         let y = (self.cursor.y as i16) << 4;
         unsafe {

@@ -260,7 +260,7 @@ pub enum Shape<'a> {
     },
     Text {
         bounds: Rect,
-        str: Cow<'a, str>,
+        str: &'a str,
         color: Color,
         outline: Color,
         size: u8,

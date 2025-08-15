@@ -31,7 +31,7 @@ impl<'t> AutoAdd for Button<'t> {
         let box_shaper = ui.reserve_shape();
         let rect = ui.draw(Shape::Text {
             bounds,
-            str: text,
+            str: &text,
             color: Color::new(200, 200, 200),
             outline: Color::new(0, 0, 0),
             size: 8,
