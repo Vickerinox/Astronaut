@@ -1,16 +1,30 @@
 use crate::MemoryWrapper;
+use bitflags::bitflags;
 use volatile_register::RW;
 pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as *mut I2CInterface);
 
 pub unsafe fn init() {
-    I2C_HARDWARE.write_register(PowerRegister::BACKLIGHT, 2);
-    I2C_HARDWARE.write_register(PowerRegister::CAMLED, 1);
     I2C_HARDWARE.write_register(PowerRegister::WIFILED, 1);
+    I2C_HARDWARE.write_register(PowerRegister::VOL, 0x10);
 }
 #[repr(C)]
 pub struct I2CInterface {
     data: RW<u8>,
     control: RW<u8>,
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    pub struct I2CControl: u8 {
+        const STOP = (1<<0);
+        const START = (1<<1);
+        const ERROR = (1<<2);
+
+        const ACK = (1<<4);
+        const DATA_DIRECTION = (1<<5);
+        const ENABLE_INTERRUPT = (1<<6);
+        const START_BUSY = (1<<7);
+    }
 }
 impl I2CInterface {
     unsafe fn okay(&self) -> bool {
@@ -44,6 +58,7 @@ impl I2CInterface {
             if self.set_device(device).is_ok() && self.set_register(register).is_ok() {
                 crate::swi_delay(0x180);
                 self.data.write(value);
+                self.stop(0);
                 if self.get_result().is_ok() {
                     return Ok(I2CSuccess);
                 }
@@ -58,6 +73,12 @@ impl I2CInterface {
             true => Ok(I2CSuccess),
             false => Err(I2CFailure),
         }
+    }
+    unsafe fn stop(&self, arg: u8) {
+        self.control.write(arg | (1 << 7));
+        self.wait_busy();
+        crate::swi_delay(0x180);
+        self.control.write((1<<7) | (1<<2) | (1<<0));
     }
 }
 

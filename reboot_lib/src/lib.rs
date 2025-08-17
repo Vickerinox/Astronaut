@@ -16,7 +16,7 @@ pub mod ndma;
 pub mod spi;
 mod swi;
 mod video;
-mod sound;
+pub mod sound;
 
 pub use allocator::ALLOCATOR;
 pub use crypto::*;

@@ -123,9 +123,13 @@ pub enum SndReg {
     CmSetting = 0x32,
 }
 pub unsafe fn init_tsc() {
+
+
+
+    //BANAN
     cdc_write_reg(CntReg::Reset, 1);
     cdc_write_reg(CntReg::NocashAdcDcMeasurement1, 0x66);
-    cdc_write_reg(SndReg::ClassDSpeakerAmp, 0x16);
+    cdc_write_mask(SndReg::ClassDSpeakerAmp, (1<<4), 0x16);
     cdc_write_reg(CntReg::ClockMux, 0);
     cdc_write_reg(CntReg::AdcNadc, 0x81);
     cdc_write_reg(CntReg::AdcMadc, 0x82);
@@ -141,7 +145,8 @@ pub unsafe fn init_tsc() {
     cdc_write_reg(CntReg::AdcNadc, 0x87);
     cdc_write_reg(CntReg::AdcMadc, 0x83);
 
-    cdc_write_reg(TouchCntReg::ScanModeTimerClock, 0x88);
+    cdc_write_mask(TouchCntReg::ScanModeTimerClock, 0x7F, 0x88);
+
 
     //sound init?
     cdc_write_array(
@@ -161,13 +166,13 @@ pub unsafe fn init_tsc() {
     cdc_write_reg(SndReg::InputSelection, 0x40);
     cdc_write_reg(SndReg::CmSetting, 0x60);
 
-    cdc_write_reg(CntReg::SarAdc, 0x82);
-    cdc_write_reg(CntReg::SarAdc, 0x92);
-    cdc_write_reg(CntReg::SarAdc, 0xD2);
+    cdc_write_mask(CntReg::SarAdc, 0xFF, 0x82);
+    cdc_write_mask(CntReg::SarAdc, 0xFF, 0x92);
+    cdc_write_mask(CntReg::SarAdc, 0xFF, 0xD2);
 
     cdc_write_reg(SndReg::PopRemovalSetting, 0x20);
     cdc_write_reg(SndReg::RampDownPeriod, 0xF0);
-    cdc_write_reg(CntReg::DacCtrl, 0xD4);
+    cdc_write_mask(CntReg::SarAdc, 0xFF, 0xD4);
     cdc_write_reg(SndReg::DacMixerRouting, 0x44);
     cdc_write_reg(SndReg::HeadphoneDriver, 0xD4);
     cdc_write_reg(SndReg::DriverHPL, 0x4E);
@@ -189,7 +194,7 @@ pub unsafe fn init_tsc() {
     core::ptr::write_volatile(0x4004C00 as *mut u16, value | 0x80);
     cdc_write_reg(CntReg::GPIO3Pin, 0x60);
 
-    //ENABLE
+    //ENABLE?
     cdc_write_reg(TouchCntReg::TwlPenDown, 0);
     cdc_write_reg(TouchCntReg::SarAdcCnt1, 0x18);
     cdc_write_reg(TouchCntReg::ScanModeTimer, 0xA0);
@@ -202,6 +207,8 @@ pub unsafe fn init_tsc() {
     cdc_write_mask(TouchCntReg::PrechargeSense, 0b1110000, 0x40);
     cdc_write_mask(TouchCntReg::DebouncePenup, 0b111, 0);
     cdc_write_mask(TouchCntReg::TwlPenDown, (1 << 7), (1 << 7));
+
+
 }
 pub unsafe fn cdc_write_mask(reg: impl Into<CdcRegister>, mask: u8, value: u8) {
     let (bank, reg) = reg.into().as_bank_and_reg();

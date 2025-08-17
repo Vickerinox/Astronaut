@@ -56,11 +56,12 @@ fn main() {
     unsafe {
         IPC_FIFO_HARDWARE.enable();
 
-        core::ptr::write_volatile(0x4000210 as *mut u32, 0);
-        (0x4000208 as *mut u32).write_volatile(0);
+        reboot_lib::sound::SOUND_HARDWARE.init();
+        reboot_lib::sound::SOUND_HARDWARE.channels[8].start_test_beep();
+        reboot_lib::init_interrupts();
         reboot_lib::spi::touchscreen::init_tsc();
         reboot_lib::i2c::init();
-        reboot_lib::spi::write_powerman(PowerRegiser::Control(Control::ENABLE_BACKLIGHTS));
+        reboot_lib::spi::write_powerman(PowerRegiser::Control(Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP));
 
         (0x400_0008 as *mut u32)
             .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
@@ -80,9 +81,7 @@ fn main() {
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
-        
-        
-        reboot_lib::init_interrupts();
+
         reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
         let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
             Ok(_) => 1,
@@ -101,9 +100,9 @@ fn main() {
                     let Some([0]) = gather_args() else { response = 0x8000_0000; continue;};
                     let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
                     let mut controls = reboot_lib::Buttons::from_bits_retain(controls);
-                    //if !reboot_lib::spi::touchscreen::is_pen_down() {
-                    //    controls ^= reboot_lib::Buttons::PEN_DOWN;
-                    //}
+                    if !reboot_lib::spi::touchscreen::is_pen_down() {
+                        controls ^= reboot_lib::Buttons::PEN_DOWN;
+                    }
                     response = controls.bits() as u32;
                 }
                 2 => {

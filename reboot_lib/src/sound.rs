@@ -25,6 +25,11 @@ pub struct SoundRegisters {
 }
 impl SoundRegisters {
     pub fn init(&self) {
+                unsafe {
+            self.master_control.write((1<<15) | 0x7F);
+            self.bias.write(0x200);
+            self.dsi_sound_control.write(4 | (1<<15) | (1<<14));
+        }
         for channel in &self.channels {
             unsafe {
                 channel.control.write(SoundControl::empty());
@@ -34,11 +39,7 @@ impl SoundRegisters {
                 channel.length.write(0);
             }
         }
-        unsafe {
-            self.master_control.write((1<<15) | 0x7F);
-            self.bias.write(0x200);
-            self.dsi_sound_control.write(4 | (1<<15));
-        }
+
     }
 }
 #[repr(C)]
@@ -49,7 +50,15 @@ pub struct SoundChannel {
     loop_start: WO<u16>,
     length: WO<u32>,
 }
-
+impl SoundChannel {
+    pub unsafe fn start_test_beep(&self) {
+        self.control.write(SoundControl::new());
+        self.timer.write(timer_from_freq(440));
+    }
+}
+pub const fn timer_from_freq(freq: u32) -> u16 {
+ ((33513982/2)/freq) as u16
+}
 bitflags! {
     #[derive(Clone, Copy, Default)]
     pub struct SoundControl: u32 {
