@@ -15,7 +15,9 @@ use micro_imgui::{
     Sizing, Vec2,
 };
 use reboot_lib::{
-    spi::firmware::{FirmwareHeader, UserData}, Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE
+    spi::firmware::{FirmwareHeader, UserData},
+    Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, VideoPowerControl, Viewport,
+    IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
 };
 
 use crate::new_takeover::flush_mmc;
@@ -252,12 +254,9 @@ unsafe fn main() {
 
         let mut generations = 0;
         let mut nand_status = 0;
-        
+
         let nand_buffer =
             core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
-
-
-
 
         let mut modal_open = false;
         let backend = gui::DSMicroGuiBackend::new(video_context);
@@ -267,11 +266,13 @@ unsafe fn main() {
 
         micro_imgui::run(backend, (), |f, _| {
             f.central_panel(|ui| {
-                ui.add(Label::new("Viks weird project", 16));
                 ui.add_space(3);
-                
-                ui.add(Label::new(alloc::format!("selected sector: {}", sector_selector), 8));
-                
+
+                ui.add(Label::new(
+                    alloc::format!("selected sector: {}", sector_selector),
+                    8,
+                ));
+
                 if ui.button("<").clicked() {
                     sector_selector -= 1;
                 }
@@ -282,13 +283,19 @@ unsafe fn main() {
                     sector_selector += 1;
                 }
                 ui.add_space(5);
-                ui.add(Label::new(alloc::format!("nand_data: {:x?}", &nand_buffer[0].bytes()[0..64]), 8));
-                
-                ui.add(Label::new(alloc::format!("pen: {}", ui.input_down(Buttons::PEN_DOWN.into())), 8));
+                ui.add(Label::new(
+                    alloc::format!("nand_data: {:x?}", &nand_buffer[0].bytes()[0..64]),
+                    8,
+                ));
+
+                ui.add(Label::new(
+                    alloc::format!("pen: {}", ui.input_down(Buttons::PEN_DOWN.into())),
+                    8,
+                ));
             });
         });
 
-        /* 
+        /*
         loop {
             if let Ok(value) = IPC_FIFO_HARDWARE.recieve_value_raw() {
                 nand_status = value;

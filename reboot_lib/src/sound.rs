@@ -1,4 +1,10 @@
-use crate::MemoryWrapper;
+use crate::{
+    spi::{
+        touchscreen::{cdc_write_reg, CntReg},
+        write_powerman, Control, SPI_HARDWARE,
+    },
+    MemoryWrapper,
+};
 use bitflags::bitflags;
 use volatile_register::*;
 pub const SOUND_HARDWARE: MemoryWrapper<SoundRegisters> =
@@ -17,6 +23,7 @@ pub struct SoundRegisters {
     pub capture_1_destination: RW<u32>,
     pub capture_1_len: RW<u32>,
     _unused2: [u32; 0x38],
+    _unused5: [u8; 0x4000],
     pub dsi_mic_control: RW<u16>,
     _unused3: u16,
     pub dsi_mic_data: RW<u32>,
@@ -25,10 +32,16 @@ pub struct SoundRegisters {
 }
 impl SoundRegisters {
     pub fn init(&self) {
-                unsafe {
-            self.master_control.write((1<<15) | 0x7F);
+        unsafe {
+            self.master_control.write((1 << 15) | 0x05);
             self.bias.write(0x200);
-            self.dsi_sound_control.write(4 | (1<<15) | (1<<14));
+            self.dsi_sound_control.write(8 | (1 << 13));
+            cdc_write_reg(CntReg::PllJ, 15);
+            cdc_write_reg(CntReg::DacNdac, 0x85);
+            cdc_write_reg(CntReg::AdcNadc, 0x85);
+
+            self.dsi_sound_control.modify(|i| i | 0x8000);
+            //self.master_control.write((1<<15));
         }
         for channel in &self.channels {
             unsafe {
@@ -39,16 +52,15 @@ impl SoundRegisters {
                 channel.length.write(0);
             }
         }
-
     }
 }
 #[repr(C)]
 pub struct SoundChannel {
-    control: RW<SoundControl>,
-    source: WO<u32>,
-    timer: WO<u16>,
-    loop_start: WO<u16>,
-    length: WO<u32>,
+    pub control: RW<SoundControl>,
+    pub source: WO<u32>,
+    pub timer: WO<u16>,
+    pub loop_start: WO<u16>,
+    pub length: WO<u32>,
 }
 impl SoundChannel {
     pub unsafe fn start_test_beep(&self) {
@@ -57,7 +69,7 @@ impl SoundChannel {
     }
 }
 pub const fn timer_from_freq(freq: u32) -> u16 {
- ((33513982/2)/freq) as u16
+    0xFFFF - ((33513982 / 2) / freq) as u16
 }
 bitflags! {
     #[derive(Clone, Copy, Default)]
@@ -90,22 +102,21 @@ pub enum RepeatMode {
 impl SoundControl {
     pub const fn new() -> Self {
         Self::START
-        .with_repeat_mode(RepeatMode::Oneshot)
-        .with_sound_format(SoundFormat::PSG)
-        .with_panning(64)
-        .with_volume(127)
-    } 
+            .with_repeat_mode(RepeatMode::Oneshot)
+            .with_sound_format(SoundFormat::PSG)
+            .with_panning(64)
+            .with_volume(127)
+    }
     pub const fn with_repeat_mode(self, repeat_mode: RepeatMode) -> Self {
-        Self::from_bits_retain(((repeat_mode as u8 as u32) << 27) |  (self.bits() & !(3<<27)))
+        Self::from_bits_retain(((repeat_mode as u8 as u32) << 27) | (self.bits() & !(3 << 27)))
     }
     pub const fn with_sound_format(self, format: SoundFormat) -> Self {
-        Self::from_bits_retain(((format as u8 as u32) << 29) |  (self.bits() & !(3<<29)))
+        Self::from_bits_retain(((format as u8 as u32) << 29) | (self.bits() & !(3 << 29)))
     }
     pub const fn with_volume(self, volume: u8) -> Self {
-        Self::from_bits_retain((volume as u32 &0x7F) |  (self.bits() & !(0x7f)))
+        Self::from_bits_retain((volume as u32 & 0x7F) | (self.bits() & !(0x7f)))
     }
     pub const fn with_panning(self, panning: u8) -> Self {
-        Self::from_bits_retain( ((panning as u32 &0x7F)<<16) | (self.bits() & !(0x7f0000)))
+        Self::from_bits_retain(((panning as u32 & 0x7F) << 16) | (self.bits() & !(0x7f0000)))
     }
-    
 }

@@ -5,7 +5,9 @@ pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as
 
 pub unsafe fn init() {
     I2C_HARDWARE.write_register(PowerRegister::WIFILED, 1);
-    I2C_HARDWARE.write_register(PowerRegister::VOL, 0x10);
+    I2C_HARDWARE.write_register(PowerRegister::MMCPWR, 1);
+    //I2C_HARDWARE.write_register(PowerRegister::PowerButtonTap, 0x10);
+    //I2C_HARDWARE.write_register(PowerRegister::PowerButtonHold, 0x64);
 }
 #[repr(C)]
 pub struct I2CInterface {
@@ -38,14 +40,14 @@ impl I2CInterface {
         self.wait_busy();
         crate::swi_delay(0x180);
         self.data.write(device);
-        self.control.write((1 << 7) | (1 << 1));
+        self.control.write((1 << 7) | (1 << 1) | (1 << 6));
         self.get_result()
     }
     unsafe fn set_register(&self, register: u8) -> Result<I2CSuccess, I2CFailure> {
         self.wait_busy();
         crate::swi_delay(0x180);
         self.data.write(register);
-        self.control.write((1 << 7));
+        self.control.write((1 << 7) | (1 << 6));
         self.get_result()
     }
     pub unsafe fn write_register(
@@ -63,7 +65,23 @@ impl I2CInterface {
                     return Ok(I2CSuccess);
                 }
             }
-            self.control.write((1 << 7) | (1 << 2) | 1);
+            self.control.write((1 << 7) | (1 << 2) | 1 | (1 << 6));
+        }
+        Err(I2CFailure)
+    }
+    pub unsafe fn read_register(&self, register: impl Into<I2CRegister>) -> Result<u8, I2CFailure> {
+        let (device, register) = register.into().as_chip_and_reg();
+        for i in 0..8 {
+            if self.set_device(device).is_ok() && self.set_register(register).is_ok() {
+                crate::swi_delay(0x180);
+                if self.set_device(device | 1).is_ok() {
+                    crate::swi_delay(0x180);
+                    self.stop((1 << 5));
+                    self.wait_busy();
+                    return Ok(self.data.read());
+                }
+            }
+            self.control.write((1 << 7) | (1 << 2) | 1 | (1 << 6));
         }
         Err(I2CFailure)
     }
@@ -75,10 +93,11 @@ impl I2CInterface {
         }
     }
     unsafe fn stop(&self, arg: u8) {
-        self.control.write(arg | (1 << 7));
+        self.control.write(arg | (1 << 7) | (1 << 6));
         self.wait_busy();
         crate::swi_delay(0x180);
-        self.control.write((1<<7) | (1<<2) | (1<<0));
+        self.control
+            .write((1 << 7) | (1 << 2) | (1 << 0) | (1 << 6));
     }
 }
 
@@ -116,6 +135,9 @@ pub enum PowerRegister {
     VOL = 0x40,
     BACKLIGHT = 0x41,
     RESETFLAG = 0x70,
+
+    PowerButtonTap = 0x80,
+    PowerButtonHold = 0x81,
 }
 impl Into<I2CRegister> for PowerRegister {
     fn into(self) -> I2CRegister {
@@ -123,4 +145,5 @@ impl Into<I2CRegister> for PowerRegister {
     }
 }
 pub struct I2CSuccess;
+#[derive(Debug)]
 pub struct I2CFailure;

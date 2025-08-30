@@ -1,7 +1,11 @@
 use alloc::borrow::Cow;
 
 use crate::{
-    context::{Ctx, Frame}, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::button::Button, Backend, LayerId
+    context::{Ctx, Frame},
+    primitives::{Id, Rect, Vec2},
+    response::{self, Response, Sense},
+    widgets::button::Button,
+    Backend, LayerId,
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {

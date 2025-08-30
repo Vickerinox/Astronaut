@@ -88,7 +88,7 @@ bitflags! {
 
         const UNKNOWN = (1<<27);
 
-        
+
 
         const CMD_BUSY = (1<<30);
         const ERR_ILLEGAL_ACCESS = (1<<31);

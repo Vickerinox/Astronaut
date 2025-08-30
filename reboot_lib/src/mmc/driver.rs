@@ -84,9 +84,7 @@ pub enum DeviceInitializationError {
     BadIfConditionResponse,
     IdentificationFail,
 }
-fn sdmmc_ignore() {
-
-}
+fn sdmmc_ignore() {}
 unsafe fn init_sdmmc_general() {
     crate::set_interrupt_function(crate::ARM7Interrupt::SDMMC, sdmmc_ignore as _);
     crate::enable_interrupt(crate::ARM7Interrupt::SDMMC);

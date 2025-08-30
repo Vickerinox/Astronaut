@@ -1,13 +1,14 @@
 #![feature(ptr_metadata)]
 #![no_main]
 #![no_std]
-mod swi;
 mod mmc;
+mod swi;
 
 use core::arch::asm;
 use reboot_lib::{
-    spi::{Control, PowerRegiser},
-    IPC_FIFO_HARDWARE, MMC_CONTROLLER,
+    sound::SOUND_HARDWARE,
+    spi::{Control, PowerRegiser, Reset, SPI_HARDWARE},
+    swi_delay, IPC_FIFO_HARDWARE, MMC_CONTROLLER,
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -47,29 +48,70 @@ pub unsafe extern "C" fn _start() {
     );
 }
 
+pub mod music;
 
-static mut FRAME_COUNTER: u32 = 0;
+fn power_button_interrupt() {
+    let irq_cause = unsafe {
+        reboot_lib::i2c::I2C_HARDWARE
+            .read_register(reboot_lib::i2c::PowerRegister::PWRIF)
+            .map(|i| i & 3)
+    };
+    match irq_cause {
+        Ok(1) => {
+            unsafe {
+                //set warmboot
+                reboot_lib::i2c::I2C_HARDWARE
+                    .write_register(reboot_lib::i2c::PowerRegister::RESETFLAG, 1);
+                //trigger reset
+                reboot_lib::i2c::I2C_HARDWARE
+                    .write_register(reboot_lib::i2c::PowerRegister::PWRCNT, 1);
+            }
+        }
+        Ok(2) => unsafe {
+            reboot_lib::spi::write_powerman(PowerRegiser::Control(Control::SHUT_DOWN_POWER));
+        },
+        _ => { /* unknown, afaik */ }
+    }
+}
+
 fn vblank_interrupt() {
-    unsafe {FRAME_COUNTER += 1};
+    //unsafe { reboot_lib::sound::SOUND_HARDWARE.channels[8].start_test_beep(); }
+    music::music_routine();
 }
 fn main() {
     unsafe {
         IPC_FIFO_HARDWARE.enable();
 
-        reboot_lib::sound::SOUND_HARDWARE.init();
-        reboot_lib::sound::SOUND_HARDWARE.channels[8].start_test_beep();
-        reboot_lib::init_interrupts();
+        (0x400_0304 as *mut u32).write_volatile(1);
         reboot_lib::spi::touchscreen::init_tsc();
         reboot_lib::i2c::init();
-        reboot_lib::spi::write_powerman(PowerRegiser::Control(Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP));
+        reboot_lib::sound::SOUND_HARDWARE.init();
+        music::test();
+        swi_delay(0x20BA * 16);
+        reboot_lib::spi::write_powerman(PowerRegiser::Control(
+            Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP,
+        ));
+        reboot_lib::init_interrupts();
+        reboot_lib::set_interrupt_function(
+            reboot_lib::ARM7Interrupt::VBlank,
+            vblank_interrupt as *mut _,
+        );
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+        reboot_lib::set_interrupt_function(
+            reboot_lib::ARM7Interrupt::Powerbutton,
+            power_button_interrupt as *mut _,
+        );
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
+        (0x4004C02 as *mut u16).write((1 << 6)<<8);
 
         (0x400_0008 as *mut u32)
             .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
         (0x400_0004 as *mut u32)
-            .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 2));
+            .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
 
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
+
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
@@ -81,23 +123,23 @@ fn main() {
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
-
         reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
         let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
             Ok(_) => 1,
             Err(_) => 0,
         };
-        
-        
+
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
-        
-        
+
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
-                    let Some([0]) = gather_args() else { response = 0x8000_0000; continue;};
+                    let Some([0]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
                     let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
                     let mut controls = reboot_lib::Buttons::from_bits_retain(controls);
                     if !reboot_lib::spi::touchscreen::is_pen_down() {
@@ -106,43 +148,56 @@ fn main() {
                     response = controls.bits() as u32;
                 }
                 2 => {
-                    let Some([ptr, len]) = gather_args() else { response = 0x8000_0000; continue;};
+                    let Some([ptr, len]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
                     buffer = core::slice::from_raw_parts_mut(ptr as *mut _, len as usize);
                 }
                 3 => {
-                    let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
+                    let Some([arg]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
                     response = match mmc_read_decrypt(buffer, &key, arg) {
                         Ok(_) => 0,
                         Err(e) => 0x8000_0000 | e.bits(),
                     };
                 }
-                4 => {
-
-                }
+                4 => {}
                 5 => {
-                    let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
+                    let Some([arg]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
                     sd_read_sectors(buffer, arg);
                 }
                 6 => {
-                    let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
+                    let Some([arg]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
-                    (*(arg as *mut () as *mut unsafe extern fn()))();
+                    (*(arg as *mut () as *mut unsafe extern "C" fn()))();
                 }
                 7 => {
-                    let Some([arg]) = gather_args() else { response = 0x8000_0000; continue;};
+                    let Some([arg]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
                     firmware_read(buffer, arg);
                 }
-                _ => {response = 0x8000_0000},
+                _ => response = 0x8000_0000,
             }
             IPC_FIFO_HARDWARE.send_raw_blocking(response);
         }
-        
     }
 }
 
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
+        (0x400_0208 as *mut u32).write_volatile(0);
         IPC_FIFO_HARDWARE.set_status(7);
     }
     loop {}
@@ -214,4 +269,3 @@ unsafe fn gather_args<const N: usize>() -> Option<[u32; N]> {
     }
     Some(array)
 }
-

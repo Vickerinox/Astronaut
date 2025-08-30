@@ -1,4 +1,3 @@
-
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 unsafe fn interrupt_handler() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
@@ -68,7 +67,7 @@ unsafe fn interrupt_handler() {
             "movne r1, r1, lsr #2",
             "addne r0, r0, #2",
             "add r0, r0, r1, lsr #1",
-            
+
             "mov r1, #1",
             "mov r1, r1, lsl r0", //create a "bitmask" of the IRQ
 
@@ -102,10 +101,10 @@ unsafe fn interrupt_handler() {
             "msr cpsr, r1",
 
             //run the interrupt handler
-            "push {{r0, lr}}", // NOTE: we push LR *again* since system mode has it's own lr.
+            "push {{r0, lr, r4-r11}}", // NOTE: we push LR *again* since system mode has it's own lr.
             "adr lr, 5f",
             "bx r3",         //execute interrupt handler (the moment we've been waiting for!!!)
-            "5: pop {{r0, lr}}",
+            "5: pop {{r0, lr, r4-r11}}",
 
             //Hop out of system mode
             "msr cpsr, r0",
@@ -146,7 +145,7 @@ pub unsafe fn init_interrupts() {
 }
 
 const AUX_INTERRUPT: u8 = 32;
-const INTERRUPT_INDEX_MASK: u8 = (AUX_INTERRUPT-1);
+const INTERRUPT_INDEX_MASK: u8 = (AUX_INTERRUPT - 1);
 
 #[repr(u8)]
 pub enum ARM7Interrupt {
@@ -191,6 +190,7 @@ pub enum ARM7Interrupt {
     SDIO = 10 + AUX_INTERRUPT,
     SDIOData1 = 11 + AUX_INTERRUPT,
     AES = 12 + AUX_INTERRUPT,
+    I2C = 13 + AUX_INTERRUPT,
     MicrophoneExt = 14 + AUX_INTERRUPT,
 }
 pub unsafe fn set_interrupt_function(interrupt: ARM7Interrupt, function: *mut fn()) {
@@ -205,18 +205,26 @@ pub unsafe fn set_interrupt_function(interrupt: ARM7Interrupt, function: *mut fn
 pub unsafe fn enable_interrupt(interrupt: ARM7Interrupt) {
     let interrupt = interrupt as u8;
     let index = interrupt & INTERRUPT_INDEX_MASK;
-    if interrupt > INTERRUPT_INDEX_MASK {
-        super::INTERUPT_HARDWARE.enable2.modify(|i| i | (1<<index));
+    let fun = if interrupt > INTERRUPT_INDEX_MASK {
+        crate::critical_function(|| {
+            super::INTERUPT_HARDWARE
+                .enable2
+                .modify(|i| i | (1 << index))
+        });
     } else {
-        super::INTERUPT_HARDWARE.enable.modify(|i| i | (1<<index));
-    }
+        crate::critical_function(|| super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << index)));
+    };
 }
 pub unsafe fn disable_interrupt(interrupt: ARM7Interrupt) {
     let interrupt = interrupt as u8;
     let index = interrupt & INTERRUPT_INDEX_MASK;
     if interrupt > INTERRUPT_INDEX_MASK {
-        super::INTERUPT_HARDWARE.enable2.modify(|i| i & !(1<<index));
+        super::INTERUPT_HARDWARE
+            .enable2
+            .modify(|i| i & !(1 << index));
     } else {
-        super::INTERUPT_HARDWARE.enable.modify(|i| i & !(1<<index));
+        super::INTERUPT_HARDWARE
+            .enable
+            .modify(|i| i & !(1 << index));
     }
 }

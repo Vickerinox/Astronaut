@@ -1,3 +1,5 @@
+use crate::spi::SPI_HARDWARE;
+
 use super::SPIControl;
 struct RawTouchData {}
 
@@ -123,13 +125,10 @@ pub enum SndReg {
     CmSetting = 0x32,
 }
 pub unsafe fn init_tsc() {
-
-
-
     //BANAN
     cdc_write_reg(CntReg::Reset, 1);
     cdc_write_reg(CntReg::NocashAdcDcMeasurement1, 0x66);
-    cdc_write_mask(SndReg::ClassDSpeakerAmp, (1<<4), 0x16);
+    cdc_write_reg(SndReg::ClassDSpeakerAmp, 0x16);
     cdc_write_reg(CntReg::ClockMux, 0);
     cdc_write_reg(CntReg::AdcNadc, 0x81);
     cdc_write_reg(CntReg::AdcMadc, 0x82);
@@ -145,34 +144,40 @@ pub unsafe fn init_tsc() {
     cdc_write_reg(CntReg::AdcNadc, 0x87);
     cdc_write_reg(CntReg::AdcMadc, 0x83);
 
-    cdc_write_mask(TouchCntReg::ScanModeTimerClock, 0x7F, 0x88);
-
+    cdc_write_reg(TouchCntReg::ScanModeTimerClock, 0x88);
 
     //sound init?
-    cdc_write_array(
-        CdcRegister::AdcCoefficients(0x8),
-        &[0x7F, 0xE1, 0x80, 0x1F, 0x7F, 0xC1],
-    );
+    cdc_write_reg(CdcRegister::AdcCoefficients(0x8), 0x7F);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0x9), 0xE1);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xA), 0x80);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xB), 0x1F);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xC), 0x7F);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xD), 0xC1);
+
     cdc_write_reg(CntReg::DacVolumeLeft, 8);
     cdc_write_reg(CntReg::DacVolumeRight, 8);
     cdc_write_reg(CntReg::GPIO3Pin, 0);
-    cdc_write_array(
-        CdcRegister::AdcCoefficients(0x8),
-        &[0x7F, 0xE1, 0x80, 0x1F, 0x7F, 0xC1],
-    );
+
+    cdc_write_reg(CdcRegister::AdcCoefficients(0x8), 0x7F);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0x9), 0xE1);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xA), 0x80);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xB), 0x1F);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xC), 0x7F);
+    cdc_write_reg(CdcRegister::AdcCoefficients(0xD), 0xC1);
+
     cdc_write_reg(SndReg::MicGain, 0x2B);
 
     cdc_write_reg(SndReg::FineGain, 0x40);
     cdc_write_reg(SndReg::InputSelection, 0x40);
     cdc_write_reg(SndReg::CmSetting, 0x60);
 
-    cdc_write_mask(CntReg::SarAdc, 0xFF, 0x82);
-    cdc_write_mask(CntReg::SarAdc, 0xFF, 0x92);
-    cdc_write_mask(CntReg::SarAdc, 0xFF, 0xD2);
+    cdc_write_reg(CntReg::SarAdc, 0x82);
+    cdc_write_reg(CntReg::SarAdc, 0x92);
+    cdc_write_reg(CntReg::SarAdc, 0xD2);
 
     cdc_write_reg(SndReg::PopRemovalSetting, 0x20);
     cdc_write_reg(SndReg::RampDownPeriod, 0xF0);
-    cdc_write_mask(CntReg::SarAdc, 0xFF, 0xD4);
+    cdc_write_reg(CntReg::DacCtrl, 0xD4);
     cdc_write_reg(SndReg::DacMixerRouting, 0x44);
     cdc_write_reg(SndReg::HeadphoneDriver, 0xD4);
     cdc_write_reg(SndReg::DriverHPL, 0x4E);
@@ -190,10 +195,12 @@ pub unsafe fn init_tsc() {
     cdc_write_reg(SndReg::VolumeSPR, 0xA7);
 
     cdc_write_reg(CntReg::DacVolume, 0);
-    let value = core::ptr::read_volatile(0x4004C00 as *mut u16);
-    core::ptr::write_volatile(0x4004C00 as *mut u16, value | 0x80);
+    core::ptr::write_volatile(0x4004C00 as *mut u16, 0x8080);
     cdc_write_reg(CntReg::GPIO3Pin, 0x60);
 
+    cdc_read_reg(TouchCntReg::SarAdcCnt1);
+    cdc_write_reg(TouchCntReg::SarAdcCnt1, 0);
+    /*
     //ENABLE?
     cdc_write_reg(TouchCntReg::TwlPenDown, 0);
     cdc_write_reg(TouchCntReg::SarAdcCnt1, 0x18);
@@ -207,8 +214,7 @@ pub unsafe fn init_tsc() {
     cdc_write_mask(TouchCntReg::PrechargeSense, 0b1110000, 0x40);
     cdc_write_mask(TouchCntReg::DebouncePenup, 0b111, 0);
     cdc_write_mask(TouchCntReg::TwlPenDown, (1 << 7), (1 << 7));
-
-
+    */
 }
 pub unsafe fn cdc_write_mask(reg: impl Into<CdcRegister>, mask: u8, value: u8) {
     let (bank, reg) = reg.into().as_bank_and_reg();
@@ -220,16 +226,23 @@ pub unsafe fn cdc_write_mask(reg: impl Into<CdcRegister>, mask: u8, value: u8) {
 pub unsafe fn is_pen_down() -> bool {
     cdc_read_reg(TouchCntReg::Status) & 0x40 == 0 && cdc_read_reg(TouchCntReg::TwlPenDown) & 3 == 0
 }
+static mut curBank: u8 = 0x63;
 unsafe fn bank_switch_tsc(bank: u8) {
-    write_tsc(0, bank);
+    if bank != curBank {
+        let write = if curBank == 0xff { 0x7F } else { 0 };
+        write_tsc(write, bank);
+        curBank = bank;
+    }
 }
 unsafe fn cdc_read_reg(reg: impl Into<CdcRegister>) -> u8 {
     let (bank, reg) = reg.into().as_bank_and_reg();
+    super::SPI_HARDWARE.wait_busy();
     bank_switch_tsc(bank);
     read_tsc(reg)
 }
-unsafe fn cdc_write_reg(reg: impl Into<CdcRegister>, value: u8) {
+pub unsafe fn cdc_write_reg(reg: impl Into<CdcRegister>, value: u8) {
     let (bank, reg) = reg.into().as_bank_and_reg();
+    super::SPI_HARDWARE.wait_busy();
     bank_switch_tsc(bank);
     write_tsc(reg, value);
     super::SPI_HARDWARE.wait_busy();

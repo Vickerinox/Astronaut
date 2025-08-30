@@ -13,10 +13,10 @@ mod ipc;
 mod memory;
 pub mod mmc;
 pub mod ndma;
+pub mod sound;
 pub mod spi;
 mod swi;
 mod video;
-pub mod sound;
 
 pub use allocator::ALLOCATOR;
 pub use crypto::*;
@@ -44,10 +44,11 @@ impl<T> core::ops::DerefMut for MemoryWrapper<T> {
 //master interrupt enable register.
 const REG_IME: *mut u32 = 0x4000208 as *mut u32;
 pub unsafe fn critical_function<F: FnOnce()>(closure: F) {
-    let mut ime = 0;
-    REG_IME.swap(&mut ime);
+    let mut ime = REG_IME.read_volatile();
+    REG_IME.write_volatile(0);
+
     closure();
-    REG_IME.swap(&mut ime);
+    REG_IME.write_volatile(ime);
 }
 
 #[repr(u8)]
@@ -143,8 +144,6 @@ impl AsMut<[u32]> for StorageSector {
 }
 impl StorageSector {
     pub fn bytes(&self) -> &[u8] {
-        unsafe {
-            &*core::ptr::from_raw_parts(self as *const Self as *const u8, size_of::<Self>())
-        }
+        unsafe { &*core::ptr::from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }
     }
 }

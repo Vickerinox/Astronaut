@@ -188,6 +188,7 @@ fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .init();
+
     let args: FixedCompilerArgs = match CompilerArgs::parse()
         .try_into()
         .map_err(|e: &'static str| e.to_owned())

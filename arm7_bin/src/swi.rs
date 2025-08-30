@@ -8,6 +8,10 @@ pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
             in("r0") dest,
             in("r1") source,
             in("r2") len,
+            lateout("r0") _,
+            lateout("r1") _,
+            lateout("r2") _,
+            lateout("r3") _,
         );
     });
 }
