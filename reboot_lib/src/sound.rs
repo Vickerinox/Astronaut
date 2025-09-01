@@ -33,7 +33,7 @@ pub struct SoundRegisters {
 impl SoundRegisters {
     pub fn init(&self) {
         unsafe {
-            self.master_control.write((1 << 15) | 0x05);
+            self.master_control.write((1 << 15) | 0);
             self.bias.write(0x200);
             self.dsi_sound_control.write(8 | (1 << 13));
             cdc_write_reg(CntReg::PllJ, 15);

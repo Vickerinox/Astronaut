@@ -209,15 +209,13 @@ static MUSIC_PITCHES: &[u16] = &[
 ];
 
 static mut FRAME_COUNTER: u32 = 0;
-static mut MUSIC_COUNTER: u8 = 0;
-static mut MUSIC_COUNTER2: u8 = 0;
-pub unsafe fn test() {}
+static mut MUSIC_COUNTER: u16 = 0;
 pub fn music_routine() {
     unsafe {
         if FRAME_COUNTER % 7 == 0 {
-            let [note, volume] = MUSIC_FRAME[MUSIC_COUNTER as usize].to_le_bytes();
+            let [note, volume] = MUSIC_FRAME[MUSIC_COUNTER as usize & 0x3F].to_le_bytes();
 
-            if FRAME_COUNTER > 7 * 127 {
+            if MUSIC_COUNTER >= 128 {
                 let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[15];
                 channel.timer.write(0xFFFF);
                 let control = SoundControl::START
@@ -226,42 +224,38 @@ pub fn music_routine() {
                     .with_panning(64)
                     .with_volume(20);
                 channel.control.write(control);
-                
-
             }
-            if FRAME_COUNTER > 7 * 319 {
+            if MUSIC_COUNTER >= 320 {
                 let beat = FRAME_COUNTER / 7 & 0xF;
-                if beat == 0 || beat == 4 || beat == 7 || beat == 10 || beat == 12  {
+                if beat == 0 || beat == 4 || beat == 7 || beat == 10 || beat == 12 {
                     let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[1];
                     channel.timer.write(timer_from_freq(22050));
                     let adr = include_bytes!("./kick.raw");
-                    channel.source.write(core::ptr::addr_of!(*adr) as u32 &!3);
-                    channel.length.write((adr.len() as u32) >>2);
-                    let control = SoundControl::START 
+                    channel.source.write(core::ptr::addr_of!(*adr) as u32 & !3);
+                    channel.length.write((adr.len() as u32) >> 2);
+                    let control = SoundControl::START
                         .with_repeat_mode(RepeatMode::Oneshot)
                         .with_sound_format(SoundFormat::PCM8)
-                        .with_panning(40) 
+                        .with_panning(40)
                         .with_volume(127);
-                    channel.control.write(control); 
+                    channel.control.write(control);
                 }
                 if beat == 4 || beat == 12 {
                     let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[2];
                     channel.timer.write(timer_from_freq(22050));
                     let adr = include_bytes!("./snare.raw");
-                    channel.source.write(core::ptr::addr_of!(*adr) as u32 &!3);
-                    channel.length.write((adr.len() as u32) >>2);
-                    let control = SoundControl::START 
+                    channel.source.write(core::ptr::addr_of!(*adr) as u32 & !3);
+                    channel.length.write((adr.len() as u32) >> 2);
+                    let control = SoundControl::START
                         .with_repeat_mode(RepeatMode::Oneshot)
                         .with_sound_format(SoundFormat::PCM8)
-                        .with_panning(80) 
+                        .with_panning(80)
                         .with_volume(127);
-                    channel.control.write(control); 
+                    channel.control.write(control);
                 }
-
             }
 
-
-            let add = if FRAME_COUNTER > 7 * 63 {
+            let add = if MUSIC_COUNTER >= 64 {
                 let [note, volume] =
                     MUSIC_FRAME_BASS[(MUSIC_COUNTER & 0x1F) as usize].to_le_bytes();
                 let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[9];
@@ -275,7 +269,7 @@ pub fn music_routine() {
                     | SoundControl::from_bits_retain((3 << 24));
                 channel.control.write(control);
 
-                if (FRAME_COUNTER / (7 * 64)) % 4 == 3 {
+                if (MUSIC_COUNTER / 64) % 4 == 3 {
                     60
                 } else {
                     72
@@ -292,7 +286,7 @@ pub fn music_routine() {
                 .with_volume(volume >> 3)
                 | SoundControl::from_bits_retain((2 << 24));
             channel.control.write(control);
-            
+
             let channel_echo = &reboot_lib::sound::SOUND_HARDWARE.channels[10];
             let [note_echo, volume_echo] =
                 MUSIC_FRAME[((MUSIC_COUNTER + 61) & 0x3F) as usize].to_le_bytes();
@@ -300,7 +294,6 @@ pub fn music_routine() {
                 .timer
                 .write(MUSIC_PITCHES[note_echo as usize + add]);
 
-                
             let control_echo = SoundControl::START
                 .with_repeat_mode(RepeatMode::Oneshot)
                 .with_sound_format(SoundFormat::PSG)
@@ -308,7 +301,6 @@ pub fn music_routine() {
                 .with_volume(volume_echo >> 5)
                 | SoundControl::from_bits_retain((2 << 24));
             channel_echo.control.write(control_echo);
-            
 
             let channel_echo = &reboot_lib::sound::SOUND_HARDWARE.channels[11];
             let [note_echo, volume_echo] =
@@ -317,7 +309,6 @@ pub fn music_routine() {
                 .timer
                 .write(MUSIC_PITCHES[note_echo as usize + add]);
 
-                
             let control_echo = SoundControl::START
                 .with_repeat_mode(RepeatMode::Oneshot)
                 .with_sound_format(SoundFormat::PSG)
@@ -325,16 +316,13 @@ pub fn music_routine() {
                 .with_volume(volume_echo >> 5)
                 | SoundControl::from_bits_retain((2 << 24));
             channel_echo.control.write(control_echo);
-            
 
-            MUSIC_COUNTER = (MUSIC_COUNTER + 1) & 0x3F;
+            MUSIC_COUNTER += 1;
         } else {
-            let ptr =
-                core::ptr::addr_of_mut!(reboot_lib::sound::SOUND_HARDWARE.channels[8]) as *mut u8;
+            let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[8] as *mut u8;
             ptr.write_volatile(ptr.read().saturating_sub(1));
-            let ptr =
-                core::ptr::addr_of_mut!(reboot_lib::sound::SOUND_HARDWARE.channels[15]) as *mut u8;
-            let dec = if (FRAME_COUNTER / 7) % 16 != 7 { 10 } else { 1 };
+            let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[15] as *mut u8;
+            let dec = if MUSIC_COUNTER % 16 != 7 { 10 } else { 1 };
 
             ptr.write_volatile(ptr.read().saturating_sub(dec));
         }

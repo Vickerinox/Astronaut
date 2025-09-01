@@ -101,10 +101,10 @@ unsafe fn interrupt_handler() {
             "msr cpsr, r1",
 
             //run the interrupt handler
-            "push {{r0, lr, r4-r11}}", // NOTE: we push LR *again* since system mode has it's own lr.
+            "push {{r0, r4-r11, lr}}", // NOTE: we push LR *again* since system mode has it's own lr.
             "adr lr, 5f",
             "bx r3",         //execute interrupt handler (the moment we've been waiting for!!!)
-            "5: pop {{r0, lr, r4-r11}}",
+            "5: pop {{r0, r4-r11, lr}}",
 
             //Hop out of system mode
             "msr cpsr, r0",

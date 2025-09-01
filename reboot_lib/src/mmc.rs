@@ -9,6 +9,7 @@ pub mod newer_driver;
 pub mod tmio;
 
 pub const MMC_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004800 as *mut MMC);
+pub const SDIO_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004A00 as *mut MMC);
 
 const TMIO_STAT1_CMD_IDX_ERR: u16 = 0x0001;
 const TMIO_STAT1_CRCFAIL: u16 = 0x0002;

@@ -142,6 +142,11 @@ impl AsMut<[u32]> for StorageSector {
         &mut self.0[..]
     }
 }
+impl AsRef<[u32]> for StorageSector {
+    fn as_ref(&self) -> &[u32] {
+        &self.0[..]
+    }
+}
 impl StorageSector {
     pub fn bytes(&self) -> &[u8] {
         unsafe { &*core::ptr::from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }

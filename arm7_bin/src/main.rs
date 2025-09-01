@@ -2,6 +2,7 @@
 #![no_main]
 #![no_std]
 mod mmc;
+mod mmc_new;
 mod swi;
 
 use core::arch::asm;
@@ -50,7 +51,18 @@ pub unsafe extern "C" fn _start() {
 
 pub mod music;
 
+unsafe fn update_volume() {
+    match reboot_lib::i2c::I2C_HARDWARE.read_register(reboot_lib::i2c::PowerRegister::VOL) {
+        Ok(value) => reboot_lib::sound::SOUND_HARDWARE
+            .master_control
+            .modify(|i| (i & !0xFF) | (value as u32)),
+        Err(_) => (),
+    }
+}
 fn power_button_interrupt() {
+    unsafe {
+        update_volume();
+    }
     let irq_cause = unsafe {
         reboot_lib::i2c::I2C_HARDWARE
             .read_register(reboot_lib::i2c::PowerRegister::PWRIF)
@@ -86,7 +98,7 @@ fn main() {
         reboot_lib::spi::touchscreen::init_tsc();
         reboot_lib::i2c::init();
         reboot_lib::sound::SOUND_HARDWARE.init();
-        music::test();
+        update_volume();
         swi_delay(0x20BA * 16);
         reboot_lib::spi::write_powerman(PowerRegiser::Control(
             Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP,
@@ -102,7 +114,7 @@ fn main() {
             power_button_interrupt as *mut _,
         );
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
-        (0x4004C02 as *mut u16).write((1 << 6)<<8);
+        (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
         (0x400_0008 as *mut u32)
             .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
@@ -123,10 +135,9 @@ fn main() {
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
-        reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC);
-        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
+        let send = match mmc::init_all() {
             Ok(_) => 1,
-            Err(_) => 0,
+            Err(err) => err.bits(),
         };
 
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
@@ -170,7 +181,7 @@ fn main() {
                         response = 0x8000_0000;
                         continue;
                     };
-                    sd_read_sectors(buffer, arg);
+                    //sd_read_sectors(buffer, arg);
                 }
                 6 => {
                     let Some([arg]) = gather_args() else {
@@ -214,6 +225,8 @@ pub unsafe fn mmc_read_decrypt(
     ctr_base: &[u32; 4],
     sector: u32,
 ) -> Result<(), reboot_lib::Status> {
+    return mmc::read_mmc_sectors(data, sector);
+
     return reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, data);
 
     fn add_on_key(key: &mut [u32; 4], add: u32) {

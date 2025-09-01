@@ -5,7 +5,7 @@ use reboot_lib::{
 
 pub static mut SD_DEVICE: Device = Device {
     port: TMIOPort {
-        num: 0,
+        num: 1,
         sd_clk_ctrl: ClockCnt::empty(),
         sd_blocklen: 0,
         sd_option: 0,
@@ -47,7 +47,7 @@ static mut MMCSD_STATUS: Status = Status::empty();
 unsafe fn tmio_mmc_irq() {
     //update our status copy
     MMCSD_STATUS |= MMC_CONTROLLER.status.read();
-    //acknowledge all irq's except CMD_BUSY
+    //acknowledge all irq's except CMD_BUSY (it disables itself)
     MMC_CONTROLLER.status.write(Status::CMD_BUSY);
 }
 pub unsafe fn init_all() -> Result<(), Status> {
@@ -127,11 +127,10 @@ unsafe fn tmio_mmc_init() {
 unsafe fn sdmmc_init(device: &mut Device) -> Result<(), Status> {
     device.port.init(0);
     device.port.powerup();
-
     match device.go_idle_state() {
         Status::EMPTY => (),
         err => return Err(err),
-    }
+    };
     let device_type = match device.init_idle_state() {
         Ok(a) => a,
         Err(err) => return Err(err),
@@ -202,7 +201,9 @@ impl TMIOPort {
         get_response(self);
         if command.transmits_data() {
             if buffer.is_null() {
-                while !core::ptr::read_volatile(&MMCSD_STATUS).contains(Status::DATA_END) {}
+                while !core::ptr::read_volatile(&MMCSD_STATUS).contains(Status::DATA_END) {
+                    swi_halt();
+                }
             } else {
                 return do_cpu_transfer(self, command);
             }

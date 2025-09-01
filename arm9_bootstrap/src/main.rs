@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start() {
     unsafe { common::bootstrap::boot_arm9() };
 }
