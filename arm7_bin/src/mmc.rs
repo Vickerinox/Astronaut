@@ -3,7 +3,7 @@ use reboot_lib::{
     IPC_FIFO_HARDWARE, MMC, MMC_CONTROLLER,
 };
 
-pub static mut SD_DEVICE: Device = Device {
+pub static mut MMC_DEVICE: Device = Device {
     port: TMIOPort {
         num: 1,
         sd_clk_ctrl: ClockCnt::empty(),
@@ -52,22 +52,25 @@ unsafe fn tmio_mmc_irq() {
 }
 pub unsafe fn init_all() -> Result<(), Status> {
     tmio_mmc_init();
-    sdmmc_init(&mut SD_DEVICE);
+    sdmmc_init(&mut MMC_DEVICE)?;
     Ok(())
 }
 pub fn read_mmc_sectors(data: *mut [reboot_lib::StorageSector], sector: u32) -> Result<(), Status> {
     unsafe {
         let blocks = data.len();
-        let sector = match SD_DEVICE.kind {
+        let sector = match MMC_DEVICE.kind {
             DeviceType::SDSC => sector << 9,
             DeviceType::SDHC => sector,
             DeviceType::MMC => sector << 9,
             DeviceType::MMCHC => sector,
         };
-        SD_DEVICE.port.buffer = data as *mut _;
-        SD_DEVICE.port.blocks = blocks as _;
+        MMC_DEVICE.port.buffer = data as *mut _;
+        MMC_DEVICE.port.blocks = blocks as _;
 
-        match SD_DEVICE.port.send_command(Command::ReadMutliBlocks, 512) {
+        match MMC_DEVICE
+            .port
+            .send_command(Command::ReadMutliBlocks, sector)
+        {
             Status::EMPTY => Ok(()),
             err => Err(err),
         };
@@ -97,12 +100,13 @@ unsafe fn tmio_mmc_init() {
         block_count_32,
         ..
     } = &*MMC_CONTROLLER;
+    soft_reset.write(0);
+    soft_reset.write(1);
+
     data_control_32.write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
     block_len_32.write(512);
     block_count_32.write(1);
     data_control.write(Control::USE_DATA32);
-    //soft_reset.write(0);
-    //soft_reset.write(1);
 
     port_select.write(0);
     block_count.write(1);
@@ -125,34 +129,106 @@ unsafe fn tmio_mmc_init() {
 }
 
 unsafe fn sdmmc_init(device: &mut Device) -> Result<(), Status> {
-    device.port.init(0);
+    device.port.init(1);
     device.port.powerup();
+
+    match device.port.send_command(Command::SendStatus, 0) {
+        Status::EMPTY => return Ok(()),
+        err => return Err(err),
+    };
+
     match device.go_idle_state() {
         Status::EMPTY => (),
         err => return Err(err),
     };
+
+    match device.go_idle_state() {
+        Status::EMPTY => (),
+        err => return Err(err),
+    };
+
+    device.port.sd_clk_ctrl = ClockCnt::FREQ_262K | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
+    loop {
+        match device
+            .port
+            .send_command(Command::MMCSendOptionalCondition, 0x100000)
+        {
+            Status::EMPTY => {
+                if device.port.response[0] & 0x80000000 > 0 {
+                    break;
+                }
+            }
+            _ => (),
+        }
+    }
+
+    let device_type = if device.port.response[0] & (1 << 30) > 0 {
+        DeviceType::MMCHC
+    } else {
+        DeviceType::MMC
+    };
+    match device.port.send_command(Command::AllSendCID, 0) {
+        Status::EMPTY => (),
+        err => return Err(err),
+    }
+    match device
+        .port
+        .send_command(Command::SetSendRelativeAddr, 0x10000)
+    {
+        Status::EMPTY => (),
+        err => return Err(err),
+    }
+
+    device.port.sd_clk_ctrl = ClockCnt::FREQ_16M | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
+    match device.port.send_command(Command::SendCSD, 0x10000) {
+        Status::EMPTY => (),
+        err => return Err(err),
+    }
+    let spec = device.parse_csd(device_type);
+    match device.port.send_command(Command::SendCID, 0x10000) {
+        Status::EMPTY => (),
+        err => return Err(err),
+    }
+    match device.port.send_command(Command::SelectCard, 0x10000) {
+        Status::EMPTY => (),
+        err => return Err(err),
+    }
+
+    match device.port.send_command(Command::SetBlockLen, 0x200) {
+        Status::EMPTY => (),
+        err => return Err(err),
+    }
+    return Ok(());
+    match device.port.send_command(Command::SwitchMMC, 0x03B70100) {
+        Status::EMPTY => (),
+        err => return Err(err),
+    }
+    device.port.sd_option = 0;
+
+    /*
     let device_type = match device.init_idle_state() {
         Ok(a) => a,
         Err(err) => return Err(err),
     };
-    device.port.sd_clk_ctrl = ClockCnt::FREQ_262K | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
-    device.init_ready_state()?;
-    let rca = match device.init_ident_state(device_type) {
-        Ok(rca) => {
-            device.rca = rca;
-            rca
-        }
-        Err(err) => return Err(err),
-    };
-    device.port.sd_clk_ctrl = ClockCnt::FREQ_16M | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
-    let spec = match device.init_standby_state(device_type, rca) {
-        Ok(spec) => spec,
-        Err(err) => return Err(err),
-    };
-    device.init_trans_state(device_type, rca, spec);
+    */
     device.kind = device_type;
+    /*
+     device.init_ready_state()?;
+     let rca = match device.init_ident_state(device_type) {
+         Ok(rca) => {
+             device.rca = rca;
+             rca
+         }
+         Err(err) => return Err(err),
+     };
 
-    device.port.send_command(Command::SendStatus, 0);
+     let spec = match device.init_standby_state(device_type, rca) {
+         Ok(spec) => spec,
+         Err(err) => return Err(err),
+     };
+     device.init_trans_state(device_type, rca, spec);
+    */
+
     Ok(())
 }
 

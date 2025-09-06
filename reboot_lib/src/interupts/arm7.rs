@@ -215,6 +215,9 @@ pub unsafe fn enable_interrupt(interrupt: ARM7Interrupt) {
         crate::critical_function(|| super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << index)));
     };
 }
+pub unsafe fn disable_all_interrupts() {
+    (0x400_0208 as *mut u32).write_volatile(0);
+}
 pub unsafe fn disable_interrupt(interrupt: ARM7Interrupt) {
     let interrupt = interrupt as u8;
     let index = interrupt & INTERRUPT_INDEX_MASK;

@@ -193,8 +193,9 @@ impl MMC {
         self.port_select.write(port.port_num as u16);
         self.clock_control.write(port.clock);
         self.block_len.write(port.block_len);
-        self.options.write(port.option);
         self.block_len_32.write(port.block_len);
+        self.options.write(port.option);
+        
     }
     pub fn tmio_card_detected(&self) -> bool {
         self.status.read().contains(Status::DETECTED)
@@ -216,6 +217,7 @@ impl MMC {
             }
         }
     }
+    
     pub unsafe fn send_command(
         &self,
         port: &mut TMIOPort,
@@ -237,55 +239,43 @@ impl MMC {
 
         self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
-
+        self.data_control.write(Control::USE_DATA32);
         self.data_control_32.modify(|f| {
             (f & !(DataControl32::ENABLE_RX_IRQ | DataControl32::ENABLE_TX_IRQ))
                 | DataControl32::CLEAR_FIFO_32
                 | DataControl32::USE_DATA32
         });
-        self.block_len_32.write(port.block_len);
+
         self.param.write(argument);
         let cmd = command;
         self.command.write(cmd);
 
-        let (mut ptr, mut len) = port.buffer.to_raw_parts();
-        let use_buf = !ptr.is_null();
-        loop {
-            let control = self.data_control_32.read();
-            status = self.status.read();
-            if use_buf {
-                let word_count = (port.block_len >> 2);
-                if control.contains(DataControl32::RX_READY) {
-                    for i in 0..word_count {
-                        (ptr as *mut u32)
-                            .add(i as usize)
-                            .write_volatile(self.data_fifo_32.read());
-                    }
-                }
-                if control.contains(DataControl32::TX_READY) {
-                    //what now? (Write)
-                }
-                len -= 1;
-                ptr.add(word_count as usize);
-            }
+        while !self.status.read().contains(Status::RESPONSE_END) {}
+        let value = self.status.read();
+        self.status.write(!value | Status::CMD_BUSY);
 
-            if status.contains(Status::ALL_ERRORS) {
-                break;
-            }
-            if !status.intersects(Status::CMD_BUSY) {
-                if len == 0 {
-                    break;
-                }
-                if status.contains(flags) {
-                    break;
+        self.tmio_get_response(port, cmd);
+
+
+        //let use_buf = !ptr.is_null();
+        if command & (1<<12) > 0 {
+            let mut sector_iter = (&mut *port.buffer).iter_mut();
+            let Some(mut current_sector) = sector_iter.next() else { return Status::from_bits_retain(123456789); };
+            while !self.status.read().intersects(Status::ALL_ERRORS) {
+                if self.data_control_32.read().contains(DataControl32::RX_READY) {
+                    self.status.write(!Status::RX_READY);
+
+                    for (i, word) in AsMut::<[u32]>::as_mut(current_sector).iter_mut().enumerate() {
+                        (word as *mut u32).write_volatile(self.data_fifo_32.read());
+                    }
+                    let Some(next_sector) = sector_iter.next() else {break;};
+                    current_sector = next_sector;
                 }
             }
         }
-        let resp = status.intersection(Status::ALL_ERRORS);
-        self.status.write(Status::empty());
-        self.tmio_get_response(port, cmd);
-        return resp;
-
+        while self.status.read().contains(Status::CMD_BUSY) {}
+        status.intersection(Status::ALL_ERRORS)
+        /* 
         let buf = port.buffer;
 
         while !status.intersects(Status::RESPONSE_END) {
@@ -303,6 +293,7 @@ impl MMC {
         while self.status.read().contains(Status::CMD_BUSY) {}
         status |= self.status.read();
         status.intersection(Status::ALL_ERRORS)
+        */
     }
     unsafe fn cpu_transfer(
         &self,
@@ -413,7 +404,7 @@ pub enum Command {
     SetBlockCount = r1(23),
 
     WriteSingleBlock = r1_w(24),
-    WriteMultiBlocks = r1_w(25),
+    WriteMultiBlocks = r1_w(25) | CMD_DATA_MULTI,
     ProgramCSD = r1_w(27),
 
     SetWriteProtection = r1b(28),
@@ -439,7 +430,7 @@ pub enum Command {
     AppSendSCR = acmd_r1_r(51),       //  R1, [31:0] stuff bits.
 
     SwitchFunction = r1_r(6), //  R1, [31] Mode 0: Check function 1: Switch function [30:24] reserved (All '0') [23:20] reserved for function group 6 (0h or Fh) [19:16] reserved for function group 5 (0h or Fh) [15:12] function group 4 for PowerLimit [11:8] function group 3 for Drive Strength [7:4] function group 2 for Command System [3:0] function group 1 for Access Mode.
-
+    SwitchMMC = 6 | CMD_RESP_R1B,
     ReadExtensionSingle = r1_r(48), //  R1, [31] MIO0: Memory, 1: I/O [30:27] FNO[26] Reserved (=0) [25:9] ADDR [8:0] LEN.
     WriteExtensionSingle = r1_w(49), //  R1, [31] MIO0: Memory, 1: I/O [30:27] FNO [26] MW [25:9] ADDR [8:0] LEN/MASK.
     ReadExtensionMultiple = r1_r(58), //  R1, [31] MIO0: Memory, 1: I/O [30:27] FNO [26] BUS0: 512B, 1: 32KB [25:9] ADDR [8:0] BUC.

@@ -168,17 +168,16 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
                 return Err(Status::from_bits_retain(2) | res);
             }
             let res =
-                MMC_CONTROLLER.send_command(&mut dev.port, Command::SetSendRelativeAddr, 0x20000);
+                MMC_CONTROLLER.send_command(&mut dev.port, Command::SetSendRelativeAddr, 0x10000);
             if !res.successful() {
                 return Err(Status::from_bits_retain(0xBA) | res);
             }
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SelectCard, 0x20000);
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SelectCard, 0x10000);
             if !res.successful() {
                 return Err(Status::from_bits_retain(4) | res);
             }
             dev.port.clock =
-                super::ClockCnt::ENABLE | super::ClockCnt::FREQ_8M | super::ClockCnt::AUTO_STOP;
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SetBlockLen, 0x200);
+                super::ClockCnt::ENABLE | super::ClockCnt::FREQ_16M | super::ClockCnt::AUTO_STOP;
             if !res.successful() {
                 return Err(Status::from_bits_retain(5) | res);
             }
@@ -374,7 +373,7 @@ pub unsafe fn read_sectors(
     buf: *mut [crate::StorageSector],
 ) -> Result<(), Status> {
     let device = &mut DEVICES[device as u8 as usize];
-    device.port.buffer = buf as *mut _;
+    device.port.buffer = buf;
 
     let sector = match device.kind {
         None => return Err(Status::all()),

@@ -43,6 +43,9 @@ impl SoundRegisters {
             self.dsi_sound_control.modify(|i| i | 0x8000);
             //self.master_control.write((1<<15));
         }
+        self.clear_channels();
+    }
+    pub fn clear_channels(&self) {
         for channel in &self.channels {
             unsafe {
                 channel.control.write(SoundControl::empty());

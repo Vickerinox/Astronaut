@@ -1,11 +1,14 @@
+use reboot_lib::StorageSector;
+
 pub unsafe fn mount_twl_main(
     lba: u32,
     size: u32,
     buffer: &'static mut [reboot_lib::StorageSector],
 ) -> Result<
-    fatfs::FileSystem<SDMMCCursor<&'static mut [reboot_lib::StorageSector], SDMMCAccessor, 9>>,
-    fatfs::Error<SDMMCError>,
+    fatfs::FileSystem<BasicSDMMCCursor>,
+    fatfs::Error<BasicSDMMCError>,
 > {
+    /* 
     let cursor = SDMMCCursor::new(
         SDMMCAccessor {
             lba,
@@ -14,6 +17,8 @@ pub unsafe fn mount_twl_main(
         },
         buffer,
     );
+    */
+    let cursor = BasicSDMMCCursor::new(buffer, lba);
     fatfs::FileSystem::new(cursor, fatfs::FsOptions::new())
 }
 pub unsafe fn mount_sd_card_partition(
@@ -55,6 +60,115 @@ impl SectorAccess<9> for SDMMCAccessor {
         (self.size << 9) as usize
     }
 }
+impl SectorAccess<10> for SDMMCAccessor {
+    fn read_sector(&mut self, sector: usize, buf: &mut [reboot_lib::StorageSector]) {
+        if self.nand_e {
+            crate::read_encrypted_nand(buf, ((sector as u32) << 1) + self.lba);
+        } else {
+            crate::read_sd_card(buf, ((sector as u32) << 1) + self.lba);
+        }
+    }
+
+    fn write_sector(&mut self, sector: usize, buf: &[reboot_lib::StorageSector]) {}
+
+    fn size(&mut self) -> usize {
+        (self.size << 9) as usize
+    }
+}
+
+
+pub struct BasicSDMMCCursor<'a> {
+    buffer_virtual_position: u64,
+    buffer: &'a mut [StorageSector],
+    pos: u64,
+    lba: u32,
+}
+impl<'a> BasicSDMMCCursor<'a> {
+    pub fn new(buffer: &'a mut [StorageSector], lba_sector: u32) -> Self {
+        crate::read_encrypted_nand(buffer, lba_sector);
+        Self { buffer_virtual_position: 0, buffer, pos: 0, lba: lba_sector }
+    } 
+}
+#[derive(Debug)]
+pub enum BasicSDMMCError {
+ UnexpectedEof,
+ WriteZero,
+}
+impl fatfs::IoError for BasicSDMMCError {
+    fn is_interrupted(&self) -> bool {
+        false
+    }
+
+    fn new_unexpected_eof_error() -> Self {
+        Self::UnexpectedEof
+    }
+
+    fn new_write_zero_error() -> Self {
+        Self::WriteZero
+    }
+}
+impl<'a> fatfs::IoBase for BasicSDMMCCursor<'a> {
+    type Error = BasicSDMMCError;
+}
+impl<'a> fatfs::Read for BasicSDMMCCursor<'a> {
+    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut read_bytes = 0;
+        while buf.len() > 0 {
+            let pos_in_buffer = (self.pos - self.buffer_virtual_position) as usize;
+            let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
+            let buffer_cutoff = available_buffer.min(buf.len());
+            let (read, remaining) = buf.split_at_mut(buffer_cutoff);
+            buf = remaining;
+            let byte_buffer = {
+                let l = self.buffer.as_mut().len() << 9;
+                let s =
+                    self.buffer.as_mut() as *mut [reboot_lib::StorageSector] as *mut u32 as *mut u8;
+                unsafe { core::slice::from_raw_parts_mut(s, l) }
+            };
+            read.copy_from_slice(&byte_buffer[pos_in_buffer..][..buffer_cutoff]);
+            self.pos += buffer_cutoff as u64;
+            read_bytes += buffer_cutoff;
+            if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
+                let virtual_sector = self.pos/512;
+                match crate::read_encrypted_nand(self.buffer, self.lba + virtual_sector as u32) {
+                    Ok(_) => self.buffer_virtual_position = virtual_sector * 512,
+                    Err(_) => panic!("failed to read nand"),
+                }
+                assert!(self.pos >= self.buffer_virtual_position);
+                assert!(self.pos < self.buffer_virtual_position + (self.buffer.len() * 512) as u64);            
+            }
+        }
+
+        Ok(read_bytes)
+    }
+}
+impl<'a> fatfs::Write for BasicSDMMCCursor<'a> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        Ok(0)
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+impl<'a> fatfs::Seek for BasicSDMMCCursor<'a> {
+    fn seek(&mut self, pos: fatfs::SeekFrom) -> Result<u64, Self::Error> {
+        match pos {
+            fatfs::SeekFrom::Start(index) => self.pos = index,
+            fatfs::SeekFrom::End(index) => todo!(),
+            fatfs::SeekFrom::Current(offset) => self.pos = self.pos.saturating_add_signed(offset),
+        }
+        if (self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64) || (self.pos < self.buffer_virtual_position) {
+            let virtual_sector = self.pos/512;
+            match crate::read_encrypted_nand(self.buffer, self.lba + virtual_sector as u32) {
+                Ok(_) => self.buffer_virtual_position = virtual_sector * 512,
+                Err(_) => panic!("failed to read nand"),
+            }
+            
+        }
+        Ok(self.pos)
+    }
+}
 
 pub struct SDMMCCursor<
     T: AsMut<[reboot_lib::StorageSector]>,
@@ -79,7 +193,7 @@ impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>>
     /// Panics if `block buffer`'s length isn't equal to BLOCK_SIZE (i.e 1<<N)
     pub fn new(mut interface: I, mut block_buffer: T) -> Self {
         let block_buffer_mut = block_buffer.as_mut();
-        assert_eq!(block_buffer_mut.len() << 9, Self::BLOCK_SIZE);
+        assert_eq!((block_buffer_mut.len() << 9), Self::BLOCK_SIZE);
         interface.read_sector(0, block_buffer_mut);
         Self {
             buffer: block_buffer,

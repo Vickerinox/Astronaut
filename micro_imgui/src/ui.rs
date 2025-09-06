@@ -4,7 +4,7 @@ use crate::{
     context::{Ctx, Frame},
     primitives::{Id, Rect, Vec2},
     response::{self, Response, Sense},
-    widgets::button::Button,
+    widgets::{button::Button, label::Label},
     Backend, LayerId,
 };
 
@@ -25,6 +25,12 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
     pub fn button<'c>(&mut self, text: impl Into<Cow<'c, str>>) -> response::Response {
         self.add(Button::new(text.into(), crate::Sizing::Automatic))
+    }
+    pub fn label<'c>(&mut self, text: impl Into<Cow<'c, str>>) -> response::Response {
+        self.add(Label::new(text, 8))
+    }
+    pub fn request_repaint(&mut self) {
+        self.ctx.request_repaint();
     }
     /// This is the libraries big hack for issues where the coupling between systems clash
     ///
@@ -52,6 +58,16 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
     pub fn input_released(&self, input: B::InputQuery) -> bool {
         self.ctx.input_released(input)
+    }
+    pub fn horizontal<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {
+        let old_clip_rect = self.clip_rect();
+        let old_layout = self.layout.clone();
+        self.layout = Layout(Direction::LeftRight, Align::Min);
+        let ret = closure(self);
+        self.layout = old_layout;
+        self.clip_rect = old_clip_rect;
+        self.add_space(16);
+        ret
     }
     pub fn allocate_size(&mut self, size: Vec2, sense: Sense) -> Response {
         let Layout(direction, align) = self.layout;
@@ -107,9 +123,9 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
     pub fn add_space(&mut self, ammount: i16) {
         match self.layout.0 {
-            Direction::RightLeft => self.clip_rect.min.x += ammount,
+            Direction::RightLeft => self.clip_rect.max.x -= ammount,
             Direction::TopDown => self.clip_rect.min.y += ammount,
-            Direction::LeftRight => self.clip_rect.max.x -= ammount,
+            Direction::LeftRight => self.clip_rect.min.x += ammount,
             Direction::BottomUp => self.clip_rect.max.y -= ammount,
         }
     }

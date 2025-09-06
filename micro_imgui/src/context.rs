@@ -55,6 +55,9 @@ impl<'a, B: Backend> Frame<'a, B> {
         }
         stats
     }
+    pub fn request_repaint(&mut self) {
+        self.ctx.wants_repaint = true;
+    }
     pub fn interact(&mut self, rect: Rect, clip_rect: Rect, id: Id, sense: Sense) -> Response {
         let Self {
             ctx,
@@ -185,7 +188,6 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
             next_focus,
             ..
         } = self;
-        ctx.wants_repaint = false;
         if !ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS) {
             if ctx.backend.input_pressed(B::InputQuery::FOCUS_NEXT) {
                 focused_response = *next_focus;

@@ -68,19 +68,15 @@ impl AESEngine {
         while self.master_control.read().contains(AESCnt::START) {}
     }
     //crypt a block of data in place
-    pub unsafe fn ctr_crypt_block(&self, src: *mut u32, dst: *mut u32, len: u32, ctr: &[u32; 4]) {
-        let len = 128;
-        (0x400_0008 as *mut u32)
-            .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
-        (0x400_0004 as *mut u32)
-            .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 2));
+    pub unsafe fn ctr_crypt_block(&self, data: &mut [u32], ctr: &[u32; 4]) {
+        let len = data.len() as u32;
         use crate::ndma::{Control, NDMA_HARDWARE};
         self.master_control.write(AESCnt::empty());
-
         self.reset();
         self.load_iv(ctr);
         self.set_block_count((len >> 2) as u16);
 
+        
         let in_dma = crate::ndma::ChannelConfig {
             word_count: len,
             block_size: 4,
@@ -103,23 +99,29 @@ impl AESEngine {
                 | Control::START_ARM7_READ_AES
                 | Control::ENABLE,
         };
-        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, dst as _);
-        NDMA_HARDWARE.set_raw_dma(1, in_dma, src as _, 0x4004408 as _);
+            let ptr = data as *mut [u32] as *mut u32;
+        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
+        NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
+        
         self.start((0 << 14) | (3 << 12) | (2 << 28));
-        let mut dest = dst;
-        /*
-        for word in core::slice::from_raw_parts_mut(src, len as usize).chunks_exact(4) {
-            for i in word {
+         
+        //let mut dest = dst;
+        /* 
+        for word in data.chunks_exact_mut(8) {
+            while (self.master_control.read().bits()) & 0x1F != 0 {};
+            for i in word.iter() {
                 AES_HARDWARE.write_fifo.write(*i);
             }
-            for _ in 0..4 {
-                *dest = AES_HARDWARE.read_fifo.read();
-                dest = dest.add(1);
+            while (self.master_control.read().bits() >> 5) & 0x1F != 0x8 {};
+            for i in word.iter_mut() {
+                *i = AES_HARDWARE.read_fifo.read();
+                
             }
-        }
-        */
+        }*/
+        
         NDMA_HARDWARE.await_channel(0);
         NDMA_HARDWARE.await_channel(1);
+        
         self.wait_aes_busy();
     }
     pub unsafe fn start(&self, flags: u32) {

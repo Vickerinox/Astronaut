@@ -18,5 +18,6 @@ pub fn run<B: Backend, T>(backend: B, mut start: T, mut fun: impl FnMut(&mut Fra
     loop {
         context.process_frame(&mut fun, &mut start);
         while !(context.backend.gather_inputs() || context.wants_repaint) {}
+        context.wants_repaint = false;
     }
 }

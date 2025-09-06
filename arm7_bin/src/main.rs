@@ -95,6 +95,7 @@ fn main() {
         IPC_FIFO_HARDWARE.enable();
 
         (0x400_0304 as *mut u32).write_volatile(1);
+        //core::ptr::write_volatile(0x04004008 as *mut u32, 0x93FFFB06);
         reboot_lib::spi::touchscreen::init_tsc();
         reboot_lib::i2c::init();
         reboot_lib::sound::SOUND_HARDWARE.init();
@@ -124,22 +125,25 @@ fn main() {
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
 
+
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
 
         let mut buffer: *mut [reboot_lib::StorageSector] =
-            core::slice::from_raw_parts_mut(0x2FFFE00 as *mut reboot_lib::StorageSector, 1);
+            core::slice::from_raw_parts_mut(0x2FF0000 as *mut reboot_lib::StorageSector, 1);
 
         reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
-        let send = match mmc::init_all() {
+        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
             Ok(_) => 1,
             Err(err) => err.bits(),
         };
-
+        for _ in 0..0x80 {
+            MMC_CONTROLLER.data_control_32.read();
+        }
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
 
         loop {
@@ -174,6 +178,7 @@ fn main() {
                         Ok(_) => 0,
                         Err(e) => 0x8000_0000 | e.bits(),
                     };
+                    
                 }
                 4 => {}
                 5 => {
@@ -189,7 +194,11 @@ fn main() {
                         continue;
                     };
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
-                    (*(arg as *mut () as *mut unsafe extern "C" fn()))();
+                    #[cfg(target_arch = "arm")]
+                    core::arch::asm!(
+                        "mov pc, r0",
+                        in("r0") arg,
+                    );
                 }
                 7 => {
                     let Some([arg]) = gather_args() else {
@@ -225,9 +234,11 @@ pub unsafe fn mmc_read_decrypt(
     ctr_base: &[u32; 4],
     sector: u32,
 ) -> Result<(), reboot_lib::Status> {
-    return mmc::read_mmc_sectors(data, sector);
-
-    return reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, data);
+    let mut ret = Ok(());
+    reboot_lib::critical_function(|| {
+        ret = reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, data);
+    });
+    ret?;
 
     fn add_on_key(key: &mut [u32; 4], add: u32) {
         let carry;
@@ -242,12 +253,7 @@ pub unsafe fn mmc_read_decrypt(
     add_on_key(&mut key, sector << 5);
     let ptr = data as *mut ();
     let len = data.len();
-    reboot_lib::AES_HARDWARE.ctr_crypt_block(
-        0x0380_0000 as *mut _,
-        ptr as *mut _,
-        (len << 6) as u32,
-        &key,
-    );
+    reboot_lib::AES_HARDWARE.ctr_crypt_block(core::slice::from_raw_parts_mut(ptr as *mut _, (len << 7)), &key);
     Ok(())
 }
 

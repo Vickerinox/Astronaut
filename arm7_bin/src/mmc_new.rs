@@ -1,3 +1,4 @@
+/*
 use core::ptr::read_volatile;
 
 use reboot_lib::{
@@ -15,6 +16,47 @@ pub trait SDMMCCommand {
         BufferType::None
     }
 }
+
+
+pub struct GoIdleState;
+pub struct ReadSectors(*mut [StorageSector]);
+
+impl SDMMCCommand for GoIdleState {
+    const COMMAND_INDEX: CommandIndex = CommandIndex(0x300);
+    type Response = ();
+    type Argument = ();
+}
+
+impl SDMMCCommand for ReadSectors{
+    const COMMAND_INDEX: CommandIndex = CommandIndex(0x1C12);
+    type Response = R1R;
+    type Argument = SectorIndex;
+}
+pub struct SectorIndex(u32);
+pub struct R1R([u32; 2]);
+impl SDMMCResponse for R1R {
+    fn from_response(resp: [u32; 4]) -> Self {
+        Self([resp[0], resp[1]])
+    }
+}
+
+
+impl SDMMCResponse for () {
+    fn from_response(_resp: [u32; 4]) -> Self {
+        ()
+    }
+}
+impl SDMMCArgument for () {
+    fn as_argument(self) -> CommandArgument {
+        CommandArgument(0)
+    }
+}
+impl SDMMCArgument for SectorIndex {
+    fn as_argument(self) -> CommandArgument {
+        CommandArgument(self.0)
+    }
+}
+
 pub enum BufferType {
     None,
     Read(*mut [StorageSector]),
@@ -42,11 +84,15 @@ bitflags::bitflags! {
     }
 }
 
+
+
+
 pub struct Port<const id: u8> {
     clock_ctrl: ClockCnt,
     option: u16,
     block_len: u16,
 }
+
 impl Port<0> {
     fn send_command<C: SDCommand>(&self, command: C, argument: C::Argument)-> Result<C::Response, SDMMCError> {
         send_command(self, command, argument)
@@ -62,6 +108,10 @@ impl Port<2> {
         send_command(self, command, argument)
     }
 }
+
+
+
+
 fn send_command<C: SDMMCCommand, const port_num: u8>(
     port: &Port<port_num>,
     command: C,
@@ -111,9 +161,10 @@ unsafe fn raw_send_sdmmc_command(
     clock_setting: ClockCnt,
     option: u16,
     block_length: u16,
+    blocks: u16,
     cmd_index: CommandIndex,
     argument: CommandArgument,
-    buffer: BufferType,
+    buffer: u32,
     controller: &MMC,
     status: *mut Status,
 ) -> Status {
@@ -140,18 +191,14 @@ unsafe fn raw_send_sdmmc_command(
     block_len_32.write(block_length);
 
     // Setup block control registers
-    let (b_c, control) = match &buffer {
-        BufferType::None => (0, DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32),
-        BufferType::Read(storage_sectors) => (
-            storage_sectors.len(),
-            DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32 | DataControl32::ENABLE_RX_IRQ,
-        ),
-        BufferType::Write(storage_sectors) => (
-            storage_sectors.len(),
+    let control = match cmd_index.0 & 0x3800 {
+        0x0 => DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32,
+        0x3800 => DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32 | DataControl32::ENABLE_RX_IRQ,
+        0x2800 =>
             DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32 | DataControl32::ENABLE_TX_IRQ,
-        ),
+        _ => return Status::ERR_ILLEGAL_ACCESS
     };
-    block_count.write(b_c as u16);
+    block_count.write(blocks);
     stop_action.write(1 << 8); //AUTO_STOP
     param.write(argument.0);
     data_control_32.write(control);
@@ -163,22 +210,22 @@ unsafe fn raw_send_sdmmc_command(
         swi_halt();
     }
     // Read/Write data if it's a command that does so
-    match buffer {
-        BufferType::None => (),
-        BufferType::Read(buffer) => {
-            if let Some(buffer) = buffer.as_mut() {
+    match cmd_index.0 & 0x1800 {
+        0x1800 => {
+            if let Some(buffer) = core::ptr::slice_from_raw_parts_mut(buffer as *mut StorageSector, blocks as usize).as_mut() {
                 cpu_read(buffer, controller, status)
             } else {
                 ndma_readwrite(status);
             }
         }
-        BufferType::Write(buffer) => {
-            if let Some(buffer) = buffer.as_ref() {
+        0x800 => {
+            if let Some(buffer) = core::ptr::slice_from_raw_parts(buffer as *const StorageSector, blocks as usize).as_ref() {
                 cpu_write(buffer, controller, status);
             } else {
                 ndma_readwrite(status);
             }
         }
+        _ => (),
     }
     // Finished
     status.read_volatile().intersection(Status::ALL_ERRORS)
@@ -227,3 +274,4 @@ unsafe fn cpu_write(buffer: &[StorageSector], controller: &MMC, status: *const S
         }
     }
 }
+*/
