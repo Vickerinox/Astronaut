@@ -224,19 +224,9 @@ impl MMC {
         command: Command,
         argument: u32,
     ) -> Status {
-        let command = command as u16;
-        let mut status = Status::empty();
-
-        let flags = if command & (1 << 11) > 0 {
-            Status::DATA_END
-        } else {
-            Status::empty()
-        };
         self.tmio_set_port(port);
-
         self.irmask.write(Status::empty());
         self.status.write(Status::empty());
-
         self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
         self.data_control.write(Control::USE_DATA32);
@@ -247,24 +237,20 @@ impl MMC {
         });
 
         self.param.write(argument);
-        let cmd = command;
-        self.command.write(cmd);
+        self.command.write(command as u16);
 
         while !self.status.read().contains(Status::RESPONSE_END) {}
         let value = self.status.read();
         self.status.write(!value | Status::CMD_BUSY);
 
-        self.tmio_get_response(port, cmd);
+        self.tmio_get_response(port, command as u16);
 
-
-        //let use_buf = !ptr.is_null();
-        if command & (1<<12) > 0 {
+        if command.reads_data() {
             let mut sector_iter = (&mut *port.buffer).iter_mut();
             let Some(mut current_sector) = sector_iter.next() else { return Status::from_bits_retain(123456789); };
             while !self.status.read().intersects(Status::ALL_ERRORS) {
                 if self.data_control_32.read().contains(DataControl32::RX_READY) {
                     self.status.write(!Status::RX_READY);
-
                     for (i, word) in AsMut::<[u32]>::as_mut(current_sector).iter_mut().enumerate() {
                         (word as *mut u32).write_volatile(self.data_fifo_32.read());
                     }
@@ -274,63 +260,7 @@ impl MMC {
             }
         }
         while self.status.read().contains(Status::CMD_BUSY) {}
-        status.intersection(Status::ALL_ERRORS)
-        /* 
-        let buf = port.buffer;
-
-        while !status.intersects(Status::RESPONSE_END) {
-            status |= self.status.read();
-        }
-        self.tmio_get_response(port, command);
-        if command & CMD_DATA_EN > 0 {
-            if !buf.is_null() {
-                self.cpu_transfer(command, buf, &mut status);
-            }
-            while !status.intersects(Status::DATA_END) {
-                status |= self.status.read();
-            }
-        }
-        while self.status.read().contains(Status::CMD_BUSY) {}
-        status |= self.status.read();
-        status.intersection(Status::ALL_ERRORS)
-        */
-    }
-    unsafe fn cpu_transfer(
-        &self,
-        command: u16,
-        buf: *mut [crate::StorageSector],
-        status: &mut Status,
-    ) {
-        if command & CMD_DATA_R > 0 {
-            *status |= self.status.read();
-            for sector in (&mut *buf).iter_mut() {
-                if !status.intersects(Status::ALL_ERRORS) {
-                    while self
-                        .data_control_32
-                        .read()
-                        .intersection(DataControl32::RX_READY)
-                        .is_empty()
-                    {}
-                    for word in &mut sector.0 {
-                        *word = self.data_fifo_32.read()
-                    }
-                }
-            }
-        } else {
-            *status |= self.status.read();
-            for sector in (&*buf).iter() {
-                if !status.intersects(Status::ALL_ERRORS) {
-                    while self
-                        .data_control_32
-                        .read()
-                        .contains(DataControl32::TX_READY)
-                    {}
-                    for word in &sector.0 {
-                        self.data_fifo_32.write(*word)
-                    }
-                }
-            }
-        }
+        self.status.read().intersection(Status::ALL_ERRORS)
     }
 }
 const fn none(command_number: u16) -> u16 {
@@ -450,7 +380,7 @@ impl Command {
         *self as u16 & CMD_DATA_EN > 0
     }
     pub fn reads_data(&self) -> bool {
-        *self as u16 & CMD_DATA_R > 0
+        *self as u16 & (CMD_DATA_R | CMD_DATA_EN) == (CMD_DATA_R | CMD_DATA_EN)
     }
 }
 

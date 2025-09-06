@@ -75,7 +75,6 @@ impl AESEngine {
         self.reset();
         self.load_iv(ctr);
         self.set_block_count((len >> 2) as u16);
-
         
         let in_dma = crate::ndma::ChannelConfig {
             word_count: len,
@@ -104,20 +103,6 @@ impl AESEngine {
         NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
         
         self.start((0 << 14) | (3 << 12) | (2 << 28));
-         
-        //let mut dest = dst;
-        /* 
-        for word in data.chunks_exact_mut(8) {
-            while (self.master_control.read().bits()) & 0x1F != 0 {};
-            for i in word.iter() {
-                AES_HARDWARE.write_fifo.write(*i);
-            }
-            while (self.master_control.read().bits() >> 5) & 0x1F != 0x8 {};
-            for i in word.iter_mut() {
-                *i = AES_HARDWARE.read_fifo.read();
-                
-            }
-        }*/
         
         NDMA_HARDWARE.await_channel(0);
         NDMA_HARDWARE.await_channel(1);

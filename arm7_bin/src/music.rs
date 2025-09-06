@@ -273,7 +273,7 @@ pub fn music_routine() {
             let add = if MUSIC_COUNTER >= 64 {
                 let [note, volume] =
                     MUSIC_FRAME_BASS[(MUSIC_COUNTER & 0x1F) as usize].to_le_bytes();
-                let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[9];
+                let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[8];
                 channel.timer.write(MUSIC_PITCHES[note as usize + 36]);
 
                 let control = SoundControl::START
@@ -292,9 +292,10 @@ pub fn music_routine() {
             } else {
                 60
             };
-            play_melody_channel(8, 3, 64, 0, add);
+            play_melody_channel(9, 3, 64, 0, add);
             play_melody_channel(10, 5, 0, 3, add);
             play_melody_channel(11, 5, 127, 5, add);
+
             MUSIC_COUNTER += 1;
         } else {
             let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[8] as *mut u8;

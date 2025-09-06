@@ -219,7 +219,11 @@ unsafe fn main() {
 
         gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("Waiting on ARM7...", 8);
+            text_pass.layout_str("GURU MEDITAION ERROR", 8);
+            text_pass.next_line();
+            text_pass.layout_str("startup is stuck at waiting for the co-CPU, meaning the exploit has failed.", 8);
+            text_pass.next_line();
+            text_pass.layout_str("try restarting the console, or reach out to the dsi hacking server", 8);
         });
         video_context.next_frame();
 
