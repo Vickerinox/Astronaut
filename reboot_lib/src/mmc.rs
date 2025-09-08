@@ -195,7 +195,6 @@ impl MMC {
         self.block_len.write(port.block_len);
         self.block_len_32.write(port.block_len);
         self.options.write(port.option);
-        
     }
     pub fn tmio_card_detected(&self) -> bool {
         self.status.read().contains(Status::DETECTED)
@@ -207,6 +206,10 @@ impl MMC {
         port.clock = ClockCnt::FREQ_262K | ClockCnt::ENABLE;
         self.tmio_set_port(port);
         crate::swi::swi_delay(0x900);
+        if port.port_num == 0 {
+            //SD
+            crate::swi::swi_delay(0x1200);
+        }
     }
     unsafe fn tmio_get_response(&self, port: &mut TMIOPort, cmd: u16) {
         if cmd & (7 << 8) != (6 << 8) {
@@ -217,7 +220,7 @@ impl MMC {
             }
         }
     }
-    
+
     pub unsafe fn send_command(
         &self,
         port: &mut TMIOPort,
@@ -229,6 +232,7 @@ impl MMC {
         self.status.write(Status::empty());
         self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
+
         self.data_control.write(Control::USE_DATA32);
         self.data_control_32.modify(|f| {
             (f & !(DataControl32::ENABLE_RX_IRQ | DataControl32::ENABLE_TX_IRQ))
@@ -247,14 +251,25 @@ impl MMC {
 
         if command.reads_data() {
             let mut sector_iter = (&mut *port.buffer).iter_mut();
-            let Some(mut current_sector) = sector_iter.next() else { return Status::from_bits_retain(123456789); };
+            let Some(mut current_sector) = sector_iter.next() else {
+                return Status::from_bits_retain(123456789);
+            };
             while !self.status.read().intersects(Status::ALL_ERRORS) {
-                if self.data_control_32.read().contains(DataControl32::RX_READY) {
+                if self
+                    .data_control_32
+                    .read()
+                    .contains(DataControl32::RX_READY)
+                {
                     self.status.write(!Status::RX_READY);
-                    for (i, word) in AsMut::<[u32]>::as_mut(current_sector).iter_mut().enumerate() {
+                    for (i, word) in AsMut::<[u32]>::as_mut(current_sector)
+                        .iter_mut()
+                        .enumerate()
+                    {
                         (word as *mut u32).write_volatile(self.data_fifo_32.read());
                     }
-                    let Some(next_sector) = sector_iter.next() else {break;};
+                    let Some(next_sector) = sector_iter.next() else {
+                        break;
+                    };
                     current_sector = next_sector;
                 }
             }
@@ -313,6 +328,7 @@ pub enum Command {
     GoIdleState = none(0),
     AllSendCID = r2(2),
     SetSendRelativeAddr = r1(3),
+    SDSendRelativeAddr = r3(3),
     SetDSR = none(4),
     SelectCard = r1b(7),
     DeselectCard = none(7),

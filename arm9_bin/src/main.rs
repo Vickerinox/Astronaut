@@ -17,7 +17,9 @@ use micro_imgui::{
     Sizing, Vec2,
 };
 use reboot_lib::{
-    spi::firmware::{FirmwareHeader, UserData}, Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, StorageSector, VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE
+    spi::firmware::{FirmwareHeader, UserData},
+    Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, StorageSector,
+    VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
 };
 
 use crate::new_takeover::flush_mmc;
@@ -116,11 +118,11 @@ fn vblank_interrupt() {
 }
 unsafe fn main() {
     unsafe {
-        reboot_lib::swi_delay(50000);
-       
+        reboot_lib::swi_delay(10000);
+
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
-        (0x4000204 as *mut u16).write_volatile((1<<15) | (1<<13));
+        (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
         //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
@@ -221,9 +223,15 @@ unsafe fn main() {
             text_pass.set_color(0x7FFF);
             text_pass.layout_str("GURU MEDITAION ERROR", 8);
             text_pass.next_line();
-            text_pass.layout_str("startup is stuck at waiting for the co-CPU, meaning the exploit has failed.", 8);
+            text_pass.layout_str(
+                "startup is stuck at waiting for the co-CPU, meaning the exploit has failed.",
+                8,
+            );
             text_pass.next_line();
-            text_pass.layout_str("try restarting the console, or reach out to the dsi hacking server", 8);
+            text_pass.layout_str(
+                "try restarting the console, or reach out to the dsi hacking server",
+                8,
+            );
         });
         video_context.next_frame();
 
@@ -234,16 +242,14 @@ unsafe fn main() {
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
-        INTERRUPT_TABLE[0] = vblank_interrupt as *mut _;
-
-        core::ptr::write_volatile(0x04000210 as *mut u16, 0x1);
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
-
-        
 
         VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("If you can read this message, the console has crashed and is stuck.", 8);
+            text_pass.layout_str(
+                "If you can read this message, the console has crashed and is stuck.",
+                8,
+            );
         });
         video_context.next_frame();
 
@@ -255,73 +261,48 @@ unsafe fn main() {
             inout(reg) dtcm,
         );
 
-
-
         let nand_buffer = core::slice::from_raw_parts_mut(0x2FF0000 as *mut StorageSector, 1);
-
+        let sd_buffer = core::slice::from_raw_parts_mut(0x2FF4000 as *mut StorageSector, 1);
 
         assert_eq!(IPC_FIFO_HARDWARE.recieve_raw_blocking(), 1);
 
         read_encrypted_nand(nand_buffer, 0).unwrap();
-
+        //read_sd_card(sd_buffer, 0).unwrap();
+        //read_sd_card(sd_buffer, 0).unwrap();
+        //read_sd_card(sd_buffer, 0).unwrap();
+        
         let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
+
+        let sd_mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
 
         video_context.next_frame();
 
         let nand_fs = if mbr.has_valid_signature() {
             let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-            read_encrypted_nand(nand_buffer, twl_lba).unwrap();
+            //read_encrypted_nand(nand_buffer, twl_lba).unwrap();
 
             //panic!("TWL main ({twl_lba:x}) header: {:02x?}", &AsMut::<[u8]>::as_mut(&mut nand_buffer[0])[..100]);
             let twl_size =
                 core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
 
             let nand_buffer =
-            core::slice::from_raw_parts_mut(0x2FF0000 as *mut reboot_lib::StorageSector, 8);
+                core::slice::from_raw_parts_mut(0x2FF0000 as *mut reboot_lib::StorageSector, 8);
             nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
         } else {
-            let backend = gui::DSMicroGuiBackend::new(video_context);
-            let mut sector_selector = 0;
-            micro_imgui::run(backend, (), |f, _| {
-                f.central_panel(|ui| {
-                    ui.add_space(3);
-                    ui.label(alloc::format!("sector selected: {sector_selector}"));
-                    ui.horizontal(|ui| {
-                        if ui.button("<").clicked() {
-                            sector_selector -= 1;
-                        }
-                        if ui.button("read").clicked() {
-                            read_encrypted_nand(nand_buffer, sector_selector).unwrap();
-                        }
-                        if ui.button(">").clicked() {
-                            sector_selector += 1;
-                        }
-                        ui.add_space(8);
-                        if ui.button("flush").clicked() {
-                            nand_buffer.iter_mut().for_each(|i| for word in AsMut::<[u32]>::as_mut(i).iter_mut() {
-                                *word = 0;
-                            });
-                        }
-                        if ui.button("flush inverse").clicked() {
-                            nand_buffer.iter_mut().for_each(|i| for word in AsMut::<[u32]>::as_mut(i).iter_mut() {
-                                *word = 0xFFFFFFFF;
-                            });
-                        }
-                    });
-
-                    
-                    ui.label(
-                        alloc::format!(
-                            "{:02X?}",
-                            &nand_buffer[0].bytes()[0x140..]
-                        )
-                    );
-                    ui.request_repaint();
-                });
-                
-            });
             panic!("Crap.")
         };
+        
+        /* 
+        let nand_fs = if sd_mbr.has_valid_signature() {
+            
+            let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
+            let sd_buffer =
+                core::slice::from_raw_parts_mut(0x2FF4000 as *mut reboot_lib::StorageSector, 8);
+            nand::mount_sd(twl_lba, 0, sd_buffer).ok()
+        } else {
+            panic!("Crap. {:?}", &sd_buffer[0].bytes()[0x1BE..]);
+        };
+        */
 
         if nand_fs.is_none() {
         } else {
@@ -330,48 +311,66 @@ unsafe fn main() {
             } else {
                 panic!("No filesystem could be initialized, aborting...")
             };
-            let mut showing = "Currently in: NAND";
-            //let mut old_controls;
-            let mut new_controls = Buttons::empty();
-            let mut index = 0usize;
-            let mut booting_app: Option<(fatfs::File<'_, nand::BasicSDMMCCursor<'_>, _, fatfs::LossyOemCpConverter>, Vec<u8>)> = None;
+            let mut booting_app: Option<(
+                fatfs::File<'_, nand::BasicSDMMCCursor<'_>, _, fatfs::LossyOemCpConverter>,
+                Vec<u8>,
+            )> = None;
             core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
             core::ptr::write_volatile(0x5000000 as *mut u16, 0);
 
-            let mut modal_open = false;
+
+            video_context.next_frame();
+            
             let backend = gui::DSMicroGuiBackend::new(video_context);
-            let mut current_path = "./".to_string();
             let mut folders: Vec<_> = working_folder
                 .iter()
                 .filter_map(|folder| match folder {
                     Ok(item) => match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
                         Ok(a) => Some((alloc::string::String::from(a), item.is_dir())),
                         Err(err) => Some((alloc::format!("{err:?}"), false)),
-                    }
+                    },
 
                     Err(what) => Some(("BIG BOY ERROR".into(), false)),
                 })
                 .collect();
             micro_imgui::run(backend, (), |f, _| {
                 f.central_panel(|ui| {
+                    if ui.button("fuck arm7").clicked() {
+                        ready_arm7();
+                    }
                     if let Some((mut file, mut header)) = booting_app.take() {
-                        let head = &mut *(&mut header[..] as *mut [u8] as *mut u8 as *mut bootloader::HeaderNDS);
+                        let head = &mut *(&mut header[..] as *mut [u8] as *mut u8
+                            as *mut bootloader::HeaderNDS);
                         ui.label("                 Title info:");
-                        ui.label(alloc::format!("      Name: {} TID: {:08X}", core::str::from_utf8(&head.title).unwrap_or("UNKNOWN"), head.tid));
+                        ui.label(alloc::format!(
+                            "      Name: {} TID: {:08X}",
+                            core::str::from_utf8(&head.title).unwrap_or("UNKNOWN"),
+                            head.tid
+                        ));
                         ui.label(" ");
                         ui.label("ARM9 offsets:");
                         ui.label(alloc::format!("entry: {:08X}", head.arm9_entry));
-                        ui.label(alloc::format!("load: {:08X}, size: {:08X}", head.arm9_load, head.arm9_size));
+                        ui.label(alloc::format!(
+                            "load: {:08X}, size: {:08X}",
+                            head.arm9_load,
+                            head.arm9_size
+                        ));
                         ui.label(" ");
                         ui.label("ARM7 offsets:");
                         ui.label(alloc::format!("entry: {:08X}", head.arm7_entry));
-                        ui.label(alloc::format!("load: {:08X}, size: {:08X}", head.arm7_load, head.arm7_size));
+                        ui.label(alloc::format!(
+                            "load: {:08X}, size: {:08X}",
+                            head.arm7_load,
+                            head.arm7_size
+                        ));
                         ui.label(" ");
                         ui.label(" ");
-                        
+
                         if ui.button("Launch!!").clicked() {
                             match file.seek(SeekFrom::Start(0)) {
-                                Ok(0) => {bootloader::boot_app(file);},
+                                Ok(0) => {
+                                    bootloader::boot_app(file);
+                                }
                                 Ok(_what) => (),
                                 Err(_error) => (),
                             }
@@ -398,9 +397,9 @@ unsafe fn main() {
                                             match working_folder.open_file(&item.0) {
                                                 Ok(mut file) => {
                                                     let mut header_buffer = alloc::vec![0u8; 4096];
-                                                    file.read(&mut header_buffer);    
+                                                    file.read(&mut header_buffer);
                                                     booting_app = Some((file, header_buffer));
-                                                },
+                                                }
                                                 Err(_) => (),
                                             }
                                         }
@@ -410,128 +409,24 @@ unsafe fn main() {
                         }
                         if let Some(new_folder) = new_folder {
                             working_folder = new_folder;
-                            
+
                             folders = working_folder
                                 .iter()
                                 .filter_map(|folder| match folder {
-                                    Ok(item) => alloc::str::from_utf8(item.short_file_name_as_bytes())
-                                        .ok()
-                                        .map(|a| (alloc::string::String::from(a), item.is_dir())),
+                                    Ok(item) => {
+                                        alloc::str::from_utf8(item.short_file_name_as_bytes())
+                                            .ok()
+                                            .map(|a| {
+                                                (alloc::string::String::from(a), item.is_dir())
+                                            })
+                                    }
                                     Err(_) => None,
                                 })
                                 .collect();
                         }
                     }
-                    
                 });
             });
-            /*
-            loop {
-                old_controls = new_controls;
-                new_controls = read_controller();
-                let touching = new_controls.contains(Buttons::PEN_DOWN);
-
-
-                let cont_controls = new_controls.intersection(!old_controls);
-                let increment = if cont_controls.contains(Buttons::DIRECTION_DOWN) {
-                    1
-                } else if cont_controls.contains(Buttons::DIRECTION_UP) {
-                    -1
-                } else {
-                    0
-                };
-                /*
-                if cont_controls.contains(Buttons::BUTTON_START) {
-                    if let Some(fs) = &sd_fs {
-                        working_folder = fs.root_dir();
-                        showing = "Currently in: SD CARD";
-                    }
-                }
-                */
-                if cont_controls.contains(Buttons::BUTTON_SELECT) {
-                    if let Some(fs) = &nand_fs {
-                        working_folder = fs.root_dir();
-                        showing = "Currently in: NAND";
-                    }
-                }
-                let select = cont_controls.contains(Buttons::BUTTON_A);
-                let mut max = 0;
-                //let mut new_folder = None;
-
-                VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
-                    text_pass.set_color(0x7FFF);
-                    text_pass.layout_str("Welcome", 8);
-                    text_pass.layout_str(&alloc::format!(" {:04b}", new_controls.bits()), 8);
-                    text_pass.layout_str("!", 8);
-                    text_pass.next_line();
-                    text_pass.layout_str(&showing, 8);
-                    text_pass.next_line();
-                    text_pass.next_line();
-                    for (num, item) in working_folder.iter().enumerate() {
-                        text_pass.set_color(0x7FFF);
-                        max = num;
-                        match item {
-                            Ok(item) => {
-                                if num == index {
-                                    text_pass.layout_str(" > ", 8);
-                                    if select {
-                                        match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
-                                            Ok(a) => {
-                                                new_folder = Some(alloc::string::String::from(a));
-                                            }
-                                            Err(_) => (),
-                                        }
-                                    }
-                                } else {
-                                    text_pass.layout_str("   ", 8);
-                                }
-                                if item.is_dir() {
-                                    text_pass.set_color(0x7FF2);
-                                } else if item.is_file() {
-                                    if is_bootable(item.short_file_name_as_bytes()) {
-                                        text_pass.set_color(0x3FF4);
-                                    } else {
-                                        text_pass.set_color(0x7FFF);
-                                    }
-                                }
-                                for byte in item.short_file_name_as_bytes() {
-                                    text_pass.layout_char(*byte, 8);
-                                }
-                                text_pass.next_line();
-                            }
-                            Err(error) => {
-                                text_pass.layout_str("ERROR", 8);
-                                text_pass.next_line();
-                            }
-                        }
-                    }
-                });
-                video_context.next_frame();
-                index = index.saturating_add_signed(increment).clamp(0, max);
-                if let Some(folder) = new_folder {
-                    let extension_point = folder.len() - 4;
-                    if folder.is_char_boundary(extension_point) {
-                        if is_bootable(folder.as_bytes()) {
-                            match working_folder.open_file(&folder) {
-                                Ok(file) => match bootloader::boot_app(file) {
-                                    Ok(()) => unreachable!(),
-                                    Err(_) => (),
-                                },
-                                Err(_) => (),
-                            }
-                        }
-                    }
-
-                    match working_folder.open_dir(&folder) {
-                        Ok(ok) => {
-                            working_folder = ok;
-                        }
-                        Err(_) => (),
-                    }
-                }
-
-            }
-            */
         }
     }
 }
@@ -575,6 +470,9 @@ pub unsafe extern "C" fn _start() {
         options(noreturn) // No return possible from this function
     );
 }
+unsafe fn ready_arm7() {
+    reboot_lib::arm9_ready_arm7();
+}
 fn read_encrypted_nand(
     buffer: *mut [reboot_lib::StorageSector],
     start_sector: u32,
@@ -590,8 +488,11 @@ fn read_encrypted_nand(
 }
 fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> Result<(), u32> {
     unsafe {
+        flush_mmc();
         reboot_lib::arm9_set_buffer(buffer)?;
         reboot_lib::arm9_read_sd_sector(start_sector)?;
+        flush_mmc();
+        flush_mmc();
     }
     Ok(())
 }

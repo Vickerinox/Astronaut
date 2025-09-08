@@ -3,7 +3,7 @@ use core::ptr::{read_volatile as r, write_volatile as w};
 #[inline(always)]
 pub unsafe fn boot_arm9() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
-    
+
     READY_FLAG_1.write_volatile(0);
     while READY_FLAG_2.read_volatile() != 0 {}
     READY_FLAG_3.write_volatile(0);
@@ -16,7 +16,7 @@ pub unsafe fn boot_arm9() -> ! {
     while READY_FLAG_0.read_volatile() != READY_VALUE {}
     #[allow(unused)]
     let entry = (*HEADER_MEM).arm9_entry;
-    
+
     #[cfg(target_arch = "arm")]
     core::arch::asm!("bx r12",in("r12") entry, in("r0") 0, in("r1") 0, in("r2") 0, in("r3") 0,);
     loop {}
@@ -24,7 +24,7 @@ pub unsafe fn boot_arm9() -> ! {
 #[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
-    
+
     READY_FLAG_2.write_volatile(0);
     while READY_FLAG_3.read_volatile() != 0 {}
     let mbks = core::ptr::addr_of!((*HEADER_MEM).arm7_mbks) as *const u32;
@@ -37,7 +37,7 @@ pub unsafe fn boot_arm7() -> ! {
 
     #[allow(unused)]
     let entry = (*HEADER_MEM).arm7_entry;
-    
+
     #[cfg(target_arch = "arm")]
     core::arch::asm!("bx r12",in("r12") entry, in("r0") 0, in("r1") 0, in("r2") 0, in("r3") 0,);
     loop {}

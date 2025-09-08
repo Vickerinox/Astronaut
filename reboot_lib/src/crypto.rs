@@ -75,7 +75,7 @@ impl AESEngine {
         self.reset();
         self.load_iv(ctr);
         self.set_block_count((len >> 2) as u16);
-        
+
         let in_dma = crate::ndma::ChannelConfig {
             word_count: len,
             block_size: 4,
@@ -98,15 +98,15 @@ impl AESEngine {
                 | Control::START_ARM7_READ_AES
                 | Control::ENABLE,
         };
-            let ptr = data as *mut [u32] as *mut u32;
+        let ptr = data as *mut [u32] as *mut u32;
         NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
         NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
-        
+
         self.start((0 << 14) | (3 << 12) | (2 << 28));
-        
+
         NDMA_HARDWARE.await_channel(0);
         NDMA_HARDWARE.await_channel(1);
-        
+
         self.wait_aes_busy();
     }
     pub unsafe fn start(&self, flags: u32) {

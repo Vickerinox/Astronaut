@@ -209,16 +209,31 @@ static MUSIC_PITCHES: &[u16] = &[
 ];
 
 
+use common::music_mod::*;
+
+pub struct MODPlayData {
+    tick: u8,
+    row: u8,
+    frame: u8,
+    current_song: *mut MODHeader,
+}
+
+
+
 static mut FRAME_COUNTER: u32 = 0;
 static mut MUSIC_COUNTER: u16 = 0;
 pub fn music_routine() {
-    unsafe fn play_melody_channel(channel: usize, volume_shift: u8, pan: u8, delay: u16, add: usize) {
+    unsafe fn play_melody_channel(
+        channel: usize,
+        volume_shift: u8,
+        pan: u8,
+        delay: u16,
+        add: usize,
+    ) {
         let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[channel];
         let [note, volume] =
             MUSIC_FRAME[((MUSIC_COUNTER + 64 - delay) & 0x3F) as usize].to_le_bytes();
-        channel
-            .timer
-            .write(MUSIC_PITCHES[note as usize + add]);
+        channel.timer.write(MUSIC_PITCHES[note as usize + add]);
         let duty = ((MUSIC_COUNTER + 7 - delay) >> 3) as u32 % 7;
         let control_echo = SoundControl::START
             .with_repeat_mode(RepeatMode::Oneshot)
@@ -240,8 +255,8 @@ pub fn music_routine() {
                     .with_volume(20);
                 channel.control.write(control);
             }
-            if MUSIC_COUNTER >= 320 {
-                let beat = FRAME_COUNTER / 7 & 0xF;
+            if MUSIC_COUNTER >= 318 {
+                let beat = MUSIC_COUNTER & 0xF;
                 if beat == 0 || beat == 4 || beat == 7 || beat == 10 || beat == 12 {
                     let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[1];
                     channel.timer.write(timer_from_freq(22050));
@@ -255,8 +270,9 @@ pub fn music_routine() {
                         .with_volume(127);
                     channel.control.write(control);
                 }
-                if beat == 4 || beat == 12 {
+                if beat == 4 || beat == 12 || (MUSIC_COUNTER % 320) > 316 {
                     let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[2];
+                    channel.control.write(SoundControl::empty());
                     channel.timer.write(timer_from_freq(22050));
                     let adr = include_bytes!("./snare.raw");
                     channel.source.write(core::ptr::addr_of!(*adr) as u32 & !3);

@@ -9,7 +9,7 @@ use core::arch::asm;
 use reboot_lib::{
     sound::SOUND_HARDWARE,
     spi::{Control, PowerRegiser, Reset, SPI_HARDWARE},
-    swi_delay, IPC_FIFO_HARDWARE, MMC_CONTROLLER,
+    swi_delay, Status, IPC_FIFO_HARDWARE, MMC_CONTROLLER,
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -59,7 +59,7 @@ unsafe fn update_volume() {
         Err(_) => (),
     }
 }
-fn power_button_interrupt() {
+unsafe fn power_button_interrupt() {
     unsafe {
         update_volume();
     }
@@ -86,16 +86,17 @@ fn power_button_interrupt() {
     }
 }
 
-fn vblank_interrupt() {
-    //unsafe { reboot_lib::sound::SOUND_HARDWARE.channels[8].start_test_beep(); }
+static mut VBLANK_COUNTER: u32 = 0;
+
+unsafe fn vblank_interrupt() {
+    VBLANK_COUNTER += 1;
     music::music_routine();
 }
 fn main() {
     unsafe {
         IPC_FIFO_HARDWARE.enable();
-
+        
         (0x400_0304 as *mut u32).write_volatile(1);
-        //core::ptr::write_volatile(0x04004008 as *mut u32, 0x93FFFB06);
         reboot_lib::spi::touchscreen::init_tsc();
         reboot_lib::i2c::init();
         reboot_lib::sound::SOUND_HARDWARE.init();
@@ -104,17 +105,7 @@ fn main() {
         reboot_lib::spi::write_powerman(PowerRegiser::Control(
             Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP,
         ));
-        reboot_lib::init_interrupts();
-        reboot_lib::set_interrupt_function(
-            reboot_lib::ARM7Interrupt::VBlank,
-            vblank_interrupt as *mut _,
-        );
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
-        reboot_lib::set_interrupt_function(
-            reboot_lib::ARM7Interrupt::Powerbutton,
-            power_button_interrupt as *mut _,
-        );
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
+
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
         (0x400_0008 as *mut u32)
@@ -125,7 +116,6 @@ fn main() {
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
 
-
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
@@ -133,20 +123,22 @@ fn main() {
         let mut buffer: *mut [reboot_lib::StorageSector] =
             core::slice::from_raw_parts_mut(0x2FF0000 as *mut reboot_lib::StorageSector, 1);
 
+
         reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
-        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
-            Ok(_) => 1,
-            Err(err) => err.bits(),
-        };
-        for _ in 0..0x80 {
-            MMC_CONTROLLER.data_control_32.read();
-        }
+        reboot_lib::MMC_CONTROLLER.tmio_init();
+        reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot);
+        //let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
+        //    Ok(_) => 1,
+        //    Err(err) => err.bits(),
+        //};
+        let send = 1;
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
-
+        
         loop {
+            reboot_lib::nocash_write("made it to main loop");
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
@@ -178,7 +170,6 @@ fn main() {
                         Ok(_) => 0,
                         Err(e) => 0x8000_0000 | e.bits(),
                     };
-                    
                 }
                 4 => {}
                 5 => {
@@ -186,9 +177,10 @@ fn main() {
                         response = 0x8000_0000;
                         continue;
                     };
-                    //sd_read_sectors(buffer, arg);
+                    sd_read_sectors(buffer, arg);
                 }
-                6 => {
+                /* 
+                Ok(6) => {
                     let Some([arg]) = gather_args() else {
                         response = 0x8000_0000;
                         continue;
@@ -200,12 +192,32 @@ fn main() {
                         in("r0") arg,
                     );
                 }
-                7 => {
+                Ok(7) => {
                     let Some([arg]) = gather_args() else {
                         response = 0x8000_0000;
                         continue;
                     };
                     firmware_read(buffer, arg);
+                }
+                */
+                8 => {
+                    let Some([arg]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
+                    if arg == 0xB00B135 {
+                        reboot_lib::init_interrupts();
+                        reboot_lib::set_interrupt_function(
+                            reboot_lib::ARM7Interrupt::VBlank,
+                            vblank_interrupt as *mut _,
+                        );
+                        reboot_lib::set_interrupt_function(
+                            reboot_lib::ARM7Interrupt::Powerbutton,
+                            power_button_interrupt as *mut _,
+                        );
+                        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
+                        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+                    }
                 }
                 _ => response = 0x8000_0000,
             }
@@ -253,7 +265,10 @@ pub unsafe fn mmc_read_decrypt(
     add_on_key(&mut key, sector << 5);
     let ptr = data as *mut ();
     let len = data.len();
-    reboot_lib::AES_HARDWARE.ctr_crypt_block(core::slice::from_raw_parts_mut(ptr as *mut _, (len << 7)), &key);
+    reboot_lib::AES_HARDWARE.ctr_crypt_block(
+        core::slice::from_raw_parts_mut(ptr as *mut _, (len << 7)),
+        &key,
+    );
     Ok(())
 }
 
@@ -262,16 +277,7 @@ pub unsafe fn sd_read_sectors(
     data: *mut [reboot_lib::StorageSector],
     sector: u32,
 ) -> Result<(), ()> {
-    use reboot_lib::ndma::{Control, NDMA_HARDWARE};
-
-    let a = reboot_lib::read_sectors(reboot_lib::DeviceSelect::SDCardSlot, sector, data);
-    match a {
-        Ok(_) => (),
-        Err(_) => return Err(()),
-    }
-    //await for everything to finish
-    NDMA_HARDWARE.await_channel(0);
-    Ok(())
+    reboot_lib::read_sectors(reboot_lib::DeviceSelect::SDCardSlot, sector, data).map_err(|e| ())
 }
 
 pub unsafe fn nocash_write(str: &str) {

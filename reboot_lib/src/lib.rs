@@ -106,7 +106,6 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), u32> {
     } else {
         Ok(())
     }
-    
 }
 pub unsafe fn arm9_send_controller_read() -> Buttons {
     let value = com_arm9(1, &[0]).err().unwrap_or(0);
@@ -129,6 +128,9 @@ pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), u32> {
 }
 pub unsafe fn arm9_read_firmware(start_address: u32) -> Result<(), u32> {
     com_arm9(7, &[start_address])
+}
+pub unsafe fn arm9_ready_arm7() -> Result<(), u32> {
+    com_arm9(8, &[0xB00B135])
 }
 pub struct StorageSector([u32; 128]);
 

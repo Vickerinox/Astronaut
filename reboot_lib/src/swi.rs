@@ -4,6 +4,10 @@ pub unsafe fn swi_delay(duration: u32) {
         core::arch::asm!(
             "SWI 0x30000",
             in("r0") duration,
+            lateout("r0") _,
+            out("r1") _,
+            out("r2") _,
+            out("r3") _,
         );
     });
 }

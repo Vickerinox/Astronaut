@@ -3,6 +3,7 @@ unsafe fn interrupt_handler() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
     core::arch::asm!(
         // According to libnds, r0-r3, as well as r12 and lr are saved by the BIOS handler.
+        "push {{r0-r3,r12}}",
         "mov r12, {i_base}",
         "ldr r1, [r12, {i_e}]",
         "ldr r2, [r12, {i_f}]",
@@ -101,10 +102,10 @@ unsafe fn interrupt_handler() {
             "msr cpsr, r1",
 
             //run the interrupt handler
-            "push {{r0, r4-r11, lr}}", // NOTE: we push LR *again* since system mode has it's own lr.
+            "push {{r0, r4-r12, lr}}", // NOTE: we push LR *again* since system mode has it's own lr.
             "adr lr, 5f",
             "bx r3",         //execute interrupt handler (the moment we've been waiting for!!!)
-            "5: pop {{r0, r4-r11, lr}}",
+            "5: pop {{r0, r4-r12, lr}}",
 
             //Hop out of system mode
             "msr cpsr, r0",
@@ -113,6 +114,8 @@ unsafe fn interrupt_handler() {
 
             //Restore IME
             "str r1, [r12, {ime}]",
+
+        "pop {{r0-r3,r12}}",
         //return
         "2: mov pc, lr",
 

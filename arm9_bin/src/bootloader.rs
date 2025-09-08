@@ -37,7 +37,7 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
     r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
 
     inject_bootstrap();
-    
+
     reboot_lib::arm9_send_arm7_jump(common::bootstrap::ARM7_EN as u32);
     reboot_lib::disable_all_interrupts();
     SOUND_HARDWARE.clear_channels();
@@ -46,7 +46,7 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
         "mov pc, r0",
         in("r0") common::bootstrap::ARM9_EN,
     );
-    
+
     Ok(())
 }
 pub unsafe fn inject_bootstrap() {

@@ -1,4 +1,6 @@
-use core::num::NonZeroU32;
+use core::{ num::NonZeroU32};
+
+use crate::Control;
 
 use super::{ClockCnt, Command, Status, TMIOPort, MMC_CONTROLLER};
 
@@ -51,9 +53,9 @@ pub enum DeviceSelect {
 }
 
 impl Device {
-    const fn sd_card(dev_num: u8) -> Self {
+    const fn sd_card() -> Self {
         Self {
-            port: TMIOPort::init(dev_num),
+            port: TMIOPort::init(0),
             kind: None,
             protection: Protection::empty(),
             rca: 0,
@@ -63,9 +65,9 @@ impl Device {
             cid: [0; 4],
         }
     }
-    const fn nand(dev_num: u8) -> Self {
+    const fn nand() -> Self {
         Self {
-            port: TMIOPort::init(dev_num),
+            port: TMIOPort::init(1),
             kind: Some(DeviceType::EMMC),
             protection: Protection::empty(),
             rca: 0,
@@ -89,8 +91,11 @@ unsafe fn init_sdmmc_general() {
     crate::set_interrupt_function(crate::ARM7Interrupt::SDMMC, sdmmc_ignore as _);
     crate::enable_interrupt(crate::ARM7Interrupt::SDMMC);
 }
-static mut DEVICES: [Device; 2] = [Device::sd_card(0), Device::nand(1)];
+static mut DEVICES: [Device; 2] = [Device::sd_card(), Device::nand()];
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
+    if device_number == DeviceSelect::SDCardSlot {
+
+    }
     let dev = &mut DEVICES[device_number as u8 as usize];
 
     MMC_CONTROLLER.tmio_powerup(&mut dev.port);
@@ -107,44 +112,91 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
 
     return Err(Status::from_bits_retain(0x80000000 | res.bits()));
     */
-
+    MMC_CONTROLLER.data_control.write(Control::USE_DATA32);
     MMC_CONTROLLER
         .data_control_32
         .write(super::DataControl32::CLEAR_FIFO_32 | super::DataControl32::USE_DATA32);
 
     match device_number {
         DeviceSelect::SDCardSlot => {
+            
             dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
             crate::swi_delay(0x2000);
             let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
             if !res.successful() {
-                return Err(Status::from_bits_retain(1) | res);
+                return Err(res)
+            }
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendIfCondition, 0x1AA);
+            match res {
+                Status::EMPTY => if dev.port.response[0] != 0x1AA {return Err(Status::from_bits_retain(dev.port.response[0] | 0x80000000))}
+                Status::ERR_CMD_TIMEOUT => (),
+                err => return Err(err)
+            }
+            let op_cond_arg = (1<<20) | ((res.bits() << 8) ^ (1<<30)); 
+            let mut kind = DeviceType::SDSC;
+            let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
+            match res {
+                Status::EMPTY => (),
+                Status::ERR_CMD_TIMEOUT => return Err(Status::from_bits_retain(54321)),
+                err => return Err(err),
+            }
+            let mut ocr;
+            let mut tries = 0;
+            loop {
+                if tries == 200 {
+                    return Err(Status::from_bits_retain(6666));
+                }
+                ocr = dev.port.response[0];
+                if (ocr & (1<<31) > 0)  { break; }
+                let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
+                if !res.successful() {
+                    return Err(Status::from_bits_retain(32123));
+                }
+                crate::swi::swi_delay(0x20BA * 5);
+                tries += 1;
+            }
+            if (ocr & (1<<20)) == 0 { return Err(Status::from_bits_retain(123123))};
+            if (ocr & (1<<30)) > 0 { kind = DeviceType::SDHC};
+
+
+            match MMC_CONTROLLER.send_command(&mut dev.port, Command::AllSendCID, 0) {
+                Status::EMPTY => (),
+                err => return Err(err),
             }
 
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendIfCondition, 0x1AA);
-            let mut temp = 0;
-            if !res.successful() {
-                temp |= 0x80000000;
+            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SDSendRelativeAddr, 0) {
+                Status::EMPTY => (),
+                err => return Err(err),
             }
-            let mut res = MMC_CONTROLLER.send_command(&mut dev.port, Command::AppCommand, 0);
-            res = MMC_CONTROLLER.send_command(
-                &mut dev.port,
-                Command::AppSendOpCondition,
-                0x00FF8000 | temp,
-            );
-            let mut temp2 = 1;
-            while dev.port.response[0] & 0x8000_0000 == 0 {
-                while !res.successful() {
-                    MMC_CONTROLLER.send_command(&mut dev.port, Command::AppCommand, 0);
-                    res = MMC_CONTROLLER.send_command(
-                        &mut dev.port,
-                        Command::AppSendOpCondition,
-                        0x00FF8000 | temp,
-                    );
-                }
+            let rca = dev.port.response[0];
+            dev.port.clock = ClockCnt::ENABLE | ClockCnt::FREQ_16M | ClockCnt::AUTO_STOP;
+
+            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendCSD, rca) {
+                Status::EMPTY => (),
+                err => return Err(err),
             }
+
+            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SelectCard, rca) {
+                Status::EMPTY => (),
+                err => return Err(err),
+            }
+            match send_app_command(&mut dev.port, Command::AppSetClearCardSelect, 0, rca) {
+                Status::EMPTY => (),
+                err => return Err(err),
+            }
+            match send_app_command(&mut dev.port, Command::AppSetBusWidth, 2, rca) {
+                Status::EMPTY => (),
+                err => return Err(err),
+            }
+            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, rca) {
+                Status::EMPTY => (),
+                err => return Err(err),
+            }
+            dev.kind = Some(kind);
+            return Ok(());
         }
         DeviceSelect::EMMC => {
+            
             dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
 
             crate::swi_delay(0xf000);
@@ -176,11 +228,14 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
             if !res.successful() {
                 return Err(Status::from_bits_retain(4) | res);
             }
+            
             dev.port.clock =
                 super::ClockCnt::ENABLE | super::ClockCnt::FREQ_16M | super::ClockCnt::AUTO_STOP;
+            
             if !res.successful() {
                 return Err(Status::from_bits_retain(5) | res);
             }
+            
             return Ok(());
         }
     }
@@ -390,8 +445,65 @@ pub unsafe fn read_sectors(
 }
 
 pub unsafe fn nocash_write(str: &str) {
-    const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
+    core::arch::asm!(
+        /* 
+        "ldr r3, =3f",
+
+        "4:",
+        "sub r2, 1",
+        "ldrb r4, [r1, r2]",
+        "strb r4, [r3, r2]",
+        "cmp r2, 0",
+        "bne 4b",
+
+        */
+        "mov r12, r12",
+        "b 2f",
+        ".hword  0x6464",          // second ID
+        ".hword  0 ",              // flags
+        "3:",
+        ".word 0x44444444",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        ".word 0",
+        "2:",
+        in("r1") str as *const str as *const (),
+        in("r2") str.len() as u32,
+        out("r3") _,
+        out("r4") _,
+    );
+    /* 
+    const NOCASH_OUT_CHR: *mut u32 = 0x4fffa1c as *mut u32;
+    const NOCASH_OUT_STR: *mut u8 = 0x4fffa10 as *mut u8;
+    
     for byte in str.as_bytes() {
-        NOCASH_OUT_CHR.write_volatile(*byte);
+        NOCASH_OUT_CHR.write_volatile(*byte as u32);
     }
+    */
 }
