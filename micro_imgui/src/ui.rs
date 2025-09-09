@@ -23,8 +23,8 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             layout: Layout::default(),
         }
     }
-    pub fn button<'c>(&mut self, text: impl Into<Cow<'c, str>>) -> response::Response {
-        self.add(Button::new(text.into(), crate::Sizing::Automatic))
+    pub fn button<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
+        self.add(Button::new(text.as_ref(), crate::Sizing::Automatic))
     }
     pub fn label<'c>(&mut self, text: impl Into<Cow<'c, str>>) -> response::Response {
         self.add(Label::new(text, 8))

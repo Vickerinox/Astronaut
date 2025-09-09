@@ -3,7 +3,6 @@ unsafe fn interrupt_handler() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
     core::arch::asm!(
         // According to libnds, r0-r3, as well as r12 and lr are saved by the BIOS handler.
-        "push {{r0-r3,r12}}",
         "mov r12, {i_base}",
         "ldr r1, [r12, {i_e}]",
         "ldr r2, [r12, {i_f}]",
@@ -115,7 +114,6 @@ unsafe fn interrupt_handler() {
             //Restore IME
             "str r1, [r12, {ime}]",
 
-        "pop {{r0-r3,r12}}",
         //return
         "2: mov pc, lr",
 

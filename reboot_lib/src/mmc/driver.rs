@@ -445,6 +445,7 @@ pub unsafe fn read_sectors(
 }
 
 pub unsafe fn nocash_write(str: &str) {
+    #[cfg(target_arch="arm")]
     core::arch::asm!(
         /* 
         "ldr r3, =3f",

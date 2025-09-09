@@ -1,3 +1,5 @@
+use reboot_lib::VIDEO_HARDWARE;
+
 pub unsafe fn flush_mmc() {
     #[cfg(target_arch = "arm")]
     core::arch::asm!(
@@ -49,23 +51,33 @@ unsafe fn mysterious_function_2() {
 }
 
 pub unsafe fn mysterious_takeover_function() {
+
+    core::ptr::write_volatile(0x4000243 as *mut u8, 0x80);
+    flush_mmc();
+
+    //remember this is where the wram appears on the arm9
+    //when we map this back it will appear at  0x37F0000..=0x37F7FFF
+    const MAGIC_JUMP_START: *mut u32 = 0x3803040 as *mut u32;
+    const BINARY_ENTRY_ADDR_ARM9: *mut u32 = 0x6860000 as *mut u32;
+    const BINARY_ENTRY_ADDR_ARM7: u32 = 0x6000000;
+
+    let mut arm7_bytes = crate::ARM7_BINARY.iter().copied();
+    for i in 0..0x4000 {
+        let byte1 = arm7_bytes.next().unwrap_or(0);
+        let byte2 = arm7_bytes.next().unwrap_or(0);
+        let byte3 = arm7_bytes.next().unwrap_or(0);
+        let byte4 = arm7_bytes.next().unwrap_or(0);
+        let stuff = u32::from_le_bytes([byte1, byte2, byte3, byte4]);
+        BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(stuff);
+    }
+
     //WRAM C set to appear on arm9,
     core::ptr::write_volatile(0x400405c as *mut u32, 0x0C003800);
     core::ptr::write_volatile(0x4004050 as *mut u8, 0x80);
 
     flush_mmc();
 
-    //remember this is where the wram appears on the arm9
-    //when we map this back it will appear at  0x37F0000..=0x37F7FFF
-    const MAGIC_JUMP_START: *mut u32 = 0x3803040 as *mut u32;
-    const BINARY_ENTRY_ADDR_ARM9: *mut u32 = 0x3800000 as *mut u32;
-    const BINARY_ENTRY_ADDR_ARM7: u32 = 0x37F0000;
-
-    for (i, c) in crate::ARM7_BINARY.chunks_exact(4).enumerate() {
-        let stuff = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
-        BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(stuff);
-    }
-    for i in 0..0x70 {
+    for i in 0..0x800 {
         MAGIC_JUMP_START
             .add(i)
             .write_volatile(BINARY_ENTRY_ADDR_ARM7);
@@ -73,6 +85,7 @@ pub unsafe fn mysterious_takeover_function() {
 
     flush_mmc();
 
+    core::ptr::write_volatile(0x4000243 as *mut u8, 0x82); //set VRAM D to arm7
     //Remap WRAM C Back to arm7.
     let r0 = core::ptr::read_volatile(0x4004050 as *const u32);
     let r0 = r0 & 0xFF00FF00 | 0x99;

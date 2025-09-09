@@ -94,6 +94,7 @@ unsafe fn vblank_interrupt() {
 }
 fn main() {
     unsafe {
+        
         IPC_FIFO_HARDWARE.enable();
         
         (0x400_0304 as *mut u32).write_volatile(1);
@@ -108,8 +109,10 @@ fn main() {
 
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
+        /* 
         (0x400_0008 as *mut u32)
             .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
+        */
         (0x400_0004 as *mut u32)
             .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
 
@@ -129,17 +132,28 @@ fn main() {
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
         reboot_lib::MMC_CONTROLLER.tmio_init();
+         
         reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot);
-        //let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
-        //    Ok(_) => 1,
-        //    Err(err) => err.bits(),
-        //};
-        let send = 1;
+        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
+            Ok(_) => 1,
+            Err(err) => err.bits(),
+        };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
-        
+        reboot_lib::init_interrupts();
+        reboot_lib::set_interrupt_function(
+            reboot_lib::ARM7Interrupt::VBlank,
+            vblank_interrupt as *mut _,
+        );
+        reboot_lib::set_interrupt_function(
+            reboot_lib::ARM7Interrupt::Powerbutton,
+            power_button_interrupt as *mut _,
+        );
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+
+
         loop {
-            reboot_lib::nocash_write("made it to main loop");
-            while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
+            while IPC_FIFO_HARDWARE.recv_fifo_empty() { reboot_lib::swi_halt();}
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
@@ -179,8 +193,8 @@ fn main() {
                     };
                     sd_read_sectors(buffer, arg);
                 }
-                /* 
-                Ok(6) => {
+                
+                6 => {
                     let Some([arg]) = gather_args() else {
                         response = 0x8000_0000;
                         continue;
@@ -192,31 +206,21 @@ fn main() {
                         in("r0") arg,
                     );
                 }
-                Ok(7) => {
+                7 => {
                     let Some([arg]) = gather_args() else {
                         response = 0x8000_0000;
                         continue;
                     };
                     firmware_read(buffer, arg);
                 }
-                */
+                
                 8 => {
                     let Some([arg]) = gather_args() else {
                         response = 0x8000_0000;
                         continue;
                     };
                     if arg == 0xB00B135 {
-                        reboot_lib::init_interrupts();
-                        reboot_lib::set_interrupt_function(
-                            reboot_lib::ARM7Interrupt::VBlank,
-                            vblank_interrupt as *mut _,
-                        );
-                        reboot_lib::set_interrupt_function(
-                            reboot_lib::ARM7Interrupt::Powerbutton,
-                            power_button_interrupt as *mut _,
-                        );
-                        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
-                        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+                       
                     }
                 }
                 _ => response = 0x8000_0000,
@@ -246,11 +250,7 @@ pub unsafe fn mmc_read_decrypt(
     ctr_base: &[u32; 4],
     sector: u32,
 ) -> Result<(), reboot_lib::Status> {
-    let mut ret = Ok(());
-    reboot_lib::critical_function(|| {
-        ret = reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, data);
-    });
-    ret?;
+    reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, data);
 
     fn add_on_key(key: &mut [u32; 4], add: u32) {
         let carry;

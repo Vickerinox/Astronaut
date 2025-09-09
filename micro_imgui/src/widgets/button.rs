@@ -7,11 +7,11 @@ use crate::{
 };
 
 pub struct Button<'a> {
-    text: Cow<'a, str>,
+    text: &'a str,
     size: Sizing,
 }
 impl<'a> Button<'a> {
-    pub fn new(text: Cow<'a, str>, size: Sizing) -> Self {
+    pub fn new(text: &'a str, size: Sizing) -> Self {
         Self { text, size }
     }
 }

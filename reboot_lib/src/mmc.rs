@@ -181,13 +181,15 @@ impl MMC {
         self.clock_control.write(ClockCnt::FREQ_262K);
         self.block_len.write(512);
         self.options.write((1 << 15) | (1 << 14) | ((11 << 4) | 8));
-        self.ext_card_detect_mask.write(0xFFFF);
-        self.ext_card_detect_dat3_mask.write(0xFFFF);
+        
+        //no$ says these are bad I/O?
+        //self.ext_card_detect_mask.write(0xFFFF);
+        //self.ext_card_detect_dat3_mask.write(0xFFFF);
 
         //disable SDIO
         self.sdio_mode.write(0);
         self.sdio_mask.write(0xFFFF);
-        self.ext_sdio_irq.write((1 << 10) | (1 << 9) | (1 << 8));
+        //self.ext_sdio_irq.write((1 << 10) | (1 << 9) | (1 << 8));
     }
     unsafe fn tmio_set_port(&self, port: &TMIOPort) {
         self.port_select.write(port.port_num as u16);

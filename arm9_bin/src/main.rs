@@ -118,8 +118,6 @@ fn vblank_interrupt() {
 }
 unsafe fn main() {
     unsafe {
-        reboot_lib::swi_delay(10000);
-
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
@@ -267,7 +265,7 @@ unsafe fn main() {
         assert_eq!(IPC_FIFO_HARDWARE.recieve_raw_blocking(), 1);
 
         read_encrypted_nand(nand_buffer, 0).unwrap();
-        //read_sd_card(sd_buffer, 0).unwrap();
+        read_sd_card(sd_buffer, 0).unwrap();
         //read_sd_card(sd_buffer, 0).unwrap();
         //read_sd_card(sd_buffer, 0).unwrap();
         
@@ -292,8 +290,8 @@ unsafe fn main() {
             panic!("Crap.")
         };
         
-        /* 
-        let nand_fs = if sd_mbr.has_valid_signature() {
+        
+        let sd_fs = if sd_mbr.has_valid_signature() {
             
             let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
             let sd_buffer =
@@ -302,8 +300,10 @@ unsafe fn main() {
         } else {
             panic!("Crap. {:?}", &sd_buffer[0].bytes()[0x1BE..]);
         };
-        */
+        
+        
 
+        ready_arm7();
         if nand_fs.is_none() {
         } else {
             let mut working_folder = if let Some(folder) = nand_fs.as_ref() {
@@ -335,9 +335,6 @@ unsafe fn main() {
                 .collect();
             micro_imgui::run(backend, (), |f, _| {
                 f.central_panel(|ui| {
-                    if ui.button("fuck arm7").clicked() {
-                        ready_arm7();
-                    }
                     if let Some((mut file, mut header)) = booting_app.take() {
                         let head = &mut *(&mut header[..] as *mut [u8] as *mut u8
                             as *mut bootloader::HeaderNDS);

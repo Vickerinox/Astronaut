@@ -220,7 +220,7 @@ pub struct MODPlayData {
 
 
 
-static mut FRAME_COUNTER: u32 = 0;
+pub static mut FRAME_COUNTER: u32 = 0;
 static mut MUSIC_COUNTER: u16 = 0;
 pub fn music_routine() {
     unsafe fn play_melody_channel(

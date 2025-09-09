@@ -35,7 +35,7 @@ pub fn compile_arm7(
     elf_file_path: PathBuf,
     include_file_path: PathBuf,
 ) -> Result<(), CompileError> {
-    const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x37F0004;
+    const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x6000004;
     const HEADER_SIZE: usize = 4;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
