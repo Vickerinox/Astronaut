@@ -26,8 +26,11 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     pub fn button<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
         self.add(Button::new(text.as_ref(), crate::Sizing::Automatic))
     }
-    pub fn label<'c>(&mut self, text: impl Into<Cow<'c, str>>) -> response::Response {
-        self.add(Label::new(text, 8))
+    pub fn label<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
+        self.add(Label::new(text.as_ref(), 8))
+    }
+    pub fn header<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
+        self.add(Label::new(text.as_ref(), 16))
     }
     pub fn request_repaint(&mut self) {
         self.ctx.request_repaint();
@@ -117,9 +120,6 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
     pub fn add(&mut self, widget: impl AutoAdd) -> Response {
         widget.ui(self)
-    }
-    pub fn text<'c>(&mut self, str: impl Into<alloc::borrow::Cow<'c, str>>) -> Response {
-        self.add(super::widgets::label::Label::new(str, 8))
     }
     pub fn add_space(&mut self, ammount: i16) {
         match self.layout.0 {

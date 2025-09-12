@@ -122,4 +122,7 @@ impl SoundControl {
     pub const fn with_panning(self, panning: u8) -> Self {
         Self::from_bits_retain(((panning as u32 & 0x7F) << 16) | (self.bits() & !(0x7f0000)))
     }
+    pub const fn volume(&self) -> u8 {
+        (self.bits() & 0x7f) as u8
+    }
 }

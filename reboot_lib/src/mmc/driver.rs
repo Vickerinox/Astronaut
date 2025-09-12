@@ -1,4 +1,4 @@
-use core::{ num::NonZeroU32};
+use core::num::NonZeroU32;
 
 use crate::Control;
 
@@ -93,9 +93,7 @@ unsafe fn init_sdmmc_general() {
 }
 static mut DEVICES: [Device; 2] = [Device::sd_card(), Device::nand()];
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
-    if device_number == DeviceSelect::SDCardSlot {
-
-    }
+    if device_number == DeviceSelect::SDCardSlot {}
     let dev = &mut DEVICES[device_number as u8 as usize];
 
     MMC_CONTROLLER.tmio_powerup(&mut dev.port);
@@ -119,20 +117,23 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
 
     match device_number {
         DeviceSelect::SDCardSlot => {
-            
             dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
             crate::swi_delay(0x2000);
             let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
             if !res.successful() {
-                return Err(res)
+                return Err(res);
             }
             let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendIfCondition, 0x1AA);
             match res {
-                Status::EMPTY => if dev.port.response[0] != 0x1AA {return Err(Status::from_bits_retain(dev.port.response[0] | 0x80000000))}
+                Status::EMPTY => {
+                    if dev.port.response[0] != 0x1AA {
+                        return Err(Status::from_bits_retain(dev.port.response[0] | 0x80000000));
+                    }
+                }
                 Status::ERR_CMD_TIMEOUT => (),
-                err => return Err(err)
+                err => return Err(err),
             }
-            let op_cond_arg = (1<<20) | ((res.bits() << 8) ^ (1<<30)); 
+            let op_cond_arg = (1 << 20) | ((res.bits() << 8) ^ (1 << 30));
             let mut kind = DeviceType::SDSC;
             let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
             match res {
@@ -147,17 +148,23 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
                     return Err(Status::from_bits_retain(6666));
                 }
                 ocr = dev.port.response[0];
-                if (ocr & (1<<31) > 0)  { break; }
-                let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
+                if (ocr & (1 << 31) > 0) {
+                    break;
+                }
+                let res =
+                    send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
                 if !res.successful() {
                     return Err(Status::from_bits_retain(32123));
                 }
                 crate::swi::swi_delay(0x20BA * 5);
                 tries += 1;
             }
-            if (ocr & (1<<20)) == 0 { return Err(Status::from_bits_retain(123123))};
-            if (ocr & (1<<30)) > 0 { kind = DeviceType::SDHC};
-
+            if (ocr & (1 << 20)) == 0 {
+                return Err(Status::from_bits_retain(123123));
+            };
+            if (ocr & (1 << 30)) > 0 {
+                kind = DeviceType::SDHC
+            };
 
             match MMC_CONTROLLER.send_command(&mut dev.port, Command::AllSendCID, 0) {
                 Status::EMPTY => (),
@@ -196,7 +203,6 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
             return Ok(());
         }
         DeviceSelect::EMMC => {
-            
             dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
 
             crate::swi_delay(0xf000);
@@ -228,14 +234,14 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
             if !res.successful() {
                 return Err(Status::from_bits_retain(4) | res);
             }
-            
+
             dev.port.clock =
                 super::ClockCnt::ENABLE | super::ClockCnt::FREQ_16M | super::ClockCnt::AUTO_STOP;
-            
+
             if !res.successful() {
                 return Err(Status::from_bits_retain(5) | res);
             }
-            
+
             return Ok(());
         }
     }
@@ -445,9 +451,9 @@ pub unsafe fn read_sectors(
 }
 
 pub unsafe fn nocash_write(str: &str) {
-    #[cfg(target_arch="arm")]
+    #[cfg(target_arch = "arm")]
     core::arch::asm!(
-        /* 
+        /*
         "ldr r3, =3f",
 
         "4:",
@@ -499,10 +505,10 @@ pub unsafe fn nocash_write(str: &str) {
         out("r3") _,
         out("r4") _,
     );
-    /* 
+    /*
     const NOCASH_OUT_CHR: *mut u32 = 0x4fffa1c as *mut u32;
     const NOCASH_OUT_STR: *mut u8 = 0x4fffa10 as *mut u8;
-    
+
     for byte in str.as_bytes() {
         NOCASH_OUT_CHR.write_volatile(*byte as u32);
     }

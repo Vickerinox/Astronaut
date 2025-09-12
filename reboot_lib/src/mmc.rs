@@ -181,7 +181,7 @@ impl MMC {
         self.clock_control.write(ClockCnt::FREQ_262K);
         self.block_len.write(512);
         self.options.write((1 << 15) | (1 << 14) | ((11 << 4) | 8));
-        
+
         //no$ says these are bad I/O?
         //self.ext_card_detect_mask.write(0xFFFF);
         //self.ext_card_detect_dat3_mask.write(0xFFFF);

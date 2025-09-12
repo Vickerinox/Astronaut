@@ -18,7 +18,7 @@ pub unsafe fn boot_arm9() -> ! {
     let entry = (*HEADER_MEM).arm9_entry;
 
     #[cfg(target_arch = "arm")]
-    core::arch::asm!("bx r12",in("r12") entry, in("r0") 0, in("r1") 0, in("r2") 0, in("r3") 0,);
+    core::arch::asm!("bx r0",in("r0") entry,  in("r1") 0, in("r2") 0, in("r3") 0,);
     loop {}
 }
 #[inline(always)]
@@ -39,7 +39,7 @@ pub unsafe fn boot_arm7() -> ! {
     let entry = (*HEADER_MEM).arm7_entry;
 
     #[cfg(target_arch = "arm")]
-    core::arch::asm!("bx r12",in("r12") entry, in("r0") 0, in("r1") 0, in("r2") 0, in("r3") 0,);
+    core::arch::asm!("bx r0",in("r0") entry, in("r1") 0, in("r2") 0, in("r3") 0,);
     loop {}
 }
 const HEADER_MEM: *const HeaderNDS = 0x2FFC000 as *const HeaderNDS;

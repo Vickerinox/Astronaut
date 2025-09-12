@@ -7,15 +7,12 @@ use crate::{
 };
 
 pub struct Label<'a> {
-    text: Cow<'a, str>,
+    text: &'a str,
     size: u8,
 }
 impl<'a> Label<'a> {
-    pub fn new(text: impl Into<Cow<'a, str>>, size: u8) -> Self {
-        Self {
-            text: text.into(),
-            size,
-        }
+    pub fn new(text: &'a str, size: u8) -> Self {
+        Self { text, size }
     }
 }
 impl<'t> AutoAdd for Label<'t> {

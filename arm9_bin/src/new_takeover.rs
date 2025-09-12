@@ -51,7 +51,6 @@ unsafe fn mysterious_function_2() {
 }
 
 pub unsafe fn mysterious_takeover_function() {
-
     core::ptr::write_volatile(0x4000243 as *mut u8, 0x80);
     flush_mmc();
 
@@ -86,7 +85,7 @@ pub unsafe fn mysterious_takeover_function() {
     flush_mmc();
 
     core::ptr::write_volatile(0x4000243 as *mut u8, 0x82); //set VRAM D to arm7
-    //Remap WRAM C Back to arm7.
+                                                           //Remap WRAM C Back to arm7.
     let r0 = core::ptr::read_volatile(0x4004050 as *const u32);
     let r0 = r0 & 0xFF00FF00 | 0x99;
     core::ptr::write_volatile(0x4004050 as *mut u32, r0);

@@ -35,8 +35,8 @@ pub fn compile_arm7(
     elf_file_path: PathBuf,
     include_file_path: PathBuf,
 ) -> Result<(), CompileError> {
-    const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x6000004;
-    const HEADER_SIZE: usize = 4;
+    const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x600000C;
+    const HEADER_SIZE: usize = 12;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
     let file = std::fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
@@ -47,11 +47,19 @@ pub fn compile_arm7(
     let mut empty_bin = vec![0u8; HEADER_SIZE];
 
     let segments = parse.segments().ok_or(CompileError::ElfMissingSegments)?;
-    let entry_point = entrypoint - (MAGIC_ENTRYPOINT_ADDRESS as u64);
+    let entry_point = entrypoint - (MAGIC_ENTRYPOINT_ADDRESS as u64); // | 1; // 1 = THUMB
     let entry_value = ((entry_point as u32) >> 2).wrapping_sub(1) & 0xFFFFFF;
 
-    empty_bin[..HEADER_SIZE]
-        .copy_from_slice(&(BLANK_BRANCH_INSTRUCTION | entry_value).to_ne_bytes());
+    /*
+        ldr     r3, .L4
+        bx      r3
+        .L4:
+        .word   <entry_point>
+    */
+    empty_bin[..(HEADER_SIZE - 4)]
+        .copy_from_slice(&[0x00, 0x30, 0x9f, 0xe5, 0x13, 0xff, 0x2f, 0xe1]);
+    empty_bin[(HEADER_SIZE - 4)..HEADER_SIZE]
+        .copy_from_slice(&(entry_point as u32 + MAGIC_ENTRYPOINT_ADDRESS as u32).to_le_bytes());
 
     debug!(
         "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",

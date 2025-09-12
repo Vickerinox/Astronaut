@@ -195,13 +195,15 @@ pub enum ARM7Interrupt {
     MicrophoneExt = 14 + AUX_INTERRUPT,
 }
 pub unsafe fn set_interrupt_function(interrupt: ARM7Interrupt, function: *mut fn()) {
-    let interrupt = interrupt as u8;
-    let index = interrupt & INTERRUPT_INDEX_MASK;
-    if interrupt > INTERRUPT_INDEX_MASK {
-        INTERRUPT_TABLE_AUX[index as usize] = function;
-    } else {
-        INTERRUPT_TABLE[index as usize] = function;
-    }
+    crate::critical_function(|| {
+        let interrupt = interrupt as u8;
+        let index = interrupt & INTERRUPT_INDEX_MASK;
+        if interrupt > INTERRUPT_INDEX_MASK {
+            INTERRUPT_TABLE_AUX[index as usize] = function;
+        } else {
+            INTERRUPT_TABLE[index as usize] = function;
+        }
+    });
 }
 pub unsafe fn enable_interrupt(interrupt: ARM7Interrupt) {
     let interrupt = interrupt as u8;

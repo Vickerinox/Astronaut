@@ -82,7 +82,7 @@ unsafe fn power_button_interrupt() {
         Ok(2) => unsafe {
             reboot_lib::spi::write_powerman(PowerRegiser::Control(Control::SHUT_DOWN_POWER));
         },
-        _ => { /* unknown, afaik */ }
+        _ => { /* unknown, afaik, seems to mean any other i2c interrupt */ }
     }
 }
 
@@ -90,13 +90,12 @@ static mut VBLANK_COUNTER: u32 = 0;
 
 unsafe fn vblank_interrupt() {
     VBLANK_COUNTER += 1;
-    music::music_routine();
 }
+
 fn main() {
     unsafe {
-        
         IPC_FIFO_HARDWARE.enable();
-        
+
         (0x400_0304 as *mut u32).write_volatile(1);
         reboot_lib::spi::touchscreen::init_tsc();
         reboot_lib::i2c::init();
@@ -109,7 +108,7 @@ fn main() {
 
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
-        /* 
+        /*
         (0x400_0008 as *mut u32)
             .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
         */
@@ -126,13 +125,12 @@ fn main() {
         let mut buffer: *mut [reboot_lib::StorageSector] =
             core::slice::from_raw_parts_mut(0x2FF0000 as *mut reboot_lib::StorageSector, 1);
 
-
         reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
         reboot_lib::MMC_CONTROLLER.tmio_init();
-         
+
         reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot);
         let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
             Ok(_) => 1,
@@ -140,20 +138,17 @@ fn main() {
         };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
         reboot_lib::init_interrupts();
-        reboot_lib::set_interrupt_function(
-            reboot_lib::ARM7Interrupt::VBlank,
-            vblank_interrupt as *mut _,
-        );
+
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
             power_button_interrupt as *mut _,
         );
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
-
 
         loop {
-            while IPC_FIFO_HARDWARE.recv_fifo_empty() { reboot_lib::swi_halt();}
+            while IPC_FIFO_HARDWARE.recv_fifo_empty() {
+                //reboot_lib::swi_halt();
+            }
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
@@ -193,7 +188,7 @@ fn main() {
                     };
                     sd_read_sectors(buffer, arg);
                 }
-                
+
                 6 => {
                     let Some([arg]) = gather_args() else {
                         response = 0x8000_0000;
@@ -213,14 +208,25 @@ fn main() {
                     };
                     firmware_read(buffer, arg);
                 }
-                
+
                 8 => {
                     let Some([arg]) = gather_args() else {
                         response = 0x8000_0000;
                         continue;
                     };
-                    if arg == 0xB00B135 {
-                       
+                    if arg == 0xB00B135 {}
+                }
+                9 => {
+                    let Some([module_type, pointer]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
+                    match module_type {
+                        0 => music::set_mod(pointer as *mut _),
+                        1 => {
+                            music::set_procedural();
+                        }
+                        _ => response = 0x8000_0000,
                     }
                 }
                 _ => response = 0x8000_0000,
@@ -230,6 +236,7 @@ fn main() {
     }
 }
 
+#[cfg(target_arch = "arm")]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {

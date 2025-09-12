@@ -23,5 +23,4 @@ bench = false
 
 reboot_lib = {path = "../reboot_lib"}
 micro_imgui = {path = "../micro_imgui"}
-fatfs = {git="https://github.com/rafalh/rust-fatfs.git", rev="c4bb76929eb115f228720631b4110f827b998653", default-features = false, features = []}
 common = {path = "../common"}

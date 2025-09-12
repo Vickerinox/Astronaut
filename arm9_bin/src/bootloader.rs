@@ -1,5 +1,6 @@
 use common::bootstrap;
-use fatfs::SeekFrom;
+use reboot_lib::fatfs;
+use reboot_lib::fatfs::SeekFrom;
 use reboot_lib::sound::SOUND_HARDWARE;
 
 pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::Error> {

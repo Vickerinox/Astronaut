@@ -12,11 +12,16 @@ pub mod interupts;
 mod ipc;
 mod memory;
 pub mod mmc;
+pub mod music_modules;
 pub mod ndma;
 pub mod sound;
 pub mod spi;
 mod swi;
 mod video;
+
+use core::num::NonZeroU32;
+
+pub use fatfs;
 
 pub use allocator::ALLOCATOR;
 pub use crypto::*;
@@ -93,7 +98,7 @@ pub struct Controls {
     touch_x: u8,
     touch_y: u8,
 }
-unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), u32> {
+unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
     IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
     for data in data_out.into_iter().copied() {
         IPC_FIFO_HARDWARE.send_raw_blocking(data);
@@ -101,36 +106,41 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), u32> {
 
     let value = IPC_FIFO_HARDWARE.recieve_raw_blocking();
     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-    if value != 0 {
-        Err(value)
-    } else {
-        Ok(())
+    match NonZeroU32::new(value) {
+        Some(value) => Err(value),
+        None => Ok(()),
     }
 }
 pub unsafe fn arm9_send_controller_read() -> Buttons {
-    let value = com_arm9(1, &[0]).err().unwrap_or(0);
+    let value = com_arm9(1, &[0])
+        .map_err(|i| u32::from(i))
+        .err()
+        .unwrap_or(0);
     Buttons::from_bits_retain(value as u16)
 }
-pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), u32> {
+pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), NonZeroU32> {
     com_arm9(2, &[slice as *mut () as u32, slice.len() as u32])
 }
-pub unsafe fn arm9_read_nand_sector_encrypted(start_sector: u32) -> Result<(), u32> {
+pub unsafe fn arm9_read_nand_sector_encrypted(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(3, &[start_sector])
 }
-pub unsafe fn arm9_read_nand_sector_unencrypted(start_sector: u32) -> Result<(), u32> {
+pub unsafe fn arm9_read_nand_sector_unencrypted(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(4, &[start_sector])
 }
-pub unsafe fn arm9_read_sd_sector(start_sector: u32) -> Result<(), u32> {
+pub unsafe fn arm9_read_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(5, &[start_sector])
 }
-pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), u32> {
+pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), NonZeroU32> {
     com_arm9(6, &[ptr])
 }
-pub unsafe fn arm9_read_firmware(start_address: u32) -> Result<(), u32> {
+pub unsafe fn arm9_read_firmware(start_address: u32) -> Result<(), NonZeroU32> {
     com_arm9(7, &[start_address])
 }
-pub unsafe fn arm9_ready_arm7() -> Result<(), u32> {
+pub unsafe fn arm9_ready_arm7() -> Result<(), NonZeroU32> {
     com_arm9(8, &[0xB00B135])
+}
+pub unsafe fn arm9_send_arm7(user_type: u32, pointer: *mut ()) -> Result<(), NonZeroU32> {
+    com_arm9(9, &[user_type, pointer as u32])
 }
 pub struct StorageSector([u32; 128]);
 
