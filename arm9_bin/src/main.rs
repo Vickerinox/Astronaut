@@ -621,7 +621,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         )
         .text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("Panic occured:", 8);
+            text_pass.layout_str("Panic occured, Under normal circumstances this should not happen.", 8);
+            /* 
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
@@ -630,6 +631,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             if let Some(loc) = info.location() {
                 text_pass.layout_str(&alloc::format!("location: {}", loc), 8);
             }
+            */
         });
         video_context.next_frame();
     }
