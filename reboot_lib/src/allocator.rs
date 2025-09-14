@@ -43,7 +43,7 @@ pub struct LockGuard<'a>(&'a DualSuperAllocator);
 //master interrupt enable register.
 const ALLOCATOR_LOCATION: usize = 0x200_0000;
 const HEAP_START: usize = ALLOCATOR_LOCATION + size_of::<DualSuperAllocator>();
-const HEAP_LEN: usize = 0x2ff_0000 - HEAP_START;
+const HEAP_LEN: usize = 0x2FE_0000 - HEAP_START;
 impl DualSuperAllocator {
     /// Locks the Allocator, returning a lockguard which allows access to the heap
     ///
@@ -66,9 +66,11 @@ impl DualSuperAllocator {
     /// initialize ourself from uninitialized memory
     unsafe fn self_init(&self) {
         // IDGAF if this is UB like the people on the discord server say, ill do it anyway!
-        let ourself_mut = self as *const Self as usize as *mut Self;
-        (*ourself_mut).cell = UnsafeCell::new(Heap::empty());
-        (*ourself_mut).locked = UnsafeCell::new(false);
+        //let ourself_mut = self as *const Self as usize as *mut Self;
+        *(self.cell.get()) = Heap::empty();
+        *(self.locked.get()) = false;
+        //(*ourself_mut).cell = UnsafeCell::new(Heap::empty());
+        //(*ourself_mut).locked = UnsafeCell::new(false);
     }
     /// Initiialize allocator
     pub unsafe fn init(&self) {

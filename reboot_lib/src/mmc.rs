@@ -236,16 +236,21 @@ impl MMC {
         self.stop_action.write(1 << 8);
 
         self.data_control.write(Control::USE_DATA32);
-        self.data_control_32.modify(|f| {
-            (f & !(DataControl32::ENABLE_RX_IRQ | DataControl32::ENABLE_TX_IRQ))
-                | DataControl32::CLEAR_FIFO_32
-                | DataControl32::USE_DATA32
-        });
-
+        self.data_control_32
+            .write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
+        while self
+            .data_control_32
+            .read()
+            .contains(DataControl32::RX_READY)
+        {}
         self.param.write(argument);
         self.command.write(command as u16);
 
+        
         while !self.status.read().contains(Status::RESPONSE_END) {}
+        
+        
+
         let value = self.status.read();
         self.status.write(!value | Status::CMD_BUSY);
 
@@ -262,7 +267,8 @@ impl MMC {
                     .read()
                     .contains(DataControl32::RX_READY)
                 {
-                    self.status.write(!Status::RX_READY);
+                    
+                    //self.status.write(!Status::RX_READY);
                     for (i, word) in AsMut::<[u32]>::as_mut(current_sector)
                         .iter_mut()
                         .enumerate()

@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use reboot_lib::fatfs;
 use reboot_lib::StorageSector;
 pub unsafe fn mount_twl_main(
@@ -100,19 +101,30 @@ pub struct BasicSDMMCCursor<'a> {
     lba: u32,
     nand: bool,
 }
+pub struct AsyncReadHandle(Box<core::cell::UnsafeCell<AsyncSDMMCReadStatus>>);
+pub enum AsyncSDMMCReadStatus {
+    Pending,
+    Error,
+    FatalError,
+    MediaMissing,
+    Finished,
+}
 impl<'a> BasicSDMMCCursor<'a> {
     pub fn new(buffer: &'a mut [StorageSector], lba_sector: u32, is_nand: bool) -> Self {
-        if is_nand {
-            crate::read_encrypted_nand(buffer, lba_sector);
-        } else {
-            crate::read_sd_card(buffer, lba_sector);
-        }
-        Self {
+        let mut oneself = Self {
             buffer_virtual_position: 0,
             buffer,
             pos: 0,
             lba: lba_sector,
             nand: is_nand,
+        };
+        oneself.read_sector(0);
+        oneself
+    }
+    pub fn read_sector(&mut self, sector: u32) -> Result<(), u32> {
+        match self.nand {
+            true => crate::read_encrypted_nand(self.buffer, self.lba + sector),
+            false => crate::read_sd_card(self.buffer, self.lba + sector),
         }
     }
 }
@@ -156,12 +168,7 @@ impl<'a> fatfs::Read for BasicSDMMCCursor<'a> {
         read_bytes += buffer_cutoff;
         if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
             let virtual_sector = self.pos / 512;
-            let a = if self.nand {
-                crate::read_encrypted_nand(self.buffer, self.lba + virtual_sector as u32)
-            } else {
-                crate::read_sd_card(self.buffer, self.lba + virtual_sector as u32)
-            };
-            match a {
+            match self.read_sector(virtual_sector as u32) {
                 Ok(_) => self.buffer_virtual_position = virtual_sector * 512,
                 Err(_) => panic!("failed to read nand"),
             }
@@ -193,12 +200,7 @@ impl<'a> fatfs::Seek for BasicSDMMCCursor<'a> {
             || (self.pos < self.buffer_virtual_position)
         {
             let virtual_sector = self.pos / 512;
-            let a = if self.nand {
-                crate::read_encrypted_nand(self.buffer, self.lba + virtual_sector as u32)
-            } else {
-                crate::read_sd_card(self.buffer, self.lba + virtual_sector as u32)
-            };
-            match a {
+            match self.read_sector(virtual_sector as u32) {
                 Ok(_) => self.buffer_virtual_position = virtual_sector * 512,
                 Err(_) => panic!("failed to read nand"),
             }

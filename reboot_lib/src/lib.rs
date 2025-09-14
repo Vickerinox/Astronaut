@@ -166,3 +166,28 @@ impl StorageSector {
         unsafe { &*core::ptr::from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }
     }
 }
+
+pub unsafe fn flush_mmc() {
+    #[cfg(target_arch = "arm")]
+    core::arch::asm!(
+        "MCR p15, 0, r0, c7, c10, 4", //drain write buffer
+        in("r0") 0,
+    );
+    for i in 0..4 {
+        for j in 0..0x20 {
+            let arg = (i << 30) | (j << 5);
+            #[cfg(target_arch = "arm")]
+            core::arch::asm!(
+                "MCR p15, 0, r0, c7, c10, 2", //clean dcache entry
+                in("r0") arg,
+            );
+        }
+    }
+    #[cfg(target_arch = "arm")]
+    core::arch::asm!(
+        "MCR p15, 0, r0, c7, c10, 4", //drain write buffer
+        "MCR p15, 0, r0, c7, c5, 0", //Flush ICache
+        "MCR p15, 0, r0, c7, c6, 0", //Flush DCache
+        in("r0") 0,
+    );
+}

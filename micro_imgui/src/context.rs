@@ -115,13 +115,15 @@ impl<'a, B: Backend> Frame<'a, B> {
     pub fn central_panel<R, F: FnOnce(&mut Ui<B>) -> R>(&mut self, f: F) -> R {
         let rect = self.availble_ground_space;
         let mut ui = Ui::new(self, Id::START, rect.scale_uniform(-4));
+        /* 
         ui.draw(crate::Shape::Rectangle {
             area: rect,
-            fill: crate::Color::new(60, 60, 60),
+            fill: crate::Color::new(0, 0, 0),
             rounding: 0,
             outline_color: crate::Color::new(0, 0, 0),
             outline_size: 0,
         });
+        */
         f(&mut ui)
     }
     pub fn window<R, F: FnOnce(&mut Ui<B>) -> R>(&mut self, rect: Rect, f: F) -> R {

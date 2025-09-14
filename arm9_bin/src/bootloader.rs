@@ -4,7 +4,8 @@ use reboot_lib::fatfs::SeekFrom;
 use reboot_lib::sound::SOUND_HARDWARE;
 
 pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::Error> {
-    let (header, bootstrap) = (*BOOTLOADER_MEM).split_at_mut_unchecked(0x1000);
+    crate::stop_mod_file();
+    let (header, _bootloader) = (*BOOTLOADER_MEM).split_at_mut(0x1000);
     bootstrap::READY_FLAG_0.write_volatile(0xFF);
     bootstrap::READY_FLAG_1.write_volatile(0xFF);
     bootstrap::READY_FLAG_2.write_volatile(0xFF);
@@ -25,6 +26,7 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
         core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7 Binary");
 
+    
     r.seek(SeekFrom::Start(header.arm9i_offset as u64))
         .expect("Failed to seek to ARM9i Binary");
     let arm9_ram =
@@ -37,16 +39,18 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
         core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
 
+    
     inject_bootstrap();
-
+    reboot_lib::flush_mmc();
     reboot_lib::arm9_send_arm7_jump(common::bootstrap::ARM7_EN as u32);
-    reboot_lib::disable_all_interrupts();
-    SOUND_HARDWARE.clear_channels();
+    reboot_lib::flush_mmc();
+    
     #[cfg(target_arch = "arm")]
     core::arch::asm!(
-        "mov pc, r0",
+        "bx r0",
         in("r0") common::bootstrap::ARM9_EN,
     );
+    loop {}
 
     Ok(())
 }
@@ -60,6 +64,7 @@ pub unsafe fn inject_bootstrap() {
 
 const BOOTLOADER_MEM: *mut [u8] =
     unsafe { core::slice::from_raw_parts_mut(0x2FFC000 as *mut u8, 0x4000) };
+
 #[repr(C)]
 pub struct HeaderNDS {
     pub title: [u8; 12],
@@ -83,59 +88,60 @@ pub struct HeaderNDS {
     pub arm7_load: u32,
     pub arm7_size: u32,
 
-    pub fnt_offset: u32,
-    pub fnt_len: u32,
+    fnt_offset: u32,
+    fnt_len: u32,
 
-    pub fat_offset: u32,
-    pub fat_len: u32,
+    fat_offset: u32,
+    fat_len: u32,
 
-    pub arm9_overlay_offset: u32,
-    pub arm9_overlay_len: u32,
+    arm9_overlay_offset: u32,
+    arm9_overlay_len: u32,
 
-    pub arm7_overlay_offset: u32,
-    pub arm7_overlay_len: u32,
+    arm7_overlay_offset: u32,
+    arm7_overlay_len: u32,
 
-    pub card_cnt: u32,
-    pub card_cnt_secure: u32,
-    pub icon_offset: u32,
-    pub secure_area_crc: u16,
-    pub secure_area_timeout: u16,
+    card_cnt: u32,
+    card_cnt_secure: u32,
+    icon_offset: u32,
+    secure_area_crc: u16,
+    secure_area_timeout: u16,
 
-    pub arm9_autoload: u32,
-    pub arm7_autoload: u32,
+    arm9_autoload: u32,
+    arm7_autoload: u32,
 
-    pub secure_disable: [u8; 8],
+    secure_disable: [u8; 8],
 
-    pub ntr_rom_size: u32,
-    pub header_size: u32,
+    ntr_rom_size: u32,
+    header_size: u32,
 
-    pub unknown: u32,
+    unknown: u32,
     _reserved2: [u32; 13],
 
-    pub logo: [u8; 156],
-    pub logo_crc: u16,
+    logo: [u8; 156],
+    logo_crc: u16,
 
     header_crc: u16,
 
     debugger: [u8; 32],
-    global_mbks: [u32; 5],
-    arm9_mbks: [u32; 3],
-    arm7_mbks: [u32; 3],
-    mbk9: u32,
+    pub global_mbks: [u32; 5],
+    pub arm9_mbks: [u32; 3],
+    pub arm7_mbks: [u32; 3],
+    pub mbk9: u32,
+
     region: u32,
     access_control: u32,
-    arm7_scfg: u32,
-    dsi_flags: u32,
+    pub arm7_scfg: u32,
+    pub dsi_flags: u32,
 
-    arm9i_offset: u32,
+    pub arm9i_offset: u32,
     _reservedi: u32,
-    arm9i_load: u32,
-    arm9i_size: u32,
+    pub arm9i_load: u32,
+    pub arm9i_size: u32,
 
-    arm7i_offset: u32,
+    pub arm7i_offset: u32,
     _reservedi2: u32,
-    arm7i_load: u32,
-    arm7i_size: u32,
+    pub arm7i_load: u32,
+    pub arm7i_size: u32,
 
     digest_ntr_offset: u32,
     digest_ntr_len: u32,
@@ -173,3 +179,4 @@ pub struct HeaderNDS {
     debug: [u8; 0x180],
     rsa_signature: [u8; 0x80],
 }
+

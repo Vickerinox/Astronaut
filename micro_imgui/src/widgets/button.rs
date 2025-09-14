@@ -36,7 +36,12 @@ impl<'t> AutoAdd for Button<'t> {
             outline: Color::new(0, 0, 0),
             size: 8,
         });
-        let resp = ui.allocate_size(rect.scale_uniform(2).size(), Sense::clickable());
+        let alloc_size = match size {
+            Sizing::Automatic => rect.scale_uniform(2).size(),
+            Sizing::Cropped(vec2) => prep_size.max(rect.scale_uniform(2).size()),
+            Sizing::Padded(vec2) => prep_size.max(rect.scale_uniform(2).size()),
+        };
+        let resp = ui.allocate_size(alloc_size, Sense::clickable());
 
         let (outline_color, fill) = if resp.stats.intersects(Sense::PRESSED) {
             (Color::new(0, 0, 0), Color::new(32, 32, 32))

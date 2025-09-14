@@ -43,54 +43,6 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
     pub fn new(reader: R) -> Self {
         Self::NotStarted(reader)
     }
-    pub fn progress(&self) -> (usize, usize) {
-        match self {
-            MODAsyncLoader::NotStarted(_) => (0, usize::MAX),
-            MODAsyncLoader::LoadingHeader { progress, .. } => (*progress, usize::MAX),
-            MODAsyncLoader::LoadingPatterns {
-                reader,
-                progress,
-                wip_patterns,
-                header,
-            } => {
-                let final_len = {
-                    let header_len = 1084;
-                    let sample_len = unsafe { &**header }
-                        .sample_info
-                        .iter()
-                        .fold(0, |a, x| a + x.length as usize);
-                    let pattern_len = wip_patterns.len();
-                    header_len + sample_len + pattern_len
-                };
-                (1084 + *progress, final_len)
-            }
-            MODAsyncLoader::LoadingSamples {
-                reader,
-                progress,
-                sample,
-                header,
-            } => {
-                let pattern_len =
-                    unsafe { &**header }.patterns.len() * mem::size_of::<MODPattern>();
-                let final_len = {
-                    let header_len = 1084;
-                    let sample_len = unsafe { &**header }
-                        .sample_info
-                        .iter()
-                        .fold(0, |a, x| a + x.length as usize);
-
-                    header_len + sample_len + pattern_len
-                };
-                let found_samples_len = unsafe { &**header }.samples[..*sample]
-                    .iter()
-                    .fold(0, |a, x| a + x.len());
-                (
-                    1084 + pattern_len + found_samples_len + *progress,
-                    final_len,
-                )
-            }
-        }
-    }
     //perform one read, then return the result or ourselves needing to be re-processed.
     pub fn process(mut self) -> Result<Option<Box<MODHeader>>, Self> {
         match self {
@@ -257,60 +209,95 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                 mut header,
                 mut sample,
             } => {
-                while (sample < header.sample_info.len() && header.sample_info[sample].length == 0)
-                {
-                    progress = 0;
-                    sample += 1;
-                }
-                if sample < header.sample_info.len() {
-                    let mut buffer = if header.samples[sample].is_null() {
-                        let new_buffer = unsafe {
-                            let sample_len = header.sample_info[sample].length as usize;
-                            //needs align 4 due to hardware limitations
-                            let sample_buffer =
-                                alloc(Layout::from_size_align_unchecked(sample_len, 4));
-                            slice::from_raw_parts_mut(sample_buffer, sample_len)
+                while let Some(info) = header.sample_info.get(sample) {
+                    if info.length > 0 {
+                        let mut buffer = match unsafe { header.samples[sample].as_mut() } {
+                            None => {
+                                let new_buffer = unsafe {
+                                    let sample_len = info.length as usize;
+                                    //needs align 4 due to hardware limitations
+                                    let sample_buffer =
+                                        alloc(Layout::from_size_align_unchecked(sample_len, 4));
+                                    slice::from_raw_parts_mut(sample_buffer, sample_len)
+                                };
+                                header.samples[sample] = new_buffer;
+                                new_buffer
+                            }
+                            Some(valid) => valid,
                         };
-                        header.samples[sample] = new_buffer;
-                        new_buffer
+                        return match reader.read(&mut buffer[progress..]) {
+                            Ok(new_progress) => {
+                                progress += new_progress;
+                                if progress == buffer.len() {
+                                    sample += 1;
+                                    progress = 0;
+                                }
+                                Err(Self::LoadingSamples {
+                                    reader,
+                                    progress,
+                                    sample,
+                                    header,
+                                })
+                            }
+                            Err(err) => {
+                                if err.is_interrupted() {
+                                    Err(Self::LoadingSamples {
+                                        reader,
+                                        progress,
+                                        sample,
+                                        header,
+                                    })
+                                } else {
+                                    Ok(None)
+                                }
+                            }
+                        };
                     } else {
-                        unsafe { &mut *header.samples[sample] }
-                    };
-                    match reader.read(&mut buffer[progress..]) {
-                        Ok(new_progress) => {
-                            progress += new_progress;
-                            if progress == buffer.len() {
-                                Err(Self::LoadingSamples {
-                                    reader,
-                                    progress: 0,
-                                    sample: sample + 1,
-                                    header,
-                                })
-                            } else {
-                                Err(Self::LoadingSamples {
-                                    reader,
-                                    progress,
-                                    sample,
-                                    header,
-                                })
-                            }
-                        }
-                        Err(err) => {
-                            if err.is_interrupted() {
-                                Err(Self::LoadingSamples {
-                                    reader,
-                                    progress,
-                                    sample,
-                                    header,
-                                })
-                            } else {
-                                Ok(None)
-                            }
-                        }
+                        progress = 0;
+                        sample += 1;
                     }
-                } else {
-                    return Ok(Some(header));
                 }
+                //we've gone through all samples!
+                unsafe { crate::flush_mmc(); }
+                Ok(Some(header))
+            }
+        }
+    }
+}
+impl<R> MODAsyncLoader<R> {
+    pub fn progress(&self) -> (usize, usize) {
+        match self {
+            MODAsyncLoader::NotStarted(_) => (0, usize::MAX),
+            MODAsyncLoader::LoadingHeader { progress, .. } => (*progress, usize::MAX),
+            MODAsyncLoader::LoadingPatterns {
+                progress,
+                wip_patterns,
+                header,
+                ..
+            } => {
+                let header_len = 1084;
+                let sample_len: usize = header.sample_info.iter().map(|x| x.length as usize).sum();
+                let pattern_len = wip_patterns.len();
+                (
+                    header_len + *progress,
+                    header_len + sample_len + pattern_len,
+                )
+            }
+            MODAsyncLoader::LoadingSamples {
+                progress,
+                sample,
+                header,
+                ..
+            } => {
+                let header_len = 1084;
+                let sample_len: usize = header.sample_info.iter().map(|x| x.length as usize).sum();
+                let pattern_len = header.patterns.len() * mem::size_of::<MODPattern>();
+                let found_samples_len: usize =
+                    header.samples[..*sample].iter().map(|i| i.len()).sum();
+                (
+                    header_len + pattern_len + found_samples_len + *progress,
+                    header_len + sample_len + pattern_len,
+                )
             }
         }
     }

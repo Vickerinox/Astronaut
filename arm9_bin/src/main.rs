@@ -8,8 +8,13 @@ const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use core::{alloc::Layout, arch::asm, ptr::addr_of};
-
-use alloc::{boxed::Box, format, string::ToString, vec::Vec};
+use reboot_lib::{arm9_send_arm7_jump, flush_mmc};
+use alloc::{
+    boxed::Box,
+    format,
+    string::ToString,
+    vec::{self, Vec},
+};
 use gui::VideoTextPass;
 use micro_imgui::{
     widgets::{button::Button, label::Label},
@@ -25,7 +30,6 @@ use reboot_lib::{
     VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
 };
 
-use crate::new_takeover::flush_mmc;
 extern crate alloc;
 
 mod bootloader;
@@ -299,8 +303,8 @@ unsafe fn main() {
             inout(reg) dtcm,
         );
 
-        let nand_buffer = core::slice::from_raw_parts_mut(0x2FF0000 as *mut StorageSector, 1);
-        let sd_buffer = core::slice::from_raw_parts_mut(0x2FF4000 as *mut StorageSector, 1);
+        let nand_buffer = core::slice::from_raw_parts_mut(0x2FE0000 as *mut StorageSector, 1);
+        let sd_buffer = core::slice::from_raw_parts_mut(0x2FE8000 as *mut StorageSector, 1);
 
         assert_eq!(IPC_FIFO_HARDWARE.recieve_raw_blocking(), 1);
 
@@ -322,7 +326,7 @@ unsafe fn main() {
                 core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
 
             let nand_buffer =
-                core::slice::from_raw_parts_mut(0x2FF0000 as *mut reboot_lib::StorageSector, 8);
+                core::slice::from_raw_parts_mut(0x2FE0000 as *mut reboot_lib::StorageSector, 32);
             nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
         } else {
             None
@@ -331,7 +335,7 @@ unsafe fn main() {
         let sd_fs = if sd_mbr.has_valid_signature() {
             let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
             let sd_buffer =
-                core::slice::from_raw_parts_mut(0x2FF4000 as *mut reboot_lib::StorageSector, 8);
+                core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 32);
             nand::mount_sd(twl_lba, 0, sd_buffer).ok()
         } else {
             None
@@ -354,9 +358,10 @@ unsafe fn main() {
                 }
             }
 
-            root
+            Some(root)
         } else {
-            panic!("No filesystem could be initialized, aborting...")
+            start_procedural_music();
+            None
         };
         let mut booting_app: Option<(
             reboot_lib::fatfs::File<
@@ -368,137 +373,182 @@ unsafe fn main() {
             Vec<u8>,
         )> = None;
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
-        core::ptr::write_volatile(0x5000000 as *mut u16, 0);
+        core::ptr::write_volatile(0x5000400 as *mut u16, 0b0001000010000100);
+        core::ptr::write_volatile(0x5000000 as *mut u16, 0b0001000010000100);
 
         video_context.next_frame();
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
+        let mut selected_sector = 0;
+        let mut folders: Vec<_> = if let Some(fs) = &mut working_folder {
+            fs.iter()
+                .filter_map(|folder| match folder {
+                    Ok(item) => match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
+                        Ok(a) => Some((alloc::string::String::from(a), item.is_dir())),
+                        Err(err) => Some((alloc::format!("{err:?}"), false)),
+                    },
 
-        let mut folders: Vec<_> = working_folder
-            .iter()
-            .filter_map(|folder| match folder {
-                Ok(item) => match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
-                    Ok(a) => Some((alloc::string::String::from(a), item.is_dir())),
-                    Err(err) => Some((alloc::format!("{err:?}"), false)),
-                },
-
-                Err(what) => Some(("BIG BOY ERROR".into(), false)),
-            })
-            .collect();
+                    Err(_what) => Some(("BIG BOY ERROR".into(), false)),
+                })
+                .collect()
+        } else {
+            alloc::vec![]
+        };
         micro_imgui::run(backend, (), |f, _| {
             f.central_panel(|ui| {
-                ui.header("SD Card view:");
-                if let Some(loading_mod) = loading_mod_file.take() {
-                    let (progress, max) = loading_mod.progress();
-                    let progress_bar = progress * 27 / max;
-                    let bar = (0..27)
-                        .map(|i| if i < progress_bar { '=' } else { '.' })
-                        .collect::<alloc::string::String>();
-                    ui.label(format!("Loading song [{bar}]"));
-                    ui.request_repaint();
-                    match loading_mod.process() {
-                        Ok(Some(ret)) => {
-                            send_mod_file(ret);
-                        }
-                        Ok(None) => (),
-                        Err(cont) => loading_mod_file = Some(cont),
+                if let Some(working_folder) = &mut working_folder {
+                    ui.header("SD Card view:");
+                    if ui.button("launch miniboot").clicked() {
+                        let mut arm9 = sd_fs.as_ref().unwrap().root_dir().open_file("/_nds/vlaunch/arm9.bin").unwrap();
+                        let buffer = core::slice::from_raw_parts_mut(0x2FD8000 as *mut u8, 1024*32);
+                        arm9.read_exact(&mut buffer[..26624]).unwrap();
+                        let mut arm7 = sd_fs.as_ref().unwrap().root_dir().open_file("/_nds/vlaunch/arm7.bin").unwrap();
+                        arm7.read_exact(&mut buffer[0x7000..0x7200]).unwrap();
+
+                        reboot_lib::disable_all_interrupts();
+                        flush_mmc();
+                        arm9_send_arm7_jump(0x2FDF000);
+                        #[cfg(target_arch="arm")]
+                        core::arch::asm!("bx r0", in("r0") 0x2FD8000);
+                        loop {}
                     }
-                } else {
-                    ui.label(" ");
-                }
-
-                if let Some((mut file, mut header)) = booting_app.take() {
-                    let head = &mut *(&mut header[..] as *mut [u8] as *mut u8
-                        as *mut bootloader::HeaderNDS);
-                    ui.label("                 Title info:");
-                    ui.label(alloc::format!(
-                        "      Name: {} TID: {:08X}",
-                        core::str::from_utf8(&head.title).unwrap_or("UNKNOWN"),
-                        head.tid
-                    ));
-                    ui.label(" ");
-                    ui.label("ARM9 offsets:");
-                    ui.label(alloc::format!("entry: {:08X}", head.arm9_entry));
-                    ui.label(alloc::format!(
-                        "load: {:08X}, size: {:08X}",
-                        head.arm9_load,
-                        head.arm9_size
-                    ));
-                    ui.label(" ");
-                    ui.label("ARM7 offsets:");
-                    ui.label(alloc::format!("entry: {:08X}", head.arm7_entry));
-                    ui.label(alloc::format!(
-                        "load: {:08X}, size: {:08X}",
-                        head.arm7_load,
-                        head.arm7_size
-                    ));
-                    ui.label(" ");
-                    ui.label(" ");
-
-                    if ui.button("Launch!!").clicked() {
-                        match file.seek(SeekFrom::Start(0)) {
-                            Ok(0) => {
-                                bootloader::boot_app(file);
+                    if let Some(loading_mod) = loading_mod_file.take() {
+                        let (progress, max) = loading_mod.progress();
+                        let progress_bar = progress * 27 / max;
+                        let bar = (0..27)
+                            .map(|i| if i < progress_bar { '=' } else { '.' })
+                            .collect::<alloc::string::String>();
+                        ui.label(format!("Loading song [{bar}]"));
+                        ui.request_repaint();
+                        match loading_mod.process() {
+                            Ok(Some(ret)) => {
+                                send_mod_file(ret);
                             }
-                            Ok(_what) => (),
-                            Err(_error) => (),
+                            Ok(None) => (),
+                            Err(cont) => loading_mod_file = Some(cont),
                         }
                     } else {
-                        if ui.button("Go back").clicked() {
-                            booting_app = None;
-                        } else {
-                            booting_app = Some((file, header));
-                        }
+                        ui.label(" ");
                     }
-                } else {
-                    let mut new_folder = None;
-                    for item in folders.iter() {
-                        if ui.button(&item.0).clicked() {
-                            if item.1 {
-                                match working_folder.open_dir(&item.0) {
-                                    Ok(folder) => new_folder = Some(folder),
-                                    Err(_) => (),
+
+                    if let Some((mut file, mut header)) = booting_app.take() {
+                        let head = &mut *(&mut header[..] as *mut [u8] as *mut u8
+                            as *mut bootloader::HeaderNDS);
+                        ui.label("                 Title info:");
+                        ui.label(alloc::format!(
+                            "      Name: {} TID: {:08X}",
+                            core::str::from_utf8(&head.title).unwrap_or("UNKNOWN"),
+                            head.tid
+                        ));
+                        ui.label(" ");
+                        ui.label("ARM9 offsets:");
+                        ui.label(alloc::format!("entry: {:08X}", head.arm9_entry));
+                        ui.label(alloc::format!(
+                            "load: {:08X}, size: {:08X}",
+                            head.arm9_load,
+                            head.arm9_size
+                        ));
+                        ui.label(" ");
+                        ui.label("ARM7 offsets:");
+                        ui.label(alloc::format!("entry: {:08X}", head.arm7_entry));
+                        ui.label(alloc::format!(
+                            "load: {:08X}, size: {:08X}",
+                            head.arm7_load,
+                            head.arm7_size
+                        ));
+                        ui.label("ARMi offsets:");
+                        ui.label(alloc::format!("7i: {:08X} {:08X}", head.arm7i_load, head.arm7i_size));
+                        ui.label(alloc::format!("9i: {:08X} {:08X}", head.arm9i_load, head.arm9i_size));
+                        ui.label(" ");
+                        ui.label(" ");
+                        ui.horizontal(|ui| {
+                            if ui.button("Launch!!").clicked() {
+                                match file.seek(SeekFrom::Start(0)) {
+                                    Ok(0) => {
+                                        bootloader::boot_app(file);
+                                    }
+                                    Ok(_what) => (),
+                                    Err(_error) => (),
                                 }
                             } else {
-                                let extension_point = item.0.len() - 4;
-                                if item.0.is_char_boundary(extension_point) {
-                                    if is_bootable(item.0.as_bytes()) {
-                                        match working_folder.open_file(&item.0) {
-                                            Ok(mut file) => {
-                                                let mut header_buffer = alloc::vec![0u8; 4096];
-                                                file.read(&mut header_buffer);
-                                                booting_app = Some((file, header_buffer));
+                                if ui.button("Go back").clicked() {
+                                    booting_app = None;
+                                } else {
+                                    booting_app = Some((file, header));
+                                }
+                            }
+                        });
+
+                    } else {
+                        let mut new_folder = None;
+                        for item in folders.iter() {
+                            if ui.add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8)))).clicked() {
+                                if item.1 {
+                                    match working_folder.open_dir(&item.0) {
+                                        Ok(folder) => new_folder = Some(folder),
+                                        Err(_) => (),
+                                    }
+                                } else {
+                                    let extension_point = item.0.len() - 4;
+                                    if item.0.is_char_boundary(extension_point) {
+                                        if is_bootable(item.0.as_bytes()) {
+                                            match working_folder.open_file(&item.0) {
+                                                Ok(mut file) => {
+                                                    let mut header_buffer = alloc::vec![0u8; 4096];
+                                                    file.read(&mut header_buffer);
+                                                    booting_app = Some((file, header_buffer));
+                                                }
+                                                Err(_) => (),
                                             }
-                                            Err(_) => (),
-                                        }
-                                    } else if is_music_module(item.0.as_bytes()) {
-                                        match working_folder.open_file(&item.0) {
-                                            Ok(module) => {
-                                                loading_mod_file =
-                                                    Some(MODAsyncLoader::new(module));
-                                                drop(stop_mod_file());
+                                        } else if is_music_module(item.0.as_bytes()) {
+                                            match working_folder.open_file(&item.0) {
+                                                Ok(module) => {
+                                                    loading_mod_file =
+                                                        Some(MODAsyncLoader::new(module));
+                                                    drop(stop_mod_file());
+                                                }
+                                                Err(_abort) => (),
                                             }
-                                            Err(_abort) => (),
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    if let Some(new_folder) = new_folder {
-                        working_folder = new_folder;
+                        if let Some(new_folder) = new_folder {
+                            *working_folder = new_folder;
 
-                        folders = working_folder
-                            .iter()
-                            .filter_map(|folder| match folder {
-                                Ok(item) => alloc::str::from_utf8(item.short_file_name_as_bytes())
-                                    .ok()
-                                    .map(|a| (alloc::string::String::from(a), item.is_dir())),
-                                Err(_) => None,
-                            })
-                            .collect();
+                            folders = working_folder
+                                .iter()
+                                .filter_map(|folder| match folder {
+                                    Ok(item) => {
+                                        alloc::str::from_utf8(item.short_file_name_as_bytes())
+                                            .ok()
+                                            .map(|a| {
+                                                (alloc::string::String::from(a), item.is_dir())
+                                            })
+                                    }
+                                    Err(_) => None,
+                                })
+                                .collect();
+                        }
                     }
+                } else {
+                    ui.horizontal(|ui| {
+                        if ui.button("<").clicked() {
+                            selected_sector -= 1;
+                        }
+                        if ui
+                            .button(alloc::format!("read {selected_sector}"))
+                            .clicked()
+                        {
+                            read_sd_card(sd_buffer, selected_sector).unwrap();
+                        }
+                        if ui.button(">").clicked() {
+                            selected_sector += 1;
+                        }
+                    });
+                    ui.label(alloc::format!("{:?}", &sd_buffer[0].bytes()[0x1BE..]));
                 }
             });
         });
@@ -621,8 +671,11 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         )
         .text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("Panic occured, Under normal circumstances this should not happen.", 8);
-            /* 
+            text_pass.layout_str(
+                "Panic occured, Under normal circumstances this should not happen.",
+                8,
+            );
+
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
@@ -631,7 +684,6 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             if let Some(loc) = info.location() {
                 text_pass.layout_str(&alloc::format!("location: {}", loc), 8);
             }
-            */
         });
         video_context.next_frame();
     }

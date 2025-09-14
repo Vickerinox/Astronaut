@@ -118,6 +118,8 @@ fn main() {
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
 
+        reboot_lib::init_interrupts();
+
         reboot_lib::load_nand_key_x(0);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
@@ -131,13 +133,15 @@ fn main() {
 
         reboot_lib::MMC_CONTROLLER.tmio_init();
 
-        reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot);
-        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
+        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
             Ok(_) => 1,
             Err(err) => err.bits(),
         };
+        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
+            Ok(_) => send,
+            Err(err) => err.bits(),
+        };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
-        reboot_lib::init_interrupts();
 
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
@@ -186,7 +190,10 @@ fn main() {
                         response = 0x8000_0000;
                         continue;
                     };
-                    sd_read_sectors(buffer, arg);
+                    response = match sd_read_sectors(buffer, arg) {
+                        Ok(_) => 0,
+                        Err(e) => e.bits(),
+                    }
                 }
 
                 6 => {
@@ -195,11 +202,17 @@ fn main() {
                         continue;
                     };
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
+                    reboot_lib::disable_all_interrupts();
+                    SOUND_HARDWARE.init();
+                    
+                    
                     #[cfg(target_arch = "arm")]
                     core::arch::asm!(
-                        "mov pc, r0",
+                        "mov r11, r11",
+                        "bx r0",
                         in("r0") arg,
                     );
+                    loop {}
                 }
                 7 => {
                     let Some([arg]) = gather_args() else {
@@ -257,7 +270,7 @@ pub unsafe fn mmc_read_decrypt(
     ctr_base: &[u32; 4],
     sector: u32,
 ) -> Result<(), reboot_lib::Status> {
-    reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, data);
+    reboot_lib::read_sectors(reboot_lib::DeviceSelect::EMMC, sector, data)?;
 
     fn add_on_key(key: &mut [u32; 4], add: u32) {
         let carry;
@@ -283,8 +296,8 @@ pub unsafe fn mmc_read_decrypt(
 pub unsafe fn sd_read_sectors(
     data: *mut [reboot_lib::StorageSector],
     sector: u32,
-) -> Result<(), ()> {
-    reboot_lib::read_sectors(reboot_lib::DeviceSelect::SDCardSlot, sector, data).map_err(|e| ())
+) -> Result<(), Status> {
+    reboot_lib::read_sectors(reboot_lib::DeviceSelect::SDCardSlot, sector, data)
 }
 
 pub unsafe fn nocash_write(str: &str) {

@@ -323,8 +323,8 @@ pub fn play_mod() {
                             if info.repeat_length <= 1 {
                                 control = control.with_repeat_mode(RepeatMode::Oneshot);
                                 channel.source.write(adr + sample_offset);
-                                channel.length.write(0);
-                                channel.loop_start.write(len as u16);
+                                channel.length.write(len);
+                                channel.loop_start.write(0);
                             } else {
                                 let sample_offset =
                                     sample_offset.min((info.repeat_point as u32) << 1);

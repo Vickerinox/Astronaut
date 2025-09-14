@@ -10,7 +10,7 @@ unsafe fn interrupt_handler() {
         "beq 3f", // MEANING: if there are "no interrupts" to be serviced, it's gotta be the aux ones!
 
             // Get the bit index for the "highest priority" IRQ
-            // Manually counting zeroes
+            // Manually counting zeroes, as there is no instruction to do so on armv4
             "mov r0, #0",
             "cmp r1, #0x10000",
             "movcs r1, r1, lsr #16",

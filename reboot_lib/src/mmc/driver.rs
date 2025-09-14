@@ -7,10 +7,10 @@ use super::{ClockCnt, Command, Status, TMIOPort, MMC_CONTROLLER};
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum DeviceType {
-    EMMC,
-    HCEMMC,
-    SDSC,
-    SDHC,
+    EMMC = 0,
+    HCEMMC = 1,
+    SDSC = 2,
+    SDHC = 3,
 }
 
 bitflags::bitflags! {
@@ -191,10 +191,12 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
                 Status::EMPTY => (),
                 err => return Err(err),
             }
+            /* 
             match send_app_command(&mut dev.port, Command::AppSetBusWidth, 2, rca) {
                 Status::EMPTY => (),
                 err => return Err(err),
             }
+            */
             match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, rca) {
                 Status::EMPTY => (),
                 err => return Err(err),

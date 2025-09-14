@@ -6,40 +6,45 @@ pub unsafe fn boot_arm9() -> ! {
 
     READY_FLAG_1.write_volatile(0);
     while READY_FLAG_2.read_volatile() != 0 {}
-    READY_FLAG_3.write_volatile(0);
-
     let mbks = core::ptr::addr_of!((*HEADER_MEM).global_mbks) as *const u32;
     for i in 0..8 {
         let value = r(mbks.add(i));
-        w((0x4004040 as *mut u32).add(i), value);
+        w((0x4004040 as *mut u32).add(i), 0);
     }
+
+    READY_FLAG_3.write_volatile(0);
+    
+
+    
     while READY_FLAG_0.read_volatile() != READY_VALUE {}
-    #[allow(unused)]
-    let entry = (*HEADER_MEM).arm9_entry;
 
     #[cfg(target_arch = "arm")]
-    core::arch::asm!("bx r0",in("r0") entry,  in("r1") 0, in("r2") 0, in("r3") 0,);
+    {
+        let entry = (*HEADER_MEM).arm9_entry;
+        core::arch::asm!("mov r11, r11","bx r0", in("r0") entry);
+    }  
     loop {}
 }
 #[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
-
+    //(0x4004060 as *mut u32).write_volatile(0xFFFF0F);
     READY_FLAG_2.write_volatile(0);
     while READY_FLAG_3.read_volatile() != 0 {}
+    
     let mbks = core::ptr::addr_of!((*HEADER_MEM).arm7_mbks) as *const u32;
     for i in 0..4 {
         let value = r(mbks.add(i));
-        w((0x40040454 as *mut u32).add(i), value);
+        w((0x4004054 as *mut u32).add(i), 0);
     }
+    
     while VCOUNT_REG.read_volatile() != 192 {}
     READY_FLAG_0.write_volatile(READY_VALUE);
-
-    #[allow(unused)]
-    let entry = (*HEADER_MEM).arm7_entry;
-
     #[cfg(target_arch = "arm")]
-    core::arch::asm!("bx r0",in("r0") entry, in("r1") 0, in("r2") 0, in("r3") 0,);
+    {
+        let entry = (*HEADER_MEM).arm7_entry;
+        core::arch::asm!("mov r11, r11","bx r0", in("r0") entry);
+    }
     loop {}
 }
 const HEADER_MEM: *const HeaderNDS = 0x2FFC000 as *const HeaderNDS;
@@ -53,6 +58,7 @@ pub const READY_FLAG_2: *mut u8 = (0x2FFD008 + 2) as *mut u8;
 pub const READY_FLAG_3: *mut u8 = (0x2FFD008 + 3) as *mut u8;
 const READY_VALUE: u8 = 0;
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
+
 #[repr(C)]
 struct HeaderNDS {
     title: [u8; 12],
@@ -166,4 +172,27 @@ struct HeaderNDS {
     _reserved5: [u8; 2636],
     debug: [u8; 0x180],
     rsa_signature: [u8; 0x80],
+}
+
+
+
+//DKA bootstub struct
+const BOOTSTUB_MAGIC: u64 = 0x62757473746F6F62; // "bootstub"
+const BOOTSTUB_LOCATION: *mut BootStub = 0x2FF4000 as *mut BootStub;
+#[repr(C)]
+pub struct BootStub {
+    pub magic: u64,
+    pub arm9_entry: *const (),
+    pub arm7_entry: *const (),
+    pub loader_size: u32,
+}
+
+//DKA argv struct
+const ARGV_MAGIC: u32 = 0x5F617267; // "_arg"
+const ARGV_LOCATION: *mut ArgV = 0x2FFFE70 as *mut ArgV;
+#[repr(C)]
+pub struct ArgV {
+    pub magic: u32,
+    pub cmdline: *mut core::ffi::c_char,
+    pub cmdline_size: u32,
 }
