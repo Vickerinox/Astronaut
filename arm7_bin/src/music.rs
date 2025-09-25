@@ -1,5 +1,6 @@
 use core::ops::{Add, Sub};
 
+use common::bootstrap::BootStub;
 use reboot_lib::ndma::Channel;
 use reboot_lib::sound::{timer_from_freq, RepeatMode, SoundControl, SoundFormat, SOUND_HARDWARE};
 
@@ -605,4 +606,83 @@ pub fn music_routine() {
 
         FRAME_COUNTER += 1;
     };
+}
+
+#[repr(C)]
+pub struct ImpulseHeader {
+    sign: [u8; 4],
+    name: [u8; 26],
+    highlight: u16,
+    order_len: u16,
+    instrument_len: u16,
+    sample_len: u16,
+    pattern_len: u16,
+    tracker_version_cwt: u16,
+    format_version_cmwt: u16,
+    flags: u16,
+    special: u16,
+    gv: u8,
+    mv: u8,
+    is: u8,
+    it: u8,
+    sp: u8,
+    pwd: u8,
+    msg_len: u16,
+    msg_off: u32,
+    reserved: u32,
+    pannings: [u8; 64],
+    volumes: [u8; 64],
+    orders: *mut [u8],
+    instruments: *mut ImpulseInstrument,
+    samples: *mut ImpulseSample,
+    patterns: *mut ImpulsePattern,
+}
+
+pub struct ImpulseModule {
+    name: [u8; 26],
+    flags: u16,
+    special: u16,
+    gv: u8,
+    mv: u8,
+    is: u8,
+    it: u8,
+    sp: u8,
+    pwd: u8,
+    pannings: [u8; 64],
+    volumes: [u8; 64],
+    orders: *mut [u8],
+    instruments: *mut [ImpulseInstrument],
+    samples: *mut [ImpulseSample],
+    patterns: *mut [ImpulsePattern],
+}
+
+pub struct ImpulsePattern {
+    rows: u16,
+    data: *mut [u8],
+}
+#[repr(C)]
+pub struct ImpulseSample {
+    signatue: [u8; 4],
+    filename: [u8; 12],
+    _padding: u8,
+    global_volume: u8,
+    flags: u8,
+    default_volume: u8,
+    sample_name: [u8;26],
+    cvt: u8,
+    dfp: u8,
+    length: u32,
+    loop_begin: u32,
+    loop_end: u32,
+    mid_c_speed: u32,
+    susloop_begin: u32,
+    susloop_end: u32,
+    sample_offset: *mut (),
+    vibrato_speed: u8,
+    vibrato_depth: u8,
+    vibrato_rate: u8,
+    vibrato_type: u8,
+}
+pub struct ImpulseInstrument {
+
 }
