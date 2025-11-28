@@ -18,11 +18,9 @@ pub unsafe fn boot_arm9() -> ! {
     
     while READY_FLAG_0.read_volatile() != READY_VALUE {}
 
-    #[cfg(target_arch = "arm")]
-    {
-        let entry = (*HEADER_MEM).arm9_entry;
-        core::arch::asm!("mov r11, r11","bx r0", in("r0") entry);
-    }  
+    (0x4000214 as *mut u32).write_volatile(!0);
+    let entry = (*HEADER_MEM).arm9_entry;
+    (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
 #[inline(always)]
@@ -40,11 +38,10 @@ pub unsafe fn boot_arm7() -> ! {
     
     while VCOUNT_REG.read_volatile() != 192 {}
     READY_FLAG_0.write_volatile(READY_VALUE);
-    #[cfg(target_arch = "arm")]
-    {
-        let entry = (*HEADER_MEM).arm7_entry;
-        core::arch::asm!("mov r11, r11","bx r0", in("r0") entry);
-    }
+    (0x4000214 as *mut u32).write_volatile(!0);
+    (0x400021C as *mut u32).write_volatile(!0);
+    let entry = (*HEADER_MEM).arm7_entry;
+    (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
 const HEADER_MEM: *const HeaderNDS = 0x2FFC000 as *const HeaderNDS;

@@ -20,19 +20,19 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
         core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM9 Binary");
 
-    r.seek(SeekFrom::Start(header.arm7_offset as u64))
-        .expect("Failed to seek to ARM7 Binary");
-    let arm9_ram =
-        core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
-    r.read_exact(arm9_ram).expect("Failed to read ARM7 Binary");
-
-    
     r.seek(SeekFrom::Start(header.arm9i_offset as u64))
         .expect("Failed to seek to ARM9i Binary");
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm9i_load as *mut u8, header.arm9i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM9i Binary");
 
+
+    r.seek(SeekFrom::Start(header.arm7_offset as u64))
+        .expect("Failed to seek to ARM7 Binary");
+    let arm9_ram =
+        core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
+    r.read_exact(arm9_ram).expect("Failed to read ARM7 Binary");
+    
     r.seek(SeekFrom::Start(header.arm7i_offset as u64))
         .expect("Failed to seek to ARM7i Binary");
     let arm9_ram =
