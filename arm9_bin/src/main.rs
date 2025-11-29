@@ -409,9 +409,14 @@ unsafe fn main() {
                         reboot_lib::disable_all_interrupts();
                         flush_mmc();
                         flush_mmc();
+                        const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
+                        while VCOUNT_REG.read_volatile() != 192 {}
+                        while VCOUNT_REG.read_volatile() == 192 {}
                         arm9_send_arm7_jump(0x2FDF000);
-                        #[cfg(target_arch="arm")]
-                        core::arch::asm!("bx r0", in("r0") 0x2FD8000);
+                        (*(0x2FD8000 as *mut unsafe extern "C" fn()))();
+                        
+                        //#[cfg(target_arch="arm")]
+                        //core::arch::asm!("bx r0", in("r0") );
                         loop {}
                     }
                     if let Some(loading_mod) = loading_mod_file.take() {
