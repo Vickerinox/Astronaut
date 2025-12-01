@@ -205,6 +205,10 @@ fn main() {
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
                     
+                    SOUND_HARDWARE.channels[12].start_test_beep();
+                    const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
+                    while VCOUNT_REG.read_volatile() != 192 {}
+                    while VCOUNT_REG.read_volatile() == 192 {}
                     
                     #[cfg(target_arch = "arm")]
                     core::arch::asm!(

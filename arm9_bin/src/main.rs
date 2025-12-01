@@ -8,7 +8,7 @@ const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use core::{alloc::Layout, arch::asm, ptr::addr_of};
-use reboot_lib::{arm9_send_arm7_jump, flush_mmc};
+use reboot_lib::{arm9_send_arm7_jump, flush_mmc, sound::SOUND_HARDWARE};
 use alloc::{
     boxed::Box,
     format,
@@ -413,10 +413,12 @@ unsafe fn main() {
                         while VCOUNT_REG.read_volatile() != 192 {}
                         while VCOUNT_REG.read_volatile() == 192 {}
                         arm9_send_arm7_jump(0x2FDF000);
-                        (*(0x2FD8000 as *mut unsafe extern "C" fn()))();
+                        //(*(0x2FD8000 as *mut unsafe extern "C" fn()))();
+                        while VCOUNT_REG.read_volatile() != 192 {}
+                        while VCOUNT_REG.read_volatile() == 192 {}
                         
-                        //#[cfg(target_arch="arm")]
-                        //core::arch::asm!("bx r0", in("r0") );
+                        #[cfg(target_arch="arm")]
+                        core::arch::asm!("bx r0", in("r0") 0x2FD8000);
                         loop {}
                     }
                     if let Some(loading_mod) = loading_mod_file.take() {

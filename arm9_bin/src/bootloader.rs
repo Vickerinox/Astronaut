@@ -41,14 +41,24 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
 
     
     inject_bootstrap();
+    (common::bootstrap::ARM9_EN as *mut u32).write_volatile(header.arm9_entry);
+    (common::bootstrap::ARM7_EN as *mut u32).write_volatile(header.arm7_entry);
     reboot_lib::flush_mmc();
-    reboot_lib::arm9_send_arm7_jump(common::bootstrap::ARM7_EN as u32);
+    const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
+    while VCOUNT_REG.read_volatile() != 192 {}
+    while VCOUNT_REG.read_volatile() == 192 {}
+    reboot_lib::arm9_send_arm7_jump(*(common::bootstrap::ARM7_EN as *const u32));
     reboot_lib::flush_mmc();
-    
+    while VCOUNT_REG.read_volatile() != 192 {}
+    while VCOUNT_REG.read_volatile() == 192 {}
     #[cfg(target_arch = "arm")]
     core::arch::asm!(
-        "bx r0",
-        in("r0") common::bootstrap::ARM9_EN,
+        "mov r0, 0",
+        "mov r1, 0",
+        "mov r2, 0",
+        "mov r3, 0",
+        "bx r5",
+        in("r5") *(common::bootstrap::ARM9_EN as *const u32),
     );
     loop {}
 
