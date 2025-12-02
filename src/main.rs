@@ -8,7 +8,7 @@ use std::{
 
 use clap::Parser;
 use elf::{endian::AnyEndian, ElfBytes};
-use rfd::FileDialog;
+//use rfd::FileDialog;
 use tracing::{debug, error, info, span, Level};
 
 use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
@@ -180,9 +180,12 @@ impl FixedCompilerArgs {
     }
 }
 fn get_file() -> Option<PathBuf> {
+    /*
     FileDialog::new()
         .set_title("Select TMD to modify...")
         .pick_file()
+     */
+    None
 }
 fn main() {
     tracing_subscriber::fmt()

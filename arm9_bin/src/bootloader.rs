@@ -51,11 +51,7 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
     while VCOUNT_REG.read_volatile() == 192 {}
     reboot_lib::arm9_send_arm7_jump(header.arm7_entry);
     reboot_lib::flush_mmc();
-    #[cfg(target_arch = "arm")]
-    core::arch::asm!(
-        "bx r5",
-        in("r5") common::bootstrap::ARM9_EN,
-    );
+    (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
     
 }

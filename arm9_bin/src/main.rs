@@ -8,7 +8,7 @@ const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use core::{alloc::Layout, arch::asm, ptr::addr_of};
-use reboot_lib::{arm9_send_arm7_jump, flush_mmc, sound::SOUND_HARDWARE};
+use reboot_lib::{VideoHardware, VideoHardwareHandle, arm9_send_arm7_jump, flush_mmc, sound::SOUND_HARDWARE};
 use alloc::{
     boxed::Box,
     format,
@@ -159,53 +159,14 @@ impl reboot_lib::fatfs::Read for StaticReader {
         Ok(buf.len())
     }
 }
-
-unsafe fn main() {
-    unsafe {
-        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
-
-        (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
-
-        //set background color to brat green.
-        core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
-        core::ptr::write_volatile(0x5000002 as *mut u16, 0xFFFF);
-        core::ptr::write_volatile(0x5000004 as *mut u16, 0xFFFF);
-        core::ptr::write_volatile(0x5000006 as *mut u16, 0xFFFF);
-        core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
-
-        core::ptr::write_volatile(0x200_0000 as *mut u32, 0);
-
-        reboot_lib::IPC_FIFO_HARDWARE.enable();
-        reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
-        new_takeover::mysterious_takeover_function();
-
-        core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
-
-        //enable the 2D engine A, with no backgrounds on.
-        core::ptr::write_volatile(
-            0x4000000 as *mut u32,
-            0b00000000000000001_0000_0001_0000_0_000,
-        );
-        core::ptr::write_volatile(
-            0x4001000 as *mut u32,
-            0b00000000000000001_0000_0000_0000_0_000,
-        );
-
-        core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
-
-        //write to "color palette 0"
-        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-
-        //copy font to vram
-        for (i, w) in FONT_FILE.chunks_exact(4).enumerate() {
-            let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
-            core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
-        }
-        let mut video_context = reboot_lib::VideoHardwareHandle::new();
-        //setup 3d hardware
+unsafe fn init_font() {
+    for (i, w) in FONT_FILE.chunks_exact(4).enumerate() {
+        let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
+        core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
+    }
+}
+unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
+//setup 3d hardware
         VIDEO_HARDWARE.power_control.write(VideoPowerControl::all());
         VIDEO_HARDWARE.vram_control_bank_a.write(0x83); //map VRAM BANK A
         VIDEO_HARDWARE.vram_control_bank_e.write(0x83); //map VRAM BANK E
@@ -255,6 +216,51 @@ unsafe fn main() {
                     | PolygonAttributes::POLYGON_ALPHA_SOLID,
             );
         VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
+}
+
+unsafe fn main() {
+    unsafe {
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
+
+        (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
+
+        //set background color to brat green.
+        core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
+        core::ptr::write_volatile(0x5000002 as *mut u16, 0xFFFF);
+        core::ptr::write_volatile(0x5000004 as *mut u16, 0xFFFF);
+        core::ptr::write_volatile(0x5000006 as *mut u16, 0xFFFF);
+        core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
+
+        core::ptr::write_volatile(0x200_0000 as *mut u32, 0);
+
+        reboot_lib::IPC_FIFO_HARDWARE.enable();
+        reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
+        new_takeover::mysterious_takeover_function();
+
+        core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
+
+        //enable the 2D engine A, with no backgrounds on.
+        core::ptr::write_volatile(
+            0x4000000 as *mut u32,
+            0b00000000000000001_0000_0001_0000_0_000,
+        );
+        core::ptr::write_volatile(
+            0x4001000 as *mut u32,
+            0b00000000000000001_0000_0000_0000_0_000,
+        );
+
+        core::ptr::write_volatile(0x04000244 as *mut u8, 0x80); //enable VRAM bank E
+
+        //write to "color palette 0"
+        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
+        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
+
+        //copy font to vram
+        init_font();
+        let mut video_context = reboot_lib::VideoHardwareHandle::new();
+        init_3d_hardware(&mut video_context);
         steal_main_mem();
         const SCREEN_RECT: micro_imgui::Rect = micro_imgui::Rect {
             min: Vec2::ZERO,
