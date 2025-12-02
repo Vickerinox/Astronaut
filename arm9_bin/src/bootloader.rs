@@ -3,6 +3,8 @@ use reboot_lib::fatfs;
 use reboot_lib::fatfs::SeekFrom;
 use reboot_lib::sound::SOUND_HARDWARE;
 
+use crate::BOOTSTRAP_BINARY;
+
 pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::Error> {
     crate::stop_mod_file();
     let (header, _bootloader) = (*BOOTLOADER_MEM).split_at_mut(0x1000);
@@ -41,35 +43,36 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
 
     
     inject_bootstrap();
-    (common::bootstrap::ARM9_EN as *mut u32).write_volatile(header.arm9_entry);
-    (common::bootstrap::ARM7_EN as *mut u32).write_volatile(header.arm7_entry);
+    (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.arm9_entry);
     reboot_lib::flush_mmc();
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
+    reboot_lib::disable_all_interrupts();
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
-    reboot_lib::arm9_send_arm7_jump(*(common::bootstrap::ARM7_EN as *const u32));
+    reboot_lib::arm9_send_arm7_jump(header.arm7_entry);
     reboot_lib::flush_mmc();
-    while VCOUNT_REG.read_volatile() != 192 {}
-    while VCOUNT_REG.read_volatile() == 192 {}
     #[cfg(target_arch = "arm")]
     core::arch::asm!(
-        "mov r0, 0",
-        "mov r1, 0",
-        "mov r2, 0",
-        "mov r3, 0",
         "bx r5",
-        in("r5") *(common::bootstrap::ARM9_EN as *const u32),
+        in("r5") common::bootstrap::ARM9_EN,
     );
     loop {}
-
-    Ok(())
+    
 }
 pub unsafe fn inject_bootstrap() {
-    let bootstrap = core::slice::from_raw_parts_mut(
-        common::bootstrap::BOOTLOADER_MEM,
-        crate::BOOTSTRAP_BINARY.len(),
-    );
-    bootstrap.copy_from_slice(crate::BOOTSTRAP_BINARY);
+    //inject bootstrap into VRAM BANK I
+    core::ptr::write_volatile(0x04000249 as *mut u8, 0x80); //enable VRAM bank I
+    let mut stor: u32 = 0;
+    for (i, byte) in BOOTSTRAP_BINARY.iter().enumerate() {
+        stor |= (*byte as u32) << 24;
+        if i & 3 == 3 {
+            (common::bootstrap::BOOTLOADER_MEM as *mut u32).add(i>>2).write_volatile(stor);
+            stor = 0;
+        } else {
+            stor >>= 8;
+        }
+    }
+    //bootstrap.copy_from_slice(crate::BOOTSTRAP_BINARY);
 }
 
 const BOOTLOADER_MEM: *mut [u8] =

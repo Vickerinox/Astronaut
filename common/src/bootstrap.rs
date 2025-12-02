@@ -1,58 +1,56 @@
-use core::ptr::{read_volatile as r, write_volatile as w};
+use core::ptr::{addr_of, read_volatile as r, write_volatile as w};
 
 #[inline(always)]
 pub unsafe fn boot_arm9() -> ! {
+     
     (0x4000208 as *mut u32).write_volatile(0);
 
-    READY_FLAG_1.write_volatile(0);
-    while READY_FLAG_2.read_volatile() != 0 {}
+    
+    /* 
     let mbks = core::ptr::addr_of!((*HEADER_MEM).global_mbks) as *const u32;
     for i in 0..8 {
         let value = r(mbks.add(i));
-        w((0x4004040 as *mut u32).add(i), 0);
+        w((0x4004040 as *mut u32).add(i), value);
     }
-
-    READY_FLAG_3.write_volatile(0);
-    
-
-    
-    while READY_FLAG_0.read_volatile() != READY_VALUE {}
+    */
 
     (0x4000214 as *mut u32).write_volatile(!0);
-    let entry = (*HEADER_MEM).arm9_entry;
+    
+    while VCOUNT_REG.read_volatile() != 192 {}
+    while VCOUNT_REG.read_volatile() == 192 {}
+
+    let entry = ARM9_JUMP;
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
 #[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
-    //(0x4004060 as *mut u32).write_volatile(0xFFFF0F);
-    READY_FLAG_2.write_volatile(0);
-    while READY_FLAG_3.read_volatile() != 0 {}
-    
+    /* 
     let mbks = core::ptr::addr_of!((*HEADER_MEM).arm7_mbks) as *const u32;
     for i in 0..4 {
         let value = r(mbks.add(i));
-        w((0x4004054 as *mut u32).add(i), 0);
+        w((0x4004054 as *mut u32).add(i), value);
     }
-    
-    while VCOUNT_REG.read_volatile() != 192 {}
-    READY_FLAG_0.write_volatile(READY_VALUE);
+    */
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
-    let entry = (*HEADER_MEM).arm7_entry;
+    while VCOUNT_REG.read_volatile() != 192 {}
+    while VCOUNT_REG.read_volatile() == 192 {}
+
+    let entry = core::ptr::addr_of!((*HEADER_MEM).arm7_entry);
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
 const HEADER_MEM: *const HeaderNDS = 0x2FFC000 as *const HeaderNDS;
-pub const BOOTSTRAP_LOCATION: usize = 0x2FFD000;
+pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
-pub const ARM7_EN: usize = BOOTSTRAP_LOCATION + 4;
-pub const READY_FLAG_0: *mut u8 = (0x2FFD008 + 0) as *mut u8;
-pub const READY_FLAG_1: *mut u8 = (0x2FFD008 + 1) as *mut u8;
-pub const READY_FLAG_2: *mut u8 = (0x2FFD008 + 2) as *mut u8;
-pub const READY_FLAG_3: *mut u8 = (0x2FFD008 + 3) as *mut u8;
+pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
+pub const READY_FLAG_0: *mut u8 = BOOTLOADER_MEM.wrapping_add(8);
+pub const READY_FLAG_1: *mut u8 = BOOTLOADER_MEM.wrapping_add(9);
+pub const READY_FLAG_2: *mut u8 = BOOTLOADER_MEM.wrapping_add(10);
+pub const READY_FLAG_3: *mut u8 = BOOTLOADER_MEM.wrapping_add(11);
 const READY_VALUE: u8 = 0;
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 

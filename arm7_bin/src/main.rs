@@ -6,6 +6,7 @@ mod mmc_new;
 mod swi;
 
 use core::arch::asm;
+use common::bootstrap;
 use reboot_lib::{
     sound::SOUND_HARDWARE,
     spi::{Control, PowerRegiser, Reset, SPI_HARDWARE},
@@ -115,6 +116,7 @@ fn main() {
         (0x400_0004 as *mut u32)
             .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
 
+        (0x4004060 as *mut u32).write_volatile(0);
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
 
@@ -205,18 +207,9 @@ fn main() {
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
                     
-                    SOUND_HARDWARE.channels[12].start_test_beep();
+                    //SOUND_HARDWARE.channels[12].start_test_beep();
                     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
-                    while VCOUNT_REG.read_volatile() != 192 {}
-                    while VCOUNT_REG.read_volatile() == 192 {}
-                    
-                    #[cfg(target_arch = "arm")]
-                    core::arch::asm!(
-                        "mov r11, r11",
-                        "bx r0",
-                        in("r0") arg,
-                    );
-                    loop {}
+                    bootstrap::boot_arm7();
                 }
                 7 => {
                     let Some([arg]) = gather_args() else {
