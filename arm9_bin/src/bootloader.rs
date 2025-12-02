@@ -28,20 +28,18 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
         core::slice::from_raw_parts_mut(header.arm9i_load as *mut u8, header.arm9i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM9i Binary");
 
-
     r.seek(SeekFrom::Start(header.arm7_offset as u64))
         .expect("Failed to seek to ARM7 Binary");
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7 Binary");
-    
+
     r.seek(SeekFrom::Start(header.arm7i_offset as u64))
         .expect("Failed to seek to ARM7i Binary");
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
 
-    
     inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.arm9_entry);
     reboot_lib::flush_mmc();
@@ -53,7 +51,6 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
     reboot_lib::flush_mmc();
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
-    
 }
 pub unsafe fn inject_bootstrap() {
     //inject bootstrap into VRAM BANK I
@@ -62,7 +59,9 @@ pub unsafe fn inject_bootstrap() {
     for (i, byte) in BOOTSTRAP_BINARY.iter().enumerate() {
         stor |= (*byte as u32) << 24;
         if i & 3 == 3 {
-            (common::bootstrap::BOOTLOADER_MEM as *mut u32).add(i>>2).write_volatile(stor);
+            (common::bootstrap::BOOTLOADER_MEM as *mut u32)
+                .add(i >> 2)
+                .write_volatile(stor);
             stor = 0;
         } else {
             stor >>= 8;
@@ -188,4 +187,3 @@ pub struct HeaderNDS {
     debug: [u8; 0x180],
     rsa_signature: [u8; 0x80],
 }
-

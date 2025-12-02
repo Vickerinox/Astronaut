@@ -668,7 +668,7 @@ pub struct ImpulseSample {
     global_volume: u8,
     flags: u8,
     default_volume: u8,
-    sample_name: [u8;26],
+    sample_name: [u8; 26],
     cvt: u8,
     dfp: u8,
     length: u32,
@@ -683,6 +683,4 @@ pub struct ImpulseSample {
     vibrato_rate: u8,
     vibrato_type: u8,
 }
-pub struct ImpulseInstrument {
-
-}
+pub struct ImpulseInstrument {}

@@ -258,7 +258,9 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                     }
                 }
                 //we've gone through all samples!
-                unsafe { crate::flush_mmc(); }
+                unsafe {
+                    crate::flush_mmc();
+                }
                 Ok(Some(header))
             }
         }

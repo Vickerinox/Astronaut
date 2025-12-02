@@ -246,10 +246,7 @@ impl MMC {
         self.param.write(argument);
         self.command.write(command as u16);
 
-        
         while !self.status.read().contains(Status::RESPONSE_END) {}
-        
-        
 
         let value = self.status.read();
         self.status.write(!value | Status::CMD_BUSY);
@@ -267,7 +264,6 @@ impl MMC {
                     .read()
                     .contains(DataControl32::RX_READY)
                 {
-                    
                     //self.status.write(!Status::RX_READY);
                     for (i, word) in AsMut::<[u32]>::as_mut(current_sector)
                         .iter_mut()

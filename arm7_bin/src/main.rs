@@ -5,8 +5,8 @@ mod mmc;
 mod mmc_new;
 mod swi;
 
-use core::arch::asm;
 use common::bootstrap;
+use core::arch::asm;
 use reboot_lib::{
     sound::SOUND_HARDWARE,
     spi::{Control, PowerRegiser, Reset, SPI_HARDWARE},
@@ -139,8 +139,9 @@ fn main() {
             Ok(_) => 1,
             Err(err) => err.bits(),
         };
+        IPC_FIFO_HARDWARE.send_raw_blocking(send);
         let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
-            Ok(_) => send,
+            Ok(_) => 1,
             Err(err) => err.bits(),
         };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
@@ -206,7 +207,7 @@ fn main() {
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
-                    
+
                     //SOUND_HARDWARE.channels[12].start_test_beep();
                     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
                     bootstrap::boot_arm7();

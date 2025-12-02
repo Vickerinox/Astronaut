@@ -191,7 +191,7 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
                 Status::EMPTY => (),
                 err => return Err(err),
             }
-            /* 
+            /*
             match send_app_command(&mut dev.port, Command::AppSetBusWidth, 2, rca) {
                 Status::EMPTY => (),
                 err => return Err(err),

@@ -155,7 +155,7 @@ pub fn compile_bootstrap(
         empty_bin[file_range].copy_from_slice(data);
     }
 
-    /* 
+    /*
     let arm7_file = std::fs::read(elf7_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
     let arm7_parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&arm7_file[..])
         .map_err(|e| CompileError::ElfParseError(e))?;

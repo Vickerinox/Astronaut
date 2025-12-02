@@ -7,18 +7,21 @@ const FONT_FILE: &[u8] = include_bytes!("./font.bin");
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
-use core::{alloc::Layout, arch::asm, ptr::addr_of};
-use reboot_lib::{VideoHardware, VideoHardwareHandle, arm9_send_arm7_jump, flush_mmc, sound::SOUND_HARDWARE};
 use alloc::{
     boxed::Box,
     format,
     string::ToString,
     vec::{self, Vec},
 };
+use core::{alloc::Layout, arch::asm, ptr::addr_of};
 use gui::VideoTextPass;
 use micro_imgui::{
     widgets::{button::Button, label::Label},
-    Sizing, Vec2,
+    Backend, Sizing, Vec2,
+};
+use reboot_lib::{
+    arm9_send_arm7_jump, fatfs::FileSystem, flush_mmc, sound::SOUND_HARDWARE, VideoHardware,
+    VideoHardwareHandle,
 };
 use reboot_lib::{
     fatfs::{Read, Seek, SeekFrom},
@@ -28,6 +31,11 @@ use reboot_lib::{
     spi::firmware::{FirmwareHeader, UserData},
     Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, StorageSector,
     VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
+};
+
+use crate::{
+    gui::{DSMicroGuiBackend, Input},
+    nand::BasicSDMMCCursor,
 };
 
 extern crate alloc;
@@ -166,58 +174,84 @@ unsafe fn init_font() {
     }
 }
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
-//setup 3d hardware
-        VIDEO_HARDWARE.power_control.write(VideoPowerControl::all());
-        VIDEO_HARDWARE.vram_control_bank_a.write(0x83); //map VRAM BANK A
-        VIDEO_HARDWARE.vram_control_bank_e.write(0x83); //map VRAM BANK E
-        VIDEO_HARDWARE.primary_display_control.write(
-            PrimaryDisplayControl::BG_MODE_0
-                | PrimaryDisplayControl::ENABLE_3D
-                | PrimaryDisplayControl::ENABLE_BG_0,
+    //setup 3d hardware
+    VIDEO_HARDWARE.power_control.write(VideoPowerControl::all());
+    VIDEO_HARDWARE.vram_control_bank_a.write(0x83); //map VRAM BANK A
+    VIDEO_HARDWARE.vram_control_bank_e.write(0x83); //map VRAM BANK E
+    VIDEO_HARDWARE.primary_display_control.write(
+        PrimaryDisplayControl::BG_MODE_0
+            | PrimaryDisplayControl::ENABLE_3D
+            | PrimaryDisplayControl::ENABLE_BG_0,
+    );
+    VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
+    video_context.next_frame(); //swap geometry buffers
+
+    //init matricies
+    video_context.init_matricies();
+    VIDEO_HARDWARE
+        .geometry_commands
+        .select_matrix_stack(MatrixMode::POSITION);
+    VIDEO_HARDWARE
+        .geometry_commands
+        .scale_matrix(0x1000, -0x1555, -0x1000);
+    VIDEO_HARDWARE
+        .geometry_commands
+        .scale_matrix(0x2000, 0x2000, 0x2000);
+
+    VIDEO_HARDWARE
+        .geometry_commands
+        .translate_matrix(-0x80 * 0x10, -0x60 * 0x10, 100);
+
+    //more init
+    VIDEO_HARDWARE
+        .geometry_commands
+        .pipeline_set_viewport
+        .write(Viewport::WHOLE_SCREEN_DEFAULT);
+    VIDEO_HARDWARE
+        .geometry_commands
+        .material_texture_attributes
+        .write((7 << 20) | (2 << 26) | (1 << 29)); //bind font texture
+    VIDEO_HARDWARE
+        .geometry_commands
+        .material_color_palette
+        .write(0); //use color palette 0
+    VIDEO_HARDWARE
+        .geometry_commands
+        .material_polygon_attributes
+        .write(
+            PolygonAttributes::RENDER_BACK_SURFACE
+                | PolygonAttributes::RENDER_FRONT_SURFACE
+                | PolygonAttributes::POLYGON_ALPHA_SOLID,
         );
-        VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
-        video_context.next_frame(); //swap geometry buffers
-
-        //init matricies
-        video_context.init_matricies();
-        VIDEO_HARDWARE
-            .geometry_commands
-            .select_matrix_stack(MatrixMode::POSITION);
-        VIDEO_HARDWARE
-            .geometry_commands
-            .scale_matrix(0x1000, -0x1555, -0x1000);
-        VIDEO_HARDWARE
-            .geometry_commands
-            .scale_matrix(0x2000, 0x2000, 0x2000);
-
-        VIDEO_HARDWARE
-            .geometry_commands
-            .translate_matrix(-0x80 * 0x10, -0x60 * 0x10, 100);
-
-        //more init
-        VIDEO_HARDWARE
-            .geometry_commands
-            .pipeline_set_viewport
-            .write(Viewport::WHOLE_SCREEN_DEFAULT);
-        VIDEO_HARDWARE
-            .geometry_commands
-            .material_texture_attributes
-            .write((7 << 20) | (2 << 26) | (1 << 29)); //bind font texture
-        VIDEO_HARDWARE
-            .geometry_commands
-            .material_color_palette
-            .write(0); //use color palette 0
-        VIDEO_HARDWARE
-            .geometry_commands
-            .material_polygon_attributes
-            .write(
-                PolygonAttributes::RENDER_BACK_SURFACE
-                    | PolygonAttributes::RENDER_FRONT_SURFACE
-                    | PolygonAttributes::POLYGON_ALPHA_SOLID,
-            );
-        VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
+    VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
 }
 
+unsafe fn try_mount_sd() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
+    let sd_buffer = core::slice::from_raw_parts_mut(0x2FE8000 as *mut StorageSector, 1);
+    read_sd_card(sd_buffer, 0).ok()?;
+    let mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
+    if !mbr.has_valid_signature() {
+        return None;
+    }
+    let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
+    let sd_buffer =
+        core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 16);
+    nand::mount_sd(twl_lba, 0, sd_buffer).ok()
+}
+unsafe fn try_mount_nand() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
+    let nand_buffer = core::slice::from_raw_parts_mut(0x2FEC000 as *mut StorageSector, 1);
+    read_encrypted_nand(nand_buffer, 0).ok()?;
+    let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
+    if !mbr.has_valid_signature() {
+        return None;
+    }
+    let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
+    read_encrypted_nand(nand_buffer, twl_lba).ok()?;
+    let twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
+    let nand_buffer =
+        core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 16);
+    nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
+}
 unsafe fn main() {
     unsafe {
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
@@ -309,43 +343,12 @@ unsafe fn main() {
             inout(reg) dtcm,
         );
 
-        let nand_buffer = core::slice::from_raw_parts_mut(0x2FE0000 as *mut StorageSector, 1);
-        let sd_buffer = core::slice::from_raw_parts_mut(0x2FE8000 as *mut StorageSector, 1);
-
-        assert_eq!(IPC_FIFO_HARDWARE.recieve_raw_blocking(), 1);
-
-        read_encrypted_nand(nand_buffer, 0).unwrap();
-        read_sd_card(sd_buffer, 0).unwrap();
-        //read_sd_card(sd_buffer, 0).unwrap();
-        //read_sd_card(sd_buffer, 0).unwrap();
-
-        let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
-
-        let sd_mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
+        let check_sd = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
+        let check_nand = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
+        let sd_fs = if check_sd { try_mount_sd() } else { None };
+        let nand_fs = if check_nand { try_mount_nand() } else { None };
 
         video_context.next_frame();
-
-        let nand_fs = if mbr.has_valid_signature() {
-            let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-            read_encrypted_nand(nand_buffer, twl_lba).unwrap();
-            let twl_size =
-                core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
-
-            let nand_buffer =
-                core::slice::from_raw_parts_mut(0x2FE0000 as *mut reboot_lib::StorageSector, 32);
-            nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
-        } else {
-            None
-        };
-
-        let sd_fs = if sd_mbr.has_valid_signature() {
-            let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(sd_mbr.partitions[0].lba));
-            let sd_buffer =
-                core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 32);
-            nand::mount_sd(twl_lba, 0, sd_buffer).ok()
-        } else {
-            None
-        };
 
         ready_arm7();
 
@@ -384,6 +387,7 @@ unsafe fn main() {
 
         video_context.next_frame();
 
+        let mut in_sd = true;
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut selected_sector = 0;
         let mut folders: Vec<_> = if let Some(fs) = &mut working_folder {
@@ -402,8 +406,28 @@ unsafe fn main() {
         };
         micro_imgui::run(backend, (), |f, _| {
             f.central_panel(|ui| {
-                if let Some(working_folder) = &mut working_folder {
+                
+                if in_sd {
                     ui.header("SD Card view:");
+                } else {
+                    ui.header("NAND view:");
+                }
+                let mut new_folder = None;
+                if ui.input_pressed(gui::Input(Buttons::BUTTON_L)) || ui.input_pressed(gui::Input(Buttons::BUTTON_R)) {
+                    if in_sd && nand_fs.is_some() {
+                        if let Some(root) = nand_fs.as_ref() {
+                            new_folder = Some(root.root_dir());
+                            in_sd = false;
+                        }       
+                    } else if !in_sd && sd_fs.is_some() {
+                        if let Some(root) = sd_fs.as_ref() {
+                            new_folder = Some(root.root_dir());
+                            in_sd = true;
+                        } 
+                    }
+                }
+                if let Some(working_folder) = &mut working_folder {
+                    
                     if let Some(loading_mod) = loading_mod_file.take() {
                         let (progress, max) = loading_mod.progress();
                         let progress_bar = progress * 27 / max;
@@ -449,8 +473,16 @@ unsafe fn main() {
                             head.arm7_size
                         ));
                         ui.label("ARMi offsets:");
-                        ui.label(alloc::format!("7i: {:08X} {:08X}", head.arm7i_load, head.arm7i_size));
-                        ui.label(alloc::format!("9i: {:08X} {:08X}", head.arm9i_load, head.arm9i_size));
+                        ui.label(alloc::format!(
+                            "7i: {:08X} {:08X}",
+                            head.arm7i_load,
+                            head.arm7i_size
+                        ));
+                        ui.label(alloc::format!(
+                            "9i: {:08X} {:08X}",
+                            head.arm9i_load,
+                            head.arm9i_size
+                        ));
                         ui.label(" ");
                         ui.label(" ");
                         ui.horizontal(|ui| {
@@ -470,11 +502,13 @@ unsafe fn main() {
                                 }
                             }
                         });
-
                     } else {
-                        let mut new_folder = None;
+                        
                         for item in folders.iter() {
-                            if ui.add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8)))).clicked() {
+                            if ui
+                                .add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8))))
+                                .clicked()
+                            {
                                 if item.1 {
                                     match working_folder.open_dir(&item.0) {
                                         Ok(folder) => new_folder = Some(folder),
@@ -525,22 +559,6 @@ unsafe fn main() {
                                 .collect();
                         }
                     }
-                } else {
-                    ui.horizontal(|ui| {
-                        if ui.button("<").clicked() {
-                            selected_sector -= 1;
-                        }
-                        if ui
-                            .button(alloc::format!("read {selected_sector}"))
-                            .clicked()
-                        {
-                            read_sd_card(sd_buffer, selected_sector).unwrap();
-                        }
-                        if ui.button(">").clicked() {
-                            selected_sector += 1;
-                        }
-                    });
-                    ui.label(alloc::format!("{:?}", &sd_buffer[0].bytes()[0x1BE..]));
                 }
             });
         });

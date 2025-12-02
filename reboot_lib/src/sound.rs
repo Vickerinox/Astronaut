@@ -68,7 +68,8 @@ pub struct SoundChannel {
 impl SoundChannel {
     pub unsafe fn start_test_beep(&self) {
         self.timer.write(timer_from_freq(440));
-        self.control.write(SoundControl::new().with_repeat_mode(RepeatMode::Infinite));
+        self.control
+            .write(SoundControl::new().with_repeat_mode(RepeatMode::Infinite));
     }
 }
 pub const fn timer_from_freq(freq: u32) -> u16 {
