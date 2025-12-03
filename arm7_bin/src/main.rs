@@ -114,6 +114,7 @@ fn main() {
         (0x400_0004 as *mut u32)
             .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
 
+            
         (0x4004060 as *mut u32).write_volatile(0);
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);

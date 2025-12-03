@@ -5,17 +5,21 @@ pub unsafe fn boot_arm9() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
 
-    for (i, mbk) in (*HEADER_MEM).arm9_mbks.iter().enumerate() {
-        w((0x4004054 as *mut u32).add(i), *mbk);
-    }
-    /*
-    for (i, mbk) in (*HEADER_MEM).global_mbks.iter().enumerate() {
-        w((0x4004040 as *mut u32).add(i), *mbk);
-    }
-    */
-    (0x4000214 as *mut u32).write_volatile(!0);
+    
+    w(0x4004054 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
+    w(0x4004058 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
+    w(0x400405C as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
 
+    (0x4000214 as *mut u32).write_volatile(!0);
     while VCOUNT_REG.read_volatile() != 192 {}
+
+    w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
+    //w(0x4004040 as *mut u32, (*HEADER_MEM).global_mbks[0]);
+    w(0x4004044 as *mut u32, (*HEADER_MEM).global_mbks[1]);
+    w(0x4004048 as *mut u32, (*HEADER_MEM).global_mbks[2]);
+    w(0x400404C as *mut u32, (*HEADER_MEM).global_mbks[3]);
+    w(0x4004050 as *mut u32, (*HEADER_MEM).global_mbks[4]);
+    
     while VCOUNT_REG.read_volatile() == 192 {}
 
     let entry = ARM9_JUMP;
@@ -26,11 +30,11 @@ pub unsafe fn boot_arm9() -> ! {
 pub unsafe fn boot_arm7() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
-    //(0x4000218 as *mut u32).write_volatile(0);
+    (0x4000218 as *mut u32).write_volatile(0);
 
-    for (i, mbk) in (*HEADER_MEM).arm7_mbks.iter().enumerate() {
-        w((0x4004054 as *mut u32).add(i), *mbk);
-    }
+    w(0x4004054 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
+    w(0x4004058 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
+    w(0x400405C as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
 
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
@@ -114,7 +118,9 @@ struct HeaderNDS {
     global_mbks: [u32; 5],
     arm9_mbks: [u32; 3],
     arm7_mbks: [u32; 3],
-    mbk9: u32,
+    
+    mbk9: [u8; 3],
+    wram_cnt: u8,
 
     region: u32,
     access_control: u32,

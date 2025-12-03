@@ -1,5 +1,5 @@
 use common::bootstrap;
-use reboot_lib::fatfs;
+use reboot_lib::{VideoHardwareHandle, fatfs};
 use reboot_lib::fatfs::SeekFrom;
 use reboot_lib::sound::SOUND_HARDWARE;
 
@@ -100,6 +100,10 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R, file_path: &str) 
     reboot_lib::disable_all_interrupts();
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
+    core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
+    core::ptr::write_volatile(0x5000000 as *mut u16, 0b0100001000010000);
+    core::ptr::write_volatile(0x5000400 as *mut u16, 0b0100001000010000);
+    
     reboot_lib::arm9_send_arm7_jump(header.arm7_entry);
     reboot_lib::flush_mmc();
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();

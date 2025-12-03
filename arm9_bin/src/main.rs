@@ -52,6 +52,7 @@ pub unsafe fn nocash_write(str: &str) {
         NOCASH_OUT_CHR.write_volatile(*byte);
     }
 }
+
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 unsafe fn interrupt_handler() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
@@ -252,6 +253,11 @@ unsafe fn try_mount_nand() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
         core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 16);
     nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
 }
+
+pub struct RebootState {
+    current_path: String,
+    
+}
 unsafe fn main() {
     unsafe {
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
@@ -326,15 +332,6 @@ unsafe fn main() {
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
-
-        VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
-            text_pass.set_color(0x7FFF);
-            text_pass.layout_str(
-                "If you can read this message, the console has crashed and is stuck.",
-                8,
-            );
-        });
-        video_context.next_frame();
 
         let mut dtcm: u32 = 0x2FE_000A;
 
