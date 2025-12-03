@@ -26,7 +26,7 @@ pub unsafe fn boot_arm9() -> ! {
 pub unsafe fn boot_arm7() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
-    (0x4000218 as *mut u32).write_volatile(0);
+    //(0x4000218 as *mut u32).write_volatile(0);
 
     for (i, mbk) in (*HEADER_MEM).arm7_mbks.iter().enumerate() {
         w((0x4004054 as *mut u32).add(i), *mbk);

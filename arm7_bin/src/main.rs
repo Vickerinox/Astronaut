@@ -8,9 +8,7 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
-    sound::SOUND_HARDWARE,
-    spi::{Control, PowerRegiser, Reset, SPI_HARDWARE},
-    swi_delay, Status, IPC_FIFO_HARDWARE, MMC_CONTROLLER,
+    IPC_FIFO_HARDWARE, MMC_CONTROLLER, Status, i2c::I2CRegister, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser, Reset, SPI_HARDWARE}, swi_delay
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -208,6 +206,7 @@ fn main() {
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
 
+                    reboot_lib::i2c::I2C_HARDWARE.write_register(I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR), 0);
                     //SOUND_HARDWARE.channels[12].start_test_beep();
                     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
                     bootstrap::boot_arm7();
