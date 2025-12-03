@@ -5,7 +5,57 @@ use reboot_lib::sound::SOUND_HARDWARE;
 
 use crate::BOOTSTRAP_BINARY;
 
-pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::Error> {
+const ARGV_MAGIC: i32 = 0x5f617267;
+const SYSTEM_ARGV: *mut ArgvStructutre = 0x02FFFE70 as _;
+#[repr(C)]
+struct ArgvStructutre {
+    magic: i32,
+    command_line: *mut u8,
+    command_length: i32,
+    argc: i32,
+    argv: *mut *mut u8,
+    dummy: i32,
+    host: u32,
+}
+unsafe fn inject_argv(header: &HeaderNDS, file_path: &str) {
+    //find argv location
+    let ntr_arg_destination = (header.arm9_load + header.arm9_size + 7) & !3;
+    let arg_destination = if header.is_dsi_mode() {
+        let twl_arg_destination = (header.arm9i_load + header.arm9i_size + 7) & !3;
+        ntr_arg_destination.max(twl_arg_destination)
+    } else {
+        ntr_arg_destination
+    };
+
+    //declare the final argv
+    let argv = arg_destination as *mut u8;
+    let mut argv_size: usize = 0;
+    
+    //insert rom path
+    {
+        for byte in file_path.as_bytes() {
+            argv.add(argv_size).write_volatile(*byte);
+            argv_size += 1;
+        }
+        argv.add(argv_size).write_volatile(0);
+        argv_size += 1;
+    }
+
+    //"initialize" final structure
+    let final_argv_structure = ArgvStructutre {
+        magic: ARGV_MAGIC,
+        command_line: argv,
+        command_length: argv_size as i32,
+        argc: 0,
+        argv: core::ptr::null_mut(),
+        dummy: 0,
+        host: 0,
+    };
+    //Copy to it's final location
+    SYSTEM_ARGV.write_volatile(final_argv_structure);
+}
+
+pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R, file_path: &str) -> Result<(), R::Error> {
     crate::stop_mod_file();
     let (header, _bootloader) = (*BOOTLOADER_MEM).split_at_mut(0x1000);
     bootstrap::READY_FLAG_0.write_volatile(0xFF);
@@ -40,6 +90,9 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R) -> Result<(), R::
         core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
     r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
 
+    if header.is_homebrew() {
+        inject_argv(header, file_path);
+    }
     inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.arm9_entry);
     reboot_lib::flush_mmc();
@@ -77,8 +130,8 @@ const BOOTLOADER_MEM: *mut [u8] =
 pub struct HeaderNDS {
     pub title: [u8; 12],
     pub tid: u32,
-    pub developer: u16,
-    pub unit: u8,
+    pub maker_code: u16,
+    pub unit_code: u8,
     pub encryption_seed: u8,
     pub device_capacity: u8,
     _reserved: [u8; 7],
@@ -169,7 +222,7 @@ pub struct HeaderNDS {
     modcrypt1_len: u32,
     modcrypt2_offset: u32,
     modcrypt2_len: u32,
-    title_id: [u8; 8],
+    title_id: u64,
     public_save_size: u32,
     private_save_size: u32,
     _reserved3: [u8; 176],
@@ -186,4 +239,15 @@ pub struct HeaderNDS {
     _reserved5: [u8; 2636],
     debug: [u8; 0x180],
     rsa_signature: [u8; 0x80],
+}
+impl HeaderNDS {
+    pub fn is_dsi_mode(&self) -> bool {
+        self.unit_code & 2 > 0
+    }
+    pub fn is_dsiware(&self) -> bool {
+        self.is_dsi_mode() && ((self.title_id >> 32) & 0xFF) != 0
+    }
+    pub fn is_homebrew(&self) -> bool {
+        self.maker_code == 0 || self.arm9_autoload == 0 || self.arm7_load >= 0x03000000 
+    }
 }

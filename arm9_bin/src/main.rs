@@ -10,7 +10,7 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 use alloc::{
     boxed::Box,
     format,
-    string::ToString,
+    string::{String, ToString},
     vec::{self, Vec},
 };
 use core::{alloc::Layout, arch::asm, ptr::addr_of};
@@ -300,6 +300,7 @@ unsafe fn main() {
             min: Vec2::ZERO,
             max: Vec2::new(255, 191),
         };
+        
 
         gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
@@ -353,8 +354,8 @@ unsafe fn main() {
         ready_arm7();
 
         let mut loading_mod_file = None;
-
-        let mut working_folder = if let Some(folder) = sd_fs.as_ref() {
+        
+        let (mut working_folder, mut current_path) = if let Some(folder) = sd_fs.as_ref() {
             let root = folder.root_dir();
 
             match root.open_file("/_nds/vlaunch/default.mod") {
@@ -367,10 +368,10 @@ unsafe fn main() {
                 }
             }
 
-            Some(root)
+            (Some(root), String::from("sd:/"))
         } else {
             start_procedural_music();
-            None
+            (None, String::new())
         };
         let mut booting_app: Option<(
             reboot_lib::fatfs::File<
@@ -417,11 +418,13 @@ unsafe fn main() {
                     if in_sd && nand_fs.is_some() {
                         if let Some(root) = nand_fs.as_ref() {
                             new_folder = Some(root.root_dir());
+                            current_path = String::from("nand:/");
                             in_sd = false;
                         }       
                     } else if !in_sd && sd_fs.is_some() {
                         if let Some(root) = sd_fs.as_ref() {
                             new_folder = Some(root.root_dir());
+                            current_path = String::from("sd:/");
                             in_sd = true;
                         } 
                     }
@@ -444,7 +447,7 @@ unsafe fn main() {
                             Err(cont) => loading_mod_file = Some(cont),
                         }
                     } else {
-                        ui.label(" ");
+                        ui.label(&current_path);
                     }
 
                     if let Some((mut file, mut header)) = booting_app.take() {
@@ -487,15 +490,18 @@ unsafe fn main() {
                         ui.label(" ");
                         ui.horizontal(|ui| {
                             if ui.button("Launch!!").clicked() {
+                                
                                 match file.seek(SeekFrom::Start(0)) {
                                     Ok(0) => {
-                                        bootloader::boot_app(file);
+                                        bootloader::boot_app(file, &current_path);
                                     }
                                     Ok(_what) => (),
                                     Err(_error) => (),
                                 }
                             } else {
                                 if ui.button("Go back").clicked() {
+                                    while current_path.pop() != Some('/') {}
+                                    current_path.push('/');
                                     booting_app = None;
                                 } else {
                                     booting_app = Some((file, header));
@@ -511,7 +517,19 @@ unsafe fn main() {
                             {
                                 if item.1 {
                                     match working_folder.open_dir(&item.0) {
-                                        Ok(folder) => new_folder = Some(folder),
+                                        Ok(folder) => {
+                                            if &item.0 == "." {}
+                                            else if &item.0 == ".." {
+                                                current_path.pop();
+                                                while current_path.pop() != Some('/') {}
+                                                current_path.push('/');
+                                            }
+                                            else {
+                                                current_path.push_str(&item.0);
+                                                current_path.push('/');
+                                            }
+                                            new_folder = Some(folder)
+                                        },
                                         Err(_) => (),
                                     }
                                 } else {
@@ -520,6 +538,7 @@ unsafe fn main() {
                                         if is_bootable(item.0.as_bytes()) {
                                             match working_folder.open_file(&item.0) {
                                                 Ok(mut file) => {
+                                                    current_path.push_str(&item.0);
                                                     let mut header_buffer = alloc::vec![0u8; 4096];
                                                     file.read(&mut header_buffer);
                                                     booting_app = Some((file, header_buffer));
