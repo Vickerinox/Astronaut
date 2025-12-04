@@ -9,15 +9,16 @@ use crate::{
 pub struct Button<'a> {
     text: &'a str,
     size: Sizing,
+    text_color: Color,
 }
 impl<'a> Button<'a> {
-    pub fn new(text: &'a str, size: Sizing) -> Self {
-        Self { text, size }
+    pub fn new(text: &'a str, size: Sizing, text_color: Color) -> Self {
+        Self { text, size, text_color }
     }
 }
 impl<'t> AutoAdd for Button<'t> {
     fn ui<'a, 'b, B: Backend>(self, ui: &mut Ui<'a, 'b, B>) -> Response {
-        let Self { text, size } = self;
+        let Self { text, size, text_color } = self;
         let prep_size = match size {
             Sizing::Automatic => Vec2::new(0, 8),
             Sizing::Cropped(vec2) => vec2.max(Vec2::new(0, 8)),
@@ -32,7 +33,7 @@ impl<'t> AutoAdd for Button<'t> {
         let rect = ui.draw(Shape::Text {
             bounds,
             str: &text,
-            color: Color::new(200, 200, 200),
+            color: text_color,
             outline: Color::new(0, 0, 0),
             size: 8,
         });

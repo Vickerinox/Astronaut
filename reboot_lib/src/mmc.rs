@@ -1,4 +1,4 @@
-use core::ops::{BitAndAssign, BitOrAssign, Not};
+use core::{num::NonZeroUsize, ops::{BitAndAssign, BitOrAssign, Not}};
 
 use crate::MemoryWrapper;
 use volatile_register::*;
@@ -189,6 +189,8 @@ impl MMC {
         //disable SDIO
         self.sdio_mode.write(0);
         self.sdio_mask.write(0xFFFF);
+        //crate::enable_interrupt(crate::ARM7Interrupt::SDMMC);
+        //crate::enable_interrupt(crate::ARM7Interrupt::SDMMCData1);
         //self.ext_sdio_irq.write((1 << 10) | (1 << 9) | (1 << 8));
     }
     unsafe fn tmio_set_port(&self, port: &TMIOPort) {
@@ -232,7 +234,7 @@ impl MMC {
         self.tmio_set_port(port);
         self.irmask.write(Status::empty());
         self.status.write(Status::empty());
-        self.block_count.write(port.buffer.len() as u16);
+        self.block_count.write(port.buffer_len as u16);
         self.stop_action.write(1 << 8);
 
         self.data_control.write(Control::USE_DATA32);
@@ -254,7 +256,7 @@ impl MMC {
         self.tmio_get_response(port, command as u16);
 
         if command.reads_data() {
-            let mut sector_iter = (&mut *port.buffer).iter_mut();
+            let mut sector_iter = (&mut *core::slice::from_raw_parts_mut(port.buffer, port.buffer_len)).iter_mut();
             let Some(mut current_sector) = sector_iter.next() else {
                 return Status::from_bits_retain(123456789);
             };
@@ -428,7 +430,8 @@ pub struct TMIOPort {
     pub clock: ClockCnt,
     pub block_len: u16,
     pub option: u16,
-    pub buffer: *mut [crate::StorageSector],
+    pub buffer: *mut crate::StorageSector,
+    pub buffer_len: usize,
     pub response: [u32; 4],
 }
 impl TMIOPort {
@@ -438,7 +441,8 @@ impl TMIOPort {
             clock: ClockCnt::FREQ_262K,
             block_len: 512,
             option: (1 << 15) | (1 << 14) | ((11 << 4) | 8),
-            buffer: unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
+            buffer: core::ptr::null_mut(),
+            buffer_len: 0,
             response: [0; 4],
         }
     }
@@ -450,7 +454,8 @@ impl Default for TMIOPort {
             clock: ClockCnt::empty(),
             block_len: Default::default(),
             option: Default::default(),
-            buffer: unsafe { core::slice::from_raw_parts_mut(core::ptr::null_mut(), 0) },
+            buffer: core::ptr::null_mut(),
+            buffer_len: 0,
             response: Default::default(),
         }
     }

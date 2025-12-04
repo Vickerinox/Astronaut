@@ -103,7 +103,6 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
     for data in data_out.into_iter().copied() {
         IPC_FIFO_HARDWARE.send_raw_blocking(data);
     }
-
     let value = IPC_FIFO_HARDWARE.recieve_raw_blocking();
     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
     match NonZeroU32::new(value) {

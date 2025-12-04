@@ -16,12 +16,10 @@ use alloc::{
 use core::{alloc::Layout, arch::asm, ptr::addr_of};
 use gui::VideoTextPass;
 use micro_imgui::{
-    widgets::{button::Button, label::Label},
-    Backend, Sizing, Vec2,
+    Backend, Color, Sizing, Vec2, widgets::{button::Button, label::Label}
 };
 use reboot_lib::{
-    arm9_send_arm7_jump, fatfs::FileSystem, flush_mmc, sound::SOUND_HARDWARE, VideoHardware,
-    VideoHardwareHandle,
+    VideoHardware, VideoHardwareHandle, arm9_send_arm7_jump, fatfs::{TimeProvider, Dir, FileSystem, LossyOemCpConverter}, flush_mmc, sound::SOUND_HARDWARE
 };
 use reboot_lib::{
     fatfs::{Read, Seek, SeekFrom},
@@ -37,6 +35,7 @@ use crate::{
     gui::{DSMicroGuiBackend, Input},
     nand::BasicSDMMCCursor,
 };
+use common::bootstrap::HeaderNDS;
 
 extern crate alloc;
 
@@ -57,7 +56,7 @@ pub unsafe fn nocash_write(str: &str) {
 unsafe fn interrupt_handler() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
     core::arch::asm!(
-        // According to libnds, r0-r3, as well as r12 and lr are saved by the BIOS handler.
+        // According to libnds, r0-r3, as well as r12 and lr are saved by the BIOS handler. (2025-12-04: This is true)
         "mov r12, {i_base}",
         "ldr r1, [r12, {i_e}]",
         "ldr r2, [r12, {i_f}]",
@@ -110,7 +109,7 @@ unsafe fn interrupt_handler() {
             //Restore IME
             "str r1, [r12, {ime}]",
         //return
-        "2: mov pc, lr",
+        "2:",
 
         i_base = const 0x0400_0000, //register base
         i_e = const 0x210,  //interrupt enable register
@@ -258,6 +257,31 @@ pub struct RebootState {
     current_path: String,
     
 }
+fn populate_fs_vec<T: TimeProvider>(folder: &Dir<'_, BasicSDMMCCursor<'static>, T, LossyOemCpConverter>) -> Vec<(String, bool, Color)> {
+let mut vec: Vec<_> = folder.iter()
+                .filter_map(|folder| {
+                    let item = folder.ok()?;
+                    let name = alloc::string::String::from(alloc::str::from_utf8(item.short_file_name_as_bytes()).ok()?);
+                    if name == "." {
+                        return None;
+                    }
+                    let color = if item.is_dir() {
+                        Color::new(200, 100, 100)
+                    } else {
+                        if is_bootable(item.short_file_name_as_bytes()) {
+                            Color::new(100, 200, 100)
+                        } else if is_music_module(item.short_file_name_as_bytes()){
+                            Color::new(100, 100, 200)
+                        } else {
+                            Color::new(180, 180, 180)
+                        }
+                    };
+                    Some((name, item.is_dir(), color))
+                })
+                .collect();
+vec.sort_by(|(_, b,c), (_,d,e)| core::cmp::Ord::cmp(&c.0, &e.0));
+    vec
+}
 unsafe fn main() {
     unsafe {
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
@@ -322,17 +346,17 @@ unsafe fn main() {
                 8,
             );
         });
+        
         video_context.next_frame();
+        
+
+    
 
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
-
-        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
-        irq_init();
-        core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
-
+        
         let mut dtcm: u32 = 0x2FE_000A;
 
         core::arch::asm!(
@@ -340,6 +364,16 @@ unsafe fn main() {
             "mrc p15, 0, {0}, c9, c1, 0",
             inout(reg) dtcm,
         );
+        
+        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
+        irq_init();
+        
+        IPC_FIFO_HARDWARE.enable_recv_irq();
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
+        //reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+        core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
+        //loop {}
+
 
         let check_sd = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
         let check_nand = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
@@ -349,7 +383,7 @@ unsafe fn main() {
         video_context.next_frame();
 
         ready_arm7();
-
+        
         let mut loading_mod_file = None;
         
         let (mut working_folder, mut current_path) = if let Some(folder) = sd_fs.as_ref() {
@@ -387,18 +421,8 @@ unsafe fn main() {
 
         let mut in_sd = true;
         let backend = gui::DSMicroGuiBackend::new(video_context);
-        let mut selected_sector = 0;
         let mut folders: Vec<_> = if let Some(fs) = &mut working_folder {
-            fs.iter()
-                .filter_map(|folder| match folder {
-                    Ok(item) => match alloc::str::from_utf8(item.short_file_name_as_bytes()) {
-                        Ok(a) => Some((alloc::string::String::from(a), item.is_dir())),
-                        Err(err) => Some((alloc::format!("{err:?}"), false)),
-                    },
-
-                    Err(_what) => Some(("BIG BOY ERROR".into(), false)),
-                })
-                .collect()
+            populate_fs_vec(&fs)
         } else {
             alloc::vec![]
         };
@@ -412,6 +436,7 @@ unsafe fn main() {
                 }
                 let mut new_folder = None;
                 if ui.input_pressed(gui::Input(Buttons::BUTTON_L)) || ui.input_pressed(gui::Input(Buttons::BUTTON_R)) {
+                    
                     if in_sd && nand_fs.is_some() {
                         if let Some(root) = nand_fs.as_ref() {
                             new_folder = Some(root.root_dir());
@@ -449,7 +474,7 @@ unsafe fn main() {
 
                     if let Some((mut file, mut header)) = booting_app.take() {
                         let head = &mut *(&mut header[..] as *mut [u8] as *mut u8
-                            as *mut bootloader::HeaderNDS);
+                            as *mut HeaderNDS);
                         ui.label("                 Title info:");
                         ui.label(alloc::format!(
                             "      Name: {} TID: {:08X}",
@@ -484,6 +509,14 @@ unsafe fn main() {
                             head.arm9i_size
                         ));
                         ui.label(" ");
+                        
+                        ui.label(alloc::format!(
+                            "mbk: {:08X} {:08X} {:08X} {:08X} {:08X} | {:08X} {:08X} {:08X} | {:08X} {:08X} {:08X} ",
+                            head.global_mbks[0], head.global_mbks[1], head.global_mbks[2],
+                            head.global_mbks[3], head.global_mbks[4],
+                            head.arm9_mbks[0], head.arm9_mbks[1], head.arm9_mbks[2],
+                            head.arm7_mbks[0], head.arm7_mbks[1], head.arm7_mbks[2],
+                        ));
                         ui.label(" ");
                         ui.horizontal(|ui| {
                             if ui.button("Launch!!").clicked() {
@@ -509,7 +542,7 @@ unsafe fn main() {
                         
                         for item in folders.iter() {
                             if ui
-                                .add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8))))
+                                .add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8)), item.2))
                                 .clicked()
                             {
                                 if item.1 {
@@ -558,21 +591,8 @@ unsafe fn main() {
                         }
 
                         if let Some(new_folder) = new_folder {
+                            folders = populate_fs_vec(&new_folder);
                             *working_folder = new_folder;
-
-                            folders = working_folder
-                                .iter()
-                                .filter_map(|folder| match folder {
-                                    Ok(item) => {
-                                        alloc::str::from_utf8(item.short_file_name_as_bytes())
-                                            .ok()
-                                            .map(|a| {
-                                                (alloc::string::String::from(a), item.is_dir())
-                                            })
-                                    }
-                                    Err(_) => None,
-                                })
-                                .collect();
                         }
                     }
                 }
@@ -673,6 +693,7 @@ fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> 
 }
 pub fn read_controller() -> Buttons {
     unsafe { reboot_lib::arm9_send_controller_read() }
+    
 }
 fn read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
     unsafe {
@@ -701,7 +722,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
                 "Panic occured, Under normal circumstances this should not happen.",
                 8,
             );
-
+            /* 
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
@@ -710,6 +731,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             if let Some(loc) = info.location() {
                 text_pass.layout_str(&alloc::format!("location: {}", loc), 8);
             }
+            */
         });
         video_context.next_frame();
     }

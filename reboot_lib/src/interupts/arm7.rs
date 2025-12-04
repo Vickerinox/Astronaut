@@ -1,8 +1,8 @@
 /// A interrupt handler appropriate for the ds, courtesy of libnds
-unsafe fn interrupt_handler() {
+unsafe fn interrupt_handler_arm7() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
     core::arch::asm!(
-        // According to libnds, r0-r3, as well as r12 and lr are saved by the BIOS handler.
+        // r0-r3, as well as r12 and lr (r14) are saved by the original BIOS IRQ handler (Viewable at 0x0000006C).
         "mov r12, {i_base}",
         "ldr r1, [r12, {i_e}]",
         "ldr r2, [r12, {i_f}]",
@@ -115,7 +115,7 @@ unsafe fn interrupt_handler() {
             "str r1, [r12, {ime}]",
 
         //return
-        "2: mov pc, lr",
+        "2:",
 
         i_base = const 0x0400_0000, //register base
         i_e = const 0x210,  //interrupt enable register
@@ -141,7 +141,7 @@ pub unsafe fn init_interrupts() {
     INTERUPT_HARDWARE.request.write(!0);
     INTERUPT_HARDWARE.enable2.write(0);
     INTERUPT_HARDWARE.request2.write(!0);
-    (0x0380_FFFC as *mut unsafe fn()).write(interrupt_handler);
+    (0x0380_FFFC as *mut unsafe fn()).write(interrupt_handler_arm7);
     INTERUPT_HARDWARE.master.write(1);
 }
 

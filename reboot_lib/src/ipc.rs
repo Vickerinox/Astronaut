@@ -8,9 +8,9 @@ const IPC_FIFO_RECIEVE: MemoryWrapper<RO<u32>> = MemoryWrapper(0x4100000 as *mut
 
 #[repr(C)]
 pub struct IPCFifoHardware {
-    sync: RW<IPCSYNC>,
-    control: RW<IPCCNT>,
-    send: WO<u32>,
+    pub sync: RW<IPCSYNC>,
+    pub control: RW<IPCCNT>,
+    pub send: WO<u32>,
 }
 #[derive(Debug)]
 pub enum SendFifoError {
@@ -37,6 +37,9 @@ impl IPCFifoHardware {
     pub unsafe fn read_status(&self) -> u8 {
         (self.sync.read().bits() as u8) & 0xF
     }
+    pub unsafe fn enable_recv_irq(&self) {
+        self.control.modify(|i| i | IPCCNT::ENABLE_RECV_FIFO_IRQ | IPCCNT::ENABLE_SEND_FIFO_IRQ);
+    }
     pub unsafe fn send_value_raw(&self, value: u32) -> Result<(), SendFifoError> {
         let control = self.control.read();
         if control.contains(IPCCNT::SEND_FIFO_FULL) {
@@ -59,7 +62,7 @@ impl IPCFifoHardware {
         Ok(IPC_FIFO_RECIEVE.read())
     }
     pub unsafe fn recieve_raw_blocking(&self) -> u32 {
-        while self.recv_fifo_empty() {}
+        while self.recv_fifo_empty() { crate::swi_halt(); }
         IPC_FIFO_RECIEVE.read()
     }
     pub unsafe fn send_raw_blocking(&self, value: u32) {

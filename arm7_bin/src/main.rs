@@ -118,7 +118,6 @@ fn main() {
         (0x4004060 as *mut u32).write_volatile(0);
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
-
         reboot_lib::init_interrupts();
 
         reboot_lib::load_nand_key_x(0);
@@ -134,6 +133,12 @@ fn main() {
 
         reboot_lib::MMC_CONTROLLER.tmio_init();
 
+        
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+        IPC_FIFO_HARDWARE.enable_recv_irq();
+        
+
         let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
             Ok(_) => 1,
             Err(err) => err.bits(),
@@ -145,16 +150,15 @@ fn main() {
         };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
 
+        
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
             power_button_interrupt as *mut _,
         );
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
-
+        
         loop {
-            while IPC_FIFO_HARDWARE.recv_fifo_empty() {
-                //reboot_lib::swi_halt();
-            }
+            while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
@@ -203,13 +207,11 @@ fn main() {
                         response = 0x8000_0000;
                         continue;
                     };
+                    
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
-
                     reboot_lib::i2c::I2C_HARDWARE.write_register(I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR), 0);
-                    //SOUND_HARDWARE.channels[12].start_test_beep();
-                    const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
                     bootstrap::boot_arm7();
                 }
                 7 => {

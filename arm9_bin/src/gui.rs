@@ -90,7 +90,9 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     }
 
     fn end_frame(&mut self) {
-        unsafe { self.video.next_frame() };
+        unsafe {
+            self.video.next_frame()
+        };
     }
 
     fn draw_shape(&mut self, shape: micro_imgui::Shape, regression: Option<LayerId>) -> Rect {

@@ -306,6 +306,7 @@ impl<R> MODAsyncLoader<R> {
 }
 impl core::default::Default for MODHeader {
     fn default() -> Self {
+        #[allow(invalid_null_arguments)]
         Self {
             song_name: Default::default(),
             sample_info: Default::default(),

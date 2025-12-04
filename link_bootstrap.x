@@ -1,7 +1,7 @@
 /* Imaginary memory layout of the bootstap */
 MEMORY
 {
-  BOOTSTRAP_MEM : ORIGIN = 0, LENGTH = 0x100
+  BOOTSTRAP_MEM : ORIGIN = 0, LENGTH = 0x200
 }
 
 /* The entry point */

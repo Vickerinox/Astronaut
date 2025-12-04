@@ -32,7 +32,6 @@ impl VideoHardwareHandle {
             .geometry_commands
             .pipeline_swap_buffers
             .write(0);
-        //crate::swi::swi_vblank();
     }
     #[inline]
     pub unsafe fn init_matricies(&mut self) {

@@ -4,21 +4,35 @@ use core::ptr::{addr_of, read_volatile as r, write_volatile as w};
 pub unsafe fn boot_arm9() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
-
-    
-    w(0x4004054 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
-    w(0x4004058 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
-    w(0x400405C as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
-
+    let is_twl = (*HEADER_MEM).is_dsi_mode();
+    if is_twl {
+        w(0x4004054 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
+        w(0x4004058 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
+        w(0x400405C as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
+    } else {
+        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
+        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
+        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
+    }
     (0x4000214 as *mut u32).write_volatile(!0);
     while VCOUNT_REG.read_volatile() != 192 {}
+    
+    if is_twl {
+        w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
+        w(0x4004040 as *mut u32, 0x0D090501);
+        w(0x4004044 as *mut u32, (*HEADER_MEM).global_mbks[1]);
+        w(0x4004048 as *mut u32, (*HEADER_MEM).global_mbks[2]);
+        w(0x400404C as *mut u32, (*HEADER_MEM).global_mbks[3]);
+        w(0x4004050 as *mut u32, (*HEADER_MEM).global_mbks[4]);
+    } else {
+        w(0x4000247 as *mut u8, 3);
+        w(0x4004040 as *mut u32, 0);
+        w(0x4004044 as *mut u32, 0);
+        w(0x4004048 as *mut u32, 0);
+        w(0x400404C as *mut u32, 0);
+        w(0x4004050 as *mut u32, 0);
+    }
 
-    w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
-    //w(0x4004040 as *mut u32, (*HEADER_MEM).global_mbks[0]);
-    w(0x4004044 as *mut u32, (*HEADER_MEM).global_mbks[1]);
-    w(0x4004048 as *mut u32, (*HEADER_MEM).global_mbks[2]);
-    w(0x400404C as *mut u32, (*HEADER_MEM).global_mbks[3]);
-    w(0x4004050 as *mut u32, (*HEADER_MEM).global_mbks[4]);
     
     while VCOUNT_REG.read_volatile() == 192 {}
 
@@ -31,10 +45,16 @@ pub unsafe fn boot_arm7() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
     (0x4000218 as *mut u32).write_volatile(0);
+    if (*HEADER_MEM).is_dsi_mode() {
+        w(0x4004054 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
+        w(0x4004058 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
+        w(0x400405C as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
+    } else {
+        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
+        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
+        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[2]);  
+    }
 
-    w(0x4004054 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
-    w(0x4004058 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
-    w(0x400405C as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
 
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
@@ -58,11 +78,11 @@ const READY_VALUE: u8 = 0;
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
 #[repr(C)]
-struct HeaderNDS {
-    title: [u8; 12],
-    tid: u32,
-    developer: u16,
-    unit: u8,
+pub struct HeaderNDS {
+    pub title: [u8; 12],
+    pub tid: u32,
+    maker_code: u16,
+    unit_code: u8,
     encryption_seed: u8,
     device_capacity: u8,
     _reserved: [u8; 7],
@@ -70,15 +90,15 @@ struct HeaderNDS {
     rom_version: u8,
     flags: u8,
 
-    arm9_offset: u32,
-    arm9_entry: u32,
-    arm9_load: u32,
-    arm9_size: u32,
+    pub arm9_offset: u32,
+    pub arm9_entry: u32,
+    pub arm9_load: u32,
+    pub arm9_size: u32,
 
-    arm7_offset: u32,
-    arm7_entry: u32,
-    arm7_load: u32,
-    arm7_size: u32,
+    pub arm7_offset: u32,
+    pub arm7_entry: u32,
+    pub arm7_load: u32,
+    pub arm7_size: u32,
 
     fnt_offset: u32,
     fnt_len: u32,
@@ -115,27 +135,27 @@ struct HeaderNDS {
     header_crc: u16,
 
     debugger: [u8; 32],
-    global_mbks: [u32; 5],
-    arm9_mbks: [u32; 3],
-    arm7_mbks: [u32; 3],
+    pub global_mbks: [u32; 5],
+    pub arm9_mbks: [u32; 3],
+    pub arm7_mbks: [u32; 3],
     
-    mbk9: [u8; 3],
-    wram_cnt: u8,
+    pub mbk9: [u8; 3],
+    pub wram_cnt: u8,
 
     region: u32,
     access_control: u32,
     arm7_scfg: u32,
     dsi_flags: u32,
 
-    arm9i_offset: u32,
+    pub arm9i_offset: u32,
     _reservedi: u32,
-    arm9i_load: u32,
-    arm9i_size: u32,
+    pub arm9i_load: u32,
+    pub arm9i_size: u32,
 
-    arm7i_offset: u32,
+    pub arm7i_offset: u32,
     _reservedi2: u32,
-    arm7i_load: u32,
-    arm7i_size: u32,
+    pub arm7i_load: u32,
+    pub arm7i_size: u32,
 
     digest_ntr_offset: u32,
     digest_ntr_len: u32,
@@ -155,7 +175,7 @@ struct HeaderNDS {
     modcrypt1_len: u32,
     modcrypt2_offset: u32,
     modcrypt2_len: u32,
-    title_id: [u8; 8],
+    title_id: u64,
     public_save_size: u32,
     private_save_size: u32,
     _reserved3: [u8; 176],
@@ -185,12 +205,28 @@ pub struct BootStub {
     pub loader_size: u32,
 }
 
+pub const ARGV_MAGIC: i32 = 0x5f617267;
+pub const SYSTEM_ARGV: *mut ArgvStructutre = 0x02FFFE70 as _;
 //DKA argv struct
-const ARGV_MAGIC: u32 = 0x5F617267; // "_arg"
-const ARGV_LOCATION: *mut ArgV = 0x2FFFE70 as *mut ArgV;
 #[repr(C)]
-pub struct ArgV {
-    pub magic: u32,
-    pub cmdline: *mut core::ffi::c_char,
-    pub cmdline_size: u32,
+pub struct ArgvStructutre {
+    pub magic: i32,
+    pub command_line: *mut u8,
+    pub command_length: i32,
+    pub argc: i32,
+    pub argv: *mut *mut u8,
+    pub dummy: i32,
+    pub host: u32,
+}
+
+impl HeaderNDS {
+    pub fn is_dsi_mode(&self) -> bool {
+        self.unit_code & 2 > 0
+    }
+    pub fn is_dsiware(&self) -> bool {
+        self.is_dsi_mode() && ((self.title_id >> 32) & 0xFF) != 0
+    }
+    pub fn is_homebrew(&self) -> bool {
+        self.maker_code == 0 || self.arm9_autoload == 0 || self.arm7_load >= 0x03000000 
+    }
 }

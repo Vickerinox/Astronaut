@@ -436,7 +436,8 @@ pub unsafe fn read_sectors(
     buf: *mut [crate::StorageSector],
 ) -> Result<(), Status> {
     let device = &mut DEVICES[device as u8 as usize];
-    device.port.buffer = buf;
+    device.port.buffer = buf as *mut _;
+    device.port.buffer_len = buf.len();
 
     let sector = match device.kind {
         None => return Err(Status::all()),
