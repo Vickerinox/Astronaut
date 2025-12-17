@@ -1,5 +1,3 @@
-use alloc::borrow::Cow;
-
 use crate::{
     primitives::Sizing,
     ui::{AutoAdd, Ui},
@@ -39,8 +37,8 @@ impl<'t> AutoAdd for Button<'t> {
         });
         let alloc_size = match size {
             Sizing::Automatic => rect.scale_uniform(2).size(),
-            Sizing::Cropped(vec2) => prep_size.max(rect.scale_uniform(2).size()),
-            Sizing::Padded(vec2) => prep_size.max(rect.scale_uniform(2).size()),
+            Sizing::Cropped(_vec2) => prep_size.max(rect.scale_uniform(2).size()),
+            Sizing::Padded(_vec2) => prep_size.max(rect.scale_uniform(2).size()),
         };
         let resp = ui.allocate_size(alloc_size, Sense::clickable());
 

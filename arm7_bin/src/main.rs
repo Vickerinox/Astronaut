@@ -8,7 +8,7 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
-    IPC_FIFO_HARDWARE, MMC_CONTROLLER, Status, i2c::I2CRegister, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser, Reset, SPI_HARDWARE}, swi_delay
+    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, i2c::I2CRegister, ndma::{NDMA, NDMA_HARDWARE}, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser,}, swi_delay, timers::TIMERS
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -120,7 +120,8 @@ fn main() {
         swi::generate_cid_key(&mut key);
         reboot_lib::init_interrupts();
 
-        reboot_lib::load_nand_key_x(0);
+        let console_id: [u32; 2] = [(0x4004D00 as *const u32).read_volatile(), (0x4004D04 as *const u32).read_volatile()];
+        reboot_lib::load_nand_key_x(0, console_id);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
 
@@ -153,7 +154,7 @@ fn main() {
         
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
-            power_button_interrupt as *mut _,
+            power_button_interrupt,
         );
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
         
@@ -211,6 +212,12 @@ fn main() {
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
+                    AES_HARDWARE.init_from_header(&*(common::bootstrap::BOOTLOADER_MEM as *const common::bootstrap::HeaderTWL), console_id);
+                    TIMERS.clear();
+                    DMA_HARDWARE.reset();
+                    NDMA_HARDWARE.reset();
+                    MMC_CONTROLLER.reset();
+                    SDIO_CONTROLLER.reset();
                     reboot_lib::i2c::I2C_HARDWARE.write_register(I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR), 0);
                     bootstrap::boot_arm7();
                 }
@@ -258,7 +265,9 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     }
     loop {}
 }
-
+pub unsafe fn clear_arm7_regs() {
+    (0x04000004 as *mut u16).write_volatile(0);
+}
 pub unsafe fn firmware_read(data: *mut [reboot_lib::StorageSector], offset: u32) {
     let (ptr, len) = data.to_raw_parts();
     let buffer = core::slice::from_raw_parts_mut(ptr as *mut u8, len << 9);
@@ -286,7 +295,7 @@ pub unsafe fn mmc_read_decrypt(
     let ptr = data as *mut ();
     let len = data.len();
     reboot_lib::AES_HARDWARE.ctr_crypt_block(
-        core::slice::from_raw_parts_mut(ptr as *mut _, (len << 7)),
+        core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
         &key,
     );
     Ok(())

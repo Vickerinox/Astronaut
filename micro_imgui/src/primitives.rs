@@ -1,7 +1,5 @@
 use core::num::NonZeroU16;
 
-use alloc::borrow::Cow;
-
 pub struct LayerId(pub NonZeroU16);
 
 #[derive(Clone, Copy, Hash, PartialEq)]

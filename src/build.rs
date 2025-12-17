@@ -37,7 +37,7 @@ pub fn compile_arm7(
 ) -> Result<(), CompileError> {
     const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x600000C;
     const HEADER_SIZE: usize = 12;
-    const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
+    //const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
     let file = std::fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
     let parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&file[..])
@@ -104,7 +104,6 @@ pub fn compile_arm7(
 
 pub fn compile_bootstrap(
     elf9_file_path: PathBuf,
-    elf7_file_path: PathBuf,
     bootstrap_file_path: PathBuf,
 ) -> Result<(), CompileError> {
     const HEADER_SIZE: usize = 12;

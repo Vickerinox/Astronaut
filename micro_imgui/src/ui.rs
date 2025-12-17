@@ -1,7 +1,6 @@
-use alloc::borrow::Cow;
 
 use crate::{
-    Backend, Color, LayerId, context::{Ctx, Frame}, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::{button::Button, label::Label}
+    Backend, Color, LayerId, context::{Frame}, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::{button::Button, label::Label}
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -143,6 +142,7 @@ pub trait AutoAdd {
 }
 #[derive(Default, Clone, Copy)]
 pub struct Layout(Direction, Align);
+#[allow(unused)]
 #[derive(Default, Clone, Copy)]
 pub enum Direction {
     #[default]
@@ -151,6 +151,7 @@ pub enum Direction {
     BottomUp,
     RightLeft,
 }
+#[allow(unused)]
 #[derive(Default, Clone, Copy)]
 pub enum Align {
     #[default]

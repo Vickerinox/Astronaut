@@ -5,10 +5,29 @@ pub const NDMA_HARDWARE: MemoryWrapper<NDMA> = MemoryWrapper(0x4004100 as *mut N
 #[repr(C)]
 pub struct NDMA {
     global_control: WO<GlobalControl>,
-    channels: [Channel; 4],
+    channels: [NDMAChannel; 4],
+}
+impl NDMA {
+    pub unsafe fn reset(&self) {
+        self.global_control.write(GlobalControl::empty());
+        for channel in &self.channels {
+
+        }
+    }
+}
+impl NDMAChannel {
+    pub unsafe fn reset(&self) {
+        self.src.write(0);
+        self.dst.write(0);
+        self.word_count.write(0);
+        self.block_size.write(0);
+        self.timing.write(0);
+        self.fill_mode.write(0);
+        self.control.write(Control::empty());
+    }
 }
 #[repr(C)]
-pub struct Channel {
+pub struct NDMAChannel {
     src: WO<u32>,
     dst: WO<u32>,
     word_count: WO<u32>,
@@ -136,7 +155,7 @@ impl NDMA {
             fill_mode: f,
             control: c,
         } = settings;
-        let Channel {
+        let NDMAChannel {
             src,
             dst,
             word_count,

@@ -1,5 +1,3 @@
-use reboot_lib::VIDEO_HARDWARE;
-
 use reboot_lib::flush_mmc;
 
 unsafe fn mysterious_function_2() {

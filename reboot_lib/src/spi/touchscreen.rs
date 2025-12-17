@@ -226,12 +226,12 @@ pub unsafe fn cdc_write_mask(reg: impl Into<CdcRegister>, mask: u8, value: u8) {
 pub unsafe fn is_pen_down() -> bool {
     cdc_read_reg(TouchCntReg::Status) & 0x40 == 0 && cdc_read_reg(TouchCntReg::TwlPenDown) & 3 == 0
 }
-static mut curBank: u8 = 0x63;
+static mut CUR_BANK: u8 = 0x63;
 unsafe fn bank_switch_tsc(bank: u8) {
-    if bank != curBank {
-        let write = if curBank == 0xff { 0x7F } else { 0 };
+    if bank != CUR_BANK {
+        let write = if CUR_BANK == 0xff { 0x7F } else { 0 };
         write_tsc(write, bank);
-        curBank = bank;
+        CUR_BANK = bank;
     }
 }
 unsafe fn cdc_read_reg(reg: impl Into<CdcRegister>) -> u8 {

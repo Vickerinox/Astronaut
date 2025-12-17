@@ -48,7 +48,7 @@ impl DualSuperAllocator {
     /// Locks the Allocator, returning a lockguard which allows access to the heap
     ///
     /// This process uses a basic spinlock
-    unsafe fn lock(&self) -> LockGuard {
+    unsafe fn lock<'a>(&'a self) -> LockGuard<'a> {
         crate::critical_function(|| {
             while ptr::replace(self.locked.get(), true) {
                 hint::spin_loop();

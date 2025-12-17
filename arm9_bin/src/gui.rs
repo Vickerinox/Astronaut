@@ -62,7 +62,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     type InputQuery = Input;
 
     fn gather_inputs(&mut self) -> bool {
-        let buttons = unsafe { crate::read_controller() };
+        let buttons = crate::read_controller() ;
         self.input.update(buttons, Vec2::ZERO)
     }
     fn screen_rect(&self) -> Rect {
@@ -113,7 +113,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
             micro_imgui::Shape::Rectangle {
                 area,
                 fill: color,
-                rounding,
+                rounding: _,
                 outline_color,
                 outline_size,
             } => {
@@ -154,7 +154,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 bounds,
                 str,
                 color,
-                outline,
+                outline: _,
                 size,
             } => {
                 let coord = bounds.min;

@@ -1,6 +1,6 @@
 use reboot_lib::{
-    mmc::Command, swi_delay, swi_halt, ClockCnt, Control, DataControl32, Status, INTERUPT_HARDWARE,
-    IPC_FIFO_HARDWARE, MMC, MMC_CONTROLLER,
+    mmc::Command, swi_delay, swi_halt, ClockCnt, Control, DataControl32, Status, 
+ MMC, MMC_CONTROLLER,
 };
 
 pub static mut MMC_DEVICE: Device = Device {
@@ -78,7 +78,7 @@ pub fn read_mmc_sectors(data: *mut [reboot_lib::StorageSector], sector: u32) -> 
     }
 }
 unsafe fn tmio_mmc_init() {
-    reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::SDMMC, tmio_mmc_irq as _);
+    reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::SDMMC, tmio_mmc_irq);
     reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::SDMMC);
 
     let MMC {
@@ -322,7 +322,7 @@ impl Device {
         } else if res.is_empty() {
             DeviceType::SDSC //SDSC
         } else {
-            return Err(Status::UNKNOWN | Status::from_bits_retain((1 << 28)));
+            return Err(Status::UNKNOWN | Status::from_bits_retain(1 << 28));
         };
         let dev_type = if dev_type == DeviceType::MMC {
             let mut tries = 200;
@@ -346,7 +346,7 @@ impl Device {
                 tries -= 1;
             }
             if (ocr & (1 << 20)) == 0 {
-                return Err(Status::UNKNOWN | Status::from_bits_retain((1 << 26)));
+                return Err(Status::UNKNOWN | Status::from_bits_retain(1 << 26));
             }
             if ocr & (2 << 29) > 0 {
                 DeviceType::MMCHC
@@ -376,7 +376,7 @@ impl Device {
                 tries -= 1;
             }
             if (ocr & (1 << 20)) == 0 {
-                return Err(Status::UNKNOWN | Status::from_bits_retain((1 << 26)));
+                return Err(Status::UNKNOWN | Status::from_bits_retain(1 << 26));
             }
             if ocr & (2 << 29) > 0 {
                 DeviceType::SDHC

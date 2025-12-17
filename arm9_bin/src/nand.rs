@@ -3,9 +3,9 @@ use reboot_lib::fatfs;
 use reboot_lib::StorageSector;
 pub unsafe fn mount_twl_main(
     lba: u32,
-    size: u32,
+    _size: u32,
     buffer: &'static mut [reboot_lib::StorageSector],
-) -> Result<fatfs::FileSystem<BasicSDMMCCursor>, fatfs::Error<BasicSDMMCError>> {
+) -> Result<fatfs::FileSystem<BasicSDMMCCursor<'static>>, fatfs::Error<BasicSDMMCError>> {
     /*
     let cursor = SDMMCCursor::new(
         SDMMCAccessor {
@@ -22,9 +22,9 @@ pub unsafe fn mount_twl_main(
 
 pub unsafe fn mount_sd(
     lba: u32,
-    size: u32,
+    _size: u32,
     buffer: &'static mut [reboot_lib::StorageSector],
-) -> Result<fatfs::FileSystem<BasicSDMMCCursor>, fatfs::Error<BasicSDMMCError>> {
+) -> Result<fatfs::FileSystem<BasicSDMMCCursor<'static>>, fatfs::Error<BasicSDMMCError>> {
     /*
     let cursor = SDMMCCursor::new(
         SDMMCAccessor {
@@ -72,7 +72,7 @@ impl SectorAccess<9> for SDMMCAccessor {
         }
     }
 
-    fn write_sector(&mut self, sector: usize, buf: &[reboot_lib::StorageSector]) {}
+    fn write_sector(&mut self, _sector: usize, _buf: &[reboot_lib::StorageSector]) {}
 
     fn size(&mut self) -> usize {
         (self.size << 9) as usize
@@ -87,7 +87,7 @@ impl SectorAccess<10> for SDMMCAccessor {
         }
     }
 
-    fn write_sector(&mut self, sector: usize, buf: &[reboot_lib::StorageSector]) {}
+    fn write_sector(&mut self, _sector: usize, _buf: &[reboot_lib::StorageSector]) {}
 
     fn size(&mut self) -> usize {
         (self.size << 9) as usize
@@ -132,6 +132,7 @@ impl<'a> BasicSDMMCCursor<'a> {
 pub enum BasicSDMMCError {
     UnexpectedEof,
     WriteZero,
+    Unsupported,
 }
 impl fatfs::IoError for BasicSDMMCError {
     fn is_interrupted(&self) -> bool {
@@ -181,7 +182,7 @@ impl<'a> fatfs::Read for BasicSDMMCCursor<'a> {
     }
 }
 impl<'a> fatfs::Write for BasicSDMMCCursor<'a> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+    fn write(&mut self, _buf: &[u8]) -> Result<usize, Self::Error> {
         Ok(0)
     }
 
@@ -193,7 +194,7 @@ impl<'a> fatfs::Seek for BasicSDMMCCursor<'a> {
     fn seek(&mut self, pos: fatfs::SeekFrom) -> Result<u64, Self::Error> {
         match pos {
             fatfs::SeekFrom::Start(index) => self.pos = index,
-            fatfs::SeekFrom::End(index) => todo!(),
+            fatfs::SeekFrom::End(_index) => return Err(BasicSDMMCError::Unsupported),
             fatfs::SeekFrom::Current(offset) => self.pos = self.pos.saturating_add_signed(offset),
         }
         if (self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64)
@@ -333,8 +334,8 @@ impl<T: AsMut<[reboot_lib::StorageSector]>, const N: usize, I: SectorAccess<N>> 
     }
     fn flush(&mut self) -> Result<(), SDMMCError> {
         return Err(SDMMCError);
-        self.write_loaded_sector();
-        Ok(())
+        //self.write_loaded_sector();
+        //Ok(())
     }
 }
 #[derive(Debug)]

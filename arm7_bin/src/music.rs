@@ -1,7 +1,3 @@
-use core::ops::{Add, Sub};
-
-use common::bootstrap::BootStub;
-use reboot_lib::ndma::Channel;
 use reboot_lib::sound::{timer_from_freq, RepeatMode, SoundControl, SoundFormat, SOUND_HARDWARE};
 
 static MUSIC_FRAME: &[u16] = &[
@@ -177,6 +173,7 @@ pub const fn amiga_to_nds_period(period: u16) -> u16 {
     0xFFFF - ((33513982 / 2) / (3549546 / period as u32)) as u16
 }
 use reboot_lib::music_modules::mods::*;
+use reboot_lib::timers::{TIMERS, Timer, TimerControl};
 
 pub enum PitchModulation {
     SlideUp { ammount: u8 },
@@ -482,9 +479,10 @@ pub fn set_mod(module: *mut MODHeader) {
             current_song: module,
             ..MODPlayData::defaults()
         };
-        (0x4000100 as *mut u32).write_volatile(0);
-        (0x4000100 as *mut u32).write_volatile((0xFFFF - 10473) | 0x00C10000);
-        reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::Timer0, play_mod as *mut _);
+        //reset timer and set to trigger at 50hz
+        TIMERS[0].write(Timer::RESET);
+        TIMERS[0].write(Timer::new(0xFFFF - 10473, TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ));
+        reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::Timer0, play_mod);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
     }
 }
@@ -493,11 +491,11 @@ pub fn set_procedural() {
         reboot_lib::disable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
         SOUND_HARDWARE.init();
         super::update_volume();
-        (0x4000100 as *mut u32).write_volatile(0);
-        (0x4000100 as *mut u32).write_volatile((0xFFFF - 8800) | 0x00C10000);
+        TIMERS[0].write(Timer::RESET);
+        TIMERS[0].write(Timer::new(0xFFFF - 8800, TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ));
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Timer0,
-            music_routine as *mut _,
+            music_routine,
         );
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
     }
@@ -596,12 +594,14 @@ pub fn music_routine() {
 
             MUSIC_COUNTER += 1;
         } else {
-            let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[8] as *mut u8;
-            ptr.write_volatile(ptr.read().saturating_sub(1));
-            let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[15] as *mut u8;
-            let dec = if MUSIC_COUNTER % 16 != 7 { 10 } else { 1 };
-
-            ptr.write_volatile(ptr.read().saturating_sub(dec));
+            #[allow(const_item_mutation)]
+            {
+                let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[8] as *mut u8;
+                ptr.write_volatile(ptr.read().saturating_sub(1));
+                let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[15] as *mut u8;
+                let dec = if MUSIC_COUNTER % 16 != 7 { 10 } else { 1 };
+                ptr.write_volatile(ptr.read().saturating_sub(dec));
+            }
         }
 
         FRAME_COUNTER += 1;

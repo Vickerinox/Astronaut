@@ -1,4 +1,5 @@
 use crate::MemoryWrapper;
+use common::bootstrap::HeaderTWL;
 use volatile_register::*;
 
 pub const AES_HARDWARE: MemoryWrapper<AESEngine> = MemoryWrapper(0x4004400 as *mut AESEngine);
@@ -57,6 +58,37 @@ impl KeySlot {
 }
 
 impl AESEngine {
+    pub unsafe fn init_from_header(&self, header: &HeaderTWL, console_id: [u32; 2]) {
+        if header.is_dsi_mode() {
+            self.master_control.write(AESCnt::empty());
+            self.reset();
+            self.reset();
+            self.wait_key_busy();
+            
+            //TODO: support debug keys
+            self.wait_key_busy();
+            let module = &self.keyslots[0];
+            module.key_x[0].write(0x746E694E);
+            module.key_x[1].write(0x6F646E65);
+            module.key_x[2].write(header.tid.to_le());
+            module.key_x[3].write(header.tid.to_be());
+            module.key_y[0].write(header.arm9i_sha1[0]);
+            module.key_y[1].write(header.arm9i_sha1[1]);
+            module.key_y[2].write(header.arm9i_sha1[2]);
+            module.key_y[3].write(header.arm9i_sha1[3]);
+
+            self.wait_key_busy();
+            let nand = &self.keyslots[3];
+            nand.key_x[0].write(console_id[0]);
+            nand.key_x[1].write(console_id[0] ^ 0x24EE6906);
+            nand.key_x[2].write(console_id[1] ^ 0xE65B601D);
+            nand.key_x[3].write(console_id[1]);
+            
+            self.wait_key_busy();
+            nand.key_y[3].write(0xE1A00005);
+            self.wait_key_busy();
+        }
+    }
     pub fn load_keys(slot: usize, key_x: &[u8], key_y: &[u8]) {}
     pub unsafe fn reset(&self) {
         self.master_control
@@ -147,13 +179,13 @@ pub unsafe fn nand_crypt_init(keyslot: usize) {
     AES_HARDWARE.set_key_slot(0);
     AES_HARDWARE.wait_key_busy();
 }
-pub unsafe fn load_nand_key_x(keyslot: usize) {
-    AES_HARDWARE.keyslots[keyslot].key_x[0].write(core::ptr::read_volatile(0x4004D00 as *mut u32));
+pub unsafe fn load_nand_key_x(keyslot: usize, console_id: [u32; 2]) {
+    AES_HARDWARE.keyslots[keyslot].key_x[0].write(console_id[0]);
     AES_HARDWARE.keyslots[keyslot].key_x[1]
-        .write(core::ptr::read_volatile(0x4004D00 as *mut u32) ^ 0x24EE6906);
+        .write(console_id[0] ^ 0x24EE6906);
     AES_HARDWARE.keyslots[keyslot].key_x[2]
-        .write(core::ptr::read_volatile(0x4004D04 as *mut u32) ^ 0xE65B601D);
-    AES_HARDWARE.keyslots[keyslot].key_x[3].write(core::ptr::read_volatile(0x4004D04 as *mut u32));
+        .write(console_id[1] ^ 0xE65B601D);
+    AES_HARDWARE.keyslots[keyslot].key_x[3].write(console_id[1]);
 }
 pub unsafe fn load_nand_key_y(keyslot: usize, key: &[u32; 4]) {
     AES_HARDWARE.keyslots[keyslot].key_y[0].write(key[0]);

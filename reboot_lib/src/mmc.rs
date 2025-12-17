@@ -158,6 +158,25 @@ bitflags::bitflags! {
 // A rust implementation of profi2000's TMIO in pure rust. And awful.
 
 impl MMC {
+    pub unsafe fn reset(&self) {
+        self.data_control_32.modify(|i| i & DataControl32::from_bits_retain(0xF7FF));
+        self.data_control_32.modify(|i| i & DataControl32::from_bits_retain(0xEFFF));
+        self.data_control_32.modify(|i| i | DataControl32::from_bits_retain(0x402));
+        self.data_control.modify(|i| i & Control::from_bits_retain(0xFFDD));
+        self.data_control_32.modify(|i| i & DataControl32::from_bits_retain(0xFFFF));
+        self.data_control.modify(|i| i & Control::from_bits_retain(0xFFDF));
+        self.block_len_32.write(512);
+        self.block_count_32.write(1);
+        self.soft_reset.modify(|i| i & 0xFFFE);
+        self.soft_reset.modify(|i| i | 0x1);
+        self.irmask.modify(|i| i | Status::from_bits_retain(0x837f031d));
+        self.status.write(Status::empty());
+        self.ext_card_detect_mask.modify(|i| i | 0xDB);
+        self.ext_card_detect_dat3_mask.modify(|i| i | 0xDB);
+        self.port_select.modify(|i|i&0xFFFC);
+        self.block_len.write(512);
+        self.stop_action.write(0);
+    }
     pub unsafe fn tmio_init(&self) {
         self.data_control_32
             .write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32); // enable and clear data32 fifo

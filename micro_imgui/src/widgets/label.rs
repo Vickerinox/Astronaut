@@ -1,7 +1,5 @@
-use alloc::borrow::Cow;
 
 use crate::{
-    primitives::Sizing,
     ui::{AutoAdd, Ui},
     Backend, Color, Response, Sense, Shape, Vec2,
 };

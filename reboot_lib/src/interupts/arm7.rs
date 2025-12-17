@@ -194,14 +194,14 @@ pub enum ARM7Interrupt {
     I2C = 13 + AUX_INTERRUPT,
     MicrophoneExt = 14 + AUX_INTERRUPT,
 }
-pub unsafe fn set_interrupt_function(interrupt: ARM7Interrupt, function: *mut fn()) {
+pub unsafe fn set_interrupt_function(interrupt: ARM7Interrupt, function: unsafe fn()) {
     crate::critical_function(|| {
         let interrupt = interrupt as u8;
         let index = interrupt & INTERRUPT_INDEX_MASK;
         if interrupt > INTERRUPT_INDEX_MASK {
-            INTERRUPT_TABLE_AUX[index as usize] = function;
+            INTERRUPT_TABLE_AUX[index as usize] = function as *mut _;
         } else {
-            INTERRUPT_TABLE[index as usize] = function;
+            INTERRUPT_TABLE[index as usize] = function as *mut _;
         }
     });
 }

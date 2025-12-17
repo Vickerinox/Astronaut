@@ -12,7 +12,6 @@ pub struct Ctx<B> {
     released_response: Option<Id>,
     pub(crate) wants_repaint: bool,
 }
-pub struct Style {}
 pub struct Frame<'a, B: Backend> {
     ctx: &'a mut Ctx<B>,
     availble_ground_space: Rect,
@@ -198,7 +197,7 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
                 focused_response = *prev_focus;
             }
         }
-        ctx.backend.end_frame();
+        ctx.end_frame();
         if *pressed_response != ctx.pressed_response {
             ctx.pressed_response = *pressed_response;
             ctx.wants_repaint = true;

@@ -125,9 +125,12 @@ impl FixedCompilerArgs {
         let arm9_bs_elf = env_us
             .clone()
             .join("target-bootstrap/armv5te-none-eabi/release/arm9_bootstrap");
+        // arm7 no longer needs a bootstrap since it's binary is already in VRAM (2025-12-06)
+        /* 
         let arm7_bs_elf = env_us
             .clone()
             .join("target-bootstrap/armv4t-none-eabi/release/arm7_bootstrap");
+        */
 
         let arm7_include_path = env_us.clone().join("arm9_bin/src/arm7.bin");
         let bootstrap_include_path = env_us.clone().join("arm9_bin/src/bootstrap.bin");
@@ -138,7 +141,7 @@ impl FixedCompilerArgs {
         debug!("Built arm9 bootstrap");
         build::build_crate(arm7_bootstrap_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
         debug!("Built arm7 bootstrap");
-        build::compile_bootstrap(arm9_bs_elf, arm7_bs_elf, bootstrap_include_path)
+        build::compile_bootstrap(arm9_bs_elf, bootstrap_include_path)
             .map_err(Crate::BootStrap.err())?;
         debug!("Done compiling bootstraps!");
         drop(_enter);

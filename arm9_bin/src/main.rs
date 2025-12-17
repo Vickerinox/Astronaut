@@ -10,32 +10,29 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 use alloc::{
     boxed::Box,
     format,
-    string::{String, ToString},
-    vec::{self, Vec},
+    string::{String},
+    vec::{Vec},
 };
-use core::{alloc::Layout, arch::asm, ptr::addr_of};
-use gui::VideoTextPass;
+use core::{ arch::asm,};
+
 use micro_imgui::{
-    Backend, Color, Sizing, Vec2, widgets::{button::Button, label::Label}
+ Color, Sizing, Vec2, widgets::{button::Button}
 };
 use reboot_lib::{
-    VideoHardware, VideoHardwareHandle, arm9_send_arm7_jump, fatfs::{TimeProvider, Dir, FileSystem, LossyOemCpConverter}, flush_mmc, sound::SOUND_HARDWARE
-};
+     VideoHardwareHandle, fatfs::{TimeProvider, Dir, FileSystem, LossyOemCpConverter}, flush_mmc};
 use reboot_lib::{
     fatfs::{Read, Seek, SeekFrom},
     music_modules::mods::{MODAsyncLoader, MODHeader},
 };
 use reboot_lib::{
-    spi::firmware::{FirmwareHeader, UserData},
     Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, StorageSector,
     VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
 };
 
 use crate::{
-    gui::{DSMicroGuiBackend, Input},
     nand::BasicSDMMCCursor,
 };
-use common::bootstrap::HeaderNDS;
+use common::bootstrap::HeaderTWL;
 
 extern crate alloc;
 
@@ -279,7 +276,7 @@ let mut vec: Vec<_> = folder.iter()
                     Some((name, item.is_dir(), color))
                 })
                 .collect();
-vec.sort_by(|(_, b,c), (_,d,e)| core::cmp::Ord::cmp(&c.0, &e.0));
+vec.sort_by(|(_, _b,c), (_,_d,e)| core::cmp::Ord::cmp(&c.0, &e.0));
     vec
 }
 unsafe fn main() {
@@ -357,13 +354,16 @@ unsafe fn main() {
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
         
-        let mut dtcm: u32 = 0x2FE_000A;
+        #[cfg(target_arch = "arm")]
+        {
+            let mut dtcm: u32 = 0x2FE_000A;
 
-        core::arch::asm!(
-            "mcr p15, 0, {0}, c9, c1, 0",
-            "mrc p15, 0, {0}, c9, c1, 0",
-            inout(reg) dtcm,
-        );
+            core::arch::asm!(
+                "mcr p15, 0, {0}, c9, c1, 0",
+                "mrc p15, 0, {0}, c9, c1, 0",
+                inout(reg) dtcm,
+            );
+        }
         
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
@@ -474,7 +474,7 @@ unsafe fn main() {
 
                     if let Some((mut file, mut header)) = booting_app.take() {
                         let head = &mut *(&mut header[..] as *mut [u8] as *mut u8
-                            as *mut HeaderNDS);
+                            as *mut HeaderTWL);
                         ui.label("                 Title info:");
                         ui.label(alloc::format!(
                             "      Name: {} TID: {:08X}",
@@ -695,7 +695,7 @@ pub fn read_controller() -> Buttons {
     unsafe { reboot_lib::arm9_send_controller_read() }
     
 }
-fn read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
+fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
     unsafe {
         reboot_lib::arm9_set_buffer(buffer);
         reboot_lib::arm9_read_firmware(start_offset);

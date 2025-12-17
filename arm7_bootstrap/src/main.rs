@@ -2,7 +2,7 @@
 #![no_main]
 #[no_mangle]
 pub unsafe extern "C" fn _start() {
-    unsafe { common::bootstrap::boot_arm7() };
+    loop {}
 }
 
 #[cfg(target_arch = "arm")]
