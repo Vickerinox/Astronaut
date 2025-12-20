@@ -8,7 +8,13 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
-    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, i2c::I2CRegister, ndma::{NDMA, NDMA_HARDWARE}, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser,}, swi_delay, timers::TIMERS
+    i2c::I2CRegister,
+    ndma::{NDMA, NDMA_HARDWARE},
+    sound::SOUND_HARDWARE,
+    spi::{Control, PowerRegiser},
+    swi_delay,
+    timers::TIMERS,
+    Status, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -114,13 +120,15 @@ fn main() {
         (0x400_0004 as *mut u32)
             .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
 
-            
         (0x4004060 as *mut u32).write_volatile(0);
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
         reboot_lib::init_interrupts();
 
-        let console_id: [u32; 2] = [(0x4004D00 as *const u32).read_volatile(), (0x4004D04 as *const u32).read_volatile()];
+        let console_id: [u32; 2] = [
+            (0x4004D00 as *const u32).read_volatile(),
+            (0x4004D04 as *const u32).read_volatile(),
+        ];
         reboot_lib::load_nand_key_x(0, console_id);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
@@ -134,11 +142,9 @@ fn main() {
 
         reboot_lib::MMC_CONTROLLER.tmio_init();
 
-        
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
-        
 
         let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
             Ok(_) => 1,
@@ -151,13 +157,12 @@ fn main() {
         };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
 
-        
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
             power_button_interrupt,
         );
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
-        
+
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
@@ -208,17 +213,24 @@ fn main() {
                         response = 0x8000_0000;
                         continue;
                     };
-                    
+
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
-                    AES_HARDWARE.init_from_header(&*(common::bootstrap::BOOTLOADER_MEM as *const common::bootstrap::HeaderTWL), console_id);
+                    AES_HARDWARE.init_from_header(
+                        &*(common::bootstrap::BOOTLOADER_MEM
+                            as *const common::bootstrap::HeaderTWL),
+                        console_id,
+                    );
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
                     NDMA_HARDWARE.reset();
                     MMC_CONTROLLER.reset();
                     SDIO_CONTROLLER.reset();
-                    reboot_lib::i2c::I2C_HARDWARE.write_register(I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR), 0);
+                    reboot_lib::i2c::I2C_HARDWARE.write_register(
+                        I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR),
+                        0,
+                    );
                     bootstrap::boot_arm7();
                 }
                 7 => {

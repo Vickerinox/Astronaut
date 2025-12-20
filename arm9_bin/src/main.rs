@@ -7,19 +7,14 @@ const FONT_FILE: &[u8] = include_bytes!("./font.bin");
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
-use alloc::{
-    boxed::Box,
-    format,
-    string::{String},
-    vec::{Vec},
-};
-use core::{ arch::asm,};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
+use core::arch::asm;
 
-use micro_imgui::{
- Color, Sizing, Vec2, widgets::{button::Button}
-};
+use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
 use reboot_lib::{
-     VideoHardwareHandle, fatfs::{TimeProvider, Dir, FileSystem, LossyOemCpConverter}, flush_mmc};
+    fatfs::{Dir, FileSystem, LossyOemCpConverter, ReadWriteSeek, TimeProvider},
+    flush_mmc, VideoHardwareHandle,
+};
 use reboot_lib::{
     fatfs::{Read, Seek, SeekFrom},
     music_modules::mods::{MODAsyncLoader, MODHeader},
@@ -29,9 +24,7 @@ use reboot_lib::{
     VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
 };
 
-use crate::{
-    nand::BasicSDMMCCursor,
-};
+use crate::nand::BasicSDMMCCursor;
 use common::bootstrap::HeaderTWL;
 
 extern crate alloc;
@@ -252,32 +245,48 @@ unsafe fn try_mount_nand() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
 
 pub struct RebootState {
     current_path: String,
-    
 }
-fn populate_fs_vec<T: TimeProvider>(folder: &Dir<'_, BasicSDMMCCursor<'static>, T, LossyOemCpConverter>) -> Vec<(String, bool, Color)> {
-let mut vec: Vec<_> = folder.iter()
-                .filter_map(|folder| {
-                    let item = folder.ok()?;
-                    let name = alloc::string::String::from(alloc::str::from_utf8(item.short_file_name_as_bytes()).ok()?);
-                    if name == "." {
-                        return None;
-                    }
-                    let color = if item.is_dir() {
-                        Color::new(200, 100, 100)
-                    } else {
-                        if is_bootable(item.short_file_name_as_bytes()) {
-                            Color::new(100, 200, 100)
-                        } else if is_music_module(item.short_file_name_as_bytes()){
-                            Color::new(100, 100, 200)
-                        } else {
-                            Color::new(180, 180, 180)
-                        }
-                    };
-                    Some((name, item.is_dir(), color))
-                })
-                .collect();
-vec.sort_by(|(_, _b,c), (_,_d,e)| core::cmp::Ord::cmp(&c.0, &e.0));
+fn populate_fs_vec<T: TimeProvider>(
+    folder: &Dir<'_, BasicSDMMCCursor<'static>, T, LossyOemCpConverter>,
+) -> Vec<(String, bool, Color)> {
+    let mut vec: Vec<_> = folder
+        .iter()
+        .filter_map(|folder| {
+            let item = folder.ok()?;
+            let name = alloc::string::String::from(
+                alloc::str::from_utf8(item.short_file_name_as_bytes()).ok()?,
+            );
+            if name == "." {
+                return None;
+            }
+            let color = if item.is_dir() {
+                Color::new(200, 100, 100)
+            } else {
+                if is_bootable(item.short_file_name_as_bytes()) {
+                    Color::new(100, 200, 100)
+                } else if is_music_module(item.short_file_name_as_bytes()) {
+                    Color::new(100, 100, 200)
+                } else {
+                    Color::new(180, 180, 180)
+                }
+            };
+            Some((name, item.is_dir(), color))
+        })
+        .collect();
+    vec.sort_by(|(_, _b, c), (_, _d, e)| core::cmp::Ord::cmp(&c.0, &e.0));
     vec
+}
+
+enum LoadingFile<'a, T: ReadWriteSeek, TP, OCC> {
+    None,
+    App {
+        file: reboot_lib::fatfs::File<'a, T, TP, OCC>,
+        data: Vec<u8>,
+    },
+    Music {
+        file: reboot_lib::fatfs::File<'a, T, TP, OCC>,
+        data: Vec<u8>,
+    },
 }
 unsafe fn main() {
     unsafe {
@@ -327,7 +336,6 @@ unsafe fn main() {
             min: Vec2::ZERO,
             max: Vec2::new(255, 191),
         };
-        
 
         gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
@@ -343,17 +351,14 @@ unsafe fn main() {
                 8,
             );
         });
-        
-        video_context.next_frame();
-        
 
-    
+        video_context.next_frame();
 
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
-        
+
         #[cfg(target_arch = "arm")]
         {
             let mut dtcm: u32 = 0x2FE_000A;
@@ -364,16 +369,15 @@ unsafe fn main() {
                 inout(reg) dtcm,
             );
         }
-        
+
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
-        
+
         IPC_FIFO_HARDWARE.enable_recv_irq();
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         //reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
         //loop {}
-
 
         let check_sd = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
         let check_nand = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
@@ -383,10 +387,11 @@ unsafe fn main() {
         video_context.next_frame();
 
         ready_arm7();
-        
+
         let mut loading_mod_file = None;
-        
-        let (mut working_folder, mut current_path) = if let Some(folder) = sd_fs.as_ref() {
+
+        let (mut working_folder, mut current_path, mut in_sd) = if let Some(folder) = sd_fs.as_ref()
+        {
             let root = folder.root_dir();
 
             match root.open_file("/_nds/vlaunch/default.mod") {
@@ -399,27 +404,23 @@ unsafe fn main() {
                 }
             }
 
-            (Some(root), String::from("sd:/"))
+            (Some(root), String::from("sd:/"), true)
         } else {
-            start_procedural_music();
-            (None, String::new())
+            match nand_fs.as_ref() {
+                Some(fs) => {
+                    start_procedural_music();
+                    (Some(fs.root_dir()), String::from("nand:/"), false)
+                }
+                None => (None, String::from("unknown device"), false),
+            }
         };
-        let mut booting_app: Option<(
-            reboot_lib::fatfs::File<
-                '_,
-                nand::BasicSDMMCCursor<'_>,
-                _,
-                reboot_lib::fatfs::LossyOemCpConverter,
-            >,
-            Vec<u8>,
-        )> = None;
+        let mut booting_app: LoadingFile<'_, _, _, _> = LoadingFile::None;
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0001000010000100);
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b0001000010000100);
 
         video_context.next_frame();
 
-        let mut in_sd = true;
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut folders: Vec<_> = if let Some(fs) = &mut working_folder {
             populate_fs_vec(&fs)
@@ -471,9 +472,68 @@ unsafe fn main() {
                     } else {
                         ui.label(&current_path);
                     }
+                    let mut a = LoadingFile::None;
+                    core::mem::swap(&mut a, &mut booting_app);
+                    match a {
+                        LoadingFile::None =>  {
+                            for item in folders.iter() {
+                            if ui
+                                .add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8)), item.2))
+                                .clicked()
+                            {
+                                if item.1 {
+                                    match working_folder.open_dir(&item.0) {
+                                        Ok(folder) => {
+                                            if &item.0 == "." {}
+                                            else if &item.0 == ".." {
+                                                current_path.pop();
+                                                while current_path.pop() != Some('/') {}
+                                                current_path.push('/');
+                                            }
+                                            else {
+                                                current_path.push_str(&item.0);
+                                                current_path.push('/');
+                                            }
+                                            new_folder = Some(folder)
+                                        },
+                                        Err(_) => (),
+                                    }
+                                } else {
+                                    let extension_point = item.0.len() - 4;
+                                    if item.0.is_char_boundary(extension_point) {
+                                        if is_bootable(item.0.as_bytes()) {
+                                            match working_folder.open_file(&item.0) {
+                                                Ok(mut file) => {
+                                                    current_path.push_str(&item.0);
+                                                    let mut header_buffer = alloc::vec![0u8; 4096];
+                                                    file.read(&mut header_buffer);
+                                                    booting_app = LoadingFile::App { file, data: header_buffer };
+                                                }
+                                                Err(_) => (),
+                                            }
+                                        } else if is_music_module(item.0.as_bytes()) {
+                                            match working_folder.open_file(&item.0) {
+                                                Ok(mut module) => {
+                                                    let mut header_buffer = alloc::vec![0u8; 0x640];
+                                                    module.read(&mut header_buffer);
+                                                    booting_app = LoadingFile::Music { file: module, data: header_buffer };
+                                                    
+                                                }
+                                                Err(_abort) => (),
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
-                    if let Some((mut file, mut header)) = booting_app.take() {
-                        let head = &mut *(&mut header[..] as *mut [u8] as *mut u8
+                        if let Some(new_folder) = new_folder {
+                            folders = populate_fs_vec(&new_folder);
+                            *working_folder = new_folder;
+                        }
+                        },
+                        LoadingFile::App { mut file, mut data } => {
+                            let head = &mut *(&mut data[..] as *mut [u8] as *mut u8
                             as *mut HeaderTWL);
                         ui.label("                 Title info:");
                         ui.label(alloc::format!(
@@ -532,67 +592,29 @@ unsafe fn main() {
                                 if ui.button("Go back").clicked() {
                                     while current_path.pop() != Some('/') {}
                                     current_path.push('/');
-                                    booting_app = None;
+                                    booting_app = LoadingFile::None;
                                 } else {
-                                    booting_app = Some((file, header));
+                                    booting_app = LoadingFile::App { file, data };
                                 }
                             }
                         });
-                    } else {
-                        
-                        for item in folders.iter() {
-                            if ui
-                                .add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8)), item.2))
-                                .clicked()
-                            {
-                                if item.1 {
-                                    match working_folder.open_dir(&item.0) {
-                                        Ok(folder) => {
-                                            if &item.0 == "." {}
-                                            else if &item.0 == ".." {
-                                                current_path.pop();
-                                                while current_path.pop() != Some('/') {}
-                                                current_path.push('/');
-                                            }
-                                            else {
-                                                current_path.push_str(&item.0);
-                                                current_path.push('/');
-                                            }
-                                            new_folder = Some(folder)
-                                        },
-                                        Err(_) => (),
-                                    }
-                                } else {
-                                    let extension_point = item.0.len() - 4;
-                                    if item.0.is_char_boundary(extension_point) {
-                                        if is_bootable(item.0.as_bytes()) {
-                                            match working_folder.open_file(&item.0) {
-                                                Ok(mut file) => {
-                                                    current_path.push_str(&item.0);
-                                                    let mut header_buffer = alloc::vec![0u8; 4096];
-                                                    file.read(&mut header_buffer);
-                                                    booting_app = Some((file, header_buffer));
-                                                }
-                                                Err(_) => (),
-                                            }
-                                        } else if is_music_module(item.0.as_bytes()) {
-                                            match working_folder.open_file(&item.0) {
-                                                Ok(module) => {
-                                                    loading_mod_file =
-                                                        Some(MODAsyncLoader::new(module));
-                                                    drop(stop_mod_file());
-                                                }
-                                                Err(_abort) => (),
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                         }
-
-                        if let Some(new_folder) = new_folder {
-                            folders = populate_fs_vec(&new_folder);
-                            *working_folder = new_folder;
+                        LoadingFile::Music { mut file, mut data } =>  {
+                            
+                            let head = &mut *(&mut data[..] as *mut [u8] as *mut u8
+                            as *mut MODHeader);
+                            let song_name = str::from_utf8(&head.song_name).unwrap_or("UNKNOWN");
+                            ui.label(song_name);
+                            
+                            if ui.button("Play song").clicked() {
+                                file.seek(SeekFrom::Start(0));
+                                loading_mod_file = Some(MODAsyncLoader::new(file));
+                                drop(stop_mod_file());
+                            } else if ui.button("go back").clicked() {
+                                booting_app = LoadingFile::None;
+                            } else {
+                                booting_app = LoadingFile::Music { file, data };
+                            }
                         }
                     }
                 }
@@ -693,7 +715,6 @@ fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> 
 }
 pub fn read_controller() -> Buttons {
     unsafe { reboot_lib::arm9_send_controller_read() }
-    
 }
 fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
     unsafe {
@@ -722,7 +743,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
                 "Panic occured, Under normal circumstances this should not happen.",
                 8,
             );
-            /* 
+            /*
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);

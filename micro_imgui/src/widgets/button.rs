@@ -11,12 +11,20 @@ pub struct Button<'a> {
 }
 impl<'a> Button<'a> {
     pub fn new(text: &'a str, size: Sizing, text_color: Color) -> Self {
-        Self { text, size, text_color }
+        Self {
+            text,
+            size,
+            text_color,
+        }
     }
 }
 impl<'t> AutoAdd for Button<'t> {
     fn ui<'a, 'b, B: Backend>(self, ui: &mut Ui<'a, 'b, B>) -> Response {
-        let Self { text, size, text_color } = self;
+        let Self {
+            text,
+            size,
+            text_color,
+        } = self;
         let prep_size = match size {
             Sizing::Automatic => Vec2::new(0, 8),
             Sizing::Cropped(vec2) => vec2.max(Vec2::new(0, 8)),

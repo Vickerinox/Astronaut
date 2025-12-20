@@ -173,7 +173,7 @@ pub const fn amiga_to_nds_period(period: u16) -> u16 {
     0xFFFF - ((33513982 / 2) / (3549546 / period as u32)) as u16
 }
 use reboot_lib::music_modules::mods::*;
-use reboot_lib::timers::{TIMERS, Timer, TimerControl};
+use reboot_lib::timers::{Timer, TimerControl, TIMERS};
 
 pub enum PitchModulation {
     SlideUp { ammount: u8 },
@@ -481,7 +481,10 @@ pub fn set_mod(module: *mut MODHeader) {
         };
         //reset timer and set to trigger at 50hz
         TIMERS[0].write(Timer::RESET);
-        TIMERS[0].write(Timer::new(0xFFFF - 10473, TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ));
+        TIMERS[0].write(Timer::new(
+            0xFFFF - 10473,
+            TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ,
+        ));
         reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::Timer0, play_mod);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
     }
@@ -492,11 +495,11 @@ pub fn set_procedural() {
         SOUND_HARDWARE.init();
         super::update_volume();
         TIMERS[0].write(Timer::RESET);
-        TIMERS[0].write(Timer::new(0xFFFF - 8800, TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ));
-        reboot_lib::set_interrupt_function(
-            reboot_lib::ARM7Interrupt::Timer0,
-            music_routine,
-        );
+        TIMERS[0].write(Timer::new(
+            0xFFFF - 8800,
+            TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ,
+        ));
+        reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::Timer0, music_routine);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
     }
 }

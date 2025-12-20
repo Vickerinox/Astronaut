@@ -126,7 +126,7 @@ impl FixedCompilerArgs {
             .clone()
             .join("target-bootstrap/armv5te-none-eabi/release/arm9_bootstrap");
         // arm7 no longer needs a bootstrap since it's binary is already in VRAM (2025-12-06)
-        /* 
+        /*
         let arm7_bs_elf = env_us
             .clone()
             .join("target-bootstrap/armv4t-none-eabi/release/arm7_bootstrap");

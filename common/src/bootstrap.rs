@@ -1,4 +1,4 @@
-use core::ptr::{ write_volatile as w};
+use core::ptr::write_volatile as w;
 
 #[inline(always)]
 pub unsafe fn boot_arm9() -> ! {
@@ -17,7 +17,7 @@ pub unsafe fn boot_arm9() -> ! {
     }
     (0x4000214 as *mut u32).write_volatile(!0);
     while VCOUNT_REG.read_volatile() != 192 {}
-    
+
     if is_twl {
         w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
         w(0x4004040 as *mut u32, (*HEADER_MEM).global_mbks[0]);
@@ -34,7 +34,6 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x4004050 as *mut u32, 0);
     }
 
-    
     while VCOUNT_REG.read_volatile() == 192 {}
 
     let entry = ARM9_JUMP;
@@ -53,9 +52,8 @@ pub unsafe fn boot_arm7() -> ! {
     } else {
         w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
         w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
-        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[2]);  
+        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
     }
-
 
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
@@ -148,7 +146,7 @@ pub struct HeaderTWL {
     pub global_mbks: [u32; 5],
     pub arm9_mbks: [u32; 3],
     pub arm7_mbks: [u32; 3],
-    
+
     pub mbk9: [u8; 3],
     pub wram_cnt: u8,
 
@@ -183,7 +181,7 @@ pub struct HeaderTWL {
     pub eula_version: u8,
     pub twl_management_flags: u8,
     pub total_twl_rom_size: u32,
-    
+
     pub shared_file_2_size: u8,
     pub shared_file_3_size: u8,
     pub shared_file_4_size: u8,
@@ -191,7 +189,7 @@ pub struct HeaderTWL {
 
     pub arm9i_module_params: u32,
     pub arm7i_module_params: u32,
-    
+
     pub modcrypt1_offset: u32,
     pub modcrypt1_len: u32,
     pub modcrypt2_offset: u32,
@@ -249,8 +247,6 @@ impl HeaderTWL {
         self.is_dsi_mode() && ((self.title_id >> 32) & 0xFF) != 0
     }
     pub fn is_homebrew(&self) -> bool {
-        self.maker_code == 0 || self.arm9_autoload_hook == 0 || self.arm7_load >= 0x03000000 
+        self.maker_code == 0 || self.arm9_autoload_hook == 0 || self.arm7_load >= 0x03000000
     }
 }
-
-

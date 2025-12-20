@@ -1,4 +1,4 @@
-use volatile_register::{WO, RW};
+use volatile_register::{RW, WO};
 
 use crate::MemoryWrapper;
 
@@ -8,7 +8,7 @@ pub struct DMAChannel {
     source_address: WO<u32>,
     destination_address: WO<u32>,
     word_count: WO<u16>,
-    control: RW<DMACnt>
+    control: RW<DMACnt>,
 }
 impl DMAHardware {
     pub unsafe fn reset(&self) {

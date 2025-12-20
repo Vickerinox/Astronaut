@@ -44,7 +44,6 @@ bitflags::bitflags! {
         const PRESCALE_1024 = 3;
         //note! prescale does nothing when countup is useds
         const USE_COUNTUP = (1<<2);
-        
+
     }
 }
-

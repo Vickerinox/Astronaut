@@ -20,7 +20,7 @@ pub struct Config {
     _0x24: u8,
     _0x25: [u8; 3],
     pub last_selected_tid: u64,
-    //touch calibration 
+    //touch calibration
     pub tc_x1_adc: u16,
     pub tc_y1_adc: u16,
     pub tc_x1_pixrl: u8,

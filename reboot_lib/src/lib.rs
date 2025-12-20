@@ -3,30 +3,31 @@
 #![feature(ptr_metadata)]
 #![allow(unused)]
 extern crate alloc;
-mod allocator;
 mod aes;
+mod allocator;
+pub mod dma;
 mod fs;
 pub mod i2c;
 pub mod interupts;
 mod ipc;
+pub mod mbk;
 mod memory;
 pub mod mmc;
 pub mod music_modules;
 pub mod ndma;
 pub mod sound;
 pub mod spi;
-pub mod timers;
-pub mod dma;
-pub mod mbk;
 mod swi;
+pub mod timers;
 mod video;
 
 use core::num::NonZeroU32;
 
 pub use fatfs;
 
-pub use allocator::ALLOCATOR;
 pub use aes::*;
+pub use allocator::ALLOCATOR;
+pub use dma::*;
 pub use interupts::*;
 pub use ipc::IPC_FIFO_HARDWARE;
 pub use mmc::driver::*;
@@ -34,7 +35,6 @@ pub use mmc::tmio::*;
 pub use mmc::*;
 pub use swi::*;
 pub use video::*;
-pub use dma::*;
 pub struct MemoryWrapper<T>(*mut T);
 impl<T> core::ops::Deref for MemoryWrapper<T> {
     type Target = T;

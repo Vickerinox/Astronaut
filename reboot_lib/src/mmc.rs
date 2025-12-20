@@ -1,4 +1,7 @@
-use core::{num::NonZeroUsize, ops::{BitAndAssign, BitOrAssign, Not}};
+use core::{
+    num::NonZeroUsize,
+    ops::{BitAndAssign, BitOrAssign, Not},
+};
 
 use crate::MemoryWrapper;
 use volatile_register::*;
@@ -159,21 +162,28 @@ bitflags::bitflags! {
 
 impl MMC {
     pub unsafe fn reset(&self) {
-        self.data_control_32.modify(|i| i & DataControl32::from_bits_retain(0xF7FF));
-        self.data_control_32.modify(|i| i & DataControl32::from_bits_retain(0xEFFF));
-        self.data_control_32.modify(|i| i | DataControl32::from_bits_retain(0x402));
-        self.data_control.modify(|i| i & Control::from_bits_retain(0xFFDD));
-        self.data_control_32.modify(|i| i & DataControl32::from_bits_retain(0xFFFF));
-        self.data_control.modify(|i| i & Control::from_bits_retain(0xFFDF));
+        self.data_control_32
+            .modify(|i| i & DataControl32::from_bits_retain(0xF7FF));
+        self.data_control_32
+            .modify(|i| i & DataControl32::from_bits_retain(0xEFFF));
+        self.data_control_32
+            .modify(|i| i | DataControl32::from_bits_retain(0x402));
+        self.data_control
+            .modify(|i| i & Control::from_bits_retain(0xFFDD));
+        self.data_control_32
+            .modify(|i| i & DataControl32::from_bits_retain(0xFFFF));
+        self.data_control
+            .modify(|i| i & Control::from_bits_retain(0xFFDF));
         self.block_len_32.write(512);
         self.block_count_32.write(1);
         self.soft_reset.modify(|i| i & 0xFFFE);
         self.soft_reset.modify(|i| i | 0x1);
-        self.irmask.modify(|i| i | Status::from_bits_retain(0x837f031d));
+        self.irmask
+            .modify(|i| i | Status::from_bits_retain(0x837f031d));
         self.status.write(Status::empty());
         self.ext_card_detect_mask.modify(|i| i | 0xDB);
         self.ext_card_detect_dat3_mask.modify(|i| i | 0xDB);
-        self.port_select.modify(|i|i&0xFFFC);
+        self.port_select.modify(|i| i & 0xFFFC);
         self.block_len.write(512);
         self.stop_action.write(0);
     }
@@ -275,7 +285,8 @@ impl MMC {
         self.tmio_get_response(port, command as u16);
 
         if command.reads_data() {
-            let mut sector_iter = (&mut *core::slice::from_raw_parts_mut(port.buffer, port.buffer_len)).iter_mut();
+            let mut sector_iter =
+                (&mut *core::slice::from_raw_parts_mut(port.buffer, port.buffer_len)).iter_mut();
             let Some(mut current_sector) = sector_iter.next() else {
                 return Status::from_bits_retain(123456789);
             };

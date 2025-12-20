@@ -64,7 +64,7 @@ impl AESEngine {
             self.reset();
             self.reset();
             self.wait_key_busy();
-            
+
             //TODO: support debug keys
             self.wait_key_busy();
             let module = &self.keyslots[0];
@@ -83,7 +83,7 @@ impl AESEngine {
             nand.key_x[1].write(console_id[0] ^ 0x24EE6906);
             nand.key_x[2].write(console_id[1] ^ 0xE65B601D);
             nand.key_x[3].write(console_id[1]);
-            
+
             self.wait_key_busy();
             nand.key_y[3].write(0xE1A00005);
             self.wait_key_busy();
@@ -181,10 +181,8 @@ pub unsafe fn nand_crypt_init(keyslot: usize) {
 }
 pub unsafe fn load_nand_key_x(keyslot: usize, console_id: [u32; 2]) {
     AES_HARDWARE.keyslots[keyslot].key_x[0].write(console_id[0]);
-    AES_HARDWARE.keyslots[keyslot].key_x[1]
-        .write(console_id[0] ^ 0x24EE6906);
-    AES_HARDWARE.keyslots[keyslot].key_x[2]
-        .write(console_id[1] ^ 0xE65B601D);
+    AES_HARDWARE.keyslots[keyslot].key_x[1].write(console_id[0] ^ 0x24EE6906);
+    AES_HARDWARE.keyslots[keyslot].key_x[2].write(console_id[1] ^ 0xE65B601D);
     AES_HARDWARE.keyslots[keyslot].key_x[3].write(console_id[1]);
 }
 pub unsafe fn load_nand_key_y(keyslot: usize, key: &[u32; 4]) {

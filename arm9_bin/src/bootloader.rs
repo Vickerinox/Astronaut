@@ -1,11 +1,9 @@
 use common::bootstrap::{self, ARGV_MAGIC, SYSTEM_ARGV};
-use common::bootstrap::{HeaderTWL, ArgvStructutre};
-use reboot_lib::{ fatfs};
+use common::bootstrap::{ArgvStructutre, HeaderTWL};
+use reboot_lib::fatfs;
 use reboot_lib::fatfs::SeekFrom;
 
-
 use crate::BOOTSTRAP_BINARY;
-
 
 unsafe fn inject_argv(header: &HeaderTWL, file_path: &str) {
     //find argv location
@@ -20,7 +18,7 @@ unsafe fn inject_argv(header: &HeaderTWL, file_path: &str) {
     //declare the final argv
     let argv = arg_destination as *mut u8;
     let mut argv_size: usize = 0;
-    
+
     //insert rom path
     {
         for byte in file_path.as_bytes() {
@@ -45,7 +43,10 @@ unsafe fn inject_argv(header: &HeaderTWL, file_path: &str) {
     SYSTEM_ARGV.write_volatile(final_argv_structure);
 }
 
-pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R, file_path: &str) -> Result<(), R::Error> {
+pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(
+    mut r: R,
+    file_path: &str,
+) -> Result<(), R::Error> {
     crate::stop_mod_file();
     let (header, _bootloader) = (*BOOTLOADER_MEM).split_at_mut(0x1000);
     //bootstrap::READY_FLAG_0.write_volatile(0xFF);
@@ -86,21 +87,19 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(mut r: R, file_path: &str) 
     inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.arm9_entry);
     reboot_lib::flush_mmc();
-    
+
     while VCOUNT_REG.read_volatile() != 192 {}
-    while VCOUNT_REG.read_volatile() == 192 {}    
+    while VCOUNT_REG.read_volatile() == 192 {}
     reboot_lib::arm9_send_arm7_jump(header.arm7_entry);
     reboot_lib::disable_all_interrupts();
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
-    
-    
+
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
     core::ptr::write_volatile(0x5000000 as *mut u16, 0b0100001000010000);
     core::ptr::write_volatile(0x5000400 as *mut u16, 0b0100001000010000);
-    
-    
+
     reboot_lib::flush_mmc();
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}

@@ -65,7 +65,7 @@ impl NTRSoundRegisters {
             cdc_write_reg(CntReg::PllJ, 15);
             cdc_write_reg(CntReg::DacNdac, 0x85);
             cdc_write_reg(CntReg::AdcNadc, 0x85);
-            
+
             self.dsi_sound_control.modify(|i| i | 0x8000);
             //self.master_control.write((1<<15));
         }

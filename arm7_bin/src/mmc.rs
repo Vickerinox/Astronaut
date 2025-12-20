@@ -1,6 +1,6 @@
 use reboot_lib::{
-    mmc::Command, swi_delay, swi_halt, ClockCnt, Control, DataControl32, Status, 
- MMC, MMC_CONTROLLER,
+    mmc::Command, swi_delay, swi_halt, ClockCnt, Control, DataControl32, Status, MMC,
+    MMC_CONTROLLER,
 };
 
 pub static mut MMC_DEVICE: Device = Device {

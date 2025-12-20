@@ -1,6 +1,9 @@
-
 use crate::{
-    Backend, Color, LayerId, context::{Frame}, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::{button::Button, label::Label}
+    context::Frame,
+    primitives::{Id, Rect, Vec2},
+    response::{self, Response, Sense},
+    widgets::{button::Button, label::Label},
+    Backend, Color, LayerId,
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -19,7 +22,11 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         }
     }
     pub fn button<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
-        self.add(Button::new(text.as_ref(), crate::Sizing::Automatic, Color::new(200, 200, 200)))
+        self.add(Button::new(
+            text.as_ref(),
+            crate::Sizing::Automatic,
+            Color::new(200, 200, 200),
+        ))
     }
     pub fn label<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
         self.add(Label::new(text.as_ref(), 8))

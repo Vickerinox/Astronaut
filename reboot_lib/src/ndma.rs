@@ -10,9 +10,7 @@ pub struct NDMA {
 impl NDMA {
     pub unsafe fn reset(&self) {
         self.global_control.write(GlobalControl::empty());
-        for channel in &self.channels {
-
-        }
+        for channel in &self.channels {}
     }
 }
 impl NDMAChannel {

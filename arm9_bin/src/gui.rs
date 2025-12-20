@@ -62,7 +62,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     type InputQuery = Input;
 
     fn gather_inputs(&mut self) -> bool {
-        let buttons = crate::read_controller() ;
+        let buttons = crate::read_controller();
         self.input.update(buttons, Vec2::ZERO)
     }
     fn screen_rect(&self) -> Rect {
@@ -90,9 +90,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     }
 
     fn end_frame(&mut self) {
-        unsafe {
-            self.video.next_frame()
-        };
+        unsafe { self.video.next_frame() };
     }
 
     fn draw_shape(&mut self, shape: micro_imgui::Shape, regression: Option<LayerId>) -> Rect {
