@@ -150,13 +150,13 @@ impl<B> Ctx<B> {
     }
 }
 impl<B: Backend> Ctx<B> {
-    pub fn process_frame<R, T, F: FnMut(&mut Frame<B>, &mut T) -> R>(
+    pub fn process_frame<R, T, F: FnMut(Frame<B>, &mut T) -> R>(
         &mut self,
         mut f: F,
         t: &mut T,
     ) -> R {
-        let mut frame = self.start_frame();
-        let ret = f(&mut frame, t);
+        let frame = self.start_frame();
+        let ret = f(frame, t);
         ret
     }
     pub fn start_frame(&mut self) -> Frame<'_, B> {

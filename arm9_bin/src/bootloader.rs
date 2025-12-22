@@ -1,4 +1,4 @@
-use common::bootstrap::{self, ARGV_MAGIC, SYSTEM_ARGV};
+use common::bootstrap::{ARGV_MAGIC, SYSTEM_ARGV};
 use common::bootstrap::{ArgvStructutre, HeaderTWL};
 use reboot_lib::fatfs;
 use reboot_lib::fatfs::SeekFrom;
