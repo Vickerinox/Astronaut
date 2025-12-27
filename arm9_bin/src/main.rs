@@ -7,15 +7,14 @@ const FONT_FILE: &[u8] = include_bytes!("./font.bin");
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
-use alloc::{boxed::Box,  string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use core::arch::asm;
 
-use micro_imgui::{ Color,  Vec2};
+use micro_imgui::{Color, Vec2};
+use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
-    VideoHardwareHandle, fatfs::{Dir, FileSystem,  OemCpConverter, ReadWriteSeek, TimeProvider}, flush_mmc
-};
-use reboot_lib::{
-    music_modules::mods::{ MODHeader},
+    fatfs::{Dir, FileSystem, OemCpConverter, ReadWriteSeek, TimeProvider},
+    flush_mmc, VideoHardwareHandle,
 };
 use reboot_lib::{
     Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, StorageSector,
@@ -30,7 +29,20 @@ mod bootloader;
 mod gui;
 mod mbr;
 mod nand;
+mod autoboot;
 pub mod new_takeover;
+#[repr(C)]
+pub struct NandAutobootEntry {
+    category: u32,
+    title_id: u32,
+    version: u32,
+    buttons: reboot_lib::Buttons,
+    _reserved: u16,
+}
+impl NandAutobootEntry {
+    pub const EMPTY: NandAutobootEntry = NandAutobootEntry { category: 0, title_id: 0, version: 0, buttons: Buttons::empty(),_reserved: 0};
+}
+static mut NAND_AUTOBOOTS: [NandAutobootEntry; 40] = [NandAutobootEntry::EMPTY; 40];
 
 pub unsafe fn nocash_write(str: &str) {
     const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
@@ -274,7 +286,6 @@ fn populate_fs_vec<T: TimeProvider, F: ReadWriteSeek, OCC: OemCpConverter>(
     vec
 }
 
-
 unsafe fn main() {
     unsafe {
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
@@ -369,7 +380,6 @@ unsafe fn main() {
         let check_sd = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
         let check_nand = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
 
-
         video_context.next_frame();
 
         ready_arm7();
@@ -380,8 +390,8 @@ unsafe fn main() {
 
         video_context.next_frame();
 
-        let nand_fs = if check_nand { try_mount_nand() } else {None};
-        let sd_fs = if check_sd { try_mount_sd() } else {None};
+        let nand_fs = if check_nand { try_mount_nand() } else { None };
+        let sd_fs = if check_sd { try_mount_sd() } else { None };
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut frontend = gui::AppData::new();
@@ -484,6 +494,16 @@ fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> 
     }
     Ok(())
 }
+fn write_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> Result<(), u32> {
+    unsafe {
+        flush_mmc();
+        reboot_lib::arm9_set_buffer(buffer)?;
+        reboot_lib::arm9_write_sd_sector(start_sector)?;
+        flush_mmc();
+        flush_mmc();
+    }
+    Ok(())
+}
 pub fn read_controller() -> Buttons {
     unsafe { reboot_lib::arm9_send_controller_read() }
 }
@@ -514,16 +534,16 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
                 "Panic occured, Under normal circumstances this should not happen.",
                 8,
             );
-            /*
+            
             text_pass.next_line();
-            text_pass.next_line();
-            text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
-            text_pass.next_line();
-            text_pass.next_line();
-            if let Some(loc) = info.location() {
-                text_pass.layout_str(&alloc::format!("location: {}", loc), 8);
-            }
-            */
+            //text_pass.next_line();
+            //text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
+            //text_pass.next_line();
+            //text_pass.next_line();
+            //if let Some(loc) = info.location() {
+            //    text_pass.layout_str(&alloc::format!("location: {}", loc), 8);
+            //}
+            
         });
         video_context.next_frame();
     }

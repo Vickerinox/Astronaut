@@ -132,6 +132,9 @@ pub unsafe fn arm9_read_nand_sector_unencrypted(start_sector: u32) -> Result<(),
 pub unsafe fn arm9_read_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(5, &[start_sector])
 }
+pub unsafe fn arm9_write_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
+    com_arm9(10, &[start_sector])
+}
 pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), NonZeroU32> {
     com_arm9(6, &[ptr])
 }

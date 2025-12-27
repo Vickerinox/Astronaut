@@ -11,7 +11,6 @@ pub struct DSMicroGuiBackend {
     layer: u16,
 }
 
-
 pub struct Inputs {
     buttons_now: Buttons,
     buttons_then: Buttons,
@@ -67,7 +66,6 @@ impl DSMicroGuiBackend {
         }
     }
 }
-
 
 pub struct Input(pub Buttons);
 impl From<Buttons> for Input {

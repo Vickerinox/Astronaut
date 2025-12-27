@@ -1,5 +1,5 @@
-use common::bootstrap::{ARGV_MAGIC, SYSTEM_ARGV};
 use common::bootstrap::{ArgvStructutre, HeaderTWL};
+use common::bootstrap::{ARGV_MAGIC, SYSTEM_ARGV};
 use reboot_lib::fatfs;
 use reboot_lib::fatfs::SeekFrom;
 

@@ -452,6 +452,27 @@ pub unsafe fn read_sectors(
         Err(res)
     }
 }
+pub unsafe fn write_sd_sectors(
+    sector: u32,
+    buf: *mut [crate::StorageSector],
+) -> Result<(), Status> {
+    let device = &mut DEVICES[DeviceSelect::SDCardSlot as u8 as usize];
+    device.port.buffer = buf as *mut _;
+    device.port.buffer_len = buf.len();
+
+    let sector = match device.kind {
+        None => return Err(Status::all()),
+        Some(DeviceType::SDSC) | Some(DeviceType::EMMC) => sector << 9,
+        _ => sector,
+    };
+
+    let res = MMC_CONTROLLER.send_command(&mut device.port, Command::WriteMultiBlocks, sector);
+    if res.successful() {
+        Ok(())
+    } else {
+        Err(res)
+    }
+}
 
 pub unsafe fn nocash_write(str: &str) {
     #[cfg(target_arch = "arm")]

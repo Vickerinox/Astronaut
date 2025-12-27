@@ -1,9 +1,17 @@
-use alloc::{format, string::String, vec::Vec};
+use alloc::{format, string::String, vec::{self, Vec}};
 use common::bootstrap::HeaderTWL;
-use reboot_lib::{Buttons, fatfs::{Dir, File, FileSystem, LossyOemCpConverter, NullTimeProvider, OemCpConverter, Read, ReadWriteSeek, Seek, SeekFrom, TimeProvider}, music_modules::mods::{MODAsyncLoader, MODHeader}};
+use reboot_lib::{
+    Buttons, fatfs::{
+        Dir, File, FileSystem, LossyOemCpConverter, NullTimeProvider, OemCpConverter, Read,
+        ReadWriteSeek, Seek, SeekFrom, TimeProvider, Write,
+    }, music_modules::mods::{MODAsyncLoader, MODHeader}
+};
 
-use crate::{bootloader, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file, start_procedural_music, stop_mod_file};
-use micro_imgui::{Color, Sizing, Vec2, widgets::button::Button};
+use crate::{
+    bootloader, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file,
+    start_procedural_music, stop_mod_file,
+};
+use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
 
 enum CurrentDirectory<'a, T: ReadWriteSeek, TP, OCC> {
     None,
@@ -30,10 +38,15 @@ enum LoadingFile<'a, T: ReadWriteSeek, TP, OCC> {
     },
 }
 
-pub struct AppData<'a, T: ReadWriteSeek, TP: TimeProvider = NullTimeProvider, OCC = LossyOemCpConverter> {
+pub struct AppData<
+    'a,
+    T: ReadWriteSeek,
+    TP: TimeProvider = NullTimeProvider,
+    OCC = LossyOemCpConverter,
+> {
     current_dir: CurrentDirectory<'a, T, TP, OCC>,
     loading_file: LoadingFile<'a, T, TP, OCC>,
-    loading_mod_file: Option<MODAsyncLoader<File<'a, T, TP, OCC>>>
+    loading_mod_file: Option<MODAsyncLoader<File<'a, T, TP, OCC>>>,
 }
 impl<'a, T: ReadWriteSeek, TP, OCC> CurrentDirectory<'a, T, TP, OCC> {
     pub fn is_in_sd(&self) -> bool {
@@ -53,42 +66,68 @@ impl<'a, T: ReadWriteSeek, TP, OCC> CurrentDirectory<'a, T, TP, OCC> {
 }
 impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T, TP, OCC> {
     pub fn new() -> Self {
-        Self { current_dir: CurrentDirectory::None, loading_file: LoadingFile::None, loading_mod_file: None }
+        Self {
+            current_dir: CurrentDirectory::None,
+            loading_file: LoadingFile::None,
+            loading_mod_file: None,
+        }
     }
-    pub fn open_default_fs(&mut self, nand_fs: &'a Option<FileSystem<T, TP, OCC>>, sd_fs: &'a Option<FileSystem<T, TP, OCC>>) {
+    pub fn open_default_fs(
+        &mut self,
+        nand_fs: &'a Option<FileSystem<T, TP, OCC>>,
+        sd_fs: &'a Option<FileSystem<T, TP, OCC>>,
+    ) {
         if let Some(sd_fs) = sd_fs {
             let current_dir = sd_fs.root_dir();
             let immediate_files = populate_fs_vec(&current_dir);
             let file_path = String::from("sd:/");
-            self.current_dir = CurrentDirectory::SD { current_dir, immediate_files, file_path };
+            self.current_dir = CurrentDirectory::SD {
+                current_dir,
+                immediate_files,
+                file_path,
+            };
         } else if let Some(nand_fs) = nand_fs {
             let current_dir = nand_fs.root_dir();
             let immediate_files = populate_fs_vec(&current_dir);
             let file_path = String::from("nand:/");
-            self.current_dir = CurrentDirectory::NAND { current_dir, immediate_files, file_path };
+            self.current_dir = CurrentDirectory::NAND {
+                current_dir,
+                immediate_files,
+                file_path,
+            };
         }
     }
     pub fn play_startup_music(&mut self, sd_fs: &'a Option<FileSystem<T, TP, OCC>>) {
-        
         if let Some(folder) = sd_fs.as_ref() {
             let root = folder.root_dir();
 
-            match root.open_file("/_nds/vlaunch/default.mod") {
-                Ok(file) => {
+            match root.open_file("/_nds/vlaunch/default.bin") {
+                Ok(mut file) => {
                     stop_mod_file();
+                    let mut size = [0u8; 2];
+                    if file.read_exact(&mut size).is_err() {
+                        return
+                    }
+                    let size = u16::from_le_bytes(size) as usize;
+                    let path_buf: Vec<u8> = alloc::vec![0; size];
+                    let Ok(str) = core::str::from_utf8(&path_buf) else {return};
+                    let Ok(file) = root.open_file(str) else {return};
                     self.loading_mod_file = Some(MODAsyncLoader::new(file));
+                    return;
                 }
-                Err(_abort) => {
-                    start_procedural_music();
-                }
+                Err(_abort) => {}
             }
-        } else {
-            start_procedural_music();
-        }
         
+        }
+        start_procedural_music();
     }
-    pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>, nand_fs: &'a Option<FileSystem<T, TP, OCC>>, sd_fs: &'a Option<FileSystem<T, TP, OCC>>) {
-            f.central_panel(|ui| {
+    pub fn update(
+        &mut self,
+        f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>,
+        nand_fs: &'a Option<FileSystem<T, TP, OCC>>,
+        sd_fs: &'a Option<FileSystem<T, TP, OCC>>,
+    ) {
+        f.central_panel(|ui| {
                 if ui.input_pressed(gui::Input(Buttons::BUTTON_L)) || ui.input_pressed(gui::Input(Buttons::BUTTON_R)) {
                     if !self.current_dir.is_in_nand() && nand_fs.is_some() {
                         if let Some(root) = nand_fs.as_ref() {
@@ -282,6 +321,18 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                                 }
                             } else if ui.button("go back").clicked() {
                                 self.loading_file = LoadingFile::None;
+                            } else if ui.button("set default").clicked() {
+                                let Some(fs) = &sd_fs else {return};
+                                let root = fs.root_dir();
+                                let Ok(mut file) = root.create_file("/_nds/vLaunch/default.bin") else { return};
+                                /* 
+                                if current_path.len() < 1000 {
+                                    file.write(&(current_path.len() as u16).to_le_bytes());
+                                    file.write(current_path.as_bytes());
+                                    file.truncate();
+                                    file.flush();
+                                }
+                                */
                             } else {
                                 self.loading_file = LoadingFile::Music { file, data };
                             }

@@ -272,7 +272,7 @@ impl MMC {
         while self
             .data_control_32
             .read()
-            .contains(DataControl32::RX_READY)
+            .intersects(DataControl32::RX_READY | DataControl32::TX_READY)
         {}
         self.param.write(argument);
         self.command.write(command as u16);
@@ -284,29 +284,47 @@ impl MMC {
 
         self.tmio_get_response(port, command as u16);
 
-        if command.reads_data() {
+        if command.transmits_data() {
             let mut sector_iter =
                 (&mut *core::slice::from_raw_parts_mut(port.buffer, port.buffer_len)).iter_mut();
             let Some(mut current_sector) = sector_iter.next() else {
                 return Status::from_bits_retain(123456789);
             };
-            while !self.status.read().intersects(Status::ALL_ERRORS) {
-                if self
-                    .data_control_32
-                    .read()
-                    .contains(DataControl32::RX_READY)
-                {
-                    //self.status.write(!Status::RX_READY);
-                    for (i, word) in AsMut::<[u32]>::as_mut(current_sector)
-                        .iter_mut()
-                        .enumerate()
+            if command.reads_data() {
+                // Read loop
+                while !self.status.read().intersects(Status::ALL_ERRORS) {
+                    if self
+                        .data_control_32
+                        .read()
+                        .contains(DataControl32::RX_READY)
                     {
-                        (word as *mut u32).write_volatile(self.data_fifo_32.read());
+                        //self.status.write(!Status::RX_READY);
+                        for (i, word) in current_sector.0.iter_mut().enumerate() {
+                            (word as *mut u32).write_volatile(self.data_fifo_32.read());
+                        }
+                        let Some(next_sector) = sector_iter.next() else {
+                            break;
+                        };
+                        current_sector = next_sector;
                     }
-                    let Some(next_sector) = sector_iter.next() else {
-                        break;
-                    };
-                    current_sector = next_sector;
+                }
+            } else {
+                // Write loop
+                while !self.status.read().intersects(Status::ALL_ERRORS) {
+                    if self
+                        .data_control_32
+                        .read()
+                        .contains(DataControl32::TX_READY)
+                    {
+                        //self.status.write(!Status::RX_READY);
+                        for (i, word) in current_sector.0.iter_mut().enumerate() {
+                            self.data_fifo_32.write(*word);
+                        }
+                        let Some(next_sector) = sector_iter.next() else {
+                            break;
+                        };
+                        current_sector = next_sector;
+                    }
                 }
             }
         }

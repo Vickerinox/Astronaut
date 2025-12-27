@@ -1,4 +1,3 @@
-
 use micro_imgui::{Rect, Vec2};
 use reboot_lib::{VertexListHost, VertexListType, VideoHardwareHandle};
 

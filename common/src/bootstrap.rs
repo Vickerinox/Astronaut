@@ -2,9 +2,11 @@ use core::ptr::write_volatile as w;
 
 #[inline(always)]
 pub unsafe fn boot_arm9() -> ! {
+    //disable interrupts
     w(0x4004040 as *mut u32, 0);
-    (0x4000208 as *mut u32).write_volatile(0);
-    (0x4000210 as *mut u32).write_volatile(0);
+    w(0x4000208 as *mut u32, 0);
+    w(0x4000210 as *mut u32, 0);
+    //Setup local MBKS
     let is_twl = (*HEADER_MEM).is_dsi_mode();
     if is_twl {
         w(0x4004054 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
@@ -15,16 +17,21 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
         w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
     }
+    //clear all interrupts
     (0x4000214 as *mut u32).write_volatile(!0);
     while VCOUNT_REG.read_volatile() != 192 {}
 
+    //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
     if is_twl {
+        let gmbks = &(*HEADER_MEM).global_mbks;
+        //NTR mbk
         w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
-        w(0x4004040 as *mut u32, (*HEADER_MEM).global_mbks[0]);
-        w(0x4004044 as *mut u32, (*HEADER_MEM).global_mbks[1]);
-        w(0x4004048 as *mut u32, (*HEADER_MEM).global_mbks[2]);
-        w(0x400404C as *mut u32, (*HEADER_MEM).global_mbks[3]);
-        w(0x4004050 as *mut u32, (*HEADER_MEM).global_mbks[4]);
+        //TWL mbk
+        w(0x4004040 as *mut u32, gmbks[0]);
+        w(0x4004044 as *mut u32, gmbks[1]);
+        w(0x4004048 as *mut u32, gmbks[2]);
+        w(0x400404C as *mut u32, gmbks[3]);
+        w(0x4004050 as *mut u32, gmbks[4]);
     } else {
         w(0x4000247 as *mut u8, 3);
         w(0x4004040 as *mut u32, 0);
@@ -34,32 +41,41 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x4004050 as *mut u32, 0);
     }
 
+    //Sync to ARM7
     while VCOUNT_REG.read_volatile() == 192 {}
 
+    //Jump to Entrypoint
     let entry = ARM9_JUMP;
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
 #[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
+    //disable all interrupts
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
     (0x4000218 as *mut u32).write_volatile(0);
+
+    //setup MBKS
     if (*HEADER_MEM).is_dsi_mode() {
         w(0x4004054 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
         w(0x4004058 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
         w(0x400405C as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
     } else {
-        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
-        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
-        w(0x0 as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
+        w(0x4004054 as *mut u32, 0);
+        w(0x4004058 as *mut u32, 0);
+        w(0x400405C as *mut u32, 0);
     }
 
+    //clear all interrups
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
+
+    //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
 
+    //jump to entrypoint
     let entry = core::ptr::addr_of!((*HEADER_MEM).arm7_entry);
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
@@ -69,10 +85,6 @@ pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
-pub const READY_FLAG_0: *mut u8 = BOOTLOADER_MEM.wrapping_add(8);
-pub const READY_FLAG_1: *mut u8 = BOOTLOADER_MEM.wrapping_add(9);
-pub const READY_FLAG_2: *mut u8 = BOOTLOADER_MEM.wrapping_add(10);
-pub const READY_FLAG_3: *mut u8 = BOOTLOADER_MEM.wrapping_add(11);
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
 #[repr(C)]

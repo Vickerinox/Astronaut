@@ -8,13 +8,7 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
-    i2c::I2CRegister,
-    ndma::{NDMA, NDMA_HARDWARE},
-    sound::SOUND_HARDWARE,
-    spi::{Control, PowerRegiser},
-    swi_delay,
-    timers::TIMERS,
-    Status, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
+    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, i2c::I2CRegister, ndma::{NDMA, NDMA_HARDWARE}, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser}, swi_delay, timers::TIMERS, write_sd_sectors
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -203,6 +197,16 @@ fn main() {
                         continue;
                     };
                     response = match sd_read_sectors(buffer, arg) {
+                        Ok(_) => 0,
+                        Err(e) => e.bits(),
+                    }
+                }
+                10 => {
+                    let Some([arg]) = gather_args() else {
+                        response = 0x8000_0000;
+                        continue;
+                    };
+                    response = match write_sd_sectors(arg, buffer) {
                         Ok(_) => 0,
                         Err(e) => e.bits(),
                     }
