@@ -7,7 +7,7 @@ use reboot_lib::{
 };
 
 use crate::{
-    bootloader, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file,
+    boot, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file,
  stop_mod_file,
 };
 use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
@@ -218,7 +218,7 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                                                     current_path.push_str(&item.0);
                                                     match file.seek(SeekFrom::Start(0)) {
                                                         Ok(0) => {
-                                                            unsafe { bootloader::boot_app(file, &current_path); }
+                                                            unsafe { boot::boot_app(file, &current_path).expect("failed app boot"); }
                                                         }
                                                         Ok(_what) => (),
                                                         Err(_error) => (),

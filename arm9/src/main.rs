@@ -3,7 +3,7 @@
 #![feature(ptr_metadata)]
 #![feature(str_from_utf16_endian)]
 
-const FONT_FILE: &[u8] = include_bytes!("./font.bin");
+
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
@@ -25,7 +25,7 @@ use crate::nand::BasicSDMMCCursor;
 
 extern crate alloc;
 
-mod bootloader;
+mod boot;
 mod gui;
 mod mbr;
 mod nand;
@@ -162,9 +162,33 @@ impl reboot_lib::fatfs::Read for StaticReader {
     }
 }
 unsafe fn init_font() {
+    /* 
+    const FONT_FILE: &[u8] = include_bytes!("./font.bin");
     for (i, w) in FONT_FILE.chunks_exact(4).enumerate() {
         let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
         core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
+    }
+    */
+    
+    #[cfg(target_arch = "arm")]
+    {
+        const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
+        for (i, w) in FONT_FILE.iter().enumerate() {
+            core::ptr::write_volatile((0x2000800 as *mut u8).add(i), *w);
+        }
+        core::arch::asm!(
+            "SWI 0x110000",
+            in("r0") 0x2000800,
+            in("r1") 0x2000000,
+            lateout("r0") _,
+            lateout("r1") _,
+            out("r2") _,
+            out("r3") _,
+        );
+        for i in 0..0x200 {
+            let reg = core::ptr::read_volatile((0x200_0000 as *const u32).add(i));
+            core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
+        }
     }
 }
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
@@ -537,9 +561,12 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
                 8,
             );
             text_pass.next_line();
-            text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
+            text_pass.next_line();
+            text_pass.layout_str(&alloc::format!("msg: {}", info.message()), 8);
+            text_pass.next_line();
+            text_pass.next_line();
             let Some(loc) = info.location() else {return};    
-            text_pass.layout_str(&alloc::format!("location: {loc}"), 8);
+            text_pass.layout_str(&alloc::format!("loc: {loc}"), 8);
         });
         video_context.next_frame();
         loop { reboot_lib::swi_halt(); }

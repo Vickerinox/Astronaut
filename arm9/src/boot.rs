@@ -57,29 +57,26 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(
     r.read_exact(header)?;
     let header = &mut *(header as *mut [u8] as *mut u8 as *mut HeaderTWL);
 
-    r.seek(SeekFrom::Start(header.arm9_offset as u64))
-        .expect("Failed to seek to ARM9 Binary");
+    r.seek(SeekFrom::Start(header.arm9_offset as u64))?;
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
-    r.read_exact(arm9_ram).expect("Failed to read ARM9 Binary");
+    r.read_exact(arm9_ram)?;
 
     r.seek(SeekFrom::Start(header.arm9i_offset as u64))
         .expect("Failed to seek to ARM9i Binary");
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm9i_load as *mut u8, header.arm9i_size as usize);
-    r.read_exact(arm9_ram).expect("Failed to read ARM9i Binary");
+    r.read_exact(arm9_ram)?;
 
-    r.seek(SeekFrom::Start(header.arm7_offset as u64))
-        .expect("Failed to seek to ARM7 Binary");
+    r.seek(SeekFrom::Start(header.arm7_offset as u64))?;
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
-    r.read_exact(arm9_ram).expect("Failed to read ARM7 Binary");
+    r.read_exact(arm9_ram)?;
 
-    r.seek(SeekFrom::Start(header.arm7i_offset as u64))
-        .expect("Failed to seek to ARM7i Binary");
+    r.seek(SeekFrom::Start(header.arm7i_offset as u64))?;
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
-    r.read_exact(arm9_ram).expect("Failed to read ARM7i Binary");
+    r.read_exact(arm9_ram)?;
 
     if header.is_homebrew() {
         inject_argv(header, file_path);

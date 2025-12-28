@@ -50,6 +50,9 @@ fn compress(data: &[u8]) -> Vec<u8> {
         .collect();
     let mut final_output = (((data.len() as u32) << 8) | 0x10).to_le_bytes().to_vec();
     final_output.extend_from_slice(&output);
+    while final_output.len() & 3 != 0 {
+        final_output.push(0);   
+    }
     final_output
 }
 
@@ -322,4 +325,13 @@ mod test {
         }
     }
     */
+}
+#[test]
+fn compress_font() {
+    let og = include_bytes!("./font.bin");
+    let font = compress(og);
+    let returned_font = decompress(&font);
+    assert!(returned_font == og);
+    println!("len: {} {}", font.len(), og.len());
+    std::fs::write("./font_compressed.bin", font).unwrap();
 }
