@@ -80,7 +80,9 @@ fn construct_tmd(
     mmc::write_tmd_to_image(&mmc_file_path, &empty_tmd).map_err(Crate::TMD.err())?;
 
     if let Some(path) = export {
-        fs::write(path, &empty_tmd[520..]).unwrap();
+        if fs::write(path, &empty_tmd[520..]).is_err() {
+            error!("path for TMD export not available");
+        }
     }
     Ok(())
 }

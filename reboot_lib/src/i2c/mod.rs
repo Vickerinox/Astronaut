@@ -5,7 +5,7 @@ pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as
 
 pub unsafe fn init() {
     I2C_HARDWARE.write_register(PowerRegister::WIFILED, 1);
-    I2C_HARDWARE.write_register(PowerRegister::MMCPWR, 1);
+    I2C_HARDWARE.write_register(PowerRegister::MMCPWR, 0);
     //I2C_HARDWARE.write_register(PowerRegister::PowerButtonTap, 0x10);
     //I2C_HARDWARE.write_register(PowerRegister::PowerButtonHold, 0x64);
 }

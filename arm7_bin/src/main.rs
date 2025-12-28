@@ -143,12 +143,13 @@ fn main() {
         };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
 
+        /* 
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
             power_button_interrupt,
         );
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Powerbutton);
-
+        */
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
