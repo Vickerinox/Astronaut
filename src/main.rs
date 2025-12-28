@@ -111,11 +111,11 @@ struct FixedCompilerArgs {
 impl FixedCompilerArgs {
     fn build(self) -> Result<(), BuildError> {
         let env_us = env::current_dir().expect("Failed to get current dir using ENV");
-        let arm9_path = env_us.clone().join("arm9_bin");
-        let arm7_path = env_us.clone().join("arm7_bin");
+        let arm9_path = env_us.clone().join("arm9");
+        let arm7_path = env_us.clone().join("arm7");
 
-        let arm9_bootstrap_path = env_us.clone().join("arm9_bootstrap");
-        let arm7_bootstrap_path = env_us.clone().join("arm7_bootstrap");
+        let arm9_bootstrap_path = env_us.clone().join("arm9_bs");
+        let arm7_bootstrap_path = env_us.clone().join("arm7_bs");
 
         let arm9_elf = env_us
             .clone()
@@ -134,8 +134,8 @@ impl FixedCompilerArgs {
             .join("target-bootstrap/armv4t-none-eabi/release/arm7_bootstrap");
         */
 
-        let arm7_include_path = env_us.clone().join("arm9_bin/src/arm7.bin");
-        let bootstrap_include_path = env_us.clone().join("arm9_bin/src/bootstrap.bin");
+        let arm7_include_path = env_us.clone().join("arm9/src/arm7.bin");
+        let bootstrap_include_path = env_us.clone().join("arm9/src/bootstrap.bin");
 
         let span = span!(Level::TRACE, "Compiling Bootstrap");
         let _enter = span.enter();

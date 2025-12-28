@@ -5,10 +5,10 @@ edition = "2021"
 
 [workspace]
 members = [
-    "arm7_bin",
-    "arm7_bootstrap",
-    "arm9_bin",
-    "arm9_bootstrap",
+    "arm7",
+    "arm7_bs",
+    "arm9",
+    "arm9_bs",
     "common",
     "magic_values",
     "micro_imgui",
