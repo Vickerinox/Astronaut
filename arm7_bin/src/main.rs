@@ -155,7 +155,7 @@ fn main() {
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
-                    let Some([0]) = gather_args() else {
+                    if IPC_FIFO_HARDWARE.recieve_raw_blocking() != 0 {
                         response = 0x8000_0000;
                         continue;
                     };
@@ -167,17 +167,12 @@ fn main() {
                     response = controls.bits() as u32;
                 }
                 2 => {
-                    let Some([ptr, len]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     buffer = core::slice::from_raw_parts_mut(ptr as *mut _, len as usize);
                 }
                 3 => {
-                    let Some([arg]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     response = match mmc_read_decrypt(buffer, &key, arg) {
                         Ok(_) => 0,
                         Err(e) => 0x8000_0000 | e.bits(),
@@ -185,20 +180,14 @@ fn main() {
                 }
                 4 => {}
                 5 => {
-                    let Some([arg]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     response = match sd_read_sectors(buffer, arg) {
                         Ok(_) => 0,
                         Err(e) => e.bits(),
                     }
                 }
                 10 => {
-                    let Some([arg]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     response = match write_sd_sectors(arg, buffer) {
                         Ok(_) => 0,
                         Err(e) => e.bits(),
@@ -206,10 +195,7 @@ fn main() {
                 }
 
                 6 => {
-                    let Some([arg]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
 
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     reboot_lib::disable_all_interrupts();
@@ -231,25 +217,17 @@ fn main() {
                     bootstrap::boot_arm7();
                 }
                 7 => {
-                    let Some([arg]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     firmware_read(buffer, arg);
                 }
 
                 8 => {
-                    let Some([arg]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     if arg == 0xB00B135 {}
                 }
                 9 => {
-                    let Some([module_type, pointer]) = gather_args() else {
-                        response = 0x8000_0000;
-                        continue;
-                    };
+                    let module_type = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let pointer = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     
                     match module_type {
                         0 => music::set_mod(pointer as *mut _),
