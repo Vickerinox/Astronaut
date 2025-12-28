@@ -58,12 +58,7 @@ impl<'a> TextLayoutHandle<'a> {
 
         const CHAR_WIDTH: i16 = 7 << 4; //(i.e, 1*7 texels)
         let index = CHAR_WIDTH * ascii_value as i16;
-        let movement = match ascii_value {
-            b'j' => 5,
-            b'l' => 3,
-            b'i' => 2,
-            _ => 6,
-        };
+        let movement = 6;
         let movement = (movement * y_size) >> 3;
         self.cursor.x += movement;
 

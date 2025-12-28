@@ -381,13 +381,13 @@ impl GeometryCommands {
             }
         }
     }
-    #[inline]
+    //#[inline]
     pub unsafe fn scale_matrix(&self, x: i32, y: i32, z: i32) {
         self.matrix_mult_scale.write(x as u32);
         self.matrix_mult_scale.write(y as u32);
         self.matrix_mult_scale.write(z as u32);
     }
-    #[inline]
+    //#[inline]
     pub unsafe fn translate_matrix(&self, x: i32, y: i32, z: i32) {
         self.matrix_mult_trans.write(x as u32);
         self.matrix_mult_trans.write(y as u32);

@@ -154,7 +154,7 @@ bitflags::bitflags! {
         const ENABLE_TX_IRQ = (1 << 12);
         const CLEAR_FIFO_32 = (1 << 10);
         const RX_READY = (1 << 8);
-        const TX_READY = (1 << 9);
+        const TX_BUSY = (1 << 9);
         const USE_DATA32 = (1 << 1);
     }
 }
@@ -272,7 +272,7 @@ impl MMC {
         while self
             .data_control_32
             .read()
-            .intersects(DataControl32::RX_READY | DataControl32::TX_READY)
+            .intersects(DataControl32::RX_READY)
         {}
         self.param.write(argument);
         self.command.write(command as u16);
@@ -311,12 +311,11 @@ impl MMC {
             } else {
                 // Write loop
                 while !self.status.read().intersects(Status::ALL_ERRORS) {
-                    if self
+                    if !self
                         .data_control_32
                         .read()
-                        .contains(DataControl32::TX_READY)
+                        .contains(DataControl32::TX_BUSY)
                     {
-                        //self.status.write(!Status::RX_READY);
                         for (i, word) in current_sector.0.iter_mut().enumerate() {
                             self.data_fifo_32.write(*word);
                         }

@@ -13,6 +13,7 @@ unsafe fn touch_read_data() -> Result<RawTouchData, TouchReadError> {
 */
 
 #[repr(u8)]
+#[derive(Clone, Copy)]
 pub enum CdcRegister {
     Control(CntReg),       //= 0x00, //< Chip control
     Sound(SndReg),         //= 0x01, //< ADC/DAC control
@@ -49,6 +50,7 @@ impl Into<CdcRegister> for TouchCntReg {
     }
 }
 #[repr(u8)]
+#[derive(Clone, Copy)]
 pub enum TouchCntReg {
     SarAdcCnt1 = 0x02,
     SarAdcCnt2 = 0x03,
@@ -64,6 +66,7 @@ pub enum TouchCntReg {
     DebouncePendown = 0x14,
 }
 #[repr(u8)]
+#[derive(Clone, Copy)]
 pub enum CntReg {
     Reset = 0x01,
     ClockMux = 0x04,
@@ -98,6 +101,7 @@ pub enum CntReg {
     SarAdc = 0x74,
 }
 #[repr(u8)]
+#[derive(Clone, Copy)]
 pub enum SndReg {
     AmplifierError = 0x1E,
     HeadphoneDriver = 0x1F,
@@ -125,27 +129,94 @@ pub enum SndReg {
     CmSetting = 0x32,
 }
 pub unsafe fn init_tsc() {
+    const INIT_LIST: &[(CdcRegister, u8)] = &[
+        (CdcRegister::Control(CntReg::Reset), 1),
+        (CdcRegister::Control(CntReg::NocashAdcDcMeasurement1), 0x66),
+        (CdcRegister::Sound(SndReg::ClassDSpeakerAmp), 0x16),
+        (CdcRegister::Control(CntReg::ClockMux), 0),
+
+        (CdcRegister::Control(CntReg::AdcNadc   ), 0x81),
+        (CdcRegister::Control(CntReg::AdcMadc   ), 0x82),
+        (CdcRegister::Control(CntReg::AdcMic    ), 0x82),
+        (CdcRegister::Control(CntReg::AdcMic    ), 0   ),
+        (CdcRegister::Control(CntReg::ClockMux  ), 3   ),
+
+        (CdcRegister::Control(CntReg::PllPr   ), 0xA1),
+        (CdcRegister::Control(CntReg::PllJ    ), 0x15),
+        (CdcRegister::Control(CntReg::DacNdac ), 0x87),
+        (CdcRegister::Control(CntReg::DacMdac ), 0x83),
+        (CdcRegister::Control(CntReg::AdcNadc ), 0x87),
+        (CdcRegister::Control(CntReg::AdcMadc ), 0x83),
+        (CdcRegister::TouchCnt(TouchCntReg::ScanModeTimerClock), 0x88),
+
+        (CdcRegister::AdcCoefficients(0x8), 0x7F),
+        (CdcRegister::AdcCoefficients(0x9), 0xE1),
+        (CdcRegister::AdcCoefficients(0xA), 0x80),
+        (CdcRegister::AdcCoefficients(0xB), 0x1F),
+        (CdcRegister::AdcCoefficients(0xC), 0x7F),
+        (CdcRegister::AdcCoefficients(0xD), 0xC1),
+
+        (CdcRegister::Control(CntReg::DacVolumeLeft ), 8),
+        (CdcRegister::Control(CntReg::DacVolumeRight), 8),
+        (CdcRegister::Control(CntReg::GPIO3Pin      ), 0),
+
+        (CdcRegister::AdcCoefficients(0x8), 0x7F),
+        (CdcRegister::AdcCoefficients(0x9), 0xE1),
+        (CdcRegister::AdcCoefficients(0xA), 0x80),
+        (CdcRegister::AdcCoefficients(0xB), 0x1F),
+        (CdcRegister::AdcCoefficients(0xC), 0x7F),
+        (CdcRegister::AdcCoefficients(0xD), 0xC1),
+
+        (CdcRegister::Sound(SndReg::MicGain       ), 0x2B),
+        (CdcRegister::Sound(SndReg::FineGain      ), 0x40),
+        (CdcRegister::Sound(SndReg::InputSelection), 0x40),
+        (CdcRegister::Sound(SndReg::CmSetting     ), 0x60),
+
+        (CdcRegister::Control(CntReg::SarAdc), 0x82),
+        (CdcRegister::Control(CntReg::SarAdc), 0x92),
+        (CdcRegister::Control(CntReg::SarAdc), 0xD2),
+
+        (CdcRegister::Sound(SndReg::PopRemovalSetting ),0x20),
+        (CdcRegister::Sound(SndReg::RampDownPeriod    ),0xF0),
+        (CdcRegister::Control(CntReg::DacCtrl), 0xD4),
+
+        (CdcRegister::Sound(SndReg::DacMixerRouting   ),0x44),
+        (CdcRegister::Sound(SndReg::HeadphoneDriver   ),0xD4),
+        (CdcRegister::Sound(SndReg::DriverHPL         ),0x4E),
+        (CdcRegister::Sound(SndReg::DriverHPR         ),0x4E),
+        (CdcRegister::Sound(SndReg::VolumeHPL         ),0x9E),
+        (CdcRegister::Sound(SndReg::VolumeHPR         ),0x9E),
+        (CdcRegister::Sound(SndReg::ClassDSpeakerAmp  ),0xD4),
+        (CdcRegister::Sound(SndReg::DriverSPL         ),0x14),
+        (CdcRegister::Sound(SndReg::DriverSPR         ),0x14),
+        (CdcRegister::Sound(SndReg::VolumeSPL         ),0xA7),
+        (CdcRegister::Sound(SndReg::VolumeSPR         ),0xA7),
+    ];
+    for (reg, value) in INIT_LIST {
+        cdc_write_reg(reg.clone(), *value);
+    }
     //BANAN
+    /* 
     cdc_write_reg(CntReg::Reset, 1);
     cdc_write_reg(CntReg::NocashAdcDcMeasurement1, 0x66);
     cdc_write_reg(SndReg::ClassDSpeakerAmp, 0x16);
     cdc_write_reg(CntReg::ClockMux, 0);
-    cdc_write_reg(CntReg::AdcNadc, 0x81);
-    cdc_write_reg(CntReg::AdcMadc, 0x82);
-    cdc_write_reg(CntReg::AdcMic, 0x82);
-    cdc_write_reg(CntReg::AdcMic, 0);
-    cdc_write_reg(CntReg::ClockMux, 3);
-
-    cdc_write_reg(CntReg::PllPr, 0xA1);
-    cdc_write_reg(CntReg::PllJ, 0x15);
-
-    cdc_write_reg(CntReg::DacNdac, 0x87);
-    cdc_write_reg(CntReg::DacMdac, 0x83);
-    cdc_write_reg(CntReg::AdcNadc, 0x87);
-    cdc_write_reg(CntReg::AdcMadc, 0x83);
-
+    
+    cdc_write_reg(CntReg::AdcNadc   , 0x81);
+    cdc_write_reg(CntReg::AdcMadc   , 0x82);
+    cdc_write_reg(CntReg::AdcMic    , 0x82);
+    cdc_write_reg(CntReg::AdcMic    , 0     );
+    cdc_write_reg(CntReg::ClockMux  , 3     );
+    
+    cdc_write_reg(CntReg::PllPr     ,  0xA1);
+    cdc_write_reg(CntReg::PllJ      ,  0x15);
+    cdc_write_reg(CntReg::DacNdac   ,  0x87);
+    cdc_write_reg(CntReg::DacMdac   ,  0x83);
+    cdc_write_reg(CntReg::AdcNadc   ,  0x87);
+    cdc_write_reg(CntReg::AdcMadc   ,  0x83);
+    
     cdc_write_reg(TouchCntReg::ScanModeTimerClock, 0x88);
-
+    
     //sound init?
     cdc_write_reg(CdcRegister::AdcCoefficients(0x8), 0x7F);
     cdc_write_reg(CdcRegister::AdcCoefficients(0x9), 0xE1);
@@ -153,53 +224,49 @@ pub unsafe fn init_tsc() {
     cdc_write_reg(CdcRegister::AdcCoefficients(0xB), 0x1F);
     cdc_write_reg(CdcRegister::AdcCoefficients(0xC), 0x7F);
     cdc_write_reg(CdcRegister::AdcCoefficients(0xD), 0xC1);
-
-    cdc_write_reg(CntReg::DacVolumeLeft, 8);
+    
+    cdc_write_reg(CntReg::DacVolumeLeft , 8);
     cdc_write_reg(CntReg::DacVolumeRight, 8);
-    cdc_write_reg(CntReg::GPIO3Pin, 0);
-
+    cdc_write_reg(CntReg::GPIO3Pin      , 0);
+    
     cdc_write_reg(CdcRegister::AdcCoefficients(0x8), 0x7F);
     cdc_write_reg(CdcRegister::AdcCoefficients(0x9), 0xE1);
     cdc_write_reg(CdcRegister::AdcCoefficients(0xA), 0x80);
     cdc_write_reg(CdcRegister::AdcCoefficients(0xB), 0x1F);
     cdc_write_reg(CdcRegister::AdcCoefficients(0xC), 0x7F);
     cdc_write_reg(CdcRegister::AdcCoefficients(0xD), 0xC1);
-
-    cdc_write_reg(SndReg::MicGain, 0x2B);
-
-    cdc_write_reg(SndReg::FineGain, 0x40);
+    
+    cdc_write_reg(SndReg::MicGain       , 0x2B);
+    cdc_write_reg(SndReg::FineGain      , 0x40);
     cdc_write_reg(SndReg::InputSelection, 0x40);
-    cdc_write_reg(SndReg::CmSetting, 0x60);
-
+    cdc_write_reg(SndReg::CmSetting     , 0x60);
+    
     cdc_write_reg(CntReg::SarAdc, 0x82);
     cdc_write_reg(CntReg::SarAdc, 0x92);
     cdc_write_reg(CntReg::SarAdc, 0xD2);
+    
+    cdc_write_reg(SndReg::PopRemovalSetting , 0x20);
+    cdc_write_reg(SndReg::RampDownPeriod    , 0xF0);
+    cdc_write_reg(CntReg::DacCtrl           , 0xD4);
 
-    cdc_write_reg(SndReg::PopRemovalSetting, 0x20);
-    cdc_write_reg(SndReg::RampDownPeriod, 0xF0);
-    cdc_write_reg(CntReg::DacCtrl, 0xD4);
-    cdc_write_reg(SndReg::DacMixerRouting, 0x44);
-    cdc_write_reg(SndReg::HeadphoneDriver, 0xD4);
-    cdc_write_reg(SndReg::DriverHPL, 0x4E);
-    cdc_write_reg(SndReg::DriverHPR, 0x4E);
-
-    cdc_write_reg(SndReg::VolumeHPL, 0x9E);
-    cdc_write_reg(SndReg::VolumeHPR, 0x9E);
-
-    cdc_write_reg(SndReg::ClassDSpeakerAmp, 0xD4);
-
-    cdc_write_reg(SndReg::DriverSPL, 0x14);
-    cdc_write_reg(SndReg::DriverSPR, 0x14);
-
-    cdc_write_reg(SndReg::VolumeSPL, 0xA7);
-    cdc_write_reg(SndReg::VolumeSPR, 0xA7);
-
-    cdc_write_reg(CntReg::DacVolume, 0);
+    cdc_write_reg(SndReg::DacMixerRouting   , 0x44);
+    cdc_write_reg(SndReg::HeadphoneDriver   , 0xD4);
+    cdc_write_reg(SndReg::DriverHPL         , 0x4E);
+    cdc_write_reg(SndReg::DriverHPR         , 0x4E);
+    cdc_write_reg(SndReg::VolumeHPL         , 0x9E);
+    cdc_write_reg(SndReg::VolumeHPR         , 0x9E);
+    cdc_write_reg(SndReg::ClassDSpeakerAmp  , 0xD4);
+    cdc_write_reg(SndReg::DriverSPL         , 0x14);
+    cdc_write_reg(SndReg::DriverSPR         , 0x14);
+    cdc_write_reg(SndReg::VolumeSPL         , 0xA7);
+    cdc_write_reg(SndReg::VolumeSPR         , 0xA7);
+    */
+    cdc_write_reg(CdcRegister::Control(CntReg::DacVolume), 0);
     core::ptr::write_volatile(0x4004C00 as *mut u16, 0x8080);
-    cdc_write_reg(CntReg::GPIO3Pin, 0x60);
+    cdc_write_reg(CdcRegister::Control(CntReg::GPIO3Pin), 0x60);
 
-    cdc_read_reg(TouchCntReg::SarAdcCnt1);
-    cdc_write_reg(TouchCntReg::SarAdcCnt1, 0);
+    cdc_read_reg(CdcRegister::TouchCnt(TouchCntReg::SarAdcCnt1));
+    cdc_write_reg(CdcRegister::TouchCnt(TouchCntReg::SarAdcCnt1), 0);
     /*
     //ENABLE?
     cdc_write_reg(TouchCntReg::TwlPenDown, 0);
@@ -240,13 +307,14 @@ unsafe fn cdc_read_reg(reg: impl Into<CdcRegister>) -> u8 {
     bank_switch_tsc(bank);
     read_tsc(reg)
 }
-pub unsafe fn cdc_write_reg(reg: impl Into<CdcRegister>, value: u8) {
-    let (bank, reg) = reg.into().as_bank_and_reg();
+pub unsafe fn cdc_write_reg(reg: CdcRegister, value: u8) {
+    let (bank, reg) = reg.as_bank_and_reg();
     super::SPI_HARDWARE.wait_busy();
     bank_switch_tsc(bank);
     write_tsc(reg, value);
     super::SPI_HARDWARE.wait_busy();
 }
+/* 
 pub unsafe fn cdc_write_array(start_reg: impl Into<CdcRegister>, data: &[u8]) {
     let (bank, reg) = start_reg.into().as_bank_and_reg();
     bank_switch_tsc(bank);
@@ -258,6 +326,7 @@ pub unsafe fn cdc_write_array(start_reg: impl Into<CdcRegister>, data: &[u8]) {
     }
     super::SPI_HARDWARE.set_control(SPIControl::DISABLE);
 }
+    */
 pub unsafe fn cdc_read_array(start_reg: CdcRegister, data: &mut [u8]) {
     let (bank, reg) = start_reg.as_bank_and_reg();
     bank_switch_tsc(bank);

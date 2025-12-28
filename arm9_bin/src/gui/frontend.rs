@@ -1,5 +1,4 @@
-use alloc::{format, string::String, vec::{self, Vec}};
-use common::bootstrap::HeaderTWL;
+use alloc::{format, string::String, vec::Vec};
 use reboot_lib::{
     Buttons, fatfs::{
         Dir, File, FileSystem, LossyOemCpConverter, NullTimeProvider, OemCpConverter, Read,
@@ -9,7 +8,7 @@ use reboot_lib::{
 
 use crate::{
     bootloader, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file,
-    start_procedural_music, stop_mod_file,
+ stop_mod_file,
 };
 use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
 
@@ -30,7 +29,6 @@ enum LoadingFile<'a, T: ReadWriteSeek, TP, OCC> {
     None,
     App {
         file: File<'a, T, TP, OCC>,
-        data: Vec<u8>,
     },
     Music {
         file: File<'a, T, TP, OCC>,
@@ -106,12 +104,23 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                     stop_mod_file();
                     let mut size = [0u8; 2];
                     if file.read_exact(&mut size).is_err() {
+                        //start_procedural_music();
                         return
                     }
                     let size = u16::from_le_bytes(size) as usize;
-                    let path_buf: Vec<u8> = alloc::vec![0; size];
-                    let Ok(str) = core::str::from_utf8(&path_buf) else {return};
-                    let Ok(file) = root.open_file(str) else {return};
+                    let mut path_buf: Vec<u8> = alloc::vec![0; size];
+                     if file.read_exact(&mut path_buf).is_err() {
+                        //start_procedural_music();
+                        return
+                    }
+                    let Ok(str) = core::str::from_utf8(&path_buf) else {
+                        //start_procedural_music();
+                        return
+                    };
+                    let Ok(file) = root.open_file(str) else {
+                        
+                        return
+                    };
                     self.loading_mod_file = Some(MODAsyncLoader::new(file));
                     return;
                 }
@@ -119,7 +128,6 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
             }
         
         }
-        start_procedural_music();
     }
     pub fn update(
         &mut self,
@@ -146,11 +154,7 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                     }
                 }
                 let heading = match &self.current_dir {
-                    CurrentDirectory::None => {
-                        ui.header("FS ERROR");
-                        ui.label("no file system could be mounted. (for some reason not even nand?)");
-                        return;
-                    },
+                    CurrentDirectory::None => {""},
                     CurrentDirectory::NAND { .. } => "NAND view:",
                     CurrentDirectory::SD { .. } => "SD Card view:",
                 };
@@ -160,15 +164,15 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
 
                 match &mut self.current_dir {
                     CurrentDirectory::None => (),
-                    CurrentDirectory::NAND { current_dir: working_folder, immediate_files: folders, file_path: current_path } |
-                    CurrentDirectory::SD { current_dir: working_folder, immediate_files: folders, file_path: current_path } => {
+                    CurrentDirectory::NAND { current_dir, immediate_files, file_path: current_path } |
+                    CurrentDirectory::SD { current_dir, immediate_files, file_path: current_path } => {
                         if let Some(loading_mod) = self.loading_mod_file.take() {
                         let (progress, max) = loading_mod.progress();
-                        let progress_bar = progress * 27 / max;
-                        let bar = (0..27)
+                        let progress_bar = progress * 30 / max;
+                        let bar = (0..30)
                             .map(|i| if i < progress_bar { '=' } else { '.' })
                             .collect::<String>();
-                        ui.label(format!("Loading song [{bar}]"));
+                        ui.label(&format!("Loading [{bar}]"));
                         ui.request_repaint();
                         match loading_mod.process() {
                             Ok(Some(ret)) => {
@@ -184,19 +188,18 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                     core::mem::swap(&mut a, &mut self.loading_file);
                     match a {
                         LoadingFile::None =>  {
-                            for item in folders.iter() {
+                            for item in immediate_files.iter() {
                             if ui
                                 .add(Button::new(&item.0, Sizing::Padded(Vec2::new(248, 8)), item.2))
                                 .clicked()
                             {
                                 if item.1 {
-                                    match working_folder.open_dir(&item.0) {
+                                    match current_dir.open_dir(&item.0) {
                                         Ok(folder) => {
                                             if &item.0 == "." {}
                                             else if &item.0 == ".." {
                                                 current_path.pop();
-                                                while current_path.pop() != Some('/') {}
-                                                current_path.push('/');
+                                                pop_dir_entry(current_path);
                                             }
                                             else {
                                                 current_path.push_str(&item.0);
@@ -210,20 +213,25 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                                     let extension_point = item.0.len() - 4;
                                     if item.0.is_char_boundary(extension_point) {
                                         if is_bootable(item.0.as_bytes()) {
-                                            match working_folder.open_file(&item.0) {
+                                            match current_dir.open_file(&item.0) {
                                                 Ok(mut file) => {
                                                     current_path.push_str(&item.0);
-                                                    let mut header_buffer = alloc::vec![0u8; 4096];
-                                                    file.read(&mut header_buffer);
-                                                    self.loading_file = LoadingFile::App { file, data: header_buffer };
+                                                    match file.seek(SeekFrom::Start(0)) {
+                                                        Ok(0) => {
+                                                            unsafe { bootloader::boot_app(file, &current_path); }
+                                                        }
+                                                        Ok(_what) => (),
+                                                        Err(_error) => (),
+                                                    }
                                                 }
                                                 Err(_) => (),
                                             }
                                         } else if is_music_module(item.0.as_bytes()) {
-                                            match working_folder.open_file(&item.0) {
+                                            match current_dir.open_file(&item.0) {
                                                 Ok(mut module) => {
+                                                    current_path.push_str(&item.0);
                                                     let mut header_buffer = alloc::vec![0u8; 0x640];
-                                                    module.read(&mut header_buffer);
+                                                    module.read_exact(&mut header_buffer);
                                                     self.loading_file = LoadingFile::Music { file: module, data: header_buffer };
                                                     
                                                 }
@@ -236,103 +244,37 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                         }
 
                         if let Some(new_folder) = new_folder {
-                            *folders = populate_fs_vec(&new_folder);
-                            *working_folder = new_folder;
+                            *immediate_files = populate_fs_vec(&new_folder);
+                            *current_dir = new_folder;
                         }
                         },
-                        LoadingFile::App { mut file, mut data } => {
-                            let head = unsafe { &mut *(&mut data[..] as *mut [u8] as *mut u8
-                            as *mut HeaderTWL) };
-                        ui.label("                 Title info:");
-                        ui.label(alloc::format!(
-                            "      Name: {} TID: {:08X}",
-                            core::str::from_utf8(&head.title).unwrap_or("UNKNOWN"),
-                            head.tid
-                        ));
-                        ui.label(" ");
-                        ui.label("ARM9 offsets:");
-                        ui.label(alloc::format!("entry: {:08X}", head.arm9_entry));
-                        ui.label(alloc::format!(
-                            "load: {:08X}, size: {:08X}",
-                            head.arm9_load,
-                            head.arm9_size
-                        ));
-                        ui.label(" ");
-                        ui.label("ARM7 offsets:");
-                        ui.label(alloc::format!("entry: {:08X}", head.arm7_entry));
-                        ui.label(alloc::format!(
-                            "load: {:08X}, size: {:08X}",
-                            head.arm7_load,
-                            head.arm7_size
-                        ));
-                        ui.label("ARMi offsets:");
-                        ui.label(alloc::format!(
-                            "7i: {:08X} {:08X}",
-                            head.arm7i_load,
-                            head.arm7i_size
-                        ));
-                        ui.label(alloc::format!(
-                            "9i: {:08X} {:08X}",
-                            head.arm9i_load,
-                            head.arm9i_size
-                        ));
-                        ui.label(" ");
-                        
-                        ui.label(alloc::format!(
-                            "mbk: {:08X} {:08X} {:08X} {:08X} {:08X} | {:08X} {:08X} {:08X} | {:08X} {:08X} {:08X} ",
-                            head.global_mbks[0], head.global_mbks[1], head.global_mbks[2],
-                            head.global_mbks[3], head.global_mbks[4],
-                            head.arm9_mbks[0], head.arm9_mbks[1], head.arm9_mbks[2],
-                            head.arm7_mbks[0], head.arm7_mbks[1], head.arm7_mbks[2],
-                        ));
-                        ui.label(" ");
-                        ui.horizontal(|ui| {
-                            if ui.button("Launch!!").clicked() {
-                                
-                                match file.seek(SeekFrom::Start(0)) {
-                                    Ok(0) => {
-                                        unsafe { bootloader::boot_app(file, &current_path); }
-                                    }
-                                    Ok(_what) => (),
-                                    Err(_error) => (),
-                                }
-                            } else {
-                                if ui.button("Go back").clicked() {
-                                    while current_path.pop() != Some('/') {}
-                                    current_path.push('/');
-                                    self.loading_file = LoadingFile::None;
-                                } else {
-                                    self.loading_file = LoadingFile::App { file, data };
-                                }
-                            }
-                        });
-                        }
-                        LoadingFile::Music { mut file, mut data } =>  {
+                        LoadingFile::App { file } => {
                             
-                            let head = unsafe { &mut *(&mut data[..] as *mut [u8] as *mut u8
-                            as *mut MODHeader) };
-                            let song_name = str::from_utf8(&head.song_name).unwrap_or("UNKNOWN");
-                            ui.label(song_name);
+                        }
+                        LoadingFile::Music { mut file, data } =>  {
                             
                             if ui.button("Play song").clicked() {
                                 if file.seek(SeekFrom::Start(0)).ok() == Some(0) {
                                     self.loading_mod_file = Some(MODAsyncLoader::new(file));
                                     drop(stop_mod_file());
                                 }
+                                pop_dir_entry(current_path);
                             } else if ui.button("go back").clicked() {
                                 self.loading_file = LoadingFile::None;
+                                pop_dir_entry(current_path);
                             } else if ui.button("set default").clicked() {
                                 let Some(fs) = &sd_fs else {return};
                                 let root = fs.root_dir();
                                 let Ok(mut file) = root.create_file("/_nds/vLaunch/default.bin") else { return};
-                                /* 
+                                
                                 if current_path.len() < 1000 {
-                                    file.write(&(current_path.len() as u16).to_le_bytes());
-                                    file.write(current_path.as_bytes());
+                                    let Some(slice) = current_path.get(3..) else {return};
+                                    file.write_all(&(slice.len() as u16).to_le_bytes());
+                                    file.write_all(slice.as_bytes());
                                     file.truncate();
                                     file.flush();
                                 }
-                                */
+                                pop_dir_entry(current_path);
                             } else {
                                 self.loading_file = LoadingFile::Music { file, data };
                             }
@@ -342,4 +284,8 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                 }
             });
     }
+}
+fn pop_dir_entry(current_path: &mut alloc::string::String) {
+    while current_path.pop() != Some('/') {}
+    current_path.push('/');
 }

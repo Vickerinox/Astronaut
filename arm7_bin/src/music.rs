@@ -474,7 +474,6 @@ pub fn set_mod(module: *mut MODHeader) {
     unsafe {
         reboot_lib::disable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
         SOUND_HARDWARE.init();
-        super::update_volume();
         MODULE = MODPlayData {
             current_song: module,
             ..MODPlayData::defaults()
@@ -493,7 +492,6 @@ pub fn set_procedural() {
     unsafe {
         reboot_lib::disable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
         SOUND_HARDWARE.init();
-        super::update_volume();
         TIMERS[0].write(Timer::RESET);
         TIMERS[0].write(Timer::new(
             0xFFFF - 8800,

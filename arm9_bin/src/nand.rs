@@ -136,14 +136,15 @@ impl<'a> BasicSDMMCCursor<'a> {
             false => crate::write_sd_card(self.buffer, self.lba + sector),
         }
     }
-    fn switch_sector(&mut self, virtual_sector: u32) -> Result<(), u32> {
+    fn switch_sector(&mut self) -> Result<(), u32> {
+        let virtual_sector = self.pos / 512;
         self.flush().unwrap();
-        match self.read_sector(virtual_sector) {
-            Ok(_) => self.buffer_virtual_position = virtual_sector as u64 * 512,
-            Err(_) => panic!("failed to read nand"),
+        match self.read_sector(virtual_sector as u32) {
+            Ok(_) => self.buffer_virtual_position = virtual_sector * 512,
+            Err(_) => return Err(123456789),
         }
-        assert!(self.pos >= self.buffer_virtual_position);
-        assert!(self.pos < self.buffer_virtual_position + (self.buffer.len() * 512) as u64);
+        //assert!(self.pos >= self.buffer_virtual_position);
+        //assert!(self.pos < self.buffer_virtual_position + (self.buffer.len() * 512) as u64);
         Ok(())
     }
 }
@@ -172,7 +173,8 @@ impl<'a> fatfs::IoBase for BasicSDMMCCursor<'a> {
 impl<'a> fatfs::Read for BasicSDMMCCursor<'a> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let mut read_bytes = 0;
-        
+        //assert!(self.pos >= self.buffer_virtual_position);
+        //assert!(self.pos < self.buffer_virtual_position + (self.buffer.len() * 512) as u64);
         let pos_in_buffer = (self.pos - self.buffer_virtual_position) as usize;
         let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
         let buffer_cutoff = available_buffer.min(buf.len());
@@ -188,8 +190,7 @@ impl<'a> fatfs::Read for BasicSDMMCCursor<'a> {
         self.pos += buffer_cutoff as u64;
         read_bytes += buffer_cutoff;
         if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
-            let virtual_sector = self.pos / 512;
-            self.switch_sector(virtual_sector as u32);
+            self.switch_sector();
         }
         
 
@@ -216,8 +217,7 @@ impl<'a> fatfs::Write for BasicSDMMCCursor<'a> {
         self.pos += buffer_cutoff as u64;
         read_bytes += buffer_cutoff;
         if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
-            let virtual_sector = self.pos / 512;
-            self.switch_sector(virtual_sector as u32);
+            self.switch_sector();
         }
         
 
@@ -243,11 +243,7 @@ impl<'a> fatfs::Seek for BasicSDMMCCursor<'a> {
         if (self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64)
             || (self.pos < self.buffer_virtual_position)
         {
-            let virtual_sector = self.pos / 512;
-            match self.read_sector(virtual_sector as u32) {
-                Ok(_) => self.buffer_virtual_position = virtual_sector * 512,
-                Err(_) => panic!("failed to read nand"),
-            }
+            self.switch_sector();
         }
         Ok(self.pos)
     }

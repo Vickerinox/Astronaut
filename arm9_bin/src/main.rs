@@ -122,14 +122,9 @@ unsafe fn interrupt_handler() {
 }
 
 static mut INTERRUPT_TABLE: [*mut fn(); 32] = [core::ptr::null_mut(); 32];
-static mut FRAME_COUNTER: usize = 0;
+
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
-}
-static mut PLAYING_MOD: *mut MODHeader = core::ptr::null_mut();
-fn play_mod() {}
-fn vblank_interrupt() {
-    unsafe { FRAME_COUNTER += 1 };
 }
 
 pub struct StaticReader(&'static [u8]);
@@ -262,18 +257,18 @@ fn populate_fs_vec<T: TimeProvider, F: ReadWriteSeek, OCC: OemCpConverter>(
         .iter()
         .filter_map(|folder| {
             let item = folder.ok()?;
-            let name = alloc::string::String::from(
-                alloc::str::from_utf8(item.short_file_name_as_bytes()).ok()?,
-            );
+            let name = alloc::str::from_utf8(item.short_file_name_as_bytes()).ok()?;
+            let name = alloc::string::String::from(name);
             if name == "." {
                 return None;
             }
             let color = if item.is_dir() {
                 Color::new(200, 100, 100)
             } else {
-                if is_bootable(item.short_file_name_as_bytes()) {
+                let name = item.short_file_name_as_bytes();
+                if is_bootable(name) {
                     Color::new(100, 200, 100)
-                } else if is_music_module(item.short_file_name_as_bytes()) {
+                } else if is_music_module(name) {
                     Color::new(100, 100, 200)
                 } else {
                     Color::new(180, 180, 180)
@@ -282,12 +277,34 @@ fn populate_fs_vec<T: TimeProvider, F: ReadWriteSeek, OCC: OemCpConverter>(
             Some((name, item.is_dir(), color))
         })
         .collect();
-    vec.sort_by(|(_, _b, c), (_, _d, e)| core::cmp::Ord::cmp(&c.0, &e.0));
+    
+     
+    for i in 1..vec.len() {
+        let Some(temp) = vec.get(i) else {break};
+        let temp = temp.clone();
+        let mut j = i;
+        loop {
+            let Some(under) = vec.get(j-1) else {break};
+            if under.2.0 > temp.2.0 {
+                let under = under.clone();
+                let Some(over) = vec.get_mut(j) else {break};
+                *over = under;
+                j -= 1;
+            } else {
+                break
+            }            
+        }
+        vec[j] = temp;
+    }
+    
     vec
 }
 
 unsafe fn main() {
     unsafe {
+        #[cfg(target_arch = "arm")]
+        core::arch::asm!("mov r11, r11");
+
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
@@ -337,17 +354,7 @@ unsafe fn main() {
 
         gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("GURU MEDITAION ERROR", 8);
-            text_pass.next_line();
-            text_pass.layout_str(
-                "startup is stuck at waiting for the co-CPU, meaning the exploit has failed.",
-                8,
-            );
-            text_pass.next_line();
-            text_pass.layout_str(
-                "try restarting the console, or reach out to the dsi hacking server",
-                8,
-            );
+            text_pass.layout_str("GURU MEDITAION ERROR (ARM7 FAIL)", 8);
         });
 
         video_context.next_frame();
@@ -440,9 +447,9 @@ pub unsafe extern "C" fn _start() {
 
         // Halt the CPU after main returns (if it does)
         "2: b 2b", // Infinite loop
-        stack_irq = const DSI_WRAM_START + 0x1000,
-        stack_svc = const DSI_WRAM_START + 0x2000,
-        stack_sys = const DSI_WRAM_START + 0x3000,
+        stack_irq = const DSI_WRAM_START + 0x2000,
+        stack_svc = const DSI_WRAM_START + 0x4000,
+        stack_sys = const DSI_WRAM_START + 0x6000,
         main = sym main, // Link the `main` symbol
         options(noreturn) // No return possible from this function
     );
@@ -464,11 +471,6 @@ fn stop_mod_file() -> Option<Box<MODHeader>> {
             Ok(_) => None,
             Err(old_mod) => Some(Box::from_raw(u32::from(old_mod) as *mut MODHeader)),
         }
-    }
-}
-fn start_procedural_music() {
-    unsafe {
-        reboot_lib::arm9_send_arm7(1, core::ptr::null_mut());
     }
 }
 fn read_encrypted_nand(
@@ -531,25 +533,19 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         .text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
             text_pass.layout_str(
-                "Panic occured, Under normal circumstances this should not happen.",
+                "Panic occured:",
                 8,
             );
-            
             text_pass.next_line();
-            //text_pass.next_line();
-            //text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
-            //text_pass.next_line();
-            //text_pass.next_line();
-            //if let Some(loc) = info.location() {
-            //    text_pass.layout_str(&alloc::format!("location: {}", loc), 8);
-            //}
-            
+            text_pass.layout_str(&alloc::format!("message: {}", info.message()), 8);
+            let Some(loc) = info.location() else {return};    
+            text_pass.layout_str(&alloc::format!("location: {loc}"), 8);
         });
         video_context.next_frame();
-    }
-    loop {}
+        loop { reboot_lib::swi_halt(); }
+    }  
 }
-
+#[inline]
 unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
     slice as *mut T as *mut () as *mut U
 }

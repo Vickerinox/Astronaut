@@ -1,9 +1,7 @@
 use crate::{
-    spi::{
-        touchscreen::{cdc_write_reg, CntReg},
-        write_powerman, Control, SPI_HARDWARE,
-    },
-    MemoryWrapper,
+    MemoryWrapper, spi::{
+        Control, SPI_HARDWARE, touchscreen::{CdcRegister, CntReg, cdc_write_reg}, write_powerman
+    }
 };
 use bitflags::bitflags;
 use volatile_register::*;
@@ -57,14 +55,14 @@ bitflags::bitflags! {
 impl NTRSoundRegisters {
     pub fn init(&self) {
         unsafe {
-            self.master_control.write((1 << 15) | 0);
+            self.master_control.write((1 << 15) | 0x09);
             self.capture_0.write(0);
             self.capture_1.write(0);
             self.bias.write(0x200);
             self.dsi_sound_control.write(4 | (1 << 13));
-            cdc_write_reg(CntReg::PllJ, 15);
-            cdc_write_reg(CntReg::DacNdac, 0x85);
-            cdc_write_reg(CntReg::AdcNadc, 0x85);
+            cdc_write_reg(CdcRegister::Control(CntReg::PllJ), 15);
+            cdc_write_reg(CdcRegister::Control(CntReg::DacNdac), 0x85);
+            cdc_write_reg(CdcRegister::Control(CntReg::AdcNadc), 0x85);
 
             self.dsi_sound_control.modify(|i| i | 0x8000);
             //self.master_control.write((1<<15));

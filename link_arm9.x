@@ -1,4 +1,5 @@
 /* Memory layout of ourself when title.tmd is loaded */
+/* minimum exploit mem size: 0x13048 */
 MEMORY
 {
   EXPLOIT_MEM : ORIGIN = 0x037DF27C, LENGTH = 0x13048

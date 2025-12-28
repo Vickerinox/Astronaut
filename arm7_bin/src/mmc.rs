@@ -534,7 +534,7 @@ unsafe fn do_cpu_transfer(port: &mut TMIOPort, command: Command) -> Status {
             if MMC_CONTROLLER
                 .data_control_32
                 .read()
-                .contains(DataControl32::TX_READY)
+                .contains(DataControl32::TX_BUSY)
             {
                 let block_end = port.buffer.byte_add(block_len as usize);
                 while port.buffer < block_end {

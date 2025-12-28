@@ -21,18 +21,18 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             layout: Layout::default(),
         }
     }
-    pub fn button<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
+    pub fn button<'c>(&mut self, text: &str) -> response::Response {
         self.add(Button::new(
-            text.as_ref(),
+            text,
             crate::Sizing::Automatic,
             Color::new(200, 200, 200),
         ))
     }
-    pub fn label<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
-        self.add(Label::new(text.as_ref(), 8))
+    pub fn label<'c>(&mut self, text: &str) -> response::Response {
+        self.add(Label::new(text, 8))
     }
-    pub fn header<'c>(&mut self, text: impl AsRef<str>) -> response::Response {
-        self.add(Label::new(text.as_ref(), 16))
+    pub fn header<'c>(&mut self, text: &str) -> response::Response {
+        self.add(Label::new(text, 16))
     }
     pub fn request_repaint(&mut self) {
         self.ctx.request_repaint();

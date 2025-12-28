@@ -30,14 +30,16 @@ pub enum MODAsyncLoader<R> {
         reader: R,
         progress: usize,
         wip_patterns: *mut [u8],
-        header: Box<MODHeader>,
+        header: *mut MODHeader,
     },
     LoadingSamples {
         reader: R,
         progress: usize,
         sample: usize,
-        header: Box<MODHeader>,
+        header: * mut MODHeader,
     },
+    HeaderSeekError,
+    SampleSeekError,
 }
 impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
     pub fn new(reader: R) -> Self {
@@ -47,7 +49,9 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
     pub fn process(mut self) -> Result<Option<Box<MODHeader>>, Self> {
         match self {
             MODAsyncLoader::NotStarted(mut reader) => {
-                assert_eq!(reader.seek(fatfs::SeekFrom::Current(0)).ok(), Some(0));
+                if reader.seek(fatfs::SeekFrom::Current(0)).ok() != Some(0) {
+                    return Err(Self::HeaderSeekError);
+                }
                 let head_layout = unsafe {
                     Layout::from_size_align_unchecked(
                         mem::size_of::<MODHeader>(),
@@ -90,12 +94,14 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                     Ok(new_progress) => {
                         let progress = progress + new_progress;
                         if progress == 1084 {
-                            assert_eq!(reader.seek(fatfs::SeekFrom::Current(0)).ok(), Some(1084));
+                            if reader.seek(fatfs::SeekFrom::Current(0)).ok() != Some(1084) {
+                                return Err(Self::SampleSeekError);
+                            }
                             for remaining_value in &mut header[1084..] {
                                 *remaining_value = 0;
                             }
                             let mut header =
-                                unsafe { Box::from_raw(wip_header as *mut u8 as *mut MODHeader) };
+                                unsafe { &mut *(wip_header as *mut u8 as *mut MODHeader) };
                             for sample_info in &mut header.sample_info {
                                 sample_info.length = sample_info.length.to_be() << 1;
                                 sample_info.repeat_length = sample_info.repeat_length.to_be();
@@ -165,7 +171,7 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                                     ptr as *mut MODPattern,
                                     len / mem::size_of::<MODPattern>(),
                                 );
-                                header.patterns = patterns;
+                                (*header).patterns = patterns;
                             }
                             Err(Self::LoadingSamples {
                                 reader,
@@ -209,6 +215,7 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                 mut header,
                 mut sample,
             } => {
+                let header = unsafe {&mut *header};
                 while let Some(info) = header.sample_info.get(sample) {
                     if info.length > 0 {
                         let mut buffer = match unsafe { header.samples[sample].as_mut() } {
@@ -260,9 +267,10 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                 //we've gone through all samples!
                 unsafe {
                     crate::flush_mmc();
+                    Ok(Some(alloc::boxed::Box::from_raw(header)))
                 }
-                Ok(Some(header))
             }
+            other => Err(other),
         }
     }
 }
@@ -277,7 +285,9 @@ impl<R> MODAsyncLoader<R> {
                 header,
                 ..
             } => {
+    
                 let header_len = 1084;
+                let header = unsafe {&mut **header};
                 let sample_len: usize = header.sample_info.iter().map(|x| x.length as usize).sum();
                 let pattern_len = wip_patterns.len();
                 (
@@ -291,6 +301,7 @@ impl<R> MODAsyncLoader<R> {
                 header,
                 ..
             } => {
+                let header = unsafe {&mut **header};
                 let header_len = 1084;
                 let sample_len: usize = header.sample_info.iter().map(|x| x.length as usize).sum();
                 let pattern_len = header.patterns.len() * mem::size_of::<MODPattern>();
@@ -301,6 +312,7 @@ impl<R> MODAsyncLoader<R> {
                     header_len + sample_len + pattern_len,
                 )
             }
+            _ => (0, usize::MAX),
         }
     }
 }

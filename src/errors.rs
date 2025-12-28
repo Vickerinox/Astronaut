@@ -96,7 +96,7 @@ pub enum TMDCompileError {
         path: Cow<'static, str>,
     },
     #[error("TMD file verification failed")]
-    FileVerification,
+    TMDFileVerification,
 }
 impl<C: Into<Cow<'static, str>>> From<(FatFsError<IoError>, C)> for TMDCompileError {
     fn from(value: (FatFsError<IoError>, C)) -> Self {

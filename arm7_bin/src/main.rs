@@ -49,7 +49,7 @@ pub unsafe extern "C" fn _start() {
 }
 
 pub mod music;
-
+/* 
 unsafe fn update_volume() {
     match reboot_lib::i2c::I2C_HARDWARE.read_register(reboot_lib::i2c::PowerRegister::VOL) {
         Ok(value) => reboot_lib::sound::SOUND_HARDWARE
@@ -58,10 +58,8 @@ unsafe fn update_volume() {
         Err(_) => (),
     }
 }
+    */
 unsafe fn power_button_interrupt() {
-    unsafe {
-        update_volume();
-    }
     let irq_cause = unsafe {
         reboot_lib::i2c::I2C_HARDWARE
             .read_register(reboot_lib::i2c::PowerRegister::PWRIF)
@@ -85,11 +83,6 @@ unsafe fn power_button_interrupt() {
     }
 }
 
-static mut VBLANK_COUNTER: u32 = 0;
-
-unsafe fn vblank_interrupt() {
-    VBLANK_COUNTER += 1;
-}
 
 fn main() {
     unsafe {
@@ -99,7 +92,6 @@ fn main() {
         reboot_lib::spi::touchscreen::init_tsc();
         reboot_lib::i2c::init();
         reboot_lib::sound::SOUND_HARDWARE.init();
-        update_volume();
         swi_delay(0x20BA * 16);
         reboot_lib::spi::write_powerman(PowerRegiser::Control(
             Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP,
@@ -257,13 +249,15 @@ fn main() {
                         response = 0x8000_0000;
                         continue;
                     };
+                    
                     match module_type {
                         0 => music::set_mod(pointer as *mut _),
                         1 => {
-                            music::set_procedural();
+                            //music::set_procedural();
                         }
                         _ => response = 0x8000_0000,
                     }
+                    
                 }
                 _ => response = 0x8000_0000,
             }
