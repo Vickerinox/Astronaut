@@ -20,7 +20,7 @@ pub mod spi;
 mod swi;
 pub mod timers;
 mod video;
-
+pub use bitflags;
 use core::num::NonZeroU32;
 
 pub use fatfs;

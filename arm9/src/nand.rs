@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use reboot_lib::fatfs;
-use reboot_lib::StorageSector;
 use reboot_lib::fatfs::Write;
+use reboot_lib::StorageSector;
 pub unsafe fn mount_twl_main(
     lba: u32,
     _size: u32,
@@ -148,7 +148,7 @@ impl<'a> BasicSDMMCCursor<'a> {
         Ok(())
     }
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BasicSDMMCError {
     UnexpectedEof,
     WriteZero,
@@ -179,7 +179,7 @@ impl<'a> fatfs::Read for BasicSDMMCCursor<'a> {
         let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
         let buffer_cutoff = available_buffer.min(buf.len());
         let (read, _remaining) = buf.split_at_mut(buffer_cutoff);
-        
+
         let byte_buffer = {
             let l = self.buffer.as_mut().len() << 9;
             let s = self.buffer.as_mut() as *mut [reboot_lib::StorageSector] as *mut u32 as *mut u8;
@@ -192,7 +192,6 @@ impl<'a> fatfs::Read for BasicSDMMCCursor<'a> {
         if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
             self.switch_sector();
         }
-        
 
         Ok(read_bytes)
     }
@@ -201,25 +200,24 @@ impl<'a> fatfs::Write for BasicSDMMCCursor<'a> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         self.dirty = true;
         let mut read_bytes = 0;
-        
+
         let pos_in_buffer = (self.pos - self.buffer_virtual_position) as usize;
         let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
         let buffer_cutoff = available_buffer.min(buf.len());
         let (read, _remaining) = buf.split_at(buffer_cutoff);
-        
+
         let byte_buffer = {
             let l = self.buffer.as_mut().len() << 9;
             let s = self.buffer.as_mut() as *mut [reboot_lib::StorageSector] as *mut u32 as *mut u8;
             unsafe { core::slice::from_raw_parts_mut(s, l) }
         };
-        
+
         byte_buffer[pos_in_buffer..][..buffer_cutoff].copy_from_slice(read);
         self.pos += buffer_cutoff as u64;
         read_bytes += buffer_cutoff;
         if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
             self.switch_sector();
         }
-        
 
         Ok(read_bytes)
     }

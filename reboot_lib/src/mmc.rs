@@ -311,11 +311,7 @@ impl MMC {
             } else {
                 // Write loop
                 while !self.status.read().intersects(Status::ALL_ERRORS) {
-                    if !self
-                        .data_control_32
-                        .read()
-                        .contains(DataControl32::TX_BUSY)
-                    {
+                    if !self.data_control_32.read().contains(DataControl32::TX_BUSY) {
                         for (i, word) in current_sector.0.iter_mut().enumerate() {
                             self.data_fifo_32.write(*word);
                         }

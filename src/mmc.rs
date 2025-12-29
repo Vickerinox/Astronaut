@@ -124,7 +124,11 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     //verify the file
     info!("Verifying TMD... ");
     if &vec[REGULAR_TMD_LEN..] == &tmd[REGULAR_TMD_LEN..] {
-        info!("Final TMD size: {} bytes ({} KiB)", tmd.len(), tmd.len()/1024);
+        info!(
+            "Final TMD size: {} bytes ({} KiB)",
+            tmd.len(),
+            tmd.len() / 1024
+        );
         drop(root);
         drop(file);
         info!("Unmounting TWL_MAIN... ");

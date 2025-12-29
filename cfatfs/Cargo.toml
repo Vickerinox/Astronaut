@@ -1,0 +1,30 @@
+[package]
+name = "fatfs-embedded"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+license-file = "LICENSE"
+description = "Rust bindings for the popular embedded FatFs library."
+authors = ["Caleb Garrett"]
+readme = "README.md"
+repository = "https://github.com/caleb-garrett/fatfs-embedded"
+keywords = ["embedded", "no_std", "fatfs", "embassy"]
+categories = ["embedded", "filesystem", "external-ffi-bindings", "no-std"]
+
+[build-dependencies]
+cc = "1"
+bindgen = "0.69"
+
+[dependencies]
+bitflags = "2.4.2"
+cty = "0.2.2"
+
+[features]
+default = ["chrono"]
+chrono = ["dep:chrono"]
+
+[target.'cfg(not(target_os = "none"))'.dependencies]
+chrono = { version = "0.4.3", optional = true }
+
+[target.'cfg(target_os = "none")'.dependencies]
+chrono = { version = "0.4.3", default-features = false, optional = true }

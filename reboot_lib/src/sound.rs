@@ -1,7 +1,9 @@
 use crate::{
-    MemoryWrapper, spi::{
-        Control, SPI_HARDWARE, touchscreen::{CdcRegister, CntReg, cdc_write_reg}, write_powerman
-    }
+    spi::{
+        touchscreen::{cdc_write_reg, CdcRegister, CntReg},
+        write_powerman, Control, SPI_HARDWARE,
+    },
+    MemoryWrapper,
 };
 use bitflags::bitflags;
 use volatile_register::*;

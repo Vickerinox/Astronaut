@@ -51,7 +51,7 @@ fn compress(data: &[u8]) -> Vec<u8> {
     let mut final_output = (((data.len() as u32) << 8) | 0x10).to_le_bytes().to_vec();
     final_output.extend_from_slice(&output);
     while final_output.len() & 3 != 0 {
-        final_output.push(0);   
+        final_output.push(0);
     }
     final_output
 }

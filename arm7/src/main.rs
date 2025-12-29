@@ -8,7 +8,14 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
-    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, i2c::I2CRegister, ndma::{NDMA, NDMA_HARDWARE}, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser}, swi_delay, timers::TIMERS, write_sd_sectors
+    i2c::I2CRegister,
+    ndma::{NDMA, NDMA_HARDWARE},
+    sound::SOUND_HARDWARE,
+    spi::{Control, PowerRegiser},
+    swi_delay,
+    timers::TIMERS,
+    write_sd_sectors, Status, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER,
+    SDIO_CONTROLLER,
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -49,7 +56,7 @@ pub unsafe extern "C" fn _start() {
 }
 
 pub mod music;
-/* 
+/*
 unsafe fn update_volume() {
     match reboot_lib::i2c::I2C_HARDWARE.read_register(reboot_lib::i2c::PowerRegister::VOL) {
         Ok(value) => reboot_lib::sound::SOUND_HARDWARE
@@ -82,7 +89,6 @@ unsafe fn power_button_interrupt() {
         _ => { /* unknown, afaik, seems to mean any other i2c interrupt */ }
     }
 }
-
 
 fn main() {
     unsafe {
@@ -143,7 +149,7 @@ fn main() {
         };
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
 
-        /* 
+        /*
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
             power_button_interrupt,
@@ -228,7 +234,7 @@ fn main() {
                 9 => {
                     let module_type = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let pointer = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-                    
+
                     match module_type {
                         0 => music::set_mod(pointer as *mut _),
                         1 => {
@@ -236,7 +242,6 @@ fn main() {
                         }
                         _ => response = 0x8000_0000,
                     }
-                    
                 }
                 _ => response = 0x8000_0000,
             }

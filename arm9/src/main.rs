@@ -3,7 +3,6 @@
 #![feature(ptr_metadata)]
 #![feature(str_from_utf16_endian)]
 
-
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
@@ -13,7 +12,6 @@ use core::arch::asm;
 use micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
-    fatfs::{Dir, FileSystem, OemCpConverter, ReadWriteSeek, TimeProvider},
     flush_mmc, VideoHardwareHandle,
 };
 use reboot_lib::{
@@ -21,15 +19,62 @@ use reboot_lib::{
     VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
 };
 
+
+use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
+use reboot_lib::fatfs::{Read, Write, Seek};
+
+impl FatFsDriver for BasicSDMMCCursor<'static> {
+    fn disk_status(&self, drive: u8) -> u8 {
+        0
+    }
+    fn disk_initialize(&mut self, drive: u8) -> u8 {
+        0
+    }
+    fn disk_ioctl(&self, data: &mut IoctlCommand) -> DiskResult {
+        if *data == IoctlCommand::CtrlSync(()) {
+            match self.flush() {
+                Ok(_) => DiskResult::Ok,
+                Err(_) => DiskResult::Error,
+            }
+        } else {
+            DiskResult::Error
+        }
+    }
+    fn disk_read(&mut self, drive: u8, buffer: &mut [u8], sector: u32) -> DiskResult {
+        let new_pos = sector as u64 * 512;
+        if self.seek(reboot_lib::fatfs::SeekFrom::Start(new_pos)) != Ok(new_pos) {
+            return DiskResult::Error
+        }
+        match self.read_exact(buffer) {
+            Ok(_) => DiskResult::Ok,
+            _ => DiskResult::Error,
+        }
+    }
+    fn disk_write(&mut self, drive: u8, buffer: &[u8], sector: u32) -> DiskResult {
+        match self.seek(reboot_lib::fatfs::SeekFrom::Start(sector as u64 * 512)) {
+            Ok(a) => {
+                if a == sector as u64 * 512 {
+                    DiskResult::Ok
+                } else {
+                    DiskResult::Error
+                }
+            }
+            _ => DiskResult::Error
+        }
+        
+    }
+}
+
 use crate::nand::BasicSDMMCCursor;
 
 extern crate alloc;
 
+mod autoboot;
 mod boot;
+pub mod fat;
 mod gui;
 mod mbr;
 mod nand;
-mod autoboot;
 pub mod new_takeover;
 #[repr(C)]
 pub struct NandAutobootEntry {
@@ -40,7 +85,13 @@ pub struct NandAutobootEntry {
     _reserved: u16,
 }
 impl NandAutobootEntry {
-    pub const EMPTY: NandAutobootEntry = NandAutobootEntry { category: 0, title_id: 0, version: 0, buttons: Buttons::empty(),_reserved: 0};
+    pub const EMPTY: NandAutobootEntry = NandAutobootEntry {
+        category: 0,
+        title_id: 0,
+        version: 0,
+        buttons: Buttons::empty(),
+        _reserved: 0,
+    };
 }
 static mut NAND_AUTOBOOTS: [NandAutobootEntry; 40] = [NandAutobootEntry::EMPTY; 40];
 
@@ -162,14 +213,14 @@ impl reboot_lib::fatfs::Read for StaticReader {
     }
 }
 unsafe fn init_font() {
-    /* 
+    /*
     const FONT_FILE: &[u8] = include_bytes!("./font.bin");
     for (i, w) in FONT_FILE.chunks_exact(4).enumerate() {
         let reg = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
         core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
     }
     */
-    
+
     #[cfg(target_arch = "arm")]
     {
         const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
@@ -301,26 +352,25 @@ fn populate_fs_vec<T: TimeProvider, F: ReadWriteSeek, OCC: OemCpConverter>(
             Some((name, item.is_dir(), color))
         })
         .collect();
-    
-     
+
     for i in 1..vec.len() {
-        let Some(temp) = vec.get(i) else {break};
+        let Some(temp) = vec.get(i) else { break };
         let temp = temp.clone();
         let mut j = i;
         loop {
-            let Some(under) = vec.get(j-1) else {break};
-            if under.2.0 > temp.2.0 {
+            let Some(under) = vec.get(j - 1) else { break };
+            if under.2 .0 > temp.2 .0 {
                 let under = under.clone();
-                let Some(over) = vec.get_mut(j) else {break};
+                let Some(over) = vec.get_mut(j) else { break };
                 *over = under;
                 j -= 1;
             } else {
-                break
-            }            
+                break;
+            }
         }
         vec[j] = temp;
     }
-    
+
     vec
 }
 
@@ -556,21 +606,20 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         )
         .text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str(
-                "Panic occured:",
-                8,
-            );
+            text_pass.layout_str("Panic occured:", 8);
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(&alloc::format!("msg: {}", info.message()), 8);
             text_pass.next_line();
             text_pass.next_line();
-            let Some(loc) = info.location() else {return};    
+            let Some(loc) = info.location() else { return };
             text_pass.layout_str(&alloc::format!("loc: {loc}"), 8);
         });
         video_context.next_frame();
-        loop { reboot_lib::swi_halt(); }
-    }  
+        loop {
+            reboot_lib::swi_halt();
+        }
+    }
 }
 #[inline]
 unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {

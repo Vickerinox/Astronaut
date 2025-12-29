@@ -24,3 +24,4 @@ bench = false
 reboot_lib = {path = "../reboot_lib"}
 micro_imgui = {path = "../micro_imgui"}
 common = {path = "../common"}
+fatfs-embedded ={path = "../cfatfs", default-features = false}

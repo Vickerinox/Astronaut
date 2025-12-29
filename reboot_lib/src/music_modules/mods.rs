@@ -36,7 +36,7 @@ pub enum MODAsyncLoader<R> {
         reader: R,
         progress: usize,
         sample: usize,
-        header: * mut MODHeader,
+        header: *mut MODHeader,
     },
     HeaderSeekError,
     SampleSeekError,
@@ -215,7 +215,7 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                 mut header,
                 mut sample,
             } => {
-                let header = unsafe {&mut *header};
+                let header = unsafe { &mut *header };
                 while let Some(info) = header.sample_info.get(sample) {
                     if info.length > 0 {
                         let mut buffer = match unsafe { header.samples[sample].as_mut() } {
@@ -285,9 +285,8 @@ impl<R> MODAsyncLoader<R> {
                 header,
                 ..
             } => {
-    
                 let header_len = 1084;
-                let header = unsafe {&mut **header};
+                let header = unsafe { &mut **header };
                 let sample_len: usize = header.sample_info.iter().map(|x| x.length as usize).sum();
                 let pattern_len = wip_patterns.len();
                 (
@@ -301,7 +300,7 @@ impl<R> MODAsyncLoader<R> {
                 header,
                 ..
             } => {
-                let header = unsafe {&mut **header};
+                let header = unsafe { &mut **header };
                 let header_len = 1084;
                 let sample_len: usize = header.sample_info.iter().map(|x| x.length as usize).sum();
                 let pattern_len = header.patterns.len() * mem::size_of::<MODPattern>();
