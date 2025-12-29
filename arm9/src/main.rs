@@ -515,8 +515,8 @@ unsafe fn main() {
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut frontend = gui::AppData::new();
-        frontend.open_default_fs();
-        frontend.play_startup_music();
+        //frontend.open_default_fs();
+        //frontend.play_startup_music();
 
         micro_imgui::run(backend, (), |mut f, _| {
             frontend.update(&mut f);
