@@ -28,16 +28,27 @@ impl FatFsDriver for BasicSDMMCCursor<'static> {
         0
     }
     fn disk_initialize(&mut self, drive: u8) -> u8 {
-        0
+        match drive {
+            0 => 1,
+            1 => if unsafe { CHECK_SD } {0} else {1},
+            2 => if unsafe { CHECK_NAND } {0} else {1},
+            _ => 1
+        }
     }
     fn disk_ioctl(&self, data: &mut IoctlCommand) -> DiskResult {
-        if *data == IoctlCommand::CtrlSync(()) {
-            match self.flush() {
-                Ok(_) => DiskResult::Ok,
-                Err(_) => DiskResult::Error,
-            }
-        } else {
-            DiskResult::Error
+        match data {
+            IoctlCommand::CtrlSync(_) => {
+                DiskResult::Ok
+                /* 
+                match self.flush() {
+                    Ok(_) => DiskResult::Ok,
+                    Err(_) => DiskResult::Error,
+                }
+                */
+            },
+            IoctlCommand::GetSectorCount(_) => DiskResult::Error,
+            IoctlCommand::GetSectorSize(_) => DiskResult::Error,
+            IoctlCommand::GetBlockSize(_) => DiskResult::Error,
         }
     }
     fn disk_read(&mut self, drive: u8, buffer: &mut [u8], sector: u32) -> DiskResult {
@@ -62,6 +73,10 @@ impl FatFsDriver for BasicSDMMCCursor<'static> {
             _ => DiskResult::Error
         }
         
+    }
+    #[cfg(not(target_arch = "arm"))]
+    fn get_fattime(&self) -> NaiveDateTime {
+        todo!()
     }
 }
 
@@ -294,7 +309,7 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
         );
     VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
 }
-
+/* 
 unsafe fn try_mount_sd() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
     let sd_buffer = core::slice::from_raw_parts_mut(0x2FE8000 as *mut StorageSector, 1);
     read_sd_card(sd_buffer, 0).ok()?;
@@ -321,13 +336,39 @@ unsafe fn try_mount_nand() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
         core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 16);
     nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
 }
-
+*/
+static mut CHECK_NAND: bool = false;
+static mut CHECK_SD: bool = false;
 pub struct RebootState {
     current_path: String,
 }
-fn populate_fs_vec<T: TimeProvider, F: ReadWriteSeek, OCC: OemCpConverter>(
-    folder: &Dir<'_, F, T, OCC>,
+use fatfs_embedded::fatfs::FS;
+fn populate_fs_vec(
+    folder: &mut fatfs_embedded::fatfs::Directory,
 ) -> Vec<(String, bool, Color)> {
+    let mut vec: Vec<_> = alloc::vec::Vec::new();
+    unsafe {
+    while let Ok(file) = unsafe { FS.findnext(folder) } {
+        let Ok(name) = core::ffi::CStr::from_ptr(file.fname.as_ptr()).to_str() else {continue};
+        let name = alloc::string::String::from(name);
+        let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
+        let color = if is_dir {
+            
+                Color::new(200, 100, 100)
+            } else {
+                let name = name.as_bytes();
+                if is_bootable(&name) {
+                    Color::new(100, 200, 100)
+                } else if is_music_module(&name) {
+                    Color::new(100, 100, 200)
+                } else {
+                    Color::new(180, 180, 180)
+                }
+            };
+        vec.push((name, is_dir, color))
+    }
+    }
+    /* 
     let mut vec: Vec<_> = folder
         .iter()
         .filter_map(|folder| {
@@ -352,7 +393,7 @@ fn populate_fs_vec<T: TimeProvider, F: ReadWriteSeek, OCC: OemCpConverter>(
             Some((name, item.is_dir(), color))
         })
         .collect();
-
+    */
     for i in 1..vec.len() {
         let Some(temp) = vec.get(i) else { break };
         let temp = temp.clone();
@@ -458,8 +499,8 @@ unsafe fn main() {
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
         //loop {}
 
-        let check_sd = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
-        let check_nand = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
+        CHECK_SD = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
+        CHECK_NAND = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
 
         video_context.next_frame();
 
@@ -471,16 +512,14 @@ unsafe fn main() {
 
         video_context.next_frame();
 
-        let nand_fs = if check_nand { try_mount_nand() } else { None };
-        let sd_fs = if check_sd { try_mount_sd() } else { None };
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut frontend = gui::AppData::new();
-        frontend.open_default_fs(&nand_fs, &sd_fs);
-        frontend.play_startup_music(&sd_fs);
+        frontend.open_default_fs();
+        frontend.play_startup_music();
 
         micro_imgui::run(backend, (), |mut f, _| {
-            frontend.update(&mut f, &nand_fs, &sd_fs);
+            frontend.update(&mut f);
         });
     }
 }

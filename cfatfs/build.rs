@@ -5,12 +5,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = cc::Build::new();
     let builder = builder
         .file("fatfs/source/ff.c")
-        .file("fatfs/source/ffunicode.c");
-        
-    builder.compile("fatfs");
+        .file("fatfs/source/ffunicode.c")
+        .target("armv5te-none-eabi")
+        .compile("fatfs");
 
     let target = env::var("TARGET")?;
-
+    
     let bindings = bindgen::Builder::default()
         .header("fatfs/source/ff.h")
         .clang_arg(format!("--target={}", target))
@@ -24,6 +24,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
-
     Ok(())
 }

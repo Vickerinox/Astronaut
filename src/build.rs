@@ -8,6 +8,7 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     let mut cwd = std::process::Command::new("cargo")
         .arg("build")
         .arg("-r")
+        .arg("--verbose")
         .current_dir(&path)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())

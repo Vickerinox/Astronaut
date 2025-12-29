@@ -3,47 +3,45 @@ use reboot_lib::{
     music_modules::mods::{MODAsyncLoader, MODHeader},
     Buttons,
 };
-
+use fatfs_embedded::fatfs::FS;
 use crate::{
     boot, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file, stop_mod_file,
 };
 use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
 
-enum CurrentDirectory<'a, T: ReadWriteSeek, TP, OCC> {
+enum CurrentDirectory {
     None,
     NAND {
-        current_dir: Dir<'a, T, TP, OCC>,
         immediate_files: Vec<(String, bool, Color)>,
         file_path: String,
     },
     SD {
-        current_dir: Dir<'a, T, TP, OCC>,
         immediate_files: Vec<(String, bool, Color)>,
         file_path: String,
     },
 }
-enum LoadingFile<'a, T: ReadWriteSeek, TP, OCC> {
+enum LoadingFile<'a, T: reboot_lib::fatfs::ReadWriteSeek, TP, OCC> {
     None,
     App {
-        file: File<'a, T, TP, OCC>,
+        file: reboot_lib::fatfs::File<'a, T, TP, OCC>,
     },
     Music {
-        file: File<'a, T, TP, OCC>,
+        file: reboot_lib::fatfs::File<'a, T, TP, OCC>,
         data: Vec<u8>,
     },
 }
 
-pub struct AppData<
+pub struct AppData/*<
     'a,
     T: ReadWriteSeek,
     TP: TimeProvider = NullTimeProvider,
     OCC = LossyOemCpConverter,
-> {
-    current_dir: CurrentDirectory<'a, T, TP, OCC>,
-    loading_file: LoadingFile<'a, T, TP, OCC>,
-    loading_mod_file: Option<MODAsyncLoader<File<'a, T, TP, OCC>>>,
+>*/ {
+    current_dir: CurrentDirectory,
+    //loading_file: LoadingFile<'a, T, TP, OCC>,
+    //loading_mod_file: Option<MODAsyncLoader<File<'a, T, TP, OCC>>>,
 }
-impl<'a, T: ReadWriteSeek, TP, OCC> CurrentDirectory<'a, T, TP, OCC> {
+impl CurrentDirectory {
     pub fn is_in_sd(&self) -> bool {
         if let Self::SD { .. } = self {
             true
@@ -59,40 +57,35 @@ impl<'a, T: ReadWriteSeek, TP, OCC> CurrentDirectory<'a, T, TP, OCC> {
         }
     }
 }
-impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T, TP, OCC> {
+impl AppData {
     pub fn new() -> Self {
         Self {
-            current_dir: CurrentDirectory::None,
-            loading_file: LoadingFile::None,
-            loading_mod_file: None,
+            current_dir: CurrentDirectory::None
         }
     }
     pub fn open_default_fs(
-        &mut self,
-        nand_fs: &'a Option<FileSystem<T, TP, OCC>>,
-        sd_fs: &'a Option<FileSystem<T, TP, OCC>>,
+        &mut self
     ) {
-        if let Some(sd_fs) = sd_fs {
-            let current_dir = sd_fs.root_dir();
-            let immediate_files = populate_fs_vec(&current_dir);
+        if let Ok(mut sd_fs) =  unsafe { FS.opendir("sd:/") } {
+            let immediate_files = populate_fs_vec(&mut sd_fs);
             let file_path = String::from("sd:/");
+            unsafe { FS.closedir(&mut sd_fs) };
             self.current_dir = CurrentDirectory::SD {
-                current_dir,
                 immediate_files,
                 file_path,
             };
-        } else if let Some(nand_fs) = nand_fs {
-            let current_dir = nand_fs.root_dir();
-            let immediate_files = populate_fs_vec(&current_dir);
+        } else if let Ok(mut nand_fs) =  unsafe { FS.opendir("nand:/") } {
+            let immediate_files = populate_fs_vec(&mut nand_fs);
             let file_path = String::from("nand:/");
+            unsafe { FS.closedir(&mut nand_fs) };
             self.current_dir = CurrentDirectory::NAND {
-                current_dir,
                 immediate_files,
                 file_path,
             };
         }
     }
-    pub fn play_startup_music(&mut self, sd_fs: &'a Option<FileSystem<T, TP, OCC>>) {
+    pub fn play_startup_music(&mut self) {
+        /* 
         if let Some(folder) = sd_fs.as_ref() {
             let root = folder.root_dir();
 
@@ -123,14 +116,14 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                 Err(_abort) => {}
             }
         }
+        */
     }
     pub fn update(
         &mut self,
-        f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>,
-        nand_fs: &'a Option<FileSystem<T, TP, OCC>>,
-        sd_fs: &'a Option<FileSystem<T, TP, OCC>>,
+        f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>
     ) {
         f.central_panel(|ui| {
+            /* 
             if ui.input_pressed(gui::Input(Buttons::BUTTON_L))
                 || ui.input_pressed(gui::Input(Buttons::BUTTON_R))
             {
@@ -140,7 +133,6 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                         let immediate_files = populate_fs_vec(&current_dir);
                         let file_path = String::from("nand:/");
                         self.current_dir = CurrentDirectory::NAND {
-                            current_dir,
                             immediate_files,
                             file_path,
                         };
@@ -151,13 +143,13 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                         let immediate_files = populate_fs_vec(&current_dir);
                         let file_path = String::from("sd:/");
                         self.current_dir = CurrentDirectory::SD {
-                            current_dir,
                             immediate_files,
                             file_path,
                         };
                     }
                 }
             }
+            */
             let heading = match &self.current_dir {
                 CurrentDirectory::None => "",
                 CurrentDirectory::NAND { .. } => "NAND view:",
@@ -165,20 +157,18 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
             };
             ui.header(heading);
 
-            let mut new_folder = None;
+            //let mut new_folder = None;
 
             match &mut self.current_dir {
                 CurrentDirectory::None => (),
                 CurrentDirectory::NAND {
-                    current_dir,
                     immediate_files,
                     file_path: current_path,
                 }
                 | CurrentDirectory::SD {
-                    current_dir,
                     immediate_files,
                     file_path: current_path,
-                } => {
+                } => { /* 
                     if let Some(loading_mod) = self.loading_mod_file.take() {
                         let (progress, max) = loading_mod.progress();
                         let progress_bar = progress * 30 / max;
@@ -197,6 +187,10 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                     } else {
                         ui.label(&current_path);
                     }
+                    */
+
+
+                    /* 
                     let mut a = LoadingFile::None;
                     core::mem::swap(&mut a, &mut self.loading_file);
                     match a {
@@ -211,20 +205,7 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                                     .clicked()
                                 {
                                     if item.1 {
-                                        match current_dir.open_dir(&item.0) {
-                                            Ok(folder) => {
-                                                if &item.0 == "." {
-                                                } else if &item.0 == ".." {
-                                                    current_path.pop();
-                                                    pop_dir_entry(current_path);
-                                                } else {
-                                                    current_path.push_str(&item.0);
-                                                    current_path.push('/');
-                                                }
-                                                new_folder = Some(folder)
-                                            }
-                                            Err(_) => (),
-                                        }
+                                        
                                     } else {
                                         let extension_point = item.0.len() - 4;
                                         if item.0.is_char_boundary(extension_point) {
@@ -234,8 +215,8 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                                                         current_path.push_str(&item.0);
                                                         match file.seek(SeekFrom::Start(0)) {
                                                             Ok(0) => unsafe {
-                                                                boot::boot_app(file, &current_path)
-                                                                    .expect("failed app boot");
+                                                                //boot::boot_app(file, &current_path)
+                                                                //    .expect("failed app boot");
                                                             },
 
                                                             Ok(_what) => (),
@@ -303,6 +284,7 @@ impl<'a, T: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> AppData<'a, T,
                             }
                         }
                     }
+                    */
                 }
             }
         });
