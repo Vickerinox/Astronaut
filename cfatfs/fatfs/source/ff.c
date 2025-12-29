@@ -23,6 +23,17 @@
 #include "ff.h"			/* Declarations of FatFs API */
 #include "diskio.h"		/* Declarations of device I/O functions */
 
+char *
+strchr (register const char *s, int c)
+{
+  do {
+    if (*s == c)
+      {
+	return (char*)s;
+      }
+  } while (*s++);
+  return (0);
+}
 
 /*--------------------------------------------------------------------------
 

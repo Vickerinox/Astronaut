@@ -7,13 +7,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file("fatfs/source/ff.c")
         .file("fatfs/source/ffunicode.c")
         .target("armv5te-none-eabi")
+        .compiler("arm-none-eabi-gcc")
+        .flag("-Oz")
         .compile("fatfs");
 
     let target = env::var("TARGET")?;
     
     let bindings = bindgen::Builder::default()
         .header("fatfs/source/ff.h")
-        .clang_arg(format!("--target={}", target))
+        .clang_arg(format!("--target=armv5te-none-eabi"))
         .use_core()
         .ctypes_prefix("cty")
         .derive_copy(false)

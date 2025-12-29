@@ -8,7 +8,6 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     let mut cwd = std::process::Command::new("cargo")
         .arg("build")
         .arg("-r")
-        .arg("--verbose")
         .current_dir(&path)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -17,6 +16,10 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     info!(
         "Spawning cargo command cargo build -r in {}",
         path.to_str().expect("already checked")
+    );
+    info!(
+        "libclang path is: {:?}",
+        std::env::set_var("LIBCLANG_PATH", "/nix/store/044jyaz6q8jc4bznnp8gxw653kw1k5sg-clang-19.1.7-lib/lib")
     );
     if !cwd
         .wait()
