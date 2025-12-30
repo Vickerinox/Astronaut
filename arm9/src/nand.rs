@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use reboot_lib::StorageSector;
 pub struct BasicSDMMCCursor<'a> {
-    buffer_virtual_position: u64,
+    buffer_sector: u32,
     buffer: &'a mut [StorageSector],
     pos: u64,
     lba: u32,
@@ -19,7 +19,7 @@ pub enum AsyncSDMMCReadStatus {
 impl<'a> BasicSDMMCCursor<'a> {
     pub fn new(buffer: &'a mut [StorageSector], lba_sector: u32, is_nand: bool) -> Self {
         let mut oneself = Self {
-            buffer_virtual_position: 0,
+            buffer_sector: 0,
             buffer,
             pos: 0,
             lba: lba_sector,
@@ -42,10 +42,10 @@ impl<'a> BasicSDMMCCursor<'a> {
         }
     }
     fn switch_sector(&mut self) -> Result<(), u32> {
-        let virtual_sector = self.pos / 512;
+        let virtual_sector = (self.pos / 512)  as u32;
         self.flush().unwrap();
-        match self.read_sector(virtual_sector as u32) {
-            Ok(_) => self.buffer_virtual_position = virtual_sector * 512,
+        match self.read_sector(virtual_sector) {
+            Ok(_) => self.buffer_sector = virtual_sector,
             Err(_) => return Err(123456789),
         }
         //assert!(self.pos >= self.buffer_virtual_position);
@@ -56,7 +56,8 @@ impl<'a> BasicSDMMCCursor<'a> {
         let mut read_bytes = 0;
         //assert!(self.pos >= self.buffer_virtual_position);
         //assert!(self.pos < self.buffer_virtual_position + (self.buffer.len() * 512) as u64);
-        let pos_in_buffer = (self.pos - self.buffer_virtual_position) as usize;
+        let buffer_position = self.buffer_sector as u64 * 512;
+        let pos_in_buffer = (self.pos - buffer_position) as usize;
         let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
         let buffer_cutoff = available_buffer.min(buf.len());
         let (read, _remaining) = buf.split_at_mut(buffer_cutoff);
@@ -70,7 +71,7 @@ impl<'a> BasicSDMMCCursor<'a> {
         read.copy_from_slice(&byte_buffer[pos_in_buffer..][..buffer_cutoff]);
         self.pos += buffer_cutoff as u64;
         read_bytes += buffer_cutoff;
-        if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
+        if self.pos >= buffer_position + (self.buffer.len() * 512) as u64 {
             self.switch_sector();
         }
 
@@ -79,8 +80,8 @@ impl<'a> BasicSDMMCCursor<'a> {
     pub fn write(&mut self, buf: &[u8]) -> Result<usize, BasicSDMMCError> {
         self.dirty = true;
         let mut read_bytes = 0;
-
-        let pos_in_buffer = (self.pos - self.buffer_virtual_position) as usize;
+        let buffer_position = self.buffer_sector as u64 * 512;
+        let pos_in_buffer = (self.pos - buffer_position) as usize;
         let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
         let buffer_cutoff = available_buffer.min(buf.len());
         let (read, _remaining) = buf.split_at(buffer_cutoff);
@@ -94,7 +95,7 @@ impl<'a> BasicSDMMCCursor<'a> {
         byte_buffer[pos_in_buffer..][..buffer_cutoff].copy_from_slice(read);
         self.pos += buffer_cutoff as u64;
         read_bytes += buffer_cutoff;
-        if self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64 {
+        if self.pos >= buffer_position + (self.buffer.len() * 512) as u64 {
             self.switch_sector();
         }
 
@@ -102,7 +103,7 @@ impl<'a> BasicSDMMCCursor<'a> {
     }
     pub fn flush(&mut self) -> Result<(), BasicSDMMCError> {
         if self.dirty {
-            let sect = self.buffer_virtual_position / 512;
+            let sect = self.buffer_sector;
             self.write_sector(sect as u32).unwrap();
             self.dirty = false;
         }
@@ -110,8 +111,9 @@ impl<'a> BasicSDMMCCursor<'a> {
     }
     pub fn seek(&mut self, pos: u64) -> Result<u64, BasicSDMMCError> {
         self.pos = pos;
-        if (self.pos >= self.buffer_virtual_position + (self.buffer.len() * 512) as u64)
-            || (self.pos < self.buffer_virtual_position)
+        let buffer_position = self.buffer_sector as u64 * 512;
+        if (self.pos >= buffer_position + (self.buffer.len() * 512) as u64)
+            || (self.pos < buffer_position)
         {
             self.switch_sector();
         }
