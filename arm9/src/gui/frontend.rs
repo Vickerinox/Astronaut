@@ -1,13 +1,18 @@
-use alloc::{format, string::String, vec::Vec};
+use crate::{
+    boot, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file, stop_mod_file,
+    COLOR_BOOTABLE, COLOR_MUSIC,
+};
+use alloc::{
+    format,
+    string::{String, ToString},
+    vec::{self, Vec},
+};
+use fatfs_embedded::fatfs::{File, FileInfo, FileOptions, FS_SD};
+use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
 use reboot_lib::{
     music_modules::mods::{MODAsyncLoader, MODHeader},
     Buttons,
 };
-use fatfs_embedded::fatfs::FS;
-use crate::{
-    boot, gui, is_bootable, is_music_module, populate_fs_vec, send_mod_file, stop_mod_file,
-};
-use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
 
 enum CurrentDirectory {
     None,
@@ -20,26 +25,21 @@ enum CurrentDirectory {
         file_path: String,
     },
 }
-enum LoadingFile<'a, T: reboot_lib::fatfs::ReadWriteSeek, TP, OCC> {
+enum LoadingFile {
     None,
     App {
-        file: reboot_lib::fatfs::File<'a, T, TP, OCC>,
+        file: fatfs_embedded::fatfs::File,
     },
     Music {
-        file: reboot_lib::fatfs::File<'a, T, TP, OCC>,
+        file: fatfs_embedded::fatfs::File,
         data: Vec<u8>,
     },
 }
 
-pub struct AppData/*<
-    'a,
-    T: ReadWriteSeek,
-    TP: TimeProvider = NullTimeProvider,
-    OCC = LossyOemCpConverter,
->*/ {
+pub struct AppData{
     current_dir: CurrentDirectory,
-    //loading_file: LoadingFile<'a, T, TP, OCC>,
-    //loading_mod_file: Option<MODAsyncLoader<File<'a, T, TP, OCC>>>,
+    loading_file: LoadingFile,
+    loading_mod_file: Option<MODAsyncLoader>,
 }
 impl CurrentDirectory {
     pub fn is_in_sd(&self) -> bool {
@@ -60,104 +60,89 @@ impl CurrentDirectory {
 impl AppData {
     pub fn new() -> Self {
         Self {
-            current_dir: CurrentDirectory::None
+            current_dir: CurrentDirectory::None,
+            loading_file: LoadingFile::None,
+            loading_mod_file: None,
         }
     }
-    pub fn open_default_fs(
-        &mut self
-    ) {
-        if let Ok(mut sd_fs) =  unsafe { FS.opendir("sd:/") } {
-            let immediate_files = populate_fs_vec(&mut sd_fs);
-            let file_path = String::from("sd:/");
-            unsafe { FS.closedir(&mut sd_fs) };
-            self.current_dir = CurrentDirectory::SD {
+    pub fn open_sd() -> Option<CurrentDirectory> {
+        let mut file_path = String::from("sd:/");
+        fatfs_embedded::opendir(&mut file_path).ok().map(|mut i| {
+            let immediate_files = populate_fs_vec(&mut i);
+            CurrentDirectory::SD {
                 immediate_files,
                 file_path,
-            };
-        } else if let Ok(mut nand_fs) =  unsafe { FS.opendir("nand:/") } {
-            let immediate_files = populate_fs_vec(&mut nand_fs);
-            let file_path = String::from("nand:/");
-            unsafe { FS.closedir(&mut nand_fs) };
-            self.current_dir = CurrentDirectory::NAND {
+            }
+        })
+    }
+    pub fn open_nand() -> Option<CurrentDirectory> {
+        let mut file_path = String::from("nand:/");
+        fatfs_embedded::opendir(&mut file_path).ok().map(|mut i| {
+            let immediate_files = populate_fs_vec(&mut i);
+            CurrentDirectory::NAND {
                 immediate_files,
                 file_path,
-            };
+            }
+        })
+    }
+    pub fn open_default_fs(&mut self) {
+        if let Some(dir) = Self::open_sd() {
+            self.current_dir = dir;
+        } else if let Some(dir) = Self::open_nand() {
+            self.current_dir = dir;
         }
     }
     pub fn play_startup_music(&mut self) {
-        /* 
-        if let Some(folder) = sd_fs.as_ref() {
-            let root = folder.root_dir();
-
-            match root.open_file("/_nds/vlaunch/default.bin") {
-                Ok(mut file) => {
-                    stop_mod_file();
-                    let mut size = [0u8; 2];
-                    if file.read_exact(&mut size).is_err() {
-                        //start_procedural_music();
-                        return;
-                    }
-                    let size = u16::from_le_bytes(size) as usize;
-                    let mut path_buf: Vec<u8> = alloc::vec![0; size];
-                    if file.read_exact(&mut path_buf).is_err() {
-                        //start_procedural_music();
-                        return;
-                    }
-                    let Ok(str) = core::str::from_utf8(&path_buf) else {
-                        //start_procedural_music();
-                        return;
-                    };
-                    let Ok(file) = root.open_file(str) else {
-                        return;
-                    };
-                    self.loading_mod_file = Some(MODAsyncLoader::new(file));
+        match fatfs_embedded::open(
+            &mut "sd:/_nds/vlaunch/default.bin".to_string(),
+            FileOptions::Read,
+        ) {
+            Ok(mut file) => {
+                let mut size = [0u8; 2];
+                if fatfs_embedded::read(&mut file, &mut size).is_err() {
                     return;
                 }
-                Err(_abort) => {}
+                let size = u16::from_le_bytes(size) as usize;
+                let mut path_buf: Vec<u8> = alloc::vec![0; size];
+                if fatfs_embedded::read(&mut file, &mut path_buf).is_err() {
+                    return;
+                }
+                let Ok(mut str) = String::from_utf8(path_buf) else {
+                    return;
+                };
+                let Ok(file) = fatfs_embedded::open(&mut str, FileOptions::Read) else {
+                    return;
+                };
+                stop_mod_file();
+                self.loading_mod_file = Some(MODAsyncLoader::new(file));
             }
+            Err(_abort) => {}
         }
-        */
     }
-    pub fn update(
-        &mut self,
-        f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>
-    ) {
+    pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>) {
         f.central_panel(|ui| {
-            /* 
             if ui.input_pressed(gui::Input(Buttons::BUTTON_L))
                 || ui.input_pressed(gui::Input(Buttons::BUTTON_R))
             {
-                if !self.current_dir.is_in_nand() && nand_fs.is_some() {
-                    if let Some(root) = nand_fs.as_ref() {
-                        let current_dir = root.root_dir();
-                        let immediate_files = populate_fs_vec(&current_dir);
-                        let file_path = String::from("nand:/");
-                        self.current_dir = CurrentDirectory::NAND {
-                            immediate_files,
-                            file_path,
-                        };
+                if self.current_dir.is_in_nand() {
+                    if let Some(dir) = AppData::open_sd() {
+                        self.current_dir = dir;
                     }
-                } else if !self.current_dir.is_in_sd() && sd_fs.is_some() {
-                    if let Some(root) = sd_fs.as_ref() {
-                        let current_dir = root.root_dir();
-                        let immediate_files = populate_fs_vec(&current_dir);
-                        let file_path = String::from("sd:/");
-                        self.current_dir = CurrentDirectory::SD {
-                            immediate_files,
-                            file_path,
-                        };
+                } else if self.current_dir.is_in_sd() {
+                    if let Some(dir) = AppData::open_nand() {
+                        self.current_dir = dir;
                     }
                 }
             }
-            */
+
             let heading = match &self.current_dir {
-                CurrentDirectory::None => "",
+                CurrentDirectory::None => "Unable To Mount FS!!!",
                 CurrentDirectory::NAND { .. } => "NAND view:",
                 CurrentDirectory::SD { .. } => "SD Card view:",
             };
             ui.header(heading);
 
-            //let mut new_folder = None;
+            let mut new_folder = None;
 
             match &mut self.current_dir {
                 CurrentDirectory::None => (),
@@ -168,7 +153,7 @@ impl AppData {
                 | CurrentDirectory::SD {
                     immediate_files,
                     file_path: current_path,
-                } => { /* 
+                } => {
                     if let Some(loading_mod) = self.loading_mod_file.take() {
                         let (progress, max) = loading_mod.progress();
                         let progress_bar = progress * 30 / max;
@@ -187,10 +172,7 @@ impl AppData {
                     } else {
                         ui.label(&current_path);
                     }
-                    */
 
-
-                    /* 
                     let mut a = LoadingFile::None;
                     core::mem::swap(&mut a, &mut self.loading_file);
                     match a {
@@ -205,55 +187,63 @@ impl AppData {
                                     .clicked()
                                 {
                                     if item.1 {
-                                        
+                                        current_path.push_str(&item.0);
+                                        current_path.push('/');
+                                        if let Ok(f) = fatfs_embedded::opendir(current_path) {
+                                            new_folder = Some(f);
+                                        }
                                     } else {
-                                        let extension_point = item.0.len() - 4;
-                                        if item.0.is_char_boundary(extension_point) {
-                                            if is_bootable(item.0.as_bytes()) {
-                                                match current_dir.open_file(&item.0) {
-                                                    Ok(mut file) => {
-                                                        current_path.push_str(&item.0);
-                                                        match file.seek(SeekFrom::Start(0)) {
-                                                            Ok(0) => unsafe {
-                                                                //boot::boot_app(file, &current_path)
-                                                                //    .expect("failed app boot");
-                                                            },
-
-                                                            Ok(_what) => (),
-                                                            Err(_error) => (),
-                                                        }
-                                                    }
-                                                    Err(_) => (),
+                                        if item.2 == COLOR_BOOTABLE {
+                                            current_path.push_str(&item.0);
+                                            match fatfs_embedded::open(
+                                                current_path,
+                                                FileOptions::Read,
+                                            ) {
+                                                Ok(file) => {
+                                                    unsafe {
+                                                        boot::boot_app(file, &current_path).unwrap()
+                                                    };
                                                 }
-                                            } else if is_music_module(item.0.as_bytes()) {
-                                                match current_dir.open_file(&item.0) {
-                                                    Ok(mut module) => {
-                                                        current_path.push_str(&item.0);
-                                                        let mut header_buffer =
-                                                            alloc::vec![0u8; 0x640];
-                                                        module.read_exact(&mut header_buffer);
-                                                        self.loading_file = LoadingFile::Music {
-                                                            file: module,
-                                                            data: header_buffer,
-                                                        };
-                                                    }
-                                                    Err(_abort) => (),
+                                                Err(_) => (),
+                                            }
+                                        } else if item.2 == COLOR_MUSIC {
+                                            current_path.push_str(&item.0);
+                                            match fatfs_embedded::open(
+                                                current_path,
+                                                FileOptions::Read,
+                                            ) {
+                                                Ok(mut module) => {
+                                                    let mut header_buffer = alloc::vec![0u8; 0x640];
+                                                    //module.read_exact(&mut header_buffer);
+                                                    self.loading_file = LoadingFile::Music {
+                                                        file: module,
+                                                        data: header_buffer,
+                                                    };
                                                 }
+                                                Err(_abort) => pop_dir_entry(current_path),
                                             }
                                         }
                                     }
                                 }
                             }
-
-                            if let Some(new_folder) = new_folder {
-                                *immediate_files = populate_fs_vec(&new_folder);
-                                *current_dir = new_folder;
+                            if ui.input_pressed(gui::Input(Buttons::BUTTON_B))
+                                && new_folder.is_none()
+                            {
+                                if current_path != "sd:/" && current_path != "nand:/" {
+                                    pop_dir_entry(current_path);
+                                    if let Ok(f) = fatfs_embedded::opendir(current_path) {
+                                        new_folder = Some(f);
+                                    }
+                                }
+                            }
+                            if let Some(mut new_folder) = new_folder {
+                                *immediate_files = populate_fs_vec(&mut new_folder);
                             }
                         }
                         LoadingFile::App { file } => {}
                         LoadingFile::Music { mut file, data } => {
                             if ui.button("Play song").clicked() {
-                                if file.seek(SeekFrom::Start(0)).ok() == Some(0) {
+                                if fatfs_embedded::seek(&mut file, 0) == Ok(()) {
                                     self.loading_mod_file = Some(MODAsyncLoader::new(file));
                                     drop(stop_mod_file());
                                 }
@@ -262,35 +252,44 @@ impl AppData {
                                 self.loading_file = LoadingFile::None;
                                 pop_dir_entry(current_path);
                             } else if ui.button("set default").clicked() {
-                                let Some(fs) = &sd_fs else { return };
-                                let root = fs.root_dir();
-                                let Ok(mut file) = root.create_file("/_nds/vLaunch/default.bin")
-                                else {
-                                    return;
+                                let mut file = match fatfs_embedded::open(
+                                    &mut "sd:/_nds/vLaunch/default.bin".to_string(),
+                                    FileOptions::Write | FileOptions::CreateAlways,
+                                ) {
+                                    Ok(file) => file,
+                                    Err(what) => panic!("{:?}", what),
                                 };
 
                                 if current_path.len() < 1000 {
-                                    let Some(slice) = current_path.get(3..) else {
-                                        return;
+                                    match fatfs_embedded::write(
+                                        &mut file,
+                                        &(current_path.len() as u16).to_le_bytes(),
+                                    ) {
+                                        Ok(2) => (),
+                                        _ => panic!(),
                                     };
-                                    file.write_all(&(slice.len() as u16).to_le_bytes());
-                                    file.write_all(slice.as_bytes());
-                                    file.truncate();
-                                    file.flush();
+                                    let bytes = current_path.as_bytes();
+                                    match fatfs_embedded::write(&mut file, bytes) {
+                                        Ok(len) => assert_eq!(len as usize, bytes.len()),
+                                        _ => panic!(),
+                                    };
+                                    fatfs_embedded::truncate(&mut file).unwrap();
+                                    unsafe { FS_SD.sync(&mut file).unwrap() };
                                 }
+
                                 pop_dir_entry(current_path);
                             } else {
                                 self.loading_file = LoadingFile::Music { file, data };
                             }
                         }
                     }
-                    */
                 }
             }
         });
     }
 }
-fn pop_dir_entry(current_path: &mut alloc::string::String) {
+fn pop_dir_entry(current_path: &mut String) {
+    current_path.pop();
     while current_path.pop() != Some('/') {}
     current_path.push('/');
 }

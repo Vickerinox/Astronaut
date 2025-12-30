@@ -4,7 +4,6 @@ use alloc::{
     alloc::{alloc, dealloc, Layout},
     boxed::Box,
 };
-use fatfs::IoError;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -19,21 +18,21 @@ pub struct MODHeader {
     pub samples: [*mut [u8]; 31],
 }
 
-pub enum MODAsyncLoader<R> {
-    NotStarted(R),
+pub enum MODAsyncLoader {
+    NotStarted(fatfs_embedded::fatfs::File),
     LoadingHeader {
-        reader: R,
+        reader: fatfs_embedded::fatfs::File,
         progress: usize,
         wip_header: *mut [u8],
     },
     LoadingPatterns {
-        reader: R,
+        reader: fatfs_embedded::fatfs::File,
         progress: usize,
         wip_patterns: *mut [u8],
         header: *mut MODHeader,
     },
     LoadingSamples {
-        reader: R,
+        reader: fatfs_embedded::fatfs::File,
         progress: usize,
         sample: usize,
         header: *mut MODHeader,
@@ -41,15 +40,15 @@ pub enum MODAsyncLoader<R> {
     HeaderSeekError,
     SampleSeekError,
 }
-impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
-    pub fn new(reader: R) -> Self {
+impl MODAsyncLoader {
+    pub fn new(reader: fatfs_embedded::fatfs::File) -> Self {
         Self::NotStarted(reader)
     }
     //perform one read, then return the result or ourselves needing to be re-processed.
     pub fn process(mut self) -> Result<Option<Box<MODHeader>>, Self> {
         match self {
             MODAsyncLoader::NotStarted(mut reader) => {
-                if reader.seek(fatfs::SeekFrom::Current(0)).ok() != Some(0) {
+                if fatfs_embedded::seek(&mut reader, 0) != Ok(()) {
                     return Err(Self::HeaderSeekError);
                 }
                 let head_layout = unsafe {
@@ -62,25 +61,17 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                     slice::from_raw_parts_mut(alloc(head_layout), mem::size_of::<MODHeader>())
                 };
 
-                match reader.read(&mut wip_header[..1084]) {
+                match fatfs_embedded::read(&mut reader, &mut wip_header[..1084]) {
                     Ok(progress) => Err(Self::LoadingHeader {
                         reader,
-                        progress,
+                        progress: progress as usize,
                         wip_header,
                     }),
                     Err(err) => {
-                        if err.is_interrupted() {
-                            Err(Self::LoadingHeader {
-                                reader,
-                                progress: 0,
-                                wip_header,
-                            })
-                        } else {
-                            unsafe {
-                                dealloc(wip_header as *mut [u8] as *mut u8, head_layout);
-                            }
-                            Ok(None)
+                        unsafe {
+                            dealloc(wip_header as *mut [u8] as *mut u8, head_layout);
                         }
+                        Ok(None)
                     }
                 }
             }
@@ -90,13 +81,10 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                 mut wip_header,
             } => {
                 let mut header = unsafe { &mut *wip_header };
-                match reader.read(&mut header[progress..1084]) {
+                match fatfs_embedded::read(&mut reader, &mut header[progress..1084]) {
                     Ok(new_progress) => {
-                        let progress = progress + new_progress;
+                        let progress = progress + new_progress as usize;
                         if progress == 1084 {
-                            if reader.seek(fatfs::SeekFrom::Current(0)).ok() != Some(1084) {
-                                return Err(Self::SampleSeekError);
-                            }
                             for remaining_value in &mut header[1084..] {
                                 *remaining_value = 0;
                             }
@@ -135,22 +123,14 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                         }
                     }
                     Err(err) => {
-                        if err.is_interrupted() {
-                            Err(Self::LoadingHeader {
-                                reader,
-                                progress,
-                                wip_header,
-                            })
-                        } else {
-                            unsafe {
-                                let layout = Layout::from_size_align_unchecked(
-                                    mem::size_of::<MODHeader>(),
-                                    mem::align_of::<MODHeader>(),
-                                );
-                                dealloc(wip_header as *mut u8, layout);
-                            }
-                            Ok(None)
+                        unsafe {
+                            let layout = Layout::from_size_align_unchecked(
+                                mem::size_of::<MODHeader>(),
+                                mem::align_of::<MODHeader>(),
+                            );
+                            dealloc(wip_header as *mut u8, layout);
                         }
+                        Ok(None)
                     }
                 }
             }
@@ -161,9 +141,9 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                 wip_patterns,
             } => {
                 let mut patterns = unsafe { &mut *wip_patterns };
-                match reader.read(&mut patterns[progress..]) {
+                match fatfs_embedded::read(&mut reader, &mut patterns[progress..]) {
                     Ok(new_progress) => {
-                        let progress = progress + new_progress;
+                        let progress = progress + new_progress as usize;
                         if progress == patterns.len() {
                             let (ptr, len) = wip_patterns.to_raw_parts();
                             unsafe {
@@ -189,23 +169,14 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                         }
                     }
                     Err(err) => {
-                        if err.is_interrupted() {
-                            Err(Self::LoadingPatterns {
-                                reader,
-                                progress,
-                                wip_patterns,
-                                header,
-                            })
-                        } else {
-                            unsafe {
-                                let layout = Layout::from_size_align_unchecked(
-                                    wip_patterns.len(),
-                                    mem::align_of::<MODPattern>(),
-                                );
-                                dealloc(wip_patterns as *mut u8, layout);
-                            }
-                            Ok(None)
+                        unsafe {
+                            let layout = Layout::from_size_align_unchecked(
+                                wip_patterns.len(),
+                                mem::align_of::<MODPattern>(),
+                            );
+                            dealloc(wip_patterns as *mut u8, layout);
                         }
+                        Ok(None)
                     }
                 }
             }
@@ -232,9 +203,9 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                             }
                             Some(valid) => valid,
                         };
-                        return match reader.read(&mut buffer[progress..]) {
+                        return match fatfs_embedded::read(&mut reader, &mut buffer[progress..]) {
                             Ok(new_progress) => {
-                                progress += new_progress;
+                                progress += new_progress as usize;
                                 if progress == buffer.len() {
                                     sample += 1;
                                     progress = 0;
@@ -246,18 +217,7 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
                                     header,
                                 })
                             }
-                            Err(err) => {
-                                if err.is_interrupted() {
-                                    Err(Self::LoadingSamples {
-                                        reader,
-                                        progress,
-                                        sample,
-                                        header,
-                                    })
-                                } else {
-                                    Ok(None)
-                                }
-                            }
+                            Err(err) => Ok(None),
                         };
                     } else {
                         progress = 0;
@@ -274,7 +234,7 @@ impl<R: fatfs::Read + fatfs::Seek> MODAsyncLoader<R> {
         }
     }
 }
-impl<R> MODAsyncLoader<R> {
+impl MODAsyncLoader {
     pub fn progress(&self) -> (usize, usize) {
         match self {
             MODAsyncLoader::NotStarted(_) => (0, usize::MAX),
@@ -406,7 +366,7 @@ pub struct MODSampleData {
 }
 
 impl MODPattern {}
-
+/* 
 impl MODSampleData {
     pub fn read_from<R: fatfs::Read>(reader: &mut R) -> Result<Self, R::Error> {
         let mut name = [0u8; 22];
@@ -488,3 +448,4 @@ impl MODHeader {
         Ok(ourself)
     }
 }
+*/

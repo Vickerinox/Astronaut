@@ -1,7 +1,7 @@
 use common::bootstrap::{ArgvStructutre, HeaderTWL};
 use common::bootstrap::{ARGV_MAGIC, SYSTEM_ARGV};
-use reboot_lib::fatfs;
-use reboot_lib::fatfs::SeekFrom;
+use fatfs_embedded::fatfs::FS_SD;
+
 
 use crate::BOOTSTRAP_BINARY;
 
@@ -43,10 +43,25 @@ unsafe fn inject_argv(header: &HeaderTWL, file_path: &str) {
     SYSTEM_ARGV.write_volatile(final_argv_structure);
 }
 
-pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(
-    mut r: R,
+unsafe fn read_all(
+    mut buffer: &mut [u8],
+    file: &mut fatfs_embedded::fatfs::File,
+) -> Result<(), fatfs_embedded::fatfs::Error> {
+    loop {
+        let bytes = fatfs_embedded::read(file, buffer)?;
+        let Some(remaining) = buffer.get_mut((bytes as usize)..) else {
+            return Err(fatfs_embedded::fatfs::Error::InternalLogicError);
+        };
+        if remaining.is_empty() {
+            return Ok(());
+        };
+        buffer = remaining;
+    }
+}
+pub unsafe fn boot_app(
+    mut r: fatfs_embedded::fatfs::File,
     file_path: &str,
-) -> Result<(), R::Error> {
+) -> Result<(), fatfs_embedded::fatfs::Error> {
     crate::stop_mod_file();
     let (header, _bootloader) = (*BOOTLOADER_MEM).split_at_mut(0x1000);
     //bootstrap::READY_FLAG_0.write_volatile(0xFF);
@@ -54,29 +69,28 @@ pub unsafe fn boot_app<R: fatfs::Read + fatfs::Seek>(
     //bootstrap::READY_FLAG_2.write_volatile(0xFF);
     //bootstrap::READY_FLAG_3.write_volatile(0xFF);
 
-    r.read_exact(header)?;
+    read_all(header, &mut r)?;
     let header = &mut *(header as *mut [u8] as *mut u8 as *mut HeaderTWL);
 
-    r.seek(SeekFrom::Start(header.arm9_offset as u64))?;
+    fatfs_embedded::seek(&mut r, header.arm9_offset)?;
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
-    r.read_exact(arm9_ram)?;
+    read_all(arm9_ram, &mut r)?;
 
-    r.seek(SeekFrom::Start(header.arm9i_offset as u64))
-        .expect("Failed to seek to ARM9i Binary");
+    fatfs_embedded::seek(&mut r, header.arm9i_offset)?;
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm9i_load as *mut u8, header.arm9i_size as usize);
-    r.read_exact(arm9_ram)?;
+    read_all(arm9_ram, &mut r)?;
 
-    r.seek(SeekFrom::Start(header.arm7_offset as u64))?;
+    fatfs_embedded::seek(&mut r, header.arm7_offset)?;
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
-    r.read_exact(arm9_ram)?;
+    read_all(arm9_ram, &mut r)?;
 
-    r.seek(SeekFrom::Start(header.arm7i_offset as u64))?;
+    fatfs_embedded::seek(&mut r, header.arm7i_offset)?;
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
-    r.read_exact(arm9_ram)?;
+    read_all(arm9_ram, &mut r)?;
 
     if header.is_homebrew() {
         inject_argv(header, file_path);

@@ -11,72 +11,106 @@ use core::arch::asm;
 
 use micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
-use reboot_lib::{
-    flush_mmc, VideoHardwareHandle,
-};
+use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc, VideoHardwareHandle};
 use reboot_lib::{
     Buttons, MatrixMode, PolygonAttributes, PrimaryDisplayControl, StorageSector,
     VideoPowerControl, Viewport, IPC_FIFO_HARDWARE, VIDEO_HARDWARE,
 };
 
-
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
-use reboot_lib::fatfs::{Read, Write, Seek};
 
-impl FatFsDriver for BasicSDMMCCursor<'static> {
-    fn disk_status(&self, drive: u8) -> u8 {
-        0
-    }
-    fn disk_initialize(&mut self, drive: u8) -> u8 {
-        match drive {
-            0 => 1,
-            1 => if unsafe { CHECK_SD } {0} else {1},
-            2 => if unsafe { CHECK_NAND } {0} else {1},
-            _ => 1
+pub struct SDMMCDriver {
+    nand_controller: Option<BasicSDMMCCursor<'static>>,
+    sd_controller: Option<BasicSDMMCCursor<'static>>,
+}
+impl FatFsDriver for SDMMCDriver {
+    fn disk_status(&mut self, drive: u8) -> u8 {
+        match unsafe { arm9_check_sdmmc(drive) } {
+            Ok(()) => 0,
+            Err(_any) => 1,
         }
     }
-    fn disk_ioctl(&self, data: &mut IoctlCommand) -> DiskResult {
+    fn disk_initialize(&mut self, drive: u8) -> u8 {
+        match unsafe { arm9_init_sdmmc(drive) } {
+            Ok(()) => match drive {
+                1 => {
+                    self.sd_controller = unsafe { try_mount_sd() };
+                    if self.sd_controller.is_some() {
+                        0
+                    } else {
+                        1
+                    }
+                }
+                2 => {
+                    self.nand_controller = unsafe { try_mount_nand() };
+                    if self.sd_controller.is_some() {
+                        0
+                    } else {
+                        1
+                    }
+                }
+                _ => 1,
+            },
+            Err(_any) => panic!("what {drive}"),
+        }
+    }
+    fn disk_ioctl(&mut self, data: &mut IoctlCommand) -> DiskResult {
         match data {
             IoctlCommand::CtrlSync(_) => {
+                if let Some(flusha) = &mut self.sd_controller {
+                    flusha.flush();
+                }
                 DiskResult::Ok
-                /* 
+                /*
                 match self.flush() {
                     Ok(_) => DiskResult::Ok,
                     Err(_) => DiskResult::Error,
                 }
                 */
-            },
+            }
+            _ => DiskResult::Ok,
             IoctlCommand::GetSectorCount(_) => DiskResult::Error,
             IoctlCommand::GetSectorSize(_) => DiskResult::Error,
             IoctlCommand::GetBlockSize(_) => DiskResult::Error,
         }
     }
-    fn disk_read(&mut self, drive: u8, buffer: &mut [u8], sector: u32) -> DiskResult {
+    fn disk_read(&mut self, drive: u8, mut buffer: &mut [u8], sector: u32) -> DiskResult {
+        let Some(controller) = (match drive {
+            1 => &mut self.sd_controller,
+            2 => &mut self.nand_controller,
+            _ => return DiskResult::ParameterError,
+        }) else {
+            return DiskResult::ParameterError;
+        };
         let new_pos = sector as u64 * 512;
-        if self.seek(reboot_lib::fatfs::SeekFrom::Start(new_pos)) != Ok(new_pos) {
-            return DiskResult::Error
+        if controller.seek(new_pos) != Ok(new_pos) {
+            return DiskResult::Error;
         }
-        match self.read_exact(buffer) {
-            Ok(_) => DiskResult::Ok,
-            _ => DiskResult::Error,
+        while !buffer.is_empty() {
+            let Ok(progress) = controller.read(buffer) else {return DiskResult::Error};
+            let Some(remaining_buffer) = buffer.get_mut(progress..) else {return DiskResult::Error};
+            buffer = remaining_buffer;
         }
+        DiskResult::Ok
     }
-    fn disk_write(&mut self, drive: u8, buffer: &[u8], sector: u32) -> DiskResult {
-        match self.seek(reboot_lib::fatfs::SeekFrom::Start(sector as u64 * 512)) {
-            Ok(a) => {
-                if a == sector as u64 * 512 {
-                    DiskResult::Ok
-                } else {
-                    DiskResult::Error
-                }
-            }
-            _ => DiskResult::Error
+    fn disk_write(&mut self, drive: u8, mut buffer: &[u8], sector: u32) -> DiskResult {
+        let Some(controller) = (match drive {
+            1 => &mut self.sd_controller,
+            2 => return DiskResult::WriteProtected, //&mut self.nand_controller,
+            _ => return DiskResult::ParameterError,
+        }) else {
+            return DiskResult::ParameterError;
+        };
+        let new_pos = sector as u64 * 512;
+        if controller.seek(new_pos) != Ok(new_pos) {
+            return DiskResult::Error;
         }
-        
-    }
-    #[cfg(not(target_arch = "arm"))]
-    fn get_fattime(&self) -> NaiveDateTime {
-        todo!()
+        while !buffer.is_empty() {
+            let Ok(progress) = controller.write(buffer) else {return DiskResult::Error};
+            let Some(remaining_buffer) = buffer.get(progress..) else {return DiskResult::Error};
+            buffer = remaining_buffer;
+        }
+        DiskResult::Ok
     }
 }
 
@@ -193,40 +227,6 @@ pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
 }
 
-pub struct StaticReader(&'static [u8]);
-#[derive(Debug)]
-pub enum StaticReaderError {
-    OutOfData,
-    UnexpectedEof,
-    WriteZero,
-}
-impl reboot_lib::fatfs::IoBase for StaticReader {
-    type Error = StaticReaderError;
-}
-impl reboot_lib::fatfs::IoError for StaticReaderError {
-    fn is_interrupted(&self) -> bool {
-        false
-    }
-
-    fn new_unexpected_eof_error() -> Self {
-        Self::UnexpectedEof
-    }
-
-    fn new_write_zero_error() -> Self {
-        Self::WriteZero
-    }
-}
-impl reboot_lib::fatfs::Read for StaticReader {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-        if buf.len() > self.0.len() {
-            return Err(StaticReaderError::OutOfData);
-        }
-        let (chunk, new_self) = self.0.split_at(buf.len());
-        buf.copy_from_slice(chunk);
-        self.0 = new_self;
-        Ok(buf.len())
-    }
-}
 unsafe fn init_font() {
     /*
     const FONT_FILE: &[u8] = include_bytes!("./font.bin");
@@ -309,8 +309,8 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
         );
     VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
 }
-/* 
-unsafe fn try_mount_sd() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
+
+unsafe fn try_mount_sd() -> Option<BasicSDMMCCursor<'static>> {
     let sd_buffer = core::slice::from_raw_parts_mut(0x2FE8000 as *mut StorageSector, 1);
     read_sd_card(sd_buffer, 0).ok()?;
     let mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
@@ -320,9 +320,10 @@ unsafe fn try_mount_sd() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
     let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
     let sd_buffer =
         core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 16);
-    nand::mount_sd(twl_lba, 0, sd_buffer).ok()
+    Some(BasicSDMMCCursor::new(sd_buffer, twl_lba, false))
 }
-unsafe fn try_mount_nand() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
+
+unsafe fn try_mount_nand() -> Option<BasicSDMMCCursor<'static>> {
     let nand_buffer = core::slice::from_raw_parts_mut(0x2FEC000 as *mut StorageSector, 1);
     read_encrypted_nand(nand_buffer, 0).ok()?;
     let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
@@ -334,66 +335,49 @@ unsafe fn try_mount_nand() -> Option<FileSystem<BasicSDMMCCursor<'static>>> {
     let twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
     let nand_buffer =
         core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 16);
-    nand::mount_twl_main(twl_lba, twl_size, nand_buffer).ok()
+    Some(BasicSDMMCCursor::new(nand_buffer, twl_lba, true))
 }
-*/
+
 static mut CHECK_NAND: bool = false;
 static mut CHECK_SD: bool = false;
 pub struct RebootState {
     current_path: String,
 }
-use fatfs_embedded::fatfs::FS;
-fn populate_fs_vec(
-    folder: &mut fatfs_embedded::fatfs::Directory,
-) -> Vec<(String, bool, Color)> {
+use fatfs_embedded::fatfs::{FS_NAND, FS_SD};
+const COLOR_BOOTABLE: Color = Color::new(100, 200, 100);
+const COLOR_MUSIC: Color = Color::new(100, 100, 200);
+fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String, bool, Color)> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
-    while let Ok(file) = unsafe { FS.findnext(folder) } {
-        let Ok(name) = core::ffi::CStr::from_ptr(file.fname.as_ptr()).to_str() else {continue};
-        let name = alloc::string::String::from(name);
-        let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
-        let color = if is_dir {
-            
-                Color::new(200, 100, 100)
-            } else {
-                let name = name.as_bytes();
-                if is_bootable(&name) {
-                    Color::new(100, 200, 100)
-                } else if is_music_module(&name) {
-                    Color::new(100, 100, 200)
-                } else {
-                    Color::new(180, 180, 180)
-                }
+        while let Ok(file) = fatfs_embedded::readdir(folder) {
+            let Ok(name) = core::ffi::CStr::from_ptr(file.fname.as_ptr()).to_str() else {
+                continue;
             };
-        vec.push((name, is_dir, color))
-    }
-    }
-    /* 
-    let mut vec: Vec<_> = folder
-        .iter()
-        .filter_map(|folder| {
-            let item = folder.ok()?;
-            let name = alloc::str::from_utf8(item.short_file_name_as_bytes()).ok()?;
             let name = alloc::string::String::from(name);
-            if name == "." {
-                return None;
+            if name.is_empty() {
+                break;
             }
-            let color = if item.is_dir() {
+            let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
+            let color = if is_dir {
                 Color::new(200, 100, 100)
             } else {
-                let name = item.short_file_name_as_bytes();
-                if is_bootable(name) {
-                    Color::new(100, 200, 100)
-                } else if is_music_module(name) {
-                    Color::new(100, 100, 200)
+                let s_name = core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_bytes();
+                let s_name = if s_name.is_empty() {
+                    name.as_bytes()
+                } else {
+                    s_name
+                };
+                if is_bootable(&s_name) {
+                    COLOR_BOOTABLE
+                } else if is_music_module(&s_name) {
+                    COLOR_MUSIC
                 } else {
                     Color::new(180, 180, 180)
                 }
             };
-            Some((name, item.is_dir(), color))
-        })
-        .collect();
-    */
+            vec.push((name, is_dir, color))
+        }
+    }
     for i in 1..vec.len() {
         let Some(temp) = vec.get(i) else { break };
         let temp = temp.clone();
@@ -497,14 +481,8 @@ unsafe fn main() {
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         //reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
-        //loop {}
-
-        CHECK_SD = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
-        CHECK_NAND = IPC_FIFO_HARDWARE.recieve_raw_blocking() == 1;
 
         video_context.next_frame();
-
-        ready_arm7();
 
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000111101010100);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0001000010000100);
@@ -512,11 +490,20 @@ unsafe fn main() {
 
         video_context.next_frame();
 
+        let sdmmc_controller = SDMMCDriver {
+            nand_controller: None,
+            sd_controller: None,
+        };
+        fatfs_embedded::fatfs::diskio::install(sdmmc_controller);
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut frontend = gui::AppData::new();
-        //frontend.open_default_fs();
-        //frontend.play_startup_music();
+        FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sd:\0"));
+
+        FS_NAND.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
+
+        frontend.open_default_fs();
+        frontend.play_startup_music();
 
         micro_imgui::run(backend, (), |mut f, _| {
             frontend.update(&mut f);
@@ -526,11 +513,17 @@ unsafe fn main() {
 
 pub fn is_bootable(str: &[u8]) -> bool {
     let len = str.len() - 4;
-    &str[len..] == b".APP" || &str[len..] == b".NDS" || &str[len..] == b".DSI"
+    let Some(extension) = str.get(len..) else {
+        return false;
+    };
+    extension == b".APP" || extension == b".NDS" || extension == b".DSI"
 }
 pub fn is_music_module(str: &[u8]) -> bool {
     let len = str.len() - 4;
-    &str[len..] == b".MOD"
+    let Some(extension_range) = str.get(len..) else {
+        return false;
+    };
+    extension_range == b".MOD"
 }
 
 const DSI_WRAM_START: usize = 0x037C0000;
@@ -567,9 +560,7 @@ pub unsafe extern "C" fn _start() {
         options(noreturn) // No return possible from this function
     );
 }
-unsafe fn ready_arm7() {
-    reboot_lib::arm9_ready_arm7();
-}
+
 fn send_mod_file(module: Box<MODHeader>) -> Option<Box<MODHeader>> {
     unsafe {
         match reboot_lib::arm9_send_arm7(0, Box::into_raw(module) as *mut ()) {

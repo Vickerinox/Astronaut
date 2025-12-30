@@ -92,6 +92,11 @@ unsafe fn init_sdmmc_general() {
     crate::enable_interrupt(crate::ARM7Interrupt::SDMMC);
 }
 static mut DEVICES: [Device; 2] = [Device::sd_card(), Device::nand()];
+pub unsafe fn check_sdmmc(device_number: DeviceSelect) -> Status {
+    let dev = &mut DEVICES[device_number as u8 as usize];
+    MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, 0)
+}
+
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
     if device_number == DeviceSelect::SDCardSlot {}
     let dev = &mut DEVICES[device_number as u8 as usize];

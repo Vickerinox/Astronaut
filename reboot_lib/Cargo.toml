@@ -7,5 +7,5 @@ edition = "2021"
 volatile-register = {version = "0.2.2", default-features = false}
 bitflags = {version = "2.6.0", default-features = false}
 linked_list_allocator = {version = "0.10.5", default-features = false}
-fatfs = {git="https://github.com/rafalh/rust-fatfs.git", rev="c4bb76929eb115f228720631b4110f827b998653", default-features = false, features = ["lfn", "alloc"]}
 common = {path = "../common"}
+fatfs-embedded ={path = "../cfatfs", default-features = false}

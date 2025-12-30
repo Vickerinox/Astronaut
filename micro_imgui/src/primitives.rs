@@ -234,7 +234,7 @@ pub trait InputEvent {
     const FOCUS_NEXT: Self;
     const FOCUS_PREVIOUS: Self;
 }
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct Color(pub u16);
 impl Color {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {

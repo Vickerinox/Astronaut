@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile("fatfs");
 
     let target = env::var("TARGET")?;
-    
+
     let bindings = bindgen::Builder::default()
         .header("fatfs/source/ff.h")
         .clang_arg(format!("--target=armv5te-none-eabi"))

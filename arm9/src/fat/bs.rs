@@ -6,7 +6,6 @@ reboot_lib::bitflags::bitflags! {
     }
 }
 
-
 pub struct JumpInstruction([u8; 3]);
 pub struct SectorSignature([u8; 2]);
 impl SectorSignature {

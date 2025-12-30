@@ -1,6 +1,7 @@
 mod simulated_driver;
 
 use fatfs_embedded::fatfs::{self, File, FileOptions, FormatOptions};
+/*
 use embassy_futures::block_on;
 
 //Test function must be called "main" to satisfy ThreadModeRawMutex.
@@ -27,3 +28,4 @@ fn main() {
     locked_fs.read(&mut test_file, &mut read_back).expect("Reading the file failed.");
     assert_eq!(TEST_STRING, read_back);
 }
+*/

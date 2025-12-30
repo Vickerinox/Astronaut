@@ -8,6 +8,7 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
+    check_sdmmc,
     i2c::I2CRegister,
     ndma::{NDMA, NDMA_HARDWARE},
     sound::SOUND_HARDWARE,
@@ -138,17 +139,12 @@ fn main() {
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
 
-        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
-            Ok(_) => 1,
-            Err(err) => err.bits(),
-        };
+        /*
+        let send = ;
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
-        let send = match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
-            Ok(_) => 1,
-            Err(err) => err.bits(),
-        };
+        let send = ;
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
-
+        */
         /*
         reboot_lib::set_interrupt_function(
             reboot_lib::ARM7Interrupt::Powerbutton,
@@ -184,7 +180,14 @@ fn main() {
                         Err(e) => 0x8000_0000 | e.bits(),
                     };
                 }
-                4 => {}
+                11 => {
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    response = match arg {
+                        1 => check_sdmmc(reboot_lib::DeviceSelect::SDCardSlot).bits(),
+                        2 => check_sdmmc(reboot_lib::DeviceSelect::EMMC).bits(),
+                        _ => 1,
+                    }
+                }
                 5 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     response = match sd_read_sectors(buffer, arg) {
@@ -229,7 +232,17 @@ fn main() {
 
                 8 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-                    if arg == 0xB00B135 {}
+                    response = match arg {
+                        1 => match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
+                            Ok(_) => 0,
+                            Err(err) => err.bits(),
+                        },
+                        2 => match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
+                            Ok(_) => 0,
+                            Err(err) => err.bits(),
+                        },
+                        _ => 0x8000_0000,
+                    }
                 }
                 9 => {
                     let module_type = IPC_FIFO_HARDWARE.recieve_raw_blocking();

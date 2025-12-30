@@ -19,7 +19,10 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     );
     info!(
         "libclang path is: {:?}",
-        std::env::set_var("LIBCLANG_PATH", "/nix/store/044jyaz6q8jc4bznnp8gxw653kw1k5sg-clang-19.1.7-lib/lib")
+        std::env::set_var(
+            "LIBCLANG_PATH",
+            "/nix/store/044jyaz6q8jc4bznnp8gxw653kw1k5sg-clang-19.1.7-lib/lib"
+        )
     );
     if !cwd
         .wait()

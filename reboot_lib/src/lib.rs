@@ -23,8 +23,6 @@ mod video;
 pub use bitflags;
 use core::num::NonZeroU32;
 
-pub use fatfs;
-
 pub use aes::*;
 pub use allocator::ALLOCATOR;
 pub use dma::*;
@@ -141,11 +139,16 @@ pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), NonZeroU32> {
 pub unsafe fn arm9_read_firmware(start_address: u32) -> Result<(), NonZeroU32> {
     com_arm9(7, &[start_address])
 }
-pub unsafe fn arm9_ready_arm7() -> Result<(), NonZeroU32> {
-    com_arm9(8, &[0xB00B135])
-}
+
 pub unsafe fn arm9_send_arm7(user_type: u32, pointer: *mut ()) -> Result<(), NonZeroU32> {
     com_arm9(9, &[user_type, pointer as u32])
+}
+
+pub unsafe fn arm9_init_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
+    com_arm9(8, &[drive as u32])
+}
+pub unsafe fn arm9_check_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
+    com_arm9(11, &[drive as u32])
 }
 pub struct StorageSector([u32; 128]);
 
