@@ -82,7 +82,7 @@ impl FatFsDriver for SDMMCDriver {
         }) else {
             return DiskResult::ParameterError;
         };
-        let new_pos = sector as u64 * 512;
+        let new_pos = sector;
         if controller.seek(new_pos) != Ok(new_pos) {
             return DiskResult::Error;
         }
@@ -101,7 +101,7 @@ impl FatFsDriver for SDMMCDriver {
         }) else {
             return DiskResult::ParameterError;
         };
-        let new_pos = sector as u64 * 512;
+        let new_pos = sector;
         if controller.seek(new_pos) != Ok(new_pos) {
             return DiskResult::Error;
         }

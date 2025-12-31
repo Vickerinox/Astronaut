@@ -1,9 +1,9 @@
 use alloc::boxed::Box;
 use reboot_lib::StorageSector;
 pub struct BasicSDMMCCursor<'a> {
-    buffer_sector: u32,
     buffer: &'a mut [StorageSector],
-    pos: u64,
+    offset: usize,
+    buffer_sector: u32,
     lba: u32,
     nand: bool,
     dirty: bool,
@@ -21,7 +21,7 @@ impl<'a> BasicSDMMCCursor<'a> {
         let mut oneself = Self {
             buffer_sector: 0,
             buffer,
-            pos: 0,
+            offset: 0,
             lba: lba_sector,
             nand: is_nand,
             dirty: false,
@@ -41,65 +41,60 @@ impl<'a> BasicSDMMCCursor<'a> {
             false => crate::write_sd_card(self.buffer, self.lba + sector),
         }
     }
-    fn switch_sector(&mut self) -> Result<(), u32> {
-        let virtual_sector = (self.pos / 512)  as u32;
+    fn advance_sector(&mut self) -> Result<(), u32> {
+        let advance = self.offset / 512;
+        self.offset %= 512;
         self.flush().unwrap();
-        match self.read_sector(virtual_sector) {
-            Ok(_) => self.buffer_sector = virtual_sector,
+        self.buffer_sector += advance as u32;
+        match self.read_sector(self.buffer_sector) {
+            Ok(_) => (),
             Err(_) => return Err(123456789),
         }
-        //assert!(self.pos >= self.buffer_virtual_position);
-        //assert!(self.pos < self.buffer_virtual_position + (self.buffer.len() * 512) as u64);
         Ok(())
     }
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, BasicSDMMCError> {
-        let mut read_bytes = 0;
-        //assert!(self.pos >= self.buffer_virtual_position);
-        //assert!(self.pos < self.buffer_virtual_position + (self.buffer.len() * 512) as u64);
-        let buffer_position = self.buffer_sector as u64 * 512;
-        let pos_in_buffer = (self.pos - buffer_position) as usize;
-        let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
+        let available_buffer = (self.buffer.len() * 512) - self.offset;
         let buffer_cutoff = available_buffer.min(buf.len());
-        let (read, _remaining) = buf.split_at_mut(buffer_cutoff);
-
+        
         let byte_buffer = {
             let l = self.buffer.as_mut().len() << 9;
             let s = self.buffer.as_mut() as *mut [reboot_lib::StorageSector] as *mut u32 as *mut u8;
             unsafe { core::slice::from_raw_parts_mut(s, l) }
         };
 
-        read.copy_from_slice(&byte_buffer[pos_in_buffer..][..buffer_cutoff]);
-        self.pos += buffer_cutoff as u64;
-        read_bytes += buffer_cutoff;
-        if self.pos >= buffer_position + (self.buffer.len() * 512) as u64 {
-            self.switch_sector();
+        let Some(read) = buf.get_mut(..buffer_cutoff) else { return Err(BasicSDMMCError::Unsupported)};
+        let Some(our_buf) = byte_buffer.get(self.offset..self.offset+buffer_cutoff) else {return Err(BasicSDMMCError::Unsupported)};
+
+        read.copy_from_slice(our_buf);
+        self.offset += buffer_cutoff;
+        if self.offset >= (self.buffer.len() * 512) {
+            self.advance_sector();
         }
 
-        Ok(read_bytes)
+        Ok(buffer_cutoff)
     }
     pub fn write(&mut self, buf: &[u8]) -> Result<usize, BasicSDMMCError> {
         self.dirty = true;
-        let mut read_bytes = 0;
-        let buffer_position = self.buffer_sector as u64 * 512;
-        let pos_in_buffer = (self.pos - buffer_position) as usize;
-        let available_buffer = (self.buffer.len() * 512) - pos_in_buffer;
+        let available_buffer = (self.buffer.len() * 512) - self.offset;
         let buffer_cutoff = available_buffer.min(buf.len());
-        let (read, _remaining) = buf.split_at(buffer_cutoff);
-
+        
         let byte_buffer = {
             let l = self.buffer.as_mut().len() << 9;
             let s = self.buffer.as_mut() as *mut [reboot_lib::StorageSector] as *mut u32 as *mut u8;
             unsafe { core::slice::from_raw_parts_mut(s, l) }
         };
 
-        byte_buffer[pos_in_buffer..][..buffer_cutoff].copy_from_slice(read);
-        self.pos += buffer_cutoff as u64;
-        read_bytes += buffer_cutoff;
-        if self.pos >= buffer_position + (self.buffer.len() * 512) as u64 {
-            self.switch_sector();
+        let Some(read) = buf.get(..buffer_cutoff) else { return Err(BasicSDMMCError::Unsupported)};
+        let Some(our_buf) = byte_buffer.get_mut(self.offset..self.offset+buffer_cutoff) else {return Err(BasicSDMMCError::Unsupported)};
+
+        our_buf.copy_from_slice(read);
+        self.offset += buffer_cutoff;
+        
+        if self.offset >= (self.buffer.len() * 512) {
+            self.advance_sector();
         }
 
-        Ok(read_bytes)
+        Ok(buffer_cutoff)
     }
     pub fn flush(&mut self) -> Result<(), BasicSDMMCError> {
         if self.dirty {
@@ -109,15 +104,23 @@ impl<'a> BasicSDMMCCursor<'a> {
         }
         Ok(())
     }
-    pub fn seek(&mut self, pos: u64) -> Result<u64, BasicSDMMCError> {
-        self.pos = pos;
-        let buffer_position = self.buffer_sector as u64 * 512;
-        if (self.pos >= buffer_position + (self.buffer.len() * 512) as u64)
-            || (self.pos < buffer_position)
-        {
-            self.switch_sector();
+    pub fn seek(&mut self, sector: u32) -> Result<u32, BasicSDMMCError> {
+        if sector < self.buffer_sector || sector >= self.buffer_sector + self.buffer.len() as u32 {
+            self.flush().unwrap();
+            self.offset = 0;
+            self.buffer_sector = sector;
+            match self.read_sector(self.buffer_sector) {
+                Ok(_) => (),
+                Err(_) => return Err(BasicSDMMCError::Unsupported),
+            }   
+            Ok(self.buffer_sector)
+        } else {
+            let off = sector-self.buffer_sector;
+            self.offset =  off as usize * 512;
+            Ok(self.buffer_sector+off)
         }
-        Ok(self.pos)
+        
+        
     }
 }
 #[derive(Debug, PartialEq)]
