@@ -163,6 +163,11 @@ fn main() {
                     };
                     let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
                     let mut controls = reboot_lib::Buttons::from_bits_retain(controls);
+                    /*
+                    if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
+                        controls ^= reboot_lib::Buttons::PEN_DOWN;
+                    }
+                    */
                     if !reboot_lib::spi::touchscreen::is_pen_down() {
                         controls ^= reboot_lib::Buttons::PEN_DOWN;
                     }

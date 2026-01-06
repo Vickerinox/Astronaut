@@ -1,4 +1,4 @@
-use crate::spi::SPI_HARDWARE;
+use crate::spi::{Control, SPI_HARDWARE, write_powerman};
 
 use super::SPIControl;
 struct RawTouchData {}
@@ -20,6 +20,9 @@ pub enum CdcReg {
     TouchCnt(TouchCntReg), //    = 0x03, //< TSC control
     AdcCoefficients(u8),
     BufferModeData(u8),
+
+    UndocumentedReset,
+    TSCNDSMode,
 }
 impl CdcReg {
     pub const fn as_bank_and_reg(self) -> (u8, u8) {
@@ -29,7 +32,8 @@ impl CdcReg {
             Self::TouchCnt(reg) => (3, reg as u8),
             Self::AdcCoefficients(reg) => (4, reg),
             Self::BufferModeData(reg) => (0xFC, reg),
-            //CdcRegister::TOUCHDATA => todo!(),
+            CdcReg::UndocumentedReset => (0x63, 0),
+            CdcReg::TSCNDSMode => (0xFF, 5),
         }
     }
 }
@@ -68,37 +72,75 @@ pub enum TouchCntReg {
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub enum CntReg {
+    //TSC timing and PLL controls
     Reset = 0x01,
+    OverTemp = 0x03,
     ClockMux = 0x04,
     PllPr = 0x05,
     PllJ = 0x06,
     PllD16 = 0x07,
     DacNdac = 0x0B,
     DacMdac = 0x0C,
+    DOSRMSB = 0x0D,
+    DOSRLSB = 0x0E,
+    IDAC = 0x0F,
+    Interpolation = 0x10,
+
     AdcNadc = 0x12,
     AdcMadc = 0x13,
-    ClkoutMux = 0x19,
+    AOSR = 0x14,
+    IADC = 0x15,
+    Decimation = 0x16,
 
+    ClkoutMux = 0x19,
+    ClkDivM = 0x1A,
+
+    //TSC CODEC control
+    ClkDivN = 0x1E,
+
+    //TSC status and interrupt flags
+    AdcFlags = 0x24,
+
+    //TSC pin control
     GPIO1Control = 0x33,
     GPIO2Control = 0x34,
-
+    SdOut = 0x35,
+    SdIn = 0x36,
+    MISO = 0x37,
+    SCLK = 0x38,
+    
+    NocashAdcDcMeasurement1 = 0x39,
     GPIO3Pin = 0x3A,
 
-    NocashAdcDcMeasurement1 = 0x39,
+    //TSC DAC/ADC and beep
+    DacInstructionSet = 0x3C,
+    AdcInstructionSet = 0x3D,
+
     DacCtrl = 0x3F,
     DacVolume = 0x40,
     DacVolumeLeft = 0x41,
     DacVolumeRight = 0x42,
+    
+    DacControl1 = 0x44,
+    DacControl2 = 0x45,
+    
     DacBeep1 = 0x47,
     DacBeep2 = 0x48,
-    DacBeepLen24 = 0x49,
-    DacBeepSin16 = 0x4C,
-    DacBeepCos16 = 0x4E,
+    DacBeepLen1 = 0x49,
+    DacBeepLen2 = 0x4A,
+    DacBeepLen3 = 0x4B,
+    DacBeepSinMSB = 0x4C,
+    DacBeepSinLSB = 0x4D,
+    DacBeepCosMSB = 0x4E,
+    DacBeepCosLSB = 0x4F,
     AdcMic = 0x51,
     AdcVolFine = 0x52,
     AdcVolCoarse = 0x53,
 
-    SarAdc = 0x74,
+    // TSC AGC and ADC
+    AGCMaxGain = 0x58,
+    VolSarAdc = 0x74,
+    VolGain = 0x75
 }
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -129,7 +171,51 @@ pub enum SndReg {
     CmSetting = 0x32,
 }
 pub unsafe fn init_tsc() {
+    //GPIO pin 3 enable
+    core::ptr::write_volatile(0x4004C00 as *mut u16, 0x8080);
+    write_powerman(crate::spi::PowerRegiser::Control(Control::ENABLE_SOUND_AMP | Control::ENABLE_BACKLIGHTS));
+
+    cdc_read_reg(CdcReg::UndocumentedReset);
+    
+    
+    /* 
+    cdc_read_reg(CdcReg::Control(CntReg::AdcMic));
+    cdc_read_reg(CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1));
+    cdc_read_reg(CdcReg::Control(CntReg::DacCtrl));
+    cdc_read_reg(CdcReg::Sound(SndReg::DriverHPL));
+    cdc_read_reg(CdcReg::Sound(SndReg::DriverSPL));
+    cdc_read_reg(CdcReg::Sound(SndReg::MicBias));
+    */
+
     const INIT_LIST: &[(CdcReg, u8)] = &[
+        //Pre-init
+        /* 
+        (CdcReg::Control(CntReg::GPIO3Pin), 0),
+        (CdcReg::Control(CntReg::AdcVolFine), 0x80),
+        (CdcReg::Control(CntReg::DacVolume), 0xC),
+        (CdcReg::Sound(SndReg::VolumeHPL), 0xFF),
+        (CdcReg::Sound(SndReg::VolumeHPR), 0xFF),
+        (CdcReg::Sound(SndReg::VolumeSPL), 0x7F),
+        (CdcReg::Sound(SndReg::VolumeSPR), 0x7F),
+        (CdcReg::Sound(SndReg::DriverHPL), 0x4A),
+        (CdcReg::Sound(SndReg::DriverHPR), 0x4A),
+        (CdcReg::Sound(SndReg::DriverSPL), 0x10),
+        (CdcReg::Sound(SndReg::DriverSPR), 0x10),
+        (CdcReg::Control(CntReg::AdcMic), 0x0),
+        (CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1), 0x98),
+        (CdcReg::Sound(SndReg::DacMixerRouting), 0x0),
+        (CdcReg::Sound(SndReg::HeadphoneDriver), 0x14),
+        (CdcReg::Sound(SndReg::ClassDSpeakerAmp), 0x14),
+        (CdcReg::Control(CntReg::DacCtrl), 0x0),
+        (CdcReg::Control(CntReg::PllPr), 0x0),
+        (CdcReg::Control(CntReg::DacNdac), 0x1),
+        (CdcReg::Control(CntReg::DacMdac), 0x2),
+        (CdcReg::Control(CntReg::AdcNadc), 0x1),
+        (CdcReg::Control(CntReg::AdcMadc), 0x2),
+        (CdcReg::Sound(SndReg::MicBias), 0x0),
+        (CdcReg::Control(CntReg::GPIO3Pin), 0x60),
+        */
+        //touchscreen and sound amp init
         (CdcReg::Control(CntReg::Reset), 1),
         (CdcReg::Control(CntReg::NocashAdcDcMeasurement1), 0x66),
         (CdcReg::Sound(SndReg::ClassDSpeakerAmp), 0x10),
@@ -165,9 +251,9 @@ pub unsafe fn init_tsc() {
         (CdcReg::Sound(SndReg::FineGain), 0x40),
         (CdcReg::Sound(SndReg::InputSelection), 0x40),
         (CdcReg::Sound(SndReg::CmSetting), 0x60),
-        (CdcReg::Control(CntReg::SarAdc), 0x82),
-        (CdcReg::Control(CntReg::SarAdc), 0x92),
-        (CdcReg::Control(CntReg::SarAdc), 0xD2),
+        (CdcReg::Control(CntReg::VolSarAdc), 0x82),
+        (CdcReg::Control(CntReg::VolSarAdc), 0x92),
+        (CdcReg::Control(CntReg::VolSarAdc), 0xD2),
         (CdcReg::Sound(SndReg::PopRemovalSetting), 0x20),
         (CdcReg::Sound(SndReg::RampDownPeriod), 0xF0),
         (CdcReg::Control(CntReg::DacCtrl), 0xD4),
@@ -182,6 +268,59 @@ pub unsafe fn init_tsc() {
         (CdcReg::Sound(SndReg::DriverSPR), 0x14),
         (CdcReg::Sound(SndReg::VolumeSPL), 0xA7),
         (CdcReg::Sound(SndReg::VolumeSPR), 0xA7),
+
+        
+        (CdcReg::Control(CntReg::DacVolume), 0),
+        (CdcReg::Control(CntReg::GPIO3Pin), 0x60),
+        /* 
+        (CdcReg::Sound(SndReg::VolumeSPL), 0xA7),
+        (CdcReg::Sound(SndReg::VolumeSPR), 0xA7),
+        (CdcReg::Sound(SndReg::MicBias), 0x3),
+        (CdcReg::TouchCnt(TouchCntReg::SarAdcCnt2), 0),
+        (CdcReg::Sound(SndReg::PopRemovalSetting), 0x20),
+        (CdcReg::Sound(SndReg::RampDownPeriod), 0xF0),
+        (CdcReg::Sound(SndReg::RampDownPeriod), 0x70),
+        (CdcReg::Control(CntReg::AdcVolFine), 0x80),
+        (CdcReg::Control(CntReg::AdcMic), 0x00),
+        */
+
+        //post-init (fill non-populated regs with default values)
+        /*
+        (CdcReg::Control(CntReg::OverTemp), 0x44), //RO?
+        (CdcReg::Control(CntReg::DOSRMSB), 0x00),
+        (CdcReg::Control(CntReg::DOSRLSB), 0x80),
+        (CdcReg::Control(CntReg::IDAC), 0x80),
+        (CdcReg::Control(CntReg::Interpolation), 0x08),
+        (CdcReg::Control(CntReg::AOSR), 0x80),
+        (CdcReg::Control(CntReg::IADC), 0x80),
+        (CdcReg::Control(CntReg::Decimation), 0x04),
+        (CdcReg::Control(CntReg::ClkDivM), 0x01),
+        (CdcReg::Control(CntReg::ClkDivN), 0x01),
+        (CdcReg::Control(CntReg::AdcFlags), 0x80),
+        (CdcReg::Control(CntReg::GPIO1Control), 0x34),
+        (CdcReg::Control(CntReg::GPIO2Control), 0x32),
+        (CdcReg::Control(CntReg::SdIn), 0x12),
+        (CdcReg::Control(CntReg::SdOut), 0x03),
+        (CdcReg::Control(CntReg::MISO), 0x02),
+        (CdcReg::Control(CntReg::SCLK), 0x03),
+        (CdcReg::Control(CntReg::DacInstructionSet), 0x19),
+        (CdcReg::Control(CntReg::AdcInstructionSet), 0x05),
+        (CdcReg::Control(CntReg::DacControl1), 0x0F),
+        (CdcReg::Control(CntReg::DacControl2), 0x38),
+        (CdcReg::Control(CntReg::DacBeepLen1), 0x00),
+        (CdcReg::Control(CntReg::DacBeepLen2), 0x00),
+        (CdcReg::Control(CntReg::DacBeepLen3), 0xEE),
+        (CdcReg::Control(CntReg::DacBeepSinMSB), 0x10),
+        (CdcReg::Control(CntReg::DacBeepSinLSB), 0xD8),
+        (CdcReg::Control(CntReg::DacBeepCosMSB), 0x7E),
+        (CdcReg::Control(CntReg::DacBeepCosMSB), 0xE3),
+        (CdcReg::Control(CntReg::AGCMaxGain), 0x7F),
+        (CdcReg::Control(CntReg::VolSarAdc), 0xD2),
+        (CdcReg::Control(CntReg::VolGain), 0x2C),
+
+        (CdcReg::Sound(SndReg::RampDownPeriod), 0x70),
+        (CdcReg::Sound(SndReg::DriverCnt), 0x20),
+         */
     ];
     for (reg, value) in INIT_LIST {
         cdc_write_reg(reg.clone(), *value);
@@ -252,13 +391,15 @@ pub unsafe fn init_tsc() {
     cdc_write_reg(SndReg::VolumeSPL         , 0xA7);
     cdc_write_reg(SndReg::VolumeSPR         , 0xA7);
     */
-    cdc_write_reg(CdcReg::Control(CntReg::DacVolume), 0);
-    core::ptr::write_volatile(0x4004C00 as *mut u16, 0x8080);
-    cdc_write_reg(CdcReg::Control(CntReg::GPIO3Pin), 0x60);
+    //cdc_write_reg(CdcReg::Control(CntReg::DacVolume), 0);
+    //moved...
+    //cdc_write_reg(CdcReg::Control(CntReg::GPIO3Pin), 0x60);
 
     cdc_read_reg(CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1));
-    cdc_write_reg(CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1), 0);
-
+    cdc_write_reg(CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1), 0x98);
+    //cdc_write_reg(CdcReg::TSCNDSMode, 0x0);
+    
+    
     
 }
 pub unsafe fn enable_tsc() {

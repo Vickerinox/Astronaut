@@ -89,6 +89,7 @@ pub enum PowerRegiser {
     MicrophoneGain(MicrophoneGain),
     Backlight(Backlight),
     Reset(Reset),
+    ReadRegister,
 }
 bitflags::bitflags! {
     pub struct Control: u8 {
@@ -129,6 +130,7 @@ impl PowerRegiser {
             PowerRegiser::MicrophoneGain(microphone_gain) => (3, microphone_gain as u8),
             PowerRegiser::Backlight(backlight) => (4, backlight.bits()),
             PowerRegiser::Reset(reset) => (0x10, reset.bits()),
+            PowerRegiser::ReadRegister => (0x80, 0),
         }
     }
 }
