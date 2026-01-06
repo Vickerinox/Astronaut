@@ -1,8 +1,30 @@
+use core::fmt::Debug;
+
 use common::bootstrap::{ArgvStructutre, HeaderTWL};
 use common::bootstrap::{ARGV_MAGIC, SYSTEM_ARGV};
-use fatfs_embedded::fatfs::FS_SD;
 
+pub enum BootError {
+    BadBinaryLocation(u32),
+    BadEntrypoint(u32),
+    BadBinarySize(u32),
 
+    FileReadError,
+    FileSeekError,
+
+    BadRomType,
+}
+impl Debug for BootError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::BadBinaryLocation(arg0) => write!(f, "BadBinaryLocation {arg0:#10x}"),
+            Self::BadEntrypoint(arg0) => write!(f, "BadEntrypoint {arg0:#10x}"),
+            Self::BadBinarySize(arg0) => write!(f, "BadBinarySize {arg0:#10x}"),
+            Self::FileReadError => write!(f, "FileReadErr"),
+            Self::FileSeekError => write!(f, "FileSeekErr"),
+            BootError::BadRomType => write!(f, "BadROM"),
+        }
+    }
+}
 use crate::BOOTSTRAP_BINARY;
 
 unsafe fn inject_argv(header: &HeaderTWL, file_path: &str) {
@@ -59,38 +81,59 @@ unsafe fn read_all(
     }
 }
 pub unsafe fn boot_app(
-    mut r: fatfs_embedded::fatfs::File,
+    r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
-) -> Result<(), fatfs_embedded::fatfs::Error> {
+) -> Result<(), BootError> {
     crate::stop_mod_file();
     let (header, _bootloader) = (*BOOTLOADER_MEM).split_at_mut(0x1000);
-    //bootstrap::READY_FLAG_0.write_volatile(0xFF);
-    //bootstrap::READY_FLAG_1.write_volatile(0xFF);
-    //bootstrap::READY_FLAG_2.write_volatile(0xFF);
-    //bootstrap::READY_FLAG_3.write_volatile(0xFF);
 
-    read_all(header, &mut r)?;
+    read_all(header, r).map_err(|_| BootError::FileReadError)?;
     let header = &mut *(header as *mut [u8] as *mut u8 as *mut HeaderTWL);
 
-    fatfs_embedded::seek(&mut r, header.arm9_offset)?;
+    if !(0x200_0000..0x300_0000).contains(&header.arm7_load) {
+        return Err(BootError::BadBinaryLocation(header.arm7_load));
+    }
+    if !(0x200_0000..0x300_0000).contains(&header.arm9_load) {
+        return Err(BootError::BadBinaryLocation(header.arm9_load));
+    }
+    if !(0x200_0000..0x300_0000).contains(&header.arm7_entry) {
+        return Err(BootError::BadEntrypoint(header.arm7_entry));
+    }
+    if !(0x200_0000..0x300_0000).contains(&header.arm9_entry) {
+        return Err(BootError::BadEntrypoint(header.arm9_entry))
+    }
+    if !(0..0x100_0000).contains(&header.arm7_size) {
+        return Err(BootError::BadBinarySize(header.arm7_size));
+    }
+    if !(0..0x100_0000).contains(&header.arm9_size) {
+        return Err(BootError::BadBinarySize(header.arm9_size))
+    }
+
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
-    read_all(arm9_ram, &mut r)?;
+    fatfs_embedded::seek(r, header.arm9_offset).map_err(|_| BootError::FileSeekError)?;
+    read_all(arm9_ram, r).map_err(|_| BootError::FileReadError)?;
 
-    fatfs_embedded::seek(&mut r, header.arm9i_offset)?;
-    let arm9_ram =
-        core::slice::from_raw_parts_mut(header.arm9i_load as *mut u8, header.arm9i_size as usize);
-    read_all(arm9_ram, &mut r)?;
 
-    fatfs_embedded::seek(&mut r, header.arm7_offset)?;
+
     let arm9_ram =
         core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
-    read_all(arm9_ram, &mut r)?;
+    fatfs_embedded::seek(r, header.arm7_offset).map_err(|_| BootError::FileSeekError)?;
+    read_all(arm9_ram, r).map_err(|_| BootError::FileReadError)?;
 
-    fatfs_embedded::seek(&mut r, header.arm7i_offset)?;
-    let arm9_ram =
-        core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
-    read_all(arm9_ram, &mut r)?;
+    if header.is_dsi_mode() {
+        let arm9_ram =
+            core::slice::from_raw_parts_mut(header.arm9i_load as *mut u8, header.arm9i_size as usize);
+
+        fatfs_embedded::seek(r, header.arm9i_offset).map_err(|_| BootError::FileSeekError)?;
+        read_all(arm9_ram,  r).map_err(|_| BootError::FileReadError)?;
+
+        let arm9_ram =
+            core::slice::from_raw_parts_mut(header.arm7i_load as *mut u8, header.arm7i_size as usize);
+        fatfs_embedded::seek(r, header.arm7i_offset).map_err(|_| BootError::FileSeekError)?;
+        read_all(arm9_ram, r).map_err(|_| BootError::FileReadError)?;
+    }
+
 
     if header.is_homebrew() {
         inject_argv(header, file_path);

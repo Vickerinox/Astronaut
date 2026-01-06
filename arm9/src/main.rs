@@ -35,23 +35,15 @@ impl FatFsDriver for SDMMCDriver {
             Ok(()) => match drive {
                 1 => {
                     self.sd_controller = unsafe { try_mount_sd() };
-                    if self.sd_controller.is_some() {
-                        0
-                    } else {
-                        1
-                    }
+                    self.sd_controller.is_none() as u8
                 }
                 2 => {
                     self.nand_controller = unsafe { try_mount_nand() };
-                    if self.sd_controller.is_some() {
-                        0
-                    } else {
-                        1
-                    }
+                    self.nand_controller.is_none() as u8
                 }
                 _ => 1,
             },
-            Err(_any) => panic!("what {drive}"),
+            Err(_any) => 1,
         }
     }
     fn disk_ioctl(&mut self, data: &mut IoctlCommand) -> DiskResult {
@@ -498,11 +490,10 @@ unsafe fn main() {
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut frontend = gui::AppData::new();
-        FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sd:\0"));
-
         FS_NAND.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
 
-        frontend.open_default_fs();
+        FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sd:\0"));
+        
         frontend.play_startup_music();
 
         micro_imgui::run(backend, (), |mut f, _| {
@@ -624,8 +615,8 @@ fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
-        core::ptr::write_volatile(0x5000000 as *mut u16, 0b0000000000111111);
-        core::ptr::write_volatile(0x5000400 as *mut u16, 0b0000000000111111);
+        core::ptr::write_volatile(0x5000000 as *mut u16, 0b0111110100000000);
+        core::ptr::write_volatile(0x5000400 as *mut u16, 0b0111110100000000);
 
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
 
@@ -636,14 +627,31 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         )
         .text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("Panic occured:", 8);
+            text_pass.set_position(60, 80);
+            text_pass.layout_str("Software version: ", 8);
+            text_pass.layout_str(env!("CARGO_PKG_VERSION"), 8);
+
+            text_pass.set_position(7, 24);
+            text_pass.layout_str("The console crashed!", 16);
+            text_pass.set_position(0, 44);
+            text_pass.layout_str(" It's safe to restart the console and try  again. For support please visit the DSi   hacking server on discord", 8);
+            
+            text_pass.set_position(0, 120);
+            text_pass.set_color(0x7766);
+            text_pass.layout_str("Error Message:", 8);
             text_pass.next_line();
-            text_pass.next_line();
-            text_pass.layout_str(&alloc::format!("msg: {}", info.message()), 8);
-            text_pass.next_line();
-            text_pass.next_line();
-            let Some(loc) = info.location() else { return };
-            text_pass.layout_str(&alloc::format!("loc: {loc}"), 8);
+            text_pass.layout_str(&alloc::format!("{}", info.message()), 8);
+            if let Some(loc) = info.location(){
+                text_pass.next_line();
+                text_pass.next_line();
+                text_pass.layout_str("Error Location:", 8);
+                text_pass.next_line();
+                text_pass.layout_str(&alloc::format!("{loc}"), 8);
+            };
+            
+
+
+            
         });
         video_context.next_frame();
         loop {

@@ -21,6 +21,7 @@ mod swi;
 pub mod timers;
 mod video;
 pub use bitflags;
+pub mod rtc;
 use core::num::NonZeroU32;
 
 pub use aes::*;

@@ -256,7 +256,7 @@ impl HeaderTWL {
         self.unit_code & 2 > 0
     }
     pub fn is_dsiware(&self) -> bool {
-        self.is_dsi_mode() && ((self.title_id >> 32) & 0xFF) != 0
+        self.is_dsi_mode() && ((self.title_id << 32) & 0xFF) != 0
     }
     pub fn is_homebrew(&self) -> bool {
         self.maker_code == 0 || self.arm9_autoload_hook == 0 || self.arm7_load >= 0x03000000

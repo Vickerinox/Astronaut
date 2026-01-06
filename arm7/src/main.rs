@@ -103,7 +103,7 @@ fn main() {
         reboot_lib::spi::write_powerman(PowerRegiser::Control(
             Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP,
         ));
-
+        reboot_lib::spi::touchscreen::enable_tsc();
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
         /*
