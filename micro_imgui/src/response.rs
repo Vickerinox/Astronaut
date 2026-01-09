@@ -21,6 +21,9 @@ impl Response {
     pub fn clicked(&self) -> bool {
         self.stats.contains(Sense::RELEASED)
     }
+    pub fn hovered(&self) -> bool {
+        self.stats.contains(Sense::HOVERED)
+    }
 }
 impl Sense {
     pub fn clickable() -> Self {

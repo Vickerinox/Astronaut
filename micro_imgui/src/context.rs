@@ -6,6 +6,7 @@ use crate::{
 
 pub struct Ctx<B> {
     pub(crate) backend: B,
+    touchdown_pos: Option<Vec2>,
     pressed_response: Option<Id>,
     hovered_response: Option<Id>,
     focused_response: Option<Id>,
@@ -72,8 +73,10 @@ impl<'a, B: Backend> Frame<'a, B> {
         let focused = ctx.focused_response == Some(id);
         let hovered = rect.contains(ctx.backend.last_known_pointer_location())
             && ctx.backend.input_active(B::InputQuery::POINTER_DOWN);
+
         let pressed = (focused && ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS))
             || (hovered && ctx.backend.input_active(B::InputQuery::POINTER_PRESS));
+        
         let released = (focused && ctx.backend.input_released(B::InputQuery::FOCUSED_PRESS))
             || (ctx.pressed_response == Some(id)
                 && ctx.backend.input_released(B::InputQuery::POINTER_PRESS));
@@ -146,6 +149,7 @@ impl<B> Ctx<B> {
             focused_response: None,
             released_response: None,
             wants_repaint: false,
+            touchdown_pos: None,
         }
     }
 }
@@ -162,6 +166,9 @@ impl<B: Backend> Ctx<B> {
     pub fn start_frame(&mut self) -> Frame<'_, B> {
         self.backend.start_frame();
         let availble_ground_space = self.backend.screen_rect();
+        if self.backend.input_pressed(B::InputQuery::POINTER_DOWN) {
+            self.touchdown_pos = Some(self.backend.last_known_pointer_location());
+        }
         Frame {
             ctx: self,
             pressed_response: None,
@@ -175,6 +182,9 @@ impl<B: Backend> Ctx<B> {
     }
     pub fn end_frame(&mut self) {
         self.backend.end_frame();
+        if self.backend.input_released(B::InputQuery::POINTER_DOWN) {
+            self.touchdown_pos = None;
+        }
     }
 }
 impl<'a, B: Backend> Drop for Frame<'a, B> {

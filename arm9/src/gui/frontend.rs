@@ -5,7 +5,7 @@ use alloc::{
     boxed::Box, format, string::{String, ToString}, vec::{self, Vec}
 };
 use fatfs_embedded::fatfs::{File, FileInfo, FileOptions, FS_SD};
-use micro_imgui::{widgets::button::Button, Color, Sizing, Vec2};
+use micro_imgui::{Backend, Color, Sizing, Vec2, widgets::button::Button};
 use reboot_lib::{
     music_modules::mods::{MODAsyncLoader, MODHeader},
     Buttons,
@@ -97,6 +97,7 @@ impl AppData {
         }
     }
     pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>) {
+        let mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {
             if let Some(loading_mod) = self.loading_mod_file.take() {
                 let (progress, max) = loading_mod.progress();
@@ -118,10 +119,11 @@ impl AppData {
             }
             let pen = ui.input_down(gui::Input(Buttons::PEN_DOWN));
             if pen {
-                ui.label("up");
-            } else {
                 ui.label("down");
+            } else {
+                ui.label("up");
             }
+            ui.label(&format!("{mouse:?}"));
             
             let new_state_fn: Option<alloc::boxed::Box<dyn FnOnce(CurrentUI)->CurrentUI>> = match &mut self.current_dir {
                 CurrentUI::Error { error_string } => {

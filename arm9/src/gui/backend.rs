@@ -33,7 +33,10 @@ impl Inputs {
     pub fn update(&mut self, buttons: Buttons, touch_coord: Vec2) -> bool {
         self.buttons_then = self.buttons_now;
         self.buttons_now = buttons;
-        if buttons.contains(Buttons::PEN_DOWN) {
+        if self.keys_pressed(Buttons::PEN_DOWN) {
+            self.other_last_touch_coord = touch_coord;
+            self.last_touch_coord = touch_coord;
+        } else if buttons.contains(Buttons::PEN_DOWN) {
             self.other_last_touch_coord = self.last_touch_coord;
             self.last_touch_coord = touch_coord;
         }
@@ -97,8 +100,8 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     type InputQuery = Input;
 
     fn gather_inputs(&mut self) -> bool {
-        let buttons = crate::read_controller();
-        self.input.update(buttons, Vec2::ZERO)
+        let (buttons, x, y) = crate::read_controller();
+        self.input.update(buttons, Vec2::new(x as i16, y as i16))
     }
     fn screen_rect(&self) -> Rect {
         Rect::from_min_size(micro_imgui::Vec2::ZERO, micro_imgui::Vec2::new(256, 192))

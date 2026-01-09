@@ -112,12 +112,12 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
         None => Ok(()),
     }
 }
-pub unsafe fn arm9_send_controller_read() -> Buttons {
+pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
     let value = com_arm9(1, &[0])
         .map_err(|i| u32::from(i))
         .err()
         .unwrap_or(0);
-    Buttons::from_bits_retain(value as u16)
+    (Buttons::from_bits_retain(value as u16), (value >> 16) as u8, (value >> 24) as u8)
 }
 pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), NonZeroU32> {
     com_arm9(2, &[slice as *mut () as u32, slice.len() as u32])
@@ -151,8 +151,16 @@ pub unsafe fn arm9_init_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
 pub unsafe fn arm9_check_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
     com_arm9(11, &[drive as u32])
 }
-pub struct StorageSector([u32; 128]);
 
+pub struct StorageSector([u32; 128]);
+impl StorageSector {
+    pub const ZEROD: Self = Self([0; _]);
+}
+impl Default for StorageSector {
+    fn default() -> Self {
+        Self::ZEROD
+    }
+}
 impl AsMut<[u8]> for StorageSector {
     fn as_mut(&mut self) -> &mut [u8] {
         unsafe {
