@@ -17,6 +17,7 @@ pub mod music_modules;
 pub mod ndma;
 pub mod sound;
 pub mod spi;
+pub mod scfg;
 mod swi;
 pub mod timers;
 mod video;

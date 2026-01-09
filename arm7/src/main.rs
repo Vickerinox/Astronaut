@@ -191,7 +191,9 @@ fn main() {
                     }
                     */
                     //if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
-                    if let Some((x,y)) = read_tsc_pos_cdc() {
+                    
+                    if reboot_lib::spi::touchscreen::is_pen_down() {
+                        if let Some((x,y)) = read_tsc_pos_cdc() {
                         let scr_x = {
                             let x = x as i32 * x_scale - x_offset + x_scale / 2;
                             (x >> 19).clamp(0, 255)
@@ -203,9 +205,7 @@ fn main() {
                         };
                         last_x = scr_x as u8;
                         last_y = scr_y as u8;    
-                    }
-                    if reboot_lib::spi::touchscreen::is_pen_down() {
-                               
+                    }    
                     } else {
                         controls ^= reboot_lib::Buttons::PEN_DOWN;
                     };

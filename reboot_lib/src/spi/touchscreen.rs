@@ -257,7 +257,7 @@ pub unsafe fn read_tsc_var(command: u8, data: &mut [u16]) {
 
 }
 pub unsafe fn read_tsc_pos_cdc() -> Option<(u16, u16)> {
-    let mut raw_data = [0u8; 40];
+    let mut raw_data = [0u8; 20];
     //let mut raw_data = [0u16; 20];
     crate::critical_function(|| {
         //read_tsc_var(0x85 | 0x30, &mut raw_data[0..5]);
