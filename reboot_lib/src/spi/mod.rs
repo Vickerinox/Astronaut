@@ -44,13 +44,11 @@ impl SerialPeripheralInterface {
     }
     unsafe fn exchange_raw_value(&self, value: u8) -> u8 {
         self.write_value(value);
-        self.wait_busy();
         self.data.read() as u8
     }
     unsafe fn read_value(&self) -> u8 {
         self.exchange_raw_value(0)
     }
-    unsafe fn bank_switch_tsc(bank: u8) {}
     pub unsafe fn write_pm(&self, register: PowerRegiser) -> u8 {
         let mut ret = 0;
         crate::critical_function(|| {

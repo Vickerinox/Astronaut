@@ -8,7 +8,7 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
-    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::{NDMA, NDMA_HARDWARE}, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser, touchscreen::{CdcReg, TouchCntReg, cdc_write_reg, read_tsc_pos}}, swi_delay, timers::TIMERS, write_sd_sectors
+    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::{NDMA, NDMA_HARDWARE}, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser, touchscreen::{CdcReg, CntReg, TouchCntReg, cdc_write_reg, read_tsc_pos_cdc, read_tsc_pos_tsc}}, swi_delay, timers::TIMERS, write_sd_sectors
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -105,12 +105,13 @@ fn main() {
         (0x400_0004 as *mut u32)
             .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
 
-        reboot_lib::spi::touchscreen::init_tsc();
-        reboot_lib::spi::touchscreen::enable_tsc();
-
         (0x4004060 as *mut u32).write_volatile(0);
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
+
+
+        reboot_lib::spi::touchscreen::init_tsc_dsi();
+
         reboot_lib::init_interrupts();
 
         let console_id: [u32; 2] = [
@@ -150,8 +151,7 @@ fn main() {
         let adcy2= u16::from_le_bytes([firm[0x160], firm[0x161]]);
         let scrx2 = firm[0x162];
         let scry2 = firm[0x163];
-
-        core::arch::asm!("mov r11, r11");
+        
         let x_scale = ((scrx2 as i32 - scrx1 as i32) << 19) / (adcx2 as i32 - adcx1 as i32);
         let y_scale = ((scry2 as i32 - scry1 as i32) << 19) / (adcy2 as i32 - adcy1 as i32);
         let x_offset = (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19))/ 2;
@@ -171,6 +171,9 @@ fn main() {
         */
         let mut last_x = 0;
         let mut last_y = 0;
+
+        //reboot_lib::spi::touchscreen::enable_tsc();
+
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
@@ -188,12 +191,7 @@ fn main() {
                     }
                     */
                     //if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
-                    if reboot_lib::spi::touchscreen::is_pen_down() {
-                                         
-                    } else {
-                        controls ^= reboot_lib::Buttons::PEN_DOWN;
-                    };
-                    if let Some((x,y)) = read_tsc_pos() {
+                    if let Some((x,y)) = read_tsc_pos_cdc() {
                         let scr_x = {
                             let x = x as i32 * x_scale - x_offset + x_scale / 2;
                             (x >> 19).clamp(0, 255)
@@ -206,6 +204,12 @@ fn main() {
                         last_x = scr_x as u8;
                         last_y = scr_y as u8;    
                     }
+                    if reboot_lib::spi::touchscreen::is_pen_down() {
+                               
+                    } else {
+                        controls ^= reboot_lib::Buttons::PEN_DOWN;
+                    };
+                    
                     response = controls.bits() as u32 | ((last_x as u32) << 16) | ((last_y as u32) << 24);
                 }
                 2 => {
@@ -263,7 +267,6 @@ fn main() {
                         I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR),
                         0,
                     );
-                    cdc_write_reg(CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1), 0);
                     bootstrap::boot_arm7();
                 }
                 7 => {
