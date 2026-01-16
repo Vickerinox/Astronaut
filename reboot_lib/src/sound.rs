@@ -57,7 +57,7 @@ bitflags::bitflags! {
 impl NTRSoundRegisters {
     pub fn init(&self) {
         unsafe {
-            self.master_control.write((1 << 15) | 0x09);
+            self.master_control.write((1 << 15) | 0x7f);
             self.capture_0.write(0);
             self.capture_1.write(0);
             self.bias.write(0x200);

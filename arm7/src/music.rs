@@ -541,7 +541,7 @@ pub fn music_routine() {
                 if beat == 0 || beat == 4 || beat == 7 || beat == 10 || beat == 12 {
                     let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[1];
                     channel.timer.write(timer_from_freq(22050));
-                    let adr = include_bytes!("./kick.raw");
+                    let adr = include_bytes!("./music_samples/kick.raw");
                     channel.source.write(core::ptr::addr_of!(*adr) as u32 & !3);
                     channel.length.write((adr.len() as u32) >> 2);
                     let control = SoundControl::START
@@ -555,7 +555,7 @@ pub fn music_routine() {
                     let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[2];
                     channel.control.write(SoundControl::empty());
                     channel.timer.write(timer_from_freq(22050));
-                    let adr = include_bytes!("./snare.raw");
+                    let adr = include_bytes!("./music_samples/snare.raw");
                     channel.source.write(core::ptr::addr_of!(*adr) as u32 & !3);
                     channel.length.write((adr.len() as u32) >> 2);
                     let control = SoundControl::START

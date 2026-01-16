@@ -70,7 +70,7 @@ impl SerialPeripheralInterface {
                 .write(SPIControl::ENABLE | SPIControl::DEVICE_FIRMWARE | SPIControl::SELECT_HOLD);
             self.wait_busy();
             self.write_value(0x3);
-            let [a,b,c,d] = start.to_le_bytes();
+            let [a, b, c, d] = start.to_le_bytes();
             self.write_value(c);
             self.write_value(b);
             self.write_value(a);

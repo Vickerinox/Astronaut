@@ -8,7 +8,20 @@ mod swi;
 use common::bootstrap;
 use core::arch::asm;
 use reboot_lib::{
-    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::{NDMA, NDMA_HARDWARE}, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser, touchscreen::{CdcReg, CntReg, TouchCntReg, cdc_write_reg, read_tsc_pos_cdc, read_tsc_pos_tsc}}, swi_delay, timers::TIMERS, write_sd_sectors
+    check_sdmmc,
+    i2c::I2CRegister,
+    ndma::{NDMA, NDMA_HARDWARE},
+    sound::SOUND_HARDWARE,
+    spi::{
+        touchscreen::{
+            cdc_write_reg, read_tsc_pos_cdc, read_tsc_pos_tsc, CdcReg, CntReg, TouchCntReg,
+        },
+        Control, PowerRegiser,
+    },
+    swi_delay,
+    timers::TIMERS,
+    write_sd_sectors, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
+    MMC_CONTROLLER, SDIO_CONTROLLER,
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -82,37 +95,32 @@ unsafe fn power_button_interrupt() {
         _ => { /* unknown, afaik, seems to mean any other i2c interrupt */ }
     }
 }
+pub mod init;
 
 fn main() {
     unsafe {
+        //start talking to the ARM9 ASAP
         IPC_FIFO_HARDWARE.enable();
 
-        (0x400_0304 as *mut u32).write_volatile(1);
-        
-        reboot_lib::i2c::init();
-        reboot_lib::sound::SOUND_HARDWARE.init();
-        swi_delay(0x20BA * 16);
-        reboot_lib::spi::write_powerman(PowerRegiser::Control(
-            Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP,
-        ));
-        
+        //start doing hardware init
+        init::init_power_regs();
+        init::init_i2c();
+        init::init_ntr_sound();
+        init::init_powerman();
+        init::init_nwram();
+
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
         /*
         (0x400_0008 as *mut u32)
             .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
-        */
+
         (0x400_0004 as *mut u32)
             .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
+        */
 
-        (0x4004060 as *mut u32).write_volatile(0);
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
-
-
-        reboot_lib::spi::touchscreen::init_tsc_dsi();
-
-        reboot_lib::init_interrupts();
 
         let console_id: [u32; 2] = [
             (0x4004D00 as *const u32).read_volatile(),
@@ -121,6 +129,10 @@ fn main() {
         reboot_lib::load_nand_key_x(0, console_id);
         reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
         reboot_lib::nand_crypt_init(0);
+
+        reboot_lib::spi::touchscreen::init_tsc_dsi();
+
+        reboot_lib::init_interrupts();
 
         let mut buffer: *mut [reboot_lib::StorageSector] =
             core::slice::from_raw_parts_mut(0x2FF0000 as *mut reboot_lib::StorageSector, 1);
@@ -135,27 +147,29 @@ fn main() {
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
         let mut firm = [StorageSector::default()];
-        
+
         firmware_read(&mut firm, 0);
         let settings_offset = u16::from_le_bytes([firm[0].bytes()[0x20], firm[0].bytes()[0x21]]);
-        
+
         firmware_read(&mut firm, settings_offset as u32 * 8);
         let firm = firm[0].bytes();
-        
+
         let adcx1 = u16::from_le_bytes([firm[0x158], firm[0x159]]);
-        let adcy1= u16::from_le_bytes([firm[0x15A], firm[0x15B]]);
+        let adcy1 = u16::from_le_bytes([firm[0x15A], firm[0x15B]]);
         let scrx1 = firm[0x15C];
         let scry1 = firm[0x15D];
 
         let adcx2 = u16::from_le_bytes([firm[0x15E], firm[0x15F]]);
-        let adcy2= u16::from_le_bytes([firm[0x160], firm[0x161]]);
+        let adcy2 = u16::from_le_bytes([firm[0x160], firm[0x161]]);
         let scrx2 = firm[0x162];
         let scry2 = firm[0x163];
-        
+
         let x_scale = ((scrx2 as i32 - scrx1 as i32) << 19) / (adcx2 as i32 - adcx1 as i32);
         let y_scale = ((scry2 as i32 - scry1 as i32) << 19) / (adcy2 as i32 - adcy1 as i32);
-        let x_offset = (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19))/ 2;
-        let y_offset = (((adcy1 as i32 + adcy2 as i32) * y_scale) - ((scry1 as i32 + scry2 as i32) << 19))/ 2;
+        let x_offset =
+            (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19)) / 2;
+        let y_offset =
+            (((adcy1 as i32 + adcy2 as i32) * y_scale) - ((scry1 as i32 + scry2 as i32) << 19)) / 2;
         /*
         let send = ;
         IPC_FIFO_HARDWARE.send_raw_blocking(send);
@@ -171,7 +185,8 @@ fn main() {
         */
         let mut last_x = 0;
         let mut last_y = 0;
-
+        let mut pen_down = false;
+        let mut last_pen = false;
         //reboot_lib::spi::touchscreen::enable_tsc();
 
         loop {
@@ -183,6 +198,7 @@ fn main() {
                         response = 0x8000_0000;
                         continue;
                     };
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
                     let mut controls = reboot_lib::Buttons::from_bits_retain(controls);
                     /*
@@ -191,34 +207,49 @@ fn main() {
                     }
                     */
                     //if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
-                    
+
                     if reboot_lib::spi::touchscreen::is_pen_down() {
-                        if let Some((x,y)) = read_tsc_pos_cdc() {
-                        let scr_x = {
-                            let x = x as i32 * x_scale - x_offset + x_scale / 2;
-                            (x >> 19).clamp(0, 255)
-                        };
-                        let scr_y = {
-                            let y = y as i32 * y_scale - y_offset + y_scale / 2;
-                            (y >> 19).clamp(0, 191)
-                            
-                        };
-                        last_x = scr_x as u8;
-                        last_y = scr_y as u8;    
-                    }    
+                        if let Some((x, y)) = read_tsc_pos_cdc() {
+                            let scr_x = {
+                                let x = x as i32 * x_scale - x_offset + x_scale / 2;
+                                (x >> 19).clamp(0, 255)
+                            };
+                            let scr_y = {
+                                let y = y as i32 * y_scale - y_offset + y_scale / 2;
+                                (y >> 19).clamp(0, 191)
+                            };
+                            if last_pen {
+                                last_x = scr_x as u8;
+                                last_y = scr_y as u8;
+                            }
+                        }
+                        if last_pen {
+                            pen_down = true;
+                        }
+                        last_pen = true;
                     } else {
+                        if !last_pen {
+                            pen_down = false;
+                        }
+                        last_pen = false;
+                    }
+
+                    if !pen_down {
                         controls ^= reboot_lib::Buttons::PEN_DOWN;
                     };
-                    
-                    response = controls.bits() as u32 | ((last_x as u32) << 16) | ((last_y as u32) << 24);
+
+                    response =
+                        controls.bits() as u32 | ((last_x as u32) << 16) | ((last_y as u32) << 24);
                 }
                 2 => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     buffer = core::slice::from_raw_parts_mut(ptr as *mut _, len as usize);
                 }
                 3 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match mmc_read_decrypt(buffer, &key, arg) {
                         Ok(_) => 0,
                         Err(e) => 0x8000_0000 | e.bits(),
@@ -226,6 +257,7 @@ fn main() {
                 }
                 11 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match arg {
                         1 => check_sdmmc(reboot_lib::DeviceSelect::SDCardSlot).bits(),
                         2 => check_sdmmc(reboot_lib::DeviceSelect::EMMC).bits(),
@@ -234,6 +266,8 @@ fn main() {
                 }
                 5 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+
                     response = match sd_read_sectors(buffer, arg) {
                         Ok(_) => 0,
                         Err(e) => e.bits(),
@@ -241,6 +275,7 @@ fn main() {
                 }
                 10 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match write_sd_sectors(arg, buffer) {
                         Ok(_) => 0,
                         Err(e) => e.bits(),
@@ -249,7 +284,7 @@ fn main() {
 
                 6 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();

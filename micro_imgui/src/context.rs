@@ -76,7 +76,7 @@ impl<'a, B: Backend> Frame<'a, B> {
 
         let pressed = (focused && ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS))
             || (hovered && ctx.backend.input_active(B::InputQuery::POINTER_PRESS));
-        
+
         let released = (focused && ctx.backend.input_released(B::InputQuery::FOCUSED_PRESS))
             || (ctx.pressed_response == Some(id)
                 && ctx.backend.input_released(B::InputQuery::POINTER_PRESS));

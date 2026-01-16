@@ -33,7 +33,7 @@ impl<'t> AutoAdd for Button<'t> {
         let bounds = ui
             .prepare_complication(prep_size)
             .0
-            .translate(Vec2::unit(2))
+            .translate(Vec2::unit(3))
             .include_point(ui.clip_rect().max);
         let box_shaper = ui.reserve_shape();
         let rect = ui.draw(Shape::Text {
@@ -43,10 +43,11 @@ impl<'t> AutoAdd for Button<'t> {
             outline: Color::new(0, 0, 0),
             size: 8,
         });
+        let wanted_size = rect.scale_uniform(3).size();
         let alloc_size = match size {
-            Sizing::Automatic => rect.scale_uniform(2).size(),
-            Sizing::Cropped(_vec2) => prep_size.max(rect.scale_uniform(2).size()),
-            Sizing::Padded(_vec2) => prep_size.max(rect.scale_uniform(2).size()),
+            Sizing::Automatic => wanted_size,
+            Sizing::Cropped(_vec2) => prep_size.max(wanted_size),
+            Sizing::Padded(_vec2) => prep_size.max(wanted_size),
         };
         let resp = ui.allocate_size(alloc_size, Sense::clickable());
 
@@ -60,7 +61,7 @@ impl<'t> AutoAdd for Button<'t> {
 
         ui.draw_under(
             Shape::Rectangle {
-                area: resp.rect,
+                area: resp.rect.scale_uniform(-1),
                 fill,
                 rounding: 1,
                 outline_color,

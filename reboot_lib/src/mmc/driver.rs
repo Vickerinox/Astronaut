@@ -441,15 +441,13 @@ pub unsafe fn read_sectors(
     buf: *mut [crate::StorageSector],
 ) -> Result<(), Status> {
     let device = &mut DEVICES[device as u8 as usize];
-    device.port.buffer = buf as *mut _;
-    device.port.buffer_len = buf.len();
+    device.port.buffer = buf;
 
     let sector = match device.kind {
         None => return Err(Status::all()),
         Some(DeviceType::SDSC) | Some(DeviceType::EMMC) => sector << 9,
         _ => sector,
     };
-
     let res = MMC_CONTROLLER.send_command(&mut device.port, Command::ReadMutliBlocks, sector);
     if res.successful() {
         Ok(())
@@ -462,8 +460,7 @@ pub unsafe fn write_sd_sectors(
     buf: *mut [crate::StorageSector],
 ) -> Result<(), Status> {
     let device = &mut DEVICES[DeviceSelect::SDCardSlot as u8 as usize];
-    device.port.buffer = buf as *mut _;
-    device.port.buffer_len = buf.len();
+    device.port.buffer = buf;
 
     let sector = match device.kind {
         None => return Err(Status::all()),

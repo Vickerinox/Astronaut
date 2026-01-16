@@ -366,7 +366,7 @@ pub struct MODSampleData {
 }
 
 impl MODPattern {}
-/* 
+/*
 impl MODSampleData {
     pub fn read_from<R: fatfs::Read>(reader: &mut R) -> Result<Self, R::Error> {
         let mut name = [0u8; 22];

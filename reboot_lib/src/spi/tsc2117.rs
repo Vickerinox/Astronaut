@@ -1,11 +1,10 @@
 use core::marker::PhantomData;
 
 ///Code for interacting with the TI-TSC2117 Touch screen and dac controller on DSi
-/// 
+///
 /// Viktor Karlsson 2025
-/// 
-/// 
-
+///
+///
 
 pub struct ControlPage;
 pub struct SoundPage;
@@ -38,6 +37,8 @@ impl<T: TSCPage> TSCHandle<T> {
 
     pub unsafe fn switch_page<U: TSCPage>(self, page: U) -> TSCHandle<U> {
         super::write_tsc(0, U::PAGE_NUMBER);
-        TSCHandle { current_page: PhantomData }
+        TSCHandle {
+            current_page: PhantomData,
+        }
     }
 }

@@ -840,6 +840,9 @@ pub fn readdir(dir: &mut Directory) -> Result<FileInfo, Error> {
         Err(Error::from(result))
     }
 }
+pub fn size(file: &mut File) -> u32 {
+    file.obj.objsize
+}
 
 impl Drop for File {
     fn drop(&mut self) {

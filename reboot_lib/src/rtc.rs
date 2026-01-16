@@ -4,16 +4,26 @@ use crate::MemoryWrapper;
 pub struct RTCHardware(RW<RTCReg>);
 impl RTCHardware {
     pub unsafe fn transact(&self, command: &[u8], result: &mut [u8]) {
-        self.0.write(RTCReg::CS_0 | RTCReg::SCK_1 | RTCReg::SIO_1 );
+        self.0.write(RTCReg::CS_0 | RTCReg::SCK_1 | RTCReg::SIO_1);
         crate::swi_delay(84);
-        self.0.write(RTCReg::CS_1 | RTCReg::SCK_1 | RTCReg::SIO_1 );
+        self.0.write(RTCReg::CS_1 | RTCReg::SCK_1 | RTCReg::SIO_1);
         crate::swi_delay(84);
 
         for mut byte in command.iter().copied() {
             for _bit in 0..8 {
-                self.0.write(RTCReg::CS_1 | RTCReg::SCK_0 | RTCReg::DATA_SELECT | RTCReg::from_bits_retain(byte>>7));
+                self.0.write(
+                    RTCReg::CS_1
+                        | RTCReg::SCK_0
+                        | RTCReg::DATA_SELECT
+                        | RTCReg::from_bits_retain(byte >> 7),
+                );
                 crate::swi_delay(84);
-                self.0.write(RTCReg::CS_1 | RTCReg::SCK_1 | RTCReg::DATA_SELECT | RTCReg::from_bits_retain(byte>>7));
+                self.0.write(
+                    RTCReg::CS_1
+                        | RTCReg::SCK_1
+                        | RTCReg::DATA_SELECT
+                        | RTCReg::from_bits_retain(byte >> 7),
+                );
                 crate::swi_delay(84);
                 byte <<= 1;
             }

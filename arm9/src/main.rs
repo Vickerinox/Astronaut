@@ -53,17 +53,10 @@ impl FatFsDriver for SDMMCDriver {
                     flusha.flush();
                 }
                 DiskResult::Ok
-                /*
-                match self.flush() {
-                    Ok(_) => DiskResult::Ok,
-                    Err(_) => DiskResult::Error,
-                }
-                */
             }
-            _ => DiskResult::Ok,
-            IoctlCommand::GetSectorCount(_) => DiskResult::Error,
-            IoctlCommand::GetSectorSize(_) => DiskResult::Error,
-            IoctlCommand::GetBlockSize(_) => DiskResult::Error,
+            IoctlCommand::GetSectorCount(_) => DiskResult::ParameterError,
+            IoctlCommand::GetSectorSize(_) => DiskResult::ParameterError,
+            IoctlCommand::GetBlockSize(_) => DiskResult::ParameterError,
         }
     }
     fn disk_read(&mut self, drive: u8, mut buffer: &mut [u8], sector: u32) -> DiskResult {
@@ -72,15 +65,19 @@ impl FatFsDriver for SDMMCDriver {
             2 => &mut self.nand_controller,
             _ => return DiskResult::ParameterError,
         }) else {
-            return DiskResult::ParameterError;
+            return DiskResult::NotReady;
         };
         let new_pos = sector;
         if controller.seek(new_pos) != Ok(new_pos) {
-            return DiskResult::Error;
+            return DiskResult::NotReady;
         }
         while !buffer.is_empty() {
-            let Ok(progress) = controller.read(buffer) else {return DiskResult::Error};
-            let Some(remaining_buffer) = buffer.get_mut(progress..) else {return DiskResult::Error};
+            let Ok(progress) = controller.read(buffer) else {
+                return DiskResult::NotReady;
+            };
+            let Some(remaining_buffer) = buffer.get_mut(progress..) else {
+                return DiskResult::Error;
+            };
             buffer = remaining_buffer;
         }
         DiskResult::Ok
@@ -91,15 +88,19 @@ impl FatFsDriver for SDMMCDriver {
             2 => return DiskResult::WriteProtected, //&mut self.nand_controller,
             _ => return DiskResult::ParameterError,
         }) else {
-            return DiskResult::ParameterError;
+            return DiskResult::NotReady;
         };
         let new_pos = sector;
         if controller.seek(new_pos) != Ok(new_pos) {
-            return DiskResult::Error;
+            return DiskResult::NotReady;
         }
         while !buffer.is_empty() {
-            let Ok(progress) = controller.write(buffer) else {return DiskResult::Error};
-            let Some(remaining_buffer) = buffer.get(progress..) else {return DiskResult::Error};
+            let Ok(progress) = controller.write(buffer) else {
+                return DiskResult::NotReady;
+            };
+            let Some(remaining_buffer) = buffer.get(progress..) else {
+                return DiskResult::Error;
+            };
             buffer = remaining_buffer;
         }
         DiskResult::Ok
@@ -311,7 +312,7 @@ unsafe fn try_mount_sd() -> Option<BasicSDMMCCursor<'static>> {
     }
     let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
     let sd_buffer =
-        core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 16);
+        core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 32);
     Some(BasicSDMMCCursor::new(sd_buffer, twl_lba, false))
 }
 
@@ -326,7 +327,7 @@ unsafe fn try_mount_nand() -> Option<BasicSDMMCCursor<'static>> {
     read_encrypted_nand(nand_buffer, twl_lba).ok()?;
     let twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
     let nand_buffer =
-        core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 16);
+        core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 32);
     Some(BasicSDMMCCursor::new(nand_buffer, twl_lba, true))
 }
 
@@ -341,33 +342,46 @@ const COLOR_MUSIC: Color = Color::new(100, 100, 200);
 fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String, bool, Color)> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
-        while let Ok(file) = fatfs_embedded::readdir(folder) {
-            let Ok(name) = core::ffi::CStr::from_ptr(file.fname.as_ptr()).to_str() else {
-                continue;
-            };
-            let name = alloc::string::String::from(name);
-            if name.is_empty() {
-                break;
-            }
-            let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
-            let color = if is_dir {
-                Color::new(200, 100, 100)
-            } else {
-                let s_name = core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_bytes();
-                let s_name = if s_name.is_empty() {
-                    name.as_bytes()
-                } else {
-                    s_name
+        loop {
+            if let Ok(file) = fatfs_embedded::readdir(folder) {
+                let Ok(name) = core::ffi::CStr::from_ptr(file.fname.as_ptr()).to_str() else {
+                    continue;
                 };
-                if is_bootable(&s_name) {
-                    COLOR_BOOTABLE
-                } else if is_music_module(&s_name) {
-                    COLOR_MUSIC
-                } else {
-                    Color::new(180, 180, 180)
+                let mut name = alloc::string::String::from(name);
+                if name.is_empty() {
+                    break;
                 }
-            };
-            vec.push((name, is_dir, color))
+                let is_dir =
+                    file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
+                let color = if is_dir {
+                    Color::new(200, 100, 100)
+                } else {
+                    let s_name = core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_bytes();
+                    let s_name = if s_name.is_empty() {
+                        name.as_bytes()
+                    } else {
+                        s_name
+                    };
+                    if is_bootable(&s_name) {
+                        COLOR_BOOTABLE
+                    } else if is_music_module(&s_name) {
+                        COLOR_MUSIC
+                    } else {
+                        Color::new(180, 180, 180)
+                    }
+                };
+                if name.len() > 35 {
+                    let mut boundary = 32;
+                    while !name.is_char_boundary(boundary) {
+                        boundary += 1;
+                    }
+                    name.split_off(boundary);
+                    name.push_str("...");
+                }
+                vec.push((name, is_dir, color))
+            } else {
+                panic!("SD WAS EJECTED!");
+            }
         }
     }
     for i in 1..vec.len() {
@@ -390,28 +404,23 @@ fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String
 
     vec
 }
+unsafe fn base_init_graphics() {
 
+}
 unsafe fn main() {
     unsafe {
-        #[cfg(target_arch = "arm")]
-        core::arch::asm!("mov r11, r11");
-
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
         //set background color to brat green.
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b1111100000111111);
-        core::ptr::write_volatile(0x5000002 as *mut u16, 0xFFFF);
-        core::ptr::write_volatile(0x5000004 as *mut u16, 0xFFFF);
-        core::ptr::write_volatile(0x5000006 as *mut u16, 0xFFFF);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b1111100000111111);
-
-        core::ptr::write_volatile(0x200_0000 as *mut u32, 0);
 
         reboot_lib::IPC_FIFO_HARDWARE.enable();
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
         new_takeover::mysterious_takeover_function();
+        
 
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A
 
@@ -445,7 +454,7 @@ unsafe fn main() {
 
         gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
-            text_pass.layout_str("GURU MEDITAION ERROR (ARM7 FAIL)", 8);
+            text_pass.layout_str("If you can see this screen, the Co-CPU (ARM7) has yet to respond. And most likely the console has crashed.", 8);
         });
 
         video_context.next_frame();
@@ -482,18 +491,19 @@ unsafe fn main() {
 
         video_context.next_frame();
 
-        let sdmmc_controller = SDMMCDriver {
-            nand_controller: None,
-            sd_controller: None,
-        };
-        fatfs_embedded::fatfs::diskio::install(sdmmc_controller);
+        fatfs_embedded::fatfs::diskio::install(&mut SDMMC_DRIVER);
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
         let mut frontend = gui::AppData::new();
         FS_NAND.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
 
         FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sd:\0"));
-        
+
+
+        if (0x4000130 as *const u16).read_volatile() & 3 != 3 {
+            frontend.autoboot();
+        }
+
         frontend.play_startup_music();
 
         micro_imgui::run(backend, (), |mut f, _| {
@@ -501,6 +511,10 @@ unsafe fn main() {
         });
     }
 }
+static mut SDMMC_DRIVER: SDMMCDriver = SDMMCDriver {
+    nand_controller: None,
+    sd_controller: None,
+};
 
 pub fn is_bootable(str: &[u8]) -> bool {
     let len = str.len() - 4;
@@ -615,6 +629,7 @@ fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
+        core::arch::asm!("mov r11, r11");
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b0111110100000000);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0111110100000000);
 
@@ -626,6 +641,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             micro_imgui::Rect::from_min_size(Vec2::ZERO, Vec2::new(255, 191)),
         )
         .text_pass(|text_pass| {
+            
             text_pass.set_color(0x7FFF);
             text_pass.set_position(60, 80);
             text_pass.layout_str("Software version: ", 8);
@@ -640,20 +656,23 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             text_pass.set_color(0x7766);
             text_pass.layout_str("Error Message:", 8);
             text_pass.next_line();
-            text_pass.layout_str(&alloc::format!("{}", info.message()), 8);
+            let mut buf = String::from_raw_parts(0x200_0000 as *mut _, 0, 0xFFFFFF);
+            use core::fmt::Write;
+            write!(buf, "{}",info.message());
+            text_pass.layout_str(&buf, 8);
             if let Some(loc) = info.location(){
                 text_pass.next_line();
                 text_pass.next_line();
                 text_pass.layout_str("Error Location:", 8);
                 text_pass.next_line();
-                text_pass.layout_str(&alloc::format!("{loc}"), 8);
+                let mut buf = String::from_raw_parts(0x200_0000 as *mut _, 0, 0xFFFFFF);
+                write!(buf, "{loc}");
+                text_pass.layout_str(&buf, 8);
             };
-            
-
-
-            
         });
         video_context.next_frame();
+        reboot_lib::disable_all_interrupts();
+
         loop {
             reboot_lib::swi_halt();
         }

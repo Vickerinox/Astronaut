@@ -1,10 +1,9 @@
-
 bitflags::bitflags! {
     #[derive(Clone, Copy)]
     pub struct ROMSCFG: u16 {
         const ARM9_UPPER_BIOS_HALF = (1<<0);
         const ARM9_NDS_MODE_BIOS = (1<<1);
-        
+
         const ARM7_UPPER_BIOS_HALF = (1<<8);
         const ARM7_NDS_MODE_BIOS = (1<<9);
         const CONSOLE_ID_ACCESS = (1<<10);
@@ -54,13 +53,10 @@ bitflags::bitflags! {
         const ACCESS_NWRAM = (1<<25);
         const ACCESS_UNKNWON = (1<<28);
         const ACCESS_SCFG = (1<<31);
-        
+
     }
 
 }
 
-
 #[repr(C)]
-pub struct SCFGHardware {
-
-}
+pub struct SCFGHardware {}

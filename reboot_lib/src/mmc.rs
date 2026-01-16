@@ -263,41 +263,61 @@ impl MMC {
         self.tmio_set_port(port);
         self.irmask.write(Status::empty());
         self.status.write(Status::empty());
-        self.block_count.write(port.buffer_len as u16);
+        self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
 
         self.data_control.write(Control::USE_DATA32);
         self.data_control_32
             .write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
+        let mut timeout = 0;
         while self
             .data_control_32
             .read()
             .intersects(DataControl32::RX_READY)
-        {}
+        {
+            timeout += 1;
+            if timeout > 0x10_0000 {
+                return !Status::INSERTED;
+            }
+        }
         self.param.write(argument);
         self.command.write(command as u16);
 
-        while !self.status.read().contains(Status::RESPONSE_END) {}
+        while !self.status.read().contains(Status::RESPONSE_END) {
+            timeout += 1;
+            if timeout > 0x10_0000 {
+                return !Status::INSERTED;
+            }
+        }
 
         let value = self.status.read();
+
         self.status.write(!value | Status::CMD_BUSY);
 
         self.tmio_get_response(port, command as u16);
 
         if command.transmits_data() {
-            let mut sector_iter =
-                (&mut *core::slice::from_raw_parts_mut(port.buffer, port.buffer_len)).iter_mut();
-            let Some(mut current_sector) = sector_iter.next() else {
-                return Status::from_bits_retain(123456789);
+            let Some(buf) = port.buffer.as_mut() else {
+                return Status::from_bits_retain(0xB4B4B4B4);
             };
+            let mut sector_iter = buf.iter_mut();
+            let Some(mut current_sector) = sector_iter.next() else {
+                return Status::from_bits_retain(0x4B4B4B4B);
+            };
+            timeout = 0;
             if command.reads_data() {
                 // Read loop
                 while !self.status.read().intersects(Status::ALL_ERRORS) {
+                    timeout += 1;
+                    if timeout > 0x10_0000 {
+                        return !Status::INSERTED;
+                    }
                     if self
                         .data_control_32
                         .read()
                         .contains(DataControl32::RX_READY)
                     {
+                        timeout = 0;
                         //self.status.write(!Status::RX_READY);
                         for (i, word) in current_sector.0.iter_mut().enumerate() {
                             (word as *mut u32).write_volatile(self.data_fifo_32.read());
@@ -311,7 +331,12 @@ impl MMC {
             } else {
                 // Write loop
                 while !self.status.read().intersects(Status::ALL_ERRORS) {
+                    timeout += 1;
+                    if timeout > 0x10_0000 {
+                        return !Status::INSERTED;
+                    }
                     if !self.data_control_32.read().contains(DataControl32::TX_BUSY) {
+                        timeout = 0;
                         for (i, word) in current_sector.0.iter_mut().enumerate() {
                             self.data_fifo_32.write(*word);
                         }
@@ -323,7 +348,12 @@ impl MMC {
                 }
             }
         }
-        while self.status.read().contains(Status::CMD_BUSY) {}
+        while self.status.read().contains(Status::CMD_BUSY) {
+            timeout += 1;
+            if timeout > 0x10_0000 {
+                return !Status::INSERTED;
+            }
+        }
         self.status.read().intersection(Status::ALL_ERRORS)
     }
 }
@@ -469,23 +499,21 @@ const CMD_DATA_W: u16 = 0;
 
 #[derive(Debug)]
 pub struct TMIOPort {
-    pub port_num: u8,
+    pub port_num: u16,
     pub clock: ClockCnt,
     pub block_len: u16,
     pub option: u16,
-    pub buffer: *mut crate::StorageSector,
-    pub buffer_len: usize,
+    pub buffer: *mut [crate::StorageSector],
     pub response: [u32; 4],
 }
 impl TMIOPort {
-    pub const fn init(port_num: u8) -> Self {
+    pub const fn init(port_num: u16) -> Self {
         Self {
             port_num,
             clock: ClockCnt::FREQ_262K,
             block_len: 512,
             option: (1 << 15) | (1 << 14) | ((11 << 4) | 8),
-            buffer: core::ptr::null_mut(),
-            buffer_len: 0,
+            buffer: &mut [],
             response: [0; 4],
         }
     }
@@ -497,8 +525,7 @@ impl Default for TMIOPort {
             clock: ClockCnt::empty(),
             block_len: Default::default(),
             option: Default::default(),
-            buffer: core::ptr::null_mut(),
-            buffer_len: 0,
+            buffer: &mut [],
             response: Default::default(),
         }
     }

@@ -15,9 +15,9 @@ mod memory;
 pub mod mmc;
 pub mod music_modules;
 pub mod ndma;
+pub mod scfg;
 pub mod sound;
 pub mod spi;
-pub mod scfg;
 mod swi;
 pub mod timers;
 mod video;
@@ -106,11 +106,16 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
     for data in data_out.into_iter().copied() {
         IPC_FIFO_HARDWARE.send_raw_blocking(data);
     }
-    let value = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-    match NonZeroU32::new(value) {
-        Some(value) => Err(value),
-        None => Ok(()),
+    loop {
+        if let Ok(value) = IPC_FIFO_HARDWARE.recieve_value_raw() {
+            assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+            match NonZeroU32::new(value) {
+                Some(value) => return Err(value),
+                None => return Ok(()),
+            }
+        } else if IPC_FIFO_HARDWARE.read_status() == 7 {
+            panic!("ARM7 crashed while sending command {opcode}");
+        }
     }
 }
 pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
@@ -118,10 +123,15 @@ pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
         .map_err(|i| u32::from(i))
         .err()
         .unwrap_or(0);
-    (Buttons::from_bits_retain(value as u16), (value >> 16) as u8, (value >> 24) as u8)
+    (
+        Buttons::from_bits_retain(value as u16),
+        (value >> 16) as u8,
+        (value >> 24) as u8,
+    )
 }
 pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), NonZeroU32> {
-    com_arm9(2, &[slice as *mut () as u32, slice.len() as u32])
+    let (ptr, len) = slice.to_raw_parts();
+    com_arm9(2, &[ptr as u32, len as u32])
 }
 pub unsafe fn arm9_read_nand_sector_encrypted(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(3, &[start_sector])
