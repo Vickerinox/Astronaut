@@ -158,11 +158,14 @@ impl AppData {
                         }
                     },
                     CurrentUI::None => {
+                        ui.label("Made by Vikrinox, 2026");
+                        ui.header("Welcome!");
                         if ui.button("Browse Files").clicked() {
                             Some(Box::new(|_s| Self::open_default_fs()))
                         } else {
                             None
                         }
+                        
                     }
                     CurrentUI::LoadingApp { file, file_path } => {
                         ui.request_repaint();
