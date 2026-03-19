@@ -5,15 +5,15 @@ edition = "2021"
 
 [workspace]
 members = [
-    "arm7",
-    "arm7_bs",
-    "arm9",
-    "arm9_bs",
-    "common",
-    "magic_values",
-    "micro_imgui",
-    "reboot_lib"
-, "unlaunch_decomp", "cfatfs"]
+    "crates/hinddoor/hd_arm7",
+    "crates/hinddoor/bs_arm7",
+    "crates/hinddoor/hd_arm9",
+    "crates/hinddoor/bs_arm9",
+    "crates/common",
+    "crates/magic_values",
+    "crates/micro_imgui",
+    "crates/reboot_lib"
+, "unlaunch_decomp", "crates/cfatfs"]
 
 [dependencies]
 elf = "0.7.4"
@@ -28,3 +28,4 @@ tracing-subscriber = { version = "0.3.19", features = ["time"] }
 similar = "2.6.0"
 hexify = "0.0.3"
 console = "0.15.10"
+log = "0.4"

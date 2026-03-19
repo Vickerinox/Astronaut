@@ -2,14 +2,18 @@
 use std::{
     env::{self},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::exit,
 };
 
 use clap::Parser;
+use console::Style;
 use elf::{endian::AnyEndian, ElfBytes};
+use fatfs::{Error, SeekFrom};
 //use rfd::FileDialog;
-use tracing::{debug, error, info, span, Level};
+use log::{debug, error, info, Level};
+use similar::{ChangeTag, TextDiff};
+
 
 use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
 mod build;
@@ -18,9 +22,7 @@ mod mmc;
 
 fn construct_tmd(
     elf_file_path: PathBuf,
-    mmc_file_path: PathBuf,
-    export: Option<PathBuf>,
-) -> Result<(), BuildError> {
+) -> Result<Vec<u8>, BuildError> {
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
     const M_STATE_OVERWRITE: &[u8] = &[
         84, 72, 73, 83, 32, 73, 83, 0, 0, 0, 0, 0, 223, 0, 0, 0, 87, 72, 69, 82, 69, 32, 84, 72,
@@ -36,7 +38,6 @@ fn construct_tmd(
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
     info!("SELECTED ELF: {:?}", &elf_file_path);
-    info!("SELECTED MMC: {:?}", &mmc_file_path);
     let file =
         fs::read(elf_file_path).map_err(|e| Crate::TMD.err()(CompileError::ElfNotFound(e)))?;
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
@@ -77,14 +78,8 @@ fn construct_tmd(
     let values = entry_value.to_le_bytes();
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
 
-    mmc::write_tmd_to_image(&mmc_file_path, &empty_tmd).map_err(Crate::TMD.err())?;
 
-    if let Some(path) = export {
-        if fs::write(path, &empty_tmd[520..]).is_err() {
-            error!("path for TMD export not available");
-        }
-    }
-    Ok(())
+    Ok(empty_tmd)
 }
 #[derive(Parser)]
 struct CompilerArgs {
@@ -111,11 +106,11 @@ struct FixedCompilerArgs {
 impl FixedCompilerArgs {
     fn build(self) -> Result<(), BuildError> {
         let env_us = env::current_dir().expect("Failed to get current dir using ENV");
-        let arm9_path = env_us.clone().join("arm9");
-        let arm7_path = env_us.clone().join("arm7");
+        let arm9_path = env_us.clone().join("crates/hinddoor/hd_arm9");
+        let arm7_path = env_us.clone().join("crates/hinddoor/hd_arm7");
 
-        let arm9_bootstrap_path = env_us.clone().join("arm9_bs");
-        let arm7_bootstrap_path = env_us.clone().join("arm7_bs");
+        let arm9_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm9");
+        let arm7_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm7");
 
         let arm9_elf = env_us
             .clone()
@@ -134,11 +129,11 @@ impl FixedCompilerArgs {
             .join("target-bootstrap/armv4t-none-eabi/release/arm7_bootstrap");
         */
 
-        let arm7_include_path = env_us.clone().join("arm9/src/arm7.bin");
-        let bootstrap_include_path = env_us.clone().join("arm9/src/bootstrap.bin");
+        let arm7_include_path = env_us.clone().join("crates/hinddoor/hd_arm9/src/arm7.bin");
+        let bootstrap_include_path = env_us.clone().join("crates/hinddoor/hd_arm9/src/bootstrap.bin");
 
-        let span = span!(Level::TRACE, "Compiling Bootstrap");
-        let _enter = span.enter();
+        //let span = span!(Level::TRACE, "Compiling Bootstrap");
+        //let _enter = span.enter();
         build::build_crate(arm9_bootstrap_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
         debug!("Built arm9 bootstrap");
         build::build_crate(arm7_bootstrap_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
@@ -146,44 +141,53 @@ impl FixedCompilerArgs {
         build::compile_bootstrap(arm9_bs_elf, bootstrap_include_path)
             .map_err(Crate::BootStrap.err())?;
         debug!("Done compiling bootstraps!");
-        drop(_enter);
-        let span = span!(Level::TRACE, "Arm7 binary");
-        let _enter = span.enter();
+        //drop(_enter);
+        //let span = span!(Level::TRACE, "Arm7 binary");
+        //let _enter = span.enter();
         //we have to do this idiotic thing or cargo craps itself with config.toml
         info!("Compiling ARM7 binary... ");
         build::build_crate(arm7_path).map_err(|e| (e, Crate::Arm7))?;
         debug!("Done building AMR7!");
 
-        drop(_enter);
-        let span = span!(Level::TRACE, "Arm7 binary injection");
-        let _enter = span.enter();
+        //drop(_enter);
+        //let span = span!(Level::TRACE, "Arm7 binary injection");
+        //let _enter = span.enter();
         info!("Injecting into ARM7...");
         build::compile_arm7(arm7_elf, arm7_include_path).map_err(Crate::Arm7.err())?;
         debug!("Done injecting AMR7!");
-        drop(_enter);
-        let span = span!(Level::TRACE, "Arm9 binary");
-        let _enter = span.enter();
+        //drop(_enter);
+        //let span = span!(Level::TRACE, "Arm9 binary");
+        //let _enter = span.enter();
         info!("Compiling ARM9 binary... ");
         build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
         debug!("Done building ARM9!");
-        drop(_enter);
-        let span = span!(Level::TRACE, "Arm9 binary injection");
-        let _enter = span.enter();
+        //drop(_enter);
+        //let span = span!(Level::TRACE, "Arm9 binary injection");
+        //let _enter = span.enter();
         info!("Resolving MMC image... ");
         debug!("Done building ARM9!");
-        drop(_enter);
-        let span = span!(Level::TRACE, "tmd");
-        let _enter = span.enter();
+        //drop(_enter);
+        //let span = span!(Level::TRACE, "tmd");
+        //let _enter = span.enter();
         let mmc_image_path = std::fs::canonicalize(&self.tmd_file).map_err(|_| BuildError {
             compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(self.tmd_file)),
             crate_type: Crate::TMD,
         })?;
         debug!("resolved to {:?}", mmc_image_path);
         info!("Injecting TMD into MMC image...");
-        construct_tmd(arm9_elf, mmc_image_path, self.export_tmd)?;
+        let exploited_tmd = construct_tmd(arm9_elf)?;
+        mmc::write_tmd_to_image(mmc_image_path, &exploited_tmd).map_err(Crate::TMD.err())?;
+
+        if let Some(path) = self.export_tmd {
+            if fs::write(path, &exploited_tmd[520..]).is_err() {
+                error!("path for TMD export not available");
+            }
+        }
+
         Ok(())
     }
 }
+
 fn get_file() -> Option<PathBuf> {
     /*
     FileDialog::new()

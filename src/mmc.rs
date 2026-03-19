@@ -13,7 +13,7 @@ use std::{
     io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
-use tracing::{debug, error, info};
+use log::{debug, error, info};
 //pub mod aes_ecb;
 pub mod mbr;
 pub mod nandcursor;
@@ -75,7 +75,10 @@ fn open_main_twl<'a>(
     Ok(fs)
 }
 
+
+
 pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), CompileError> {
+    info!("SELECTED MMC: {:?}", mmc_path.as_ref());
     info!("Loading MMC Image... ");
     let mut mmc_image = fs::read(&mmc_path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => TMDCompileError::MMCNotFound(e),
