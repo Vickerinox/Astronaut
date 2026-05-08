@@ -1,6 +1,8 @@
 use core::num::NonZeroU32;
 
-use crate::Control;
+use alloc::rc;
+
+use crate::{Control, MMC};
 
 use super::{ClockCnt, Command, Status, TMIOPort, MMC_CONTROLLER};
 
@@ -11,6 +13,14 @@ pub enum DeviceType {
     HCEMMC = 1,
     SDSC = 2,
     SDHC = 3,
+}
+impl DeviceType {
+    pub fn is_mmc(&self) -> bool {
+        match self {
+            DeviceType::EMMC | DeviceType::HCEMMC => true,
+            DeviceType::SDSC | DeviceType::SDHC => false,
+        }
+    }
 }
 
 bitflags::bitflags! {
@@ -38,7 +48,7 @@ pub struct Device {
     port: TMIOPort,
     kind: Option<DeviceType>,
     protection: Protection,
-    rca: u16,
+    rca: u32,
     command_class_support: u16,
     sectors: Option<NonZeroU32>,
     status: u32,
@@ -96,200 +106,178 @@ pub unsafe fn check_sdmmc(device_number: DeviceSelect) -> Status {
     let dev = &mut DEVICES[device_number as u8 as usize];
     MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, 0)
 }
+#[repr(u16)]
+pub enum InitSDMMCError {
+    FailedIdleCommand = 1,
+    FailedIdleState = 2,
+    FailedCMD41 = 3,
+    FailedPlaceholder = 0xffff,
+    FailedReadyState = 4,
+    FailedIdentState = 5,
+    FailedStandbyState = 6,
 
-pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), Status> {
+    FailedIdleVoltageRange = 7,
+    FailedIdleVoltageError = 8,
+
+    FailedIdleOpCondSD = 9,
+    FailedIdleOpCondMMC = 10,
+
+    FailedIdleOpCondSD2 = 11,
+    FailedIdleOpCondVoltage = 12,
+    FailedTranState = 13,
+    FailedOcrTimeout = 14,
+
+    CID = 15,
+    RelAddr = 16,
+
+    Select = 17,
+    CSD = 18,
+    Desel = 19,
+
+    Status = 20,
+    BusWidthSD = 21,
+
+
+}
+pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCError> {
     if device_number == DeviceSelect::SDCardSlot {}
     let dev = &mut DEVICES[device_number as u8 as usize];
 
-    MMC_CONTROLLER.tmio_powerup(&mut dev.port);
-    /*
-    dev.port.clock = ClockCnt::FREQ_16M;
-    MMC_CONTROLLER.tmio_set_port(&mut dev.port);
-    let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::StopTransmission, 0);
-    let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, 0);
-    let status = MMC_CONTROLLER.response[0].read();
-
-    if status & 0xF00 == 0x900 {
-        return Ok(())
+    dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
+    crate::swi_delay(0x2000);
+    let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
+    if !res.successful() {
+        return Err(InitSDMMCError::FailedIdleCommand);
     }
-
-    return Err(Status::from_bits_retain(0x80000000 | res.bits()));
-    */
-    MMC_CONTROLLER.data_control.write(Control::USE_DATA32);
-    MMC_CONTROLLER
-        .data_control_32
-        .write(super::DataControl32::CLEAR_FIFO_32 | super::DataControl32::USE_DATA32);
-
-    match device_number {
-        DeviceSelect::SDCardSlot => {
-            dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
-            crate::swi_delay(0x2000);
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
-            if !res.successful() {
-                return Err(res);
+    let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendIfCondition, 0x100 | 0xAA);
+    let maybe_mmc = match res {
+        Status::EMPTY => {
+            if dev.port.response[0] != (0x100 | 0xAA) {
+                // WARN: dangerous???? But gotta do it?????
+                true //return Err(InitSDMMCError::FailedIdleVoltageRange);
+            } else {
+                false
             }
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SendIfCondition, 0x1AA);
-            match res {
-                Status::EMPTY => {
-                    if dev.port.response[0] != 0x1AA {
-                        return Err(Status::from_bits_retain(dev.port.response[0] | 0x80000000));
-                    }
-                }
-                Status::ERR_CMD_TIMEOUT => (),
-                err => return Err(err),
-            }
-            let op_cond_arg = (1 << 20) | ((res.bits() << 8) ^ (1 << 30));
-            let mut kind = DeviceType::SDSC;
-            let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
-            match res {
-                Status::EMPTY => (),
-                Status::ERR_CMD_TIMEOUT => return Err(Status::from_bits_retain(54321)),
-                err => return Err(err),
-            }
-            let mut ocr;
-            let mut tries = 0;
-            loop {
-                if tries == 200 {
-                    return Err(Status::from_bits_retain(6666));
-                }
-                ocr = dev.port.response[0];
-                if (ocr & (1 << 31) > 0) {
-                    break;
-                }
-                let res =
-                    send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
-                if !res.successful() {
-                    return Err(Status::from_bits_retain(32123));
-                }
-                crate::swi::swi_delay(0x20BA * 5);
-                tries += 1;
-            }
-            if (ocr & (1 << 20)) == 0 {
-                return Err(Status::from_bits_retain(123123));
-            };
-            if (ocr & (1 << 30)) > 0 {
-                kind = DeviceType::SDHC
-            };
-
-            match MMC_CONTROLLER.send_command(&mut dev.port, Command::AllSendCID, 0) {
-                Status::EMPTY => (),
-                err => return Err(err),
-            }
-
-            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SDSendRelativeAddr, 0) {
-                Status::EMPTY => (),
-                err => return Err(err),
-            }
-            let rca = dev.port.response[0];
-            dev.port.clock = ClockCnt::ENABLE | ClockCnt::FREQ_16M | ClockCnt::AUTO_STOP;
-
-            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendCSD, rca) {
-                Status::EMPTY => (),
-                err => return Err(err),
-            }
-
-            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SelectCard, rca) {
-                Status::EMPTY => (),
-                err => return Err(err),
-            }
-            match send_app_command(&mut dev.port, Command::AppSetClearCardSelect, 0, rca) {
-                Status::EMPTY => (),
-                err => return Err(err),
-            }
-            /*
-            match send_app_command(&mut dev.port, Command::AppSetBusWidth, 2, rca) {
-                Status::EMPTY => (),
-                err => return Err(err),
-            }
-            */
-            match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, rca) {
-                Status::EMPTY => (),
-                err => return Err(err),
-            }
-            dev.kind = Some(kind);
-            return Ok(());
         }
-        DeviceSelect::EMMC => {
-            dev.port.clock = super::ClockCnt::ENABLE | super::ClockCnt::FREQ_262K;
-
-            crate::swi_delay(0xf000);
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::GoIdleState, 0);
-            if !res.successful() {
-                return Err(Status::from_bits_retain(1) | res);
+        Status::ERR_CMD_TIMEOUT => true,
+        err => return Err(InitSDMMCError::FailedIdleVoltageError),
+    };
+    let op_cond_arg = (1 << 20) | ((res.bits() << 8) ^ (1 << 30));
+    let mut kind = DeviceType::SDSC;
+    let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
+    let is_mmc = match res {
+        Ok(Status::EMPTY) => false,
+        Ok(Status::ERR_CMD_TIMEOUT) => true,
+        Err(Status::ERR_CMD_TIMEOUT) => true,
+        err => return Err(InitSDMMCError::FailedReadyState),
+    };
+    let mut ocr;
+    let mut tries = 0;
+    if maybe_mmc || is_mmc {
+        loop {
+            if tries == 200 {
+                return Err(InitSDMMCError::FailedOcrTimeout);
             }
-            crate::swi_delay(0xf000);
-            let mut card_calming_down = true;
-            while card_calming_down {
-                if MMC_CONTROLLER
-                    .send_command(&mut dev.port, Command::MMCSendOptionalCondition, (1 << 20))
-                    .successful()
-                {
-                    card_calming_down = MMC_CONTROLLER.response[0].read() & 0x80000000 == 0
-                }
+            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::MMCSendOptionalCondition, (2<<29) | (1<<20));
+            if res != Status::empty() {
+                return Err(InitSDMMCError::FailedIdleOpCondMMC);
             }
-
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::AllSendCID, 0);
-            if !res.successful() {
-                return Err(Status::from_bits_retain(2) | res);
+            ocr = dev.port.response[0];
+            if (ocr & (1 << 31) > 0) {
+                break;
             }
-            let res =
-                MMC_CONTROLLER.send_command(&mut dev.port, Command::SetSendRelativeAddr, 0x10000);
-            if !res.successful() {
-                return Err(Status::from_bits_retain(0xBA) | res);
-            }
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::SelectCard, 0x10000);
-            if !res.successful() {
-                return Err(Status::from_bits_retain(4) | res);
-            }
-
-            dev.port.clock =
-                super::ClockCnt::ENABLE | super::ClockCnt::FREQ_16M | super::ClockCnt::AUTO_STOP;
-
-            if !res.successful() {
-                return Err(Status::from_bits_retain(5) | res);
-            }
-
-            return Ok(());
+            crate::swi::swi_delay(0x20BA * 5);
+            tries += 1;
+        }
+        if (ocr & (1 << 20)) == 0 {
+            return Err(InitSDMMCError::FailedIdleOpCondVoltage);
+        };
+        if (ocr & (2 << 29)) > 0 {
+            kind = DeviceType::HCEMMC
+        } else {
+            kind = DeviceType::EMMC
+        };
+    } else {
+        loop {
+        if tries == 200 {
+            return Err(InitSDMMCError::FailedOcrTimeout);
+        }
+        ocr = dev.port.response[0];
+        if (ocr & (1 << 31)) > 0 {
+            break;
+        }
+        let res =
+            send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
+        if res != Ok(Status::empty()) {
+            return Err(InitSDMMCError::FailedIdleOpCondSD);
+        }
+        crate::swi::swi_delay(0x20BA * 5);
+        tries += 1;
+        }
+        if (ocr & (1 << 20)) == 0 {
+            return Err(InitSDMMCError::FailedIdleOpCondSD2);
+        };
+        if (ocr & (1 << 30)) > 0 {
+            kind = DeviceType::SDHC
+        } else {
+            kind = DeviceType::SDSC
         }
     }
+    
+    dev.port.clock = ClockCnt::FREQ_262K | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
 
-    //nocash_write("powerup!");
-    MMC_CONTROLLER.tmio_powerup(&mut dev.port);
-    match go_idle_state(&mut dev.port) {
-        Ok(_) => (),
-        Err(a) => return Err(a),
+    match MMC_CONTROLLER.send_command(&mut dev.port, Command::AllSendCID, 0) {
+        Status::EMPTY => (),
+        err => return Err(InitSDMMCError::CID),
     }
-    let device_kind = init_idle_state(&mut dev.port)?;
-    dev.port.clock =
-        super::ClockCnt::ENABLE | super::ClockCnt::AUTO_STOP | super::ClockCnt::FREQ_262K;
-    go_ready_state(dev)?;
-    let rca = go_ident_state(dev, device_kind)?;
-    dev.port.clock =
-        super::ClockCnt::ENABLE | super::ClockCnt::AUTO_STOP | super::ClockCnt::FREQ_16M;
-    let spec_version = go_standby_state(dev, device_kind, rca)?;
-    dev.kind = Some(device_kind);
+    let rca = if kind.is_mmc() {
+        match MMC_CONTROLLER.send_command(&mut dev.port, Command::SetSendRelativeAddr, 0x10000) {
+            Status::EMPTY => (),
+            err => return Err(InitSDMMCError::RelAddr),
+        }
+        0x10000
+    } else {
+        match MMC_CONTROLLER.send_command(&mut dev.port, Command::SDSendRelativeAddr, 0) {
+            Status::EMPTY => (),
+            err => return Err(InitSDMMCError::RelAddr),
+        }
+        dev.port.response[0] & 0xFFFF0000
+    };
+    dev.rca = rca;
+    dev.port.clock = ClockCnt::ENABLE | ClockCnt::FREQ_16M | ClockCnt::AUTO_STOP;
+
+    match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendCSD, rca) {
+        Status::EMPTY => (),
+        err => return Err(InitSDMMCError::CSD),
+    }
+
+    match MMC_CONTROLLER.send_command(&mut dev.port, Command::SelectCard, rca) {
+        Status::EMPTY => (),
+        err => return Err(InitSDMMCError::Select),
+    }
+    if kind.is_mmc() {
+        
+    } else {
+        match send_app_command(&mut dev.port, Command::AppSetClearCardSelect, 0, rca) {
+            Ok(Status::EMPTY) => (),
+            err => return Err(InitSDMMCError::Desel),
+        }
+        match send_app_command(&mut dev.port, Command::AppSetBusWidth, 2, rca) {
+            Ok(Status::EMPTY) => (),
+            err => return Err(InitSDMMCError::BusWidthSD),
+        }
+        dev.port.set_bus_width(4);
+    }
+    match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, rca) {
+        Status::EMPTY => (),
+        err => return Err(InitSDMMCError::Status),
+    }
+    dev.kind = Some(kind);
     Ok(())
 }
-unsafe fn go_standby_state(device: &mut Device, kind: DeviceType, rca: u32) -> Result<u8, Status> {
-    /*
-    let res = MMC_CONTROLLER.send_command(&mut device.port, CommandNumber::SendCSD, rca);
-    if !res.is_empty() {
-        return Err(res)
-    }
-    let csd = parse_csd(device, kind);
-    */
-    let res = MMC_CONTROLLER.send_command(&mut device.port, Command::SelectCard, rca);
-    if !res.is_empty() {
-        return Err(res);
-    }
-    let locked = device.port.response[0] & (1 << 25) >> 22;
-    device
-        .protection
-        .insert(Protection::from_bits_retain(locked as u8));
 
-    Ok(0)
-}
 unsafe fn parse_csd(device: &mut Device, kind: DeviceType) -> u8 {
+    return 0;
     let Device {
         port,
         command_class_support,
@@ -329,106 +317,10 @@ fn extract_bits(resp: &[u32; 4], start: usize, size: usize) -> u32 {
     }
     res & mask
 }
-unsafe fn go_ident_state(device: &mut Device, kind: DeviceType) -> Result<u32, Status> {
-    let (res, rca) = match kind {
-        DeviceType::EMMC | DeviceType::HCEMMC => {
-            let rca = 1 << 16;
-            let res =
-                MMC_CONTROLLER.send_command(&mut device.port, Command::SetSendRelativeAddr, rca);
-            (res, rca)
-        }
-        DeviceType::SDSC | DeviceType::SDHC => {
-            let res =
-                MMC_CONTROLLER.send_command(&mut device.port, Command::SetSendRelativeAddr, 0);
-            let rca = device.port.response[0] & 0xFFFF0000;
-            (res, rca)
-        }
-    };
-    match res.is_empty() {
-        true => Ok(rca),
-        false => Err(res),
-    }
-}
-unsafe fn go_ready_state(device: &mut Device) -> Result<(), Status> {
-    let res = MMC_CONTROLLER.send_command(&mut device.port, Command::AllSendCID, 0);
-    if res.is_empty() {
-        device.cid = device.port.response;
-        Ok(())
-    } else {
-        Err(res)
-    }
-}
-unsafe fn go_idle_state(port: &mut TMIOPort) -> Result<(), Status> {
-    match MMC_CONTROLLER.send_command(port, Command::GoIdleState, 0) {
-        Status::EMPTY => Ok(()),
-        a => Err(a),
-    }
-}
-unsafe fn init_idle_state(port: &mut TMIOPort) -> Result<DeviceType, Status> {
-    let res = MMC_CONTROLLER.send_command(port, Command::SendIfCondition, (1 << 8) | 0xAA);
-    if res != Status::empty() {
-        return Err(res);
-    }
-    let app_command_arg = (1 << 20) | (res.bits() << 8 ^ (1 << 30));
-    let res = send_app_command(port, Command::AppSendOpCondition, app_command_arg, 0);
-    let is_mmc = match port.port_num {
-        1 => true,
-        0 => false,
-        _ => return Err(res),
-    };
-
-    if is_mmc {
-        let mut ocr = 0;
-        for _ in 0..200 {
-            let res = MMC_CONTROLLER.send_command(
-                port,
-                Command::MMCSendOptionalCondition,
-                (1 << 20) | (2 << 29),
-            );
-            if !res.is_empty() {
-                return Err(res);
-            }
-            ocr = port.response[0];
-            //confirmed working and supports specified voltage
-            if ocr & (1 << 31) > 0 {
-                if ocr & (1 << 20) == 0 {
-                    return Err(res);
-                } else if ocr & (1 << 30) > 0 {
-                    return Ok(DeviceType::HCEMMC);
-                } else {
-                    return Ok(DeviceType::EMMC);
-                }
-            }
-            //5 MS
-            crate::swi::swi_delay(41890);
-        }
-    } else {
-        let mut ocr;
-        for _ in 0..200 {
-            ocr = port.response[0];
-            //confirmed working and supports specified voltage
-            if (ocr & ((1 << 31) | (1 << 20))) > 0 {
-                if ocr & (1 << 30) > 0 {
-                    return Ok(DeviceType::SDHC);
-                } else {
-                    return Ok(DeviceType::SDSC);
-                }
-            }
-            //5 MS
-            crate::swi::swi_delay(41890);
-            let res = send_app_command(port, Command::AppSendOpCondition, app_command_arg, 0);
-
-            if !res.is_empty() {
-                return Err(res);
-            }
-        }
-    }
-    Err(res)
-}
-unsafe fn send_app_command(port: &mut TMIOPort, cmd: Command, arg: u32, rca: u32) -> Status {
+unsafe fn send_app_command(port: &mut TMIOPort, cmd: Command, arg: u32, rca: u32) -> Result<Status, Status> {
     match MMC_CONTROLLER.send_command(port, Command::AppCommand, rca) {
-        Status::EMPTY => MMC_CONTROLLER.send_command(port, cmd, arg),
-        a => a,
+        Status::EMPTY => Ok(MMC_CONTROLLER.send_command(port, cmd, arg)),
+        a => Err(a),
     }
 }
 pub unsafe fn device_response(device: DeviceSelect) -> [u32; 4] {

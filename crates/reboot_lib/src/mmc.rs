@@ -188,6 +188,7 @@ impl MMC {
         self.stop_action.write(0);
     }
     pub unsafe fn tmio_init(&self) {
+        //return self.initialize_sdmmc();
         self.data_control_32
             .write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32); // enable and clear data32 fifo
         self.block_len_32.write(512);
@@ -260,6 +261,8 @@ impl MMC {
         command: Command,
         argument: u32,
     ) -> Status {
+        //return self.new_send_command(port, command, argument);
+
         self.tmio_set_port(port);
         self.irmask.write(Status::empty());
         self.status.write(Status::empty());
@@ -354,6 +357,13 @@ impl MMC {
                 return !Status::INSERTED;
             }
         }
+        
+        // let resp: [u32; 4] = core::array::from_fn(|i| self.response[i].read());
+        //port.response[0] = resp[3]<<8 | resp[2]>>24;
+		//port.response[1] = resp[2]<<8 | resp[1]>>24;
+		//port.response[2] = resp[1]<<8 | resp[0]>>24;
+		//port.response[3] = resp[0]<<8;
+        //port.response = resp;
         self.status.read().intersection(Status::ALL_ERRORS)
     }
 }
@@ -516,6 +526,13 @@ impl TMIOPort {
             buffer: &mut [],
             response: [0; 4],
         }
+    }
+    pub fn set_bus_width(&mut self, width: u8) {
+        self.option = if width == 4 {
+            0 | (1<<14) | (11 << 4) | 8
+        } else {
+            (1<<15) | (1<<14) | (11 << 4) | 8
+        };
     }
 }
 impl Default for TMIOPort {

@@ -314,11 +314,11 @@ fn main() {
                     response = match arg {
                         1 => match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::SDCardSlot) {
                             Ok(_) => 0,
-                            Err(err) => err.bits(),
+                            Err(err) => err as u16 as u32,
                         },
                         2 => match reboot_lib::init_sdmmc(reboot_lib::DeviceSelect::EMMC) {
                             Ok(_) => 0,
-                            Err(err) => err.bits(),
+                            Err(err) => err as u16 as u32,
                         },
                         _ => 0x8000_0000,
                     }

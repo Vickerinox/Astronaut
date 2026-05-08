@@ -22,7 +22,7 @@ enum CurrentUI {
         error_string: String,
     },
     Browsing {
-        immediate_files: Vec<(String, bool, Color)>,
+        immediate_files: Vec<(String, String, bool, Color)>,
         file_path: String,
         is_nand: bool,
         offset: usize,
@@ -127,6 +127,9 @@ impl AppData {
     pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>) {
         let mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {
+            unsafe {
+                ui.label(&format!("SD stat: {:?} NAND stat: {:?}", crate::NAND_ERROR, crate::SD_ERROR));
+            }
             if let Some(loading_mod) = self.loading_mod_file.take() {
                 let (progress, max) = loading_mod.progress();
                 let progress_bar = progress * 30 / max;
@@ -158,7 +161,7 @@ impl AppData {
                         }
                     },
                     CurrentUI::None => {
-                        ui.header("Hinddoor!");
+                        ui.header("Welcome!");
                         ui.label("Made by Vikrinox, 2026");
                         ui.header(" ");
                         let mut res: Option<Box<dyn FnOnce(CurrentUI) -> CurrentUI>> = None;
@@ -251,19 +254,19 @@ impl AppData {
                                 .add(Button::new(
                                     &item.0,
                                     Sizing::Padded(Vec2::new(248, 8)),
-                                    item.2,
+                                    item.3,
                                 ))
                                 .clicked()
                             {
-                                if item.1 {
-                                    current_path.push_str(&item.0);
+                                if item.2 {
+                                    current_path.push_str(&item.1);
                                     current_path.push('/');
                                     if let Ok(f) = fatfs_embedded::opendir(current_path) {
                                         new_folder = Some(f);
                                     }
                                 } else {
-                                    if item.2 == COLOR_BOOTABLE {
-                                        current_path.push_str(&item.0);
+                                    if item.3 == COLOR_BOOTABLE {
+                                        current_path.push_str(&item.1);
                                         match fatfs_embedded::open(current_path, FileOptions::Read)
                                         {
                                             Ok(file) => {
@@ -276,8 +279,8 @@ impl AppData {
                                             }
                                             Err(_) => (),
                                         }
-                                    } else if item.2 == COLOR_MUSIC {
-                                        current_path.push_str(&item.0);
+                                    } else if item.3 == COLOR_MUSIC {
+                                        current_path.push_str(&item.1);
                                         match fatfs_embedded::open(current_path, FileOptions::Read)
                                         {
                                             Ok(mut module) => {

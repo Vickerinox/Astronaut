@@ -18,7 +18,8 @@ use reboot_lib::{
 };
 
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
-
+static mut NAND_ERROR: u32 = 0;
+static mut SD_ERROR: u32 = 0;
 pub struct SDMMCDriver {
     nand_controller: Option<BasicSDMMCCursor<'static>>,
     sd_controller: Option<BasicSDMMCCursor<'static>>,
@@ -43,7 +44,18 @@ impl FatFsDriver for SDMMCDriver {
                 }
                 _ => 1,
             },
-            Err(_any) => 1,
+            Err(bits) => {
+                match drive {
+                    1 => unsafe {
+                        NAND_ERROR = bits.get();
+                    },
+                    2 => unsafe {
+                        SD_ERROR = bits.get();
+                    },
+                    _ => (),
+                }
+                1
+            },
         }
     }
     fn disk_ioctl(&mut self, data: &mut IoctlCommand) -> DiskResult {
@@ -339,7 +351,7 @@ pub struct RebootState {
 use fatfs_embedded::fatfs::{FS_NAND, FS_SD};
 const COLOR_BOOTABLE: Color = Color::new(100, 200, 100);
 const COLOR_MUSIC: Color = Color::new(100, 100, 200);
-fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String, bool, Color)> {
+fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String, String, bool, Color)> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
         loop {
@@ -370,6 +382,7 @@ fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String
                         Color::new(180, 180, 180)
                     }
                 };
+                let fname = name.clone();
                 if name.len() > 35 {
                     let mut boundary = 32;
                     while !name.is_char_boundary(boundary) {
@@ -378,7 +391,7 @@ fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String
                     name.split_off(boundary);
                     name.push_str("...");
                 }
-                vec.push((name, is_dir, color))
+                vec.push((name, fname, is_dir, color))
             } else {
                 panic!("SD WAS EJECTED!");
             }
@@ -390,7 +403,7 @@ fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String
         let mut j = i;
         loop {
             let Some(under) = vec.get(j - 1) else { break };
-            if under.2 .0 > temp.2 .0 {
+            if under.3 .0 > temp.3 .0 {
                 let under = under.clone();
                 let Some(over) = vec.get_mut(j) else { break };
                 *over = under;
@@ -641,6 +654,16 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             micro_imgui::Rect::from_min_size(Vec2::ZERO, Vec2::new(255, 191)),
         )
         .text_pass(|text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.set_position(60, 80);
+            text_pass.layout_str("HARD CRASH!!! ", 8);
+        });
+        video_context.next_frame();
+        gui::VideoTextPass::new(
+            &mut video_context,
+            micro_imgui::Rect::from_min_size(Vec2::ZERO, Vec2::new(255, 191)),
+        )
+        .text_pass(|text_pass| {
             
             text_pass.set_color(0x7FFF);
             text_pass.set_position(60, 80);
@@ -656,7 +679,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             text_pass.set_color(0x7766);
             text_pass.layout_str("Error Message:", 8);
             text_pass.next_line();
-            let mut buf = String::from_raw_parts(0x200_0000 as *mut _, 0, 0xFFFFFF);
+            let mut buf = String::from_raw_parts(0x202_0000 as *mut _, 0, 0xFFFFF);
             use core::fmt::Write;
             write!(buf, "{}",info.message());
             text_pass.layout_str(&buf, 8);
@@ -665,16 +688,14 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
                 text_pass.next_line();
                 text_pass.layout_str("Error Location:", 8);
                 text_pass.next_line();
-                let mut buf = String::from_raw_parts(0x200_0000 as *mut _, 0, 0xFFFFFF);
+                let mut buf = String::from_raw_parts(0x204_0000 as *mut _, 0, 0xFFFFF);
                 write!(buf, "{loc}");
                 text_pass.layout_str(&buf, 8);
             };
         });
         video_context.next_frame();
-        reboot_lib::disable_all_interrupts();
-
         loop {
-            reboot_lib::swi_halt();
+            (0x400_0208 as *mut u32).write_volatile(0);
         }
     }
 }
