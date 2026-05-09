@@ -21,7 +21,7 @@ pub enum AsyncSDMMCReadStatus {
     Finished,
 }
 impl<'a> BasicSDMMCCursor<'a> {
-    pub fn new(buffer: &'a mut [StorageSector], lba_sector: u32, is_nand: bool) -> Self {
+    pub fn new(buffer: &'a mut [StorageSector], lba_sector: u32, is_nand: bool) -> Result<Self, u32> {
         let mut oneself = Self {
             buffer_sector: 0,
             buffer,
@@ -30,8 +30,8 @@ impl<'a> BasicSDMMCCursor<'a> {
             nand: is_nand,
             dirty: false,
         };
-        oneself.read_sector(0).unwrap();
-        oneself
+        oneself.read_sector(0)?;
+        Ok(oneself)
     }
     pub fn read_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {

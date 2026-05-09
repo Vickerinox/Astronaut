@@ -3,7 +3,7 @@ use core::{
     ops::{BitAndAssign, BitOrAssign, Not},
 };
 
-use crate::MemoryWrapper;
+use crate::{MemoryWrapper, swi_delay};
 use volatile_register::*;
 
 pub mod driver;
@@ -102,7 +102,7 @@ bitflags! {
 }
 impl Status {
     pub fn successful(&self) -> bool {
-        self.intersection(Status::ALL_ERRORS).is_empty()
+        self.is_empty()
     }
 }
 #[repr(C)]
@@ -293,8 +293,9 @@ impl MMC {
             }
         }
 
+        //swi_delay(0x100);
+        
         let value = self.status.read();
-
         self.status.write(!value | Status::CMD_BUSY);
 
         self.tmio_get_response(port, command as u16);

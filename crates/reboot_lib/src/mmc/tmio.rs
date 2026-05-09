@@ -54,7 +54,6 @@ impl MMC {
         self.status.read().contains(Status::WRITEABLE)
     }
     pub unsafe fn new_send_command(&self, port: &mut TMIOPort, command: Command, argument: u32) -> Status {
-        core::ptr::write_volatile(&mut MMC_STATUS, Status::empty());
         self.set_port(port);
         self.stop_action.write(1<<8);
         self.param.write(argument);
@@ -79,18 +78,11 @@ impl MMC {
             }
         }
 
+        core::ptr::write_volatile(&mut MMC_STATUS, Status::empty());
+        self.status.write(Status::empty());
         self.command.write(command as _);
 
-        while !core::ptr::read_volatile(&MMC_STATUS).contains(Status::RESPONSE_END) {
-            swi_halt();
-        }
-        if (command as u16) & (7 << 8) != (6 << 8) {
-            port.response[0] = self.response[0].read();
-        } else {
-            for i in 0..4 {
-                port.response[i] = self.response[i].read()
-            }
-        }
+
         if command.transmits_data() {
             let Some(buf) = port.buffer.as_mut() else {
                 return Status::from_bits_retain(0xB4B4B4B4);
@@ -141,6 +133,17 @@ impl MMC {
                         current_sector = next_sector;
                     }
                 }
+            }
+        }
+        while !core::ptr::read_volatile(&MMC_STATUS).contains(Status::RESPONSE_END) {
+            swi_halt();
+        }
+
+        if (command as u16) & (7 << 8) != (6 << 8) {
+            port.response[0] = self.response[0].read();
+        } else {
+            for i in 0..4 {
+                port.response[i] = self.response[i].read()
             }
         }
 

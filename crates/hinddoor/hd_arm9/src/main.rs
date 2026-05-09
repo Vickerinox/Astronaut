@@ -8,6 +8,7 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::arch::asm;
+use core::ops::Div;
 
 use micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
@@ -18,8 +19,8 @@ use reboot_lib::{
 };
 
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
-static mut NAND_ERROR: u32 = 0;
 static mut SD_ERROR: u32 = 0;
+static mut EMMC_ERROR: u32 = 0;
 pub struct SDMMCDriver {
     nand_controller: Option<BasicSDMMCCursor<'static>>,
     sd_controller: Option<BasicSDMMCCursor<'static>>,
@@ -47,10 +48,10 @@ impl FatFsDriver for SDMMCDriver {
             Err(bits) => {
                 match drive {
                     1 => unsafe {
-                        NAND_ERROR = bits.get();
+                        SD_ERROR = bits.get();
                     },
                     2 => unsafe {
-                        SD_ERROR = bits.get();
+                        EMMC_ERROR = bits.get();
                     },
                     _ => (),
                 }
@@ -119,6 +120,7 @@ impl FatFsDriver for SDMMCDriver {
     }
 }
 
+use crate::gui::{TextLayoutHandle, VideoTextPass};
 use crate::nand::BasicSDMMCCursor;
 
 extern crate alloc;
@@ -325,7 +327,10 @@ unsafe fn try_mount_sd() -> Option<BasicSDMMCCursor<'static>> {
     let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
     let sd_buffer =
         core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 32);
-    Some(BasicSDMMCCursor::new(sd_buffer, twl_lba, false))
+    match BasicSDMMCCursor::new(sd_buffer, twl_lba, false) {
+        Ok(succ) => Some(succ),
+        Err(code) => { SD_ERROR = code; None},
+    }
 }
 
 unsafe fn try_mount_nand() -> Option<BasicSDMMCCursor<'static>> {
@@ -340,7 +345,10 @@ unsafe fn try_mount_nand() -> Option<BasicSDMMCCursor<'static>> {
     let twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
     let nand_buffer =
         core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 32);
-    Some(BasicSDMMCCursor::new(nand_buffer, twl_lba, true))
+    match BasicSDMMCCursor::new(nand_buffer, twl_lba, true) {
+         Ok(succ) => Some(succ),
+        Err(code) => { EMMC_ERROR = code; None},
+    }
 }
 
 static mut CHECK_NAND: bool = false;
@@ -679,25 +687,61 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             text_pass.set_color(0x7766);
             text_pass.layout_str("Error Message:", 8);
             text_pass.next_line();
-            let mut buf = String::from_raw_parts(0x202_0000 as *mut _, 0, 0xFFFFF);
-            use core::fmt::Write;
-            write!(buf, "{}",info.message());
-            text_pass.layout_str(&buf, 8);
-            if let Some(loc) = info.location(){
-                text_pass.next_line();
-                text_pass.next_line();
-                text_pass.layout_str("Error Location:", 8);
-                text_pass.next_line();
-                let mut buf = String::from_raw_parts(0x204_0000 as *mut _, 0, 0xFFFFF);
-                write!(buf, "{loc}");
-                text_pass.layout_str(&buf, 8);
-            };
+            
+            print_msg(info, text_pass);
+            
         });
         video_context.next_frame();
         loop {
             (0x400_0208 as *mut u32).write_volatile(0);
         }
     }
+}
+unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHandle) {
+     
+    //let mut buf = String::from_raw_parts(0x202_0000 as *mut _, 0, 0xFFFFF);
+    //use core::fmt::Write;
+    if let Some(msg) = info.message().as_str() {
+        text_pass.layout_str(&msg, 8);
+    
+    }
+    
+     
+    //write!(buf, "{}",info.message());
+    if let Some(loc) = info.location(){
+        //use core::fmt::Write;
+        text_pass.next_line();
+        text_pass.next_line();
+        text_pass.layout_str("Error Location:", 8);
+        text_pass.next_line();
+        let mut column = loc.column();
+        text_pass.layout_str("column: ", 8);
+        while column > 0 {
+            let current = column % 10;
+            column = column.div(10);
+            
+            text_pass.layout_char(b"0123456789"[current as usize], 8);
+        }
+
+        text_pass.next_line();
+        
+        let mut column = loc.line();
+        text_pass.layout_str("line: ", 8);
+        while column > 0 {
+            let current = column % 10;
+            column = column.div(10);
+            
+            text_pass.layout_char(b"0123456789"[current as usize], 8);
+        }
+
+        text_pass.next_line();
+        
+        //let mut buf = String::from_raw_parts(0x204_0000 as *mut _, 0, 0xFFFFF);
+        //if 
+        //write!(buf, "{loc}");
+        text_pass.layout_str(loc.file(), 8);
+    };
+    
 }
 #[inline]
 unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {

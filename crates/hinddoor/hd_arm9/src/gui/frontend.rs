@@ -128,7 +128,7 @@ impl AppData {
         let mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {
             unsafe {
-                ui.label(&format!("SD stat: {:?} NAND stat: {:?}", crate::NAND_ERROR, crate::SD_ERROR));
+                ui.label(&format!("SD stat: {:?} NAND stat: {:?}", crate::SD_ERROR, crate::EMMC_ERROR));
             }
             if let Some(loading_mod) = self.loading_mod_file.take() {
                 let (progress, max) = loading_mod.progress();
@@ -175,6 +175,9 @@ impl AppData {
                                 res = Some(Box::new(move |_| sd))
                             } 
                         } 
+                        if ui.button("Test crashing").clicked() {
+                            panic!("Testing crashes");
+                        }
                         res
                     }
                     CurrentUI::LoadingApp { file, file_path } => {
