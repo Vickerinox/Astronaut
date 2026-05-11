@@ -699,49 +699,36 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         }
     }
 }
+pub struct PanicFmt(*mut [u8], usize);
+impl core::fmt::Write for PanicFmt {
+    fn write_str(&mut self, arg: &str) -> Result<(), core::fmt::Error> {
+        let str_bytes = arg.as_bytes();
+        unsafe { (&mut *self.0)[self.1..str_bytes.len()+self.1].copy_from_slice(str_bytes) };
+        self.1 += str_bytes.len();
+        Ok(())
+    }
+}
+impl PanicFmt {
+    pub unsafe fn as_str(&self) -> &str {
+        str::from_utf8(core::slice::from_raw_parts(self.0 as *mut u8, self.1)).unwrap()
+    }
+}
 unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHandle) {
      
-    //let mut buf = String::from_raw_parts(0x202_0000 as *mut _, 0, 0xFFFFF);
-    //use core::fmt::Write;
-    if let Some(msg) = info.message().as_str() {
-        text_pass.layout_str(&msg, 8);
-    
-    }
-    
-     
-    //write!(buf, "{}",info.message());
+    let mut buf = PanicFmt(core::slice::from_raw_parts_mut(0x20F_0000 as *mut u8, 0xFFFF), 0);
+    use core::fmt::Write;
+    write!(&mut buf, "{}",info.message());
+    text_pass.layout_str(buf.as_str(),8);
     if let Some(loc) = info.location(){
-        //use core::fmt::Write;
+        use core::fmt::Write;
         text_pass.next_line();
         text_pass.next_line();
-        text_pass.layout_str("Error Location:", 8);
-        text_pass.next_line();
-        let mut column = loc.column();
-        text_pass.layout_str("column: ", 8);
-        while column > 0 {
-            let current = column % 10;
-            column = column.div(10);
-            
-            text_pass.layout_char(b"0123456789"[current as usize], 8);
-        }
-
+        text_pass.layout_str("Error location:",8);
         text_pass.next_line();
         
-        let mut column = loc.line();
-        text_pass.layout_str("line: ", 8);
-        while column > 0 {
-            let current = column % 10;
-            column = column.div(10);
-            
-            text_pass.layout_char(b"0123456789"[current as usize], 8);
-        }
-
-        text_pass.next_line();
-        
-        //let mut buf = String::from_raw_parts(0x204_0000 as *mut _, 0, 0xFFFFF);
-        //if 
-        //write!(buf, "{loc}");
-        text_pass.layout_str(loc.file(), 8);
+        let mut buf = PanicFmt(core::slice::from_raw_parts_mut(0x20E_0000 as *mut u8, 0xFFFF), 0);//if 
+        write!(buf, "{loc}");
+        text_pass.layout_str(buf.as_str(), 8);
     };
     
 }

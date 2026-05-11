@@ -70,6 +70,13 @@ unsafe fn boot_unreturnable(
         );
         fatfs_embedded::seek(r, header.arm7i_offset).unwrap();
         read_all(arm9_ram, r).unwrap();
+
+        if header.twl_flags & (1<<1) > 0 {
+            match reboot_lib::arm9_decrypt_modcrypt(0) {
+                Ok(()) => (),
+                Err(code) => {panic!("Failed to modcrypt, code: {code}");},
+            }
+        }
     }
 
     if header.is_homebrew() {

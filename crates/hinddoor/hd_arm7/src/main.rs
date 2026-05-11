@@ -336,7 +336,72 @@ fn main() {
                     }
                 }
                 12 => {
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
 
+                    AES_HARDWARE.init_from_header(
+                        &*(common::bootstrap::BOOTLOADER_MEM
+                            as *const common::bootstrap::HeaderTWL),
+                        console_id,
+                    );
+
+                    let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
+
+
+                    response = 0x8000_0000;
+
+                    if header.arm9i_offset == header.modcrypt1_offset || header.arm9_offset == header.modcrypt1_offset {
+                        if header.modcrypt2_len == 0 {
+                            response = 0
+                        } else {
+                            if header.arm7i_offset == header.modcrypt2_offset {
+                                response = 0;
+                            } else {
+                                response = 2;
+                            }
+                        } 
+                    } else {
+                        response = 1;
+                    }
+
+                    //response = 0x8000_0000;
+                    
+                    if response == 0 {
+
+                        
+                        
+
+                        let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9i_sha1[i]);
+                        let ptr = header.arm9i_load;
+                        let len = header.modcrypt1_len;
+                        AES_HARDWARE.reset();
+                        AES_HARDWARE.reset();
+                        AES_HARDWARE.wait_key_busy();
+                        AES_HARDWARE.set_key_slot(0);
+                        AES_HARDWARE.wait_key_busy();
+                        reboot_lib::AES_HARDWARE.ctr_crypt_block(
+                            core::slice::from_raw_parts_mut(ptr as *mut _, len as usize),
+                            &key,
+                        );
+
+                        
+
+                        if header.modcrypt2_len > 0 {    
+                            let mut key: [u32; 4] = core::array::from_fn(|i| header.arm7i_sha1[i]);
+                            let ptr = header.arm7i_load;
+                            let len = header.modcrypt2_len;
+                            AES_HARDWARE.reset();
+                            AES_HARDWARE.reset();
+                            AES_HARDWARE.wait_key_busy();
+                            AES_HARDWARE.set_key_slot(0);
+                            AES_HARDWARE.wait_key_busy();
+                            reboot_lib::AES_HARDWARE.ctr_crypt_block(
+                                core::slice::from_raw_parts_mut(ptr as *mut _, len as usize),
+                                &key,
+                            );
+                        }
+
+                    }
                 }
                 _ => response = 0x8000_0000,
             }
