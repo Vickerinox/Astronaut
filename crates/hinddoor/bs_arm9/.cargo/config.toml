@@ -10,6 +10,9 @@ strip = true                                # Strip symbols from binary*
 rustflags = ["-C", "linker-flavor=ld.lld", "-C", "relocation-model=pic","-C", "link-arg=-Tlinkerscripts/link_bootstrap.x"]
 
 
+[rust]
+lld = true
+
 [build]
 target = "armv5te-none-eabi"
 target-dir = "../../../target-bootstrap"

@@ -145,8 +145,8 @@ pub mod fatfs {
                 FRESULT_FR_TIMEOUT => (Error::Timeout),
                 FRESULT_FR_LOCKED => (Error::Locked),
                 FRESULT_FR_NOT_ENOUGH_CORE => (Error::NotEnoughCore),
-                FRESULT_FR_TOO_MANY_OPEN_FILES => (Error::TooManyOpenFiles),
                 FRESULT_FR_INVALID_PARAMETER => (Error::InvalidParameter),
+                FRESULT_FR_TOO_MANY_OPEN_FILES => (Error::TooManyOpenFiles),
                 _ => Error::InternalLogicError,
             }
         }

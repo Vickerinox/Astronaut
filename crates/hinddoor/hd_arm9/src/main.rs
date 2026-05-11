@@ -2,6 +2,7 @@
 #![no_std]
 #![feature(ptr_metadata)]
 #![feature(str_from_utf16_endian)]
+#![feature(str_from_raw_parts)]
 
 const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
@@ -9,6 +10,7 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::arch::asm;
 use core::ops::Div;
+use core::str;
 
 use micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
@@ -699,23 +701,36 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         }
     }
 }
-pub struct PanicFmt(*mut [u8], usize);
+pub struct PanicFmt{ 
+    base: *mut u8, 
+    len: usize, 
+    cap: usize,
+}
+impl PanicFmt {
+    pub fn new(ptr: *mut u8, size: usize) -> Self {
+        Self { base: ptr, len: 0, cap: size }
+    }
+}
 impl core::fmt::Write for PanicFmt {
     fn write_str(&mut self, arg: &str) -> Result<(), core::fmt::Error> {
-        let str_bytes = arg.as_bytes();
-        unsafe { (&mut *self.0)[self.1..str_bytes.len()+self.1].copy_from_slice(str_bytes) };
-        self.1 += str_bytes.len();
+        for byte in arg.as_bytes() {
+            if self.len < self.cap {
+                unsafe { self.base.add(self.len).write(*byte); };
+                self.len += 1;
+            } else { break;}
+        }
         Ok(())
     }
 }
 impl PanicFmt {
-    pub unsafe fn as_str(&self) -> &str {
-        str::from_utf8(core::slice::from_raw_parts(self.0 as *mut u8, self.1)).unwrap()
+    pub fn as_str(&self) -> &str {
+        //SAFETY: the only way to modify the fmt is by writing a str into it. Therefore it is valid utf8.
+        unsafe { str::from_raw_parts(self.base as *const u8, self.len) }
     }
 }
 unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHandle) {
      
-    let mut buf = PanicFmt(core::slice::from_raw_parts_mut(0x20F_0000 as *mut u8, 0xFFFF), 0);
+    let mut buf = PanicFmt::new(0x20F_0000 as *mut u8, 0x1000);
     use core::fmt::Write;
     write!(&mut buf, "{}",info.message());
     text_pass.layout_str(buf.as_str(),8);
@@ -726,7 +741,7 @@ unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHan
         text_pass.layout_str("Error location:",8);
         text_pass.next_line();
         
-        let mut buf = PanicFmt(core::slice::from_raw_parts_mut(0x20E_0000 as *mut u8, 0xFFFF), 0);//if 
+        let mut buf =  PanicFmt::new(0x20F_1000 as *mut u8, 0x1000);//if 
         write!(buf, "{loc}");
         text_pass.layout_str(buf.as_str(), 8);
     };
