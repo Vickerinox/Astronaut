@@ -1,31 +1,21 @@
 use core::ptr::write_volatile as w;
 
+use crate::device_list::DeviceList;
+
 #[inline(always)]
 pub unsafe fn boot_arm9() -> ! {
     //disable interrupts
-    w(0x4004040 as *mut u32, 0);
     w(0x4000208 as *mut u32, 0);
-    w(0x4000210 as *mut u32, 0);
-    //Setup local MBKS
-    let is_twl = (*HEADER_MEM).is_dsi_mode();
-    if is_twl {
-        w(0x4004054 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
-        w(0x4004058 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
-        w(0x400405C as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
-    } else {
-        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
-        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
-        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
-    }
-    //clear all interrupts
-    (0x4000214 as *mut u32).write_volatile(!0);
-    while VCOUNT_REG.read_volatile() != 192 {}
+    
+    let header = &(*BOOTINFO_MEM).twl_header;
+    let is_twl = (*BOOTINFO_MEM).twl_header.is_dsi_mode();
+    
 
     //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
     if is_twl {
-        let gmbks = &(*HEADER_MEM).global_mbks;
+        let gmbks = &header.global_mbks;
         //NTR mbk
-        w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
+        w(0x4000247 as *mut u8, header.wram_cnt);
         //TWL mbk
         w(0x4004040 as *mut u32, gmbks[0]);
         w(0x4004044 as *mut u32, gmbks[1]);
@@ -40,6 +30,24 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x400404C as *mut u32, 0);
         w(0x4004050 as *mut u32, 0);
     }
+    
+    //Setup local MBKS
+    if is_twl {
+        w(0x4004054 as *mut u32, header.arm9_mbks[0]);
+        w(0x4004058 as *mut u32, header.arm9_mbks[1]);
+        w(0x400405C as *mut u32, header.arm9_mbks[2]);
+    } else {
+        w(0x0 as *mut u32, header.arm9_mbks[0]);
+        w(0x0 as *mut u32, header.arm9_mbks[1]);
+        w(0x0 as *mut u32, header.arm9_mbks[2]);
+    }
+    //clear all interrupts
+    w(0x4004040 as *mut u32, 0);
+    w(0x4000210 as *mut u32, 0);
+    (0x4000214 as *mut u32).write_volatile(!0);
+
+    while VCOUNT_REG.read_volatile() != 192 {}
+
 
     //Sync to ARM7
     while VCOUNT_REG.read_volatile() == 192 {}
@@ -55,12 +63,12 @@ pub unsafe fn boot_arm7() -> ! {
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
     (0x4000218 as *mut u32).write_volatile(0);
-
+    let header = &(*BOOTINFO_MEM).twl_header;
     //setup MBKS
-    if (*HEADER_MEM).is_dsi_mode() {
-        w(0x4004054 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
-        w(0x4004058 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
-        w(0x400405C as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
+    if header.is_dsi_mode() {
+        w(0x4004054 as *mut u32, header.arm7_mbks[0]);
+        w(0x4004058 as *mut u32, header.arm7_mbks[1]);
+        w(0x400405C as *mut u32, header.arm7_mbks[2]);
     } else {
         w(0x4004054 as *mut u32, 0);
         w(0x4004058 as *mut u32, 0);
@@ -71,16 +79,25 @@ pub unsafe fn boot_arm7() -> ! {
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
 
+    if header.arm7_device_list != 0 {
+        core::arch::asm!("mov r11, r11");
+        let dest = header.arm7_device_list as *mut u32;
+        let src = core::ptr::addr_of!((*BOOTINFO_MEM).device_list_copy) as *const u32;
+        for i in 0..0x100 {
+            dest.add(i).write_volatile(*src.add(i));
+        }
+    }
+    
+
     //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
 
     //jump to entrypoint
-    let entry = core::ptr::addr_of!((*HEADER_MEM).arm7_entry);
+    let entry = core::ptr::addr_of!(header.arm7_entry);
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
-const HEADER_MEM: *const HeaderTWL = 0x2FFE000 as *const HeaderTWL;
 pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
@@ -88,31 +105,7 @@ pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
 
-#[repr(C)]
-pub struct DeviceList {
-    drives: [DeviceEntry; 11],
-    _0x39c: [u8; 0x24],
-    app_path: [u8; 64],
-}
 
-pub struct DeviceFlags(u8);
-impl DeviceFlags {
-    pub const DRIVE_PHYSICAL: Self = Self(0<<3);
-    pub const DRIVE_FILEBASED: Self = Self(1<<3);
-    pub const DRIVE_FOLDERBASED: Self = Self(2<<3);
-    
-}
-
-#[repr(C)]
-
-pub struct DeviceEntry {
-    drive_letter: u8,
-    drive_flags: u8,
-    access_rights: u8,
-    _0x3: u8,
-    device_name: [u8; 16],
-    device_path: [u8; 64],
-}
 #[repr(C)]
 pub struct HeaderTWL {
     pub title: [u8; 12],
@@ -122,7 +115,8 @@ pub struct HeaderTWL {
     pub encryption_seed: u8,
     pub device_capacity: u8,
     _0x15: [u8; 7],
-    pub twl_flags: u16,
+    pub twl_flags: u8,
+    pub ntr_flags: u8,
     pub rom_version: u8,
     pub flags: u8,
 
@@ -263,19 +257,7 @@ pub struct BootStub {
     pub loader_size: u32,
 }
 
-pub const ARGV_MAGIC: i32 = 0x5f617267;
-pub const SYSTEM_ARGV: *mut ArgvStructutre = 0x02FFFE70 as _;
-//DKA argv struct
-#[repr(C)]
-pub struct ArgvStructutre {
-    pub magic: i32,
-    pub command_line: *mut u8,
-    pub command_length: i32,
-    pub argc: i32,
-    pub argv: *mut *mut u8,
-    pub dummy: i32,
-    pub host: u32,
-}
+
 
 impl HeaderTWL {
     pub fn is_dsi_mode(&self) -> bool {
@@ -288,3 +270,29 @@ impl HeaderTWL {
         self.maker_code == 0 || self.arm9_autoload_hook == 0 || self.arm7_load >= 0x03000000
     }
 }
+
+
+pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
+
+#[repr(C)]
+pub struct BootInfoTWL {
+    card_header: HeaderTWL,
+    _0x1000: [u8; 0x3B0],
+    pub device_list_copy: DeviceList,
+    sysmenu_id: [u8; 9],
+    init_code: u8,
+    hotboot: u16,
+    sdmmc_context: [u8; 0x44],
+    title_list: [u8; 0x400],
+    pub mountinfo: [u8; 0x3C0],
+    pub boot_path: [u8; 0x40],
+    pub twl_header: HeaderTWL,
+    other: [u8; 0x680],
+    _0x3680: [u8; 0x180],
+    ntr: BootInfoNTR,
+}
+#[repr(C)]
+pub struct BootInfoNTR {
+    _0x0: [u8; 0x800]
+}
+

@@ -151,6 +151,9 @@ pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), NonZeroU32> {
 pub unsafe fn arm9_read_firmware(start_address: u32) -> Result<(), NonZeroU32> {
     com_arm9(7, &[start_address])
 }
+pub unsafe fn arm9_decrypt_modcrypt(header: u32) -> Result<(), NonZeroU32> {
+    com_arm9(12, &[header])
+}
 
 pub unsafe fn arm9_send_arm7(user_type: u32, pointer: *mut ()) -> Result<(), NonZeroU32> {
     com_arm9(9, &[user_type, pointer as u32])

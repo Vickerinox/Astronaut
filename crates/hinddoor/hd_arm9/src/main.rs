@@ -441,6 +441,8 @@ unsafe fn main() {
         reboot_lib::IPC_FIFO_HARDWARE.enable();
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
         new_takeover::mysterious_takeover_function();
+
+        
         
 
         core::ptr::write_volatile(0x04000240 as *mut u8, 0x80); //enable VRAM bank A

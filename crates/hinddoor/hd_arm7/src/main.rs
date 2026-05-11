@@ -101,7 +101,7 @@ fn main() {
     unsafe {
         //start talking to the ARM9 ASAP
         IPC_FIFO_HARDWARE.enable();
-
+        
         //start doing hardware init
         init::init_power_regs();
         init::init_i2c();
@@ -126,9 +126,9 @@ fn main() {
             (0x4004D00 as *const u32).read_volatile(),
             (0x4004D04 as *const u32).read_volatile(),
         ];
-        reboot_lib::load_nand_key_x(0, console_id);
-        reboot_lib::load_nand_key_y(0, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
-        reboot_lib::nand_crypt_init(0);
+        reboot_lib::load_nand_key_x(3, console_id);
+        reboot_lib::load_nand_key_y(3, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
+        reboot_lib::nand_crypt_init(3);
 
         reboot_lib::spi::touchscreen::init_tsc_dsi();
 
@@ -335,6 +335,9 @@ fn main() {
                         _ => response = 0x8000_0000,
                     }
                 }
+                12 => {
+
+                }
                 _ => response = 0x8000_0000,
             }
             IPC_FIFO_HARDWARE.send_raw_blocking(response);
@@ -380,6 +383,7 @@ pub unsafe fn mmc_read_decrypt(
     add_on_key(&mut key, sector << 5);
     let ptr = data as *mut ();
     let len = data.len();
+    AES_HARDWARE.set_key_slot(3);
     reboot_lib::AES_HARDWARE.ctr_crypt_block(
         core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
         &key,
