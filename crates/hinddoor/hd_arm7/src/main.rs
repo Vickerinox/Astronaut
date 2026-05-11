@@ -10,15 +10,12 @@ use core::arch::asm;
 use reboot_lib::{
     check_sdmmc,
     i2c::I2CRegister,
-    ndma::{NDMA, NDMA_HARDWARE},
+    ndma::NDMA_HARDWARE,
     sound::SOUND_HARDWARE,
     spi::{
-        touchscreen::{
-            cdc_write_reg, read_tsc_pos_cdc, read_tsc_pos_tsc, CdcReg, CntReg, TouchCntReg,
-        },
+        touchscreen::read_tsc_pos_cdc,
         Control, PowerRegiser,
     },
-    swi_delay,
     timers::TIMERS,
     write_sd_sectors, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
     MMC_CONTROLLER, SDIO_CONTROLLER,
@@ -283,7 +280,7 @@ fn main() {
                 }
 
                 6 => {
-                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     IPC_FIFO_HARDWARE.send_raw_blocking(common::bootstrap::boot_arm9 as *const () as u32);
                     reboot_lib::disable_all_interrupts();
@@ -336,7 +333,7 @@ fn main() {
                     }
                 }
                 12 => {
-                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
 
                     AES_HARDWARE.init_from_header(
@@ -371,7 +368,7 @@ fn main() {
                         
                         
 
-                        let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9i_sha1[i]);
+                        let key: [u32; 4] = core::array::from_fn(|i| header.arm9i_sha1[i]);
                         let ptr = header.arm9i_load;
                         let len = header.modcrypt1_len;
                         AES_HARDWARE.reset();
@@ -387,7 +384,7 @@ fn main() {
                         
 
                         if header.modcrypt2_len > 0 {    
-                            let mut key: [u32; 4] = core::array::from_fn(|i| header.arm7i_sha1[i]);
+                            let key: [u32; 4] = core::array::from_fn(|i| header.arm7i_sha1[i]);
                             let ptr = header.arm7i_load;
                             let len = header.modcrypt2_len;
                             AES_HARDWARE.reset();
@@ -412,7 +409,7 @@ fn main() {
 
 #[cfg(target_arch = "arm")]
 #[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe {
         (0x400_0208 as *mut u32).write_volatile(0);
         IPC_FIFO_HARDWARE.set_status(7);

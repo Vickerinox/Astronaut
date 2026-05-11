@@ -9,7 +9,6 @@ const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::arch::asm;
-use core::ops::Div;
 use core::str;
 
 use micro_imgui::{Color, Vec2};
@@ -122,7 +121,7 @@ impl FatFsDriver for SDMMCDriver {
     }
 }
 
-use crate::gui::{TextLayoutHandle, VideoTextPass};
+use crate::gui::TextLayoutHandle;
 use crate::nand::BasicSDMMCCursor;
 
 extern crate alloc;
@@ -344,7 +343,7 @@ unsafe fn try_mount_nand() -> Option<BasicSDMMCCursor<'static>> {
     }
     let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
     read_encrypted_nand(nand_buffer, twl_lba).ok()?;
-    let twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
+    let _twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
     let nand_buffer =
         core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 32);
     match BasicSDMMCCursor::new(nand_buffer, twl_lba, true) {
@@ -352,9 +351,6 @@ unsafe fn try_mount_nand() -> Option<BasicSDMMCCursor<'static>> {
         Err(code) => { EMMC_ERROR = code; None},
     }
 }
-
-static mut CHECK_NAND: bool = false;
-static mut CHECK_SD: bool = false;
 pub struct RebootState {
     current_path: String,
 }

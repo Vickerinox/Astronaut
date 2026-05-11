@@ -91,7 +91,7 @@ unsafe fn boot_unreturnable(
 
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
-    let boot_func = reboot_lib::arm9_send_arm7_jump(header.arm7_entry).unwrap_err();
+    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.arm7_entry).unwrap_err();
     reboot_lib::disable_all_interrupts();
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     while VCOUNT_REG.read_volatile() != 192 {}

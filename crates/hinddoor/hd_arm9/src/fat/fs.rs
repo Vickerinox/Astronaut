@@ -24,7 +24,7 @@ impl<'a, T: SectorManager> FileSystem<'a, T> {
     pub fn new(
         mut sector_manager: T,
         buffer: &'a mut [reboot_lib::StorageSector],
-    ) -> Result<FileSystem<T>, FSMountError<T::Error>> {
+    ) -> Result<FileSystem<'a, T>, FSMountError<T::Error>> {
         // split off boot sector
         let Some((bs, _remainder)) = buffer.split_at_mut_checked(1) else {
             return Err(FSMountError::BufTooSmall);

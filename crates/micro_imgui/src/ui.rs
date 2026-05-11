@@ -45,7 +45,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     ///
     /// if you meet these conditions, you now have premature response that assumes you want EVERYTHING
     pub fn prepare_complication(&self, size: Vec2) -> (Rect, Sense) {
-        let Layout(direction, align) = self.layout;
+        let Layout(direction, _) = self.layout;
         let rect_min = match direction {
             Direction::TopDown => self.clip_rect.min,
             Direction::LeftRight => self.clip_rect.min,

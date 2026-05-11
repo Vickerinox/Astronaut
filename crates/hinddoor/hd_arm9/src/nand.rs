@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 use reboot_lib::StorageSector;
 
-use crate::SDMMC_DRIVER;
 
 pub struct BasicSDMMCCursor<'a> {
     buffer: &'a mut [StorageSector],

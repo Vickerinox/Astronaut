@@ -1,19 +1,18 @@
 use crate::{
     boot,
-    gui::{self, backend::Inputs, Input},
-    is_bootable, is_music_module, populate_fs_vec, send_mod_file, stop_mod_file, COLOR_BOOTABLE,
+    gui::{self, Input}, populate_fs_vec, send_mod_file, stop_mod_file, COLOR_BOOTABLE,
     COLOR_MUSIC,
 };
 use alloc::{
     boxed::Box,
     format,
     string::{String, ToString},
-    vec::{self, Vec},
+    vec::Vec,
 };
-use fatfs_embedded::fatfs::{File, FileInfo, FileOptions, FS_SD};
+use fatfs_embedded::fatfs::{FileOptions, FS_SD};
 use micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
-    music_modules::mods::{MODAsyncLoader, MODHeader},
+    music_modules::mods::MODAsyncLoader,
     Buttons,
 };
 enum CurrentUI {
@@ -125,7 +124,7 @@ impl AppData {
         }
     }
     pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>) {
-        let mouse = f.last_known_pointer_location();
+        let _mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {
             unsafe {
                 ui.label(&format!("SD stat: {:?} NAND stat: {:?}", crate::SD_ERROR, crate::EMMC_ERROR));
@@ -190,7 +189,7 @@ impl AppData {
                         if ui.button("Play song").clicked() {
                             if fatfs_embedded::seek(file, 0) == Ok(()) {
                                 Some(Box::new(|s| {
-                                    if let CurrentUI::LoadingMusic { file, file_path } = s {
+                                    if let CurrentUI::LoadingMusic { file, file_path: _ } = s {
                                         self.loading_mod_file = Some(MODAsyncLoader::new(file));
                                     }
                                     CurrentUI::None
@@ -229,7 +228,7 @@ impl AppData {
                     CurrentUI::Browsing {
                         immediate_files,
                         file_path: current_path,
-                        is_nand,
+                        is_nand: _,
                         offset,
                     } => {
                         if ui.input_pressed(Input(Buttons::DIRECTION_UP)) {
@@ -286,7 +285,7 @@ impl AppData {
                                         current_path.push_str(&item.1);
                                         match fatfs_embedded::open(current_path, FileOptions::Read)
                                         {
-                                            Ok(mut module) => {
+                                            Ok(module) => {
                                                 let bajs = current_path.clone();
                                                 new_state =
                                                     Some(Box::new(|_| CurrentUI::LoadingMusic {
