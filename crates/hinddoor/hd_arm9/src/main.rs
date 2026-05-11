@@ -732,7 +732,7 @@ unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHan
      
     let mut buf = PanicFmt::new(0x20F_0000 as *mut u8, 0x1000);
     use core::fmt::Write;
-    write!(&mut buf, "{}",info.message());
+    let _ = write!(&mut buf, "{}",info.message());
     text_pass.layout_str(buf.as_str(),8);
     if let Some(loc) = info.location(){
         use core::fmt::Write;
@@ -742,7 +742,7 @@ unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHan
         text_pass.next_line();
         
         let mut buf =  PanicFmt::new(0x20F_1000 as *mut u8, 0x1000);//if 
-        write!(buf, "{loc}");
+        let _ = write!(buf, "{loc}");
         text_pass.layout_str(buf.as_str(), 8);
     };
     

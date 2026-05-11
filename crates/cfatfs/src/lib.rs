@@ -83,7 +83,7 @@
 
 #![no_std]
 
-use crate::fatfs::{File, FileOptions, FS_SD};
+use crate::fatfs::{File, FileOptions};
 
 pub mod fatfs {
 
@@ -96,7 +96,7 @@ pub mod fatfs {
     use crate::fatfs::inc_bindings::*;
     use alloc::string::String;
     use bitflags::bitflags;
-    use core::{ptr, str::FromStr};
+    use core::ptr;
 
     #[cfg(feature = "chrono")]
     use chrono::{Datelike, NaiveDateTime, Timelike};
@@ -128,25 +128,25 @@ pub mod fatfs {
     impl From<u32> for Error {
         fn from(v: u32) -> Self {
             match v {
-                FRESULT_FR_DISK_ERR => (Error::DiskError),
-                FRESULT_FR_INT_ERR => (Error::IntError),
-                FRESULT_FR_NOT_READY => (Error::NotReady),
-                FRESULT_FR_NO_FILE => (Error::NoFile),
-                FRESULT_FR_NO_PATH => (Error::NoPath),
-                FRESULT_FR_INVALID_NAME => (Error::InvalidName),
-                FRESULT_FR_DENIED => (Error::Denied),
-                FRESULT_FR_EXIST => (Error::Exists),
-                FRESULT_FR_INVALID_OBJECT => (Error::InvalidObject),
-                FRESULT_FR_WRITE_PROTECTED => (Error::WriteProtected),
-                FRESULT_FR_INVALID_DRIVE => (Error::InvalidDrive),
-                FRESULT_FR_NOT_ENABLED => (Error::NotEnabled),
-                FRESULT_FR_NO_FILESYSTEM => (Error::NoFileSystem),
-                FRESULT_FR_MKFS_ABORTED => (Error::MkfsAborted),
-                FRESULT_FR_TIMEOUT => (Error::Timeout),
-                FRESULT_FR_LOCKED => (Error::Locked),
-                FRESULT_FR_NOT_ENOUGH_CORE => (Error::NotEnoughCore),
-                FRESULT_FR_INVALID_PARAMETER => (Error::InvalidParameter),
-                FRESULT_FR_TOO_MANY_OPEN_FILES => (Error::TooManyOpenFiles),
+                FRESULT_FR_DISK_ERR => Error::DiskError,
+                FRESULT_FR_INT_ERR => Error::IntError,
+                FRESULT_FR_NOT_READY => Error::NotReady,
+                FRESULT_FR_NO_FILE => Error::NoFile,
+                FRESULT_FR_NO_PATH => Error::NoPath,
+                FRESULT_FR_INVALID_NAME => Error::InvalidName,
+                FRESULT_FR_DENIED => Error::Denied,
+                FRESULT_FR_EXIST => Error::Exists,
+                FRESULT_FR_INVALID_OBJECT => Error::InvalidObject,
+                FRESULT_FR_WRITE_PROTECTED => Error::WriteProtected,
+                FRESULT_FR_INVALID_DRIVE => Error::InvalidDrive,
+                FRESULT_FR_NOT_ENABLED => Error::NotEnabled,
+                FRESULT_FR_NO_FILESYSTEM => Error::NoFileSystem,
+                FRESULT_FR_MKFS_ABORTED => Error::MkfsAborted,
+                FRESULT_FR_TIMEOUT => Error::Timeout,
+                FRESULT_FR_LOCKED => Error::Locked,
+                FRESULT_FR_NOT_ENOUGH_CORE => Error::NotEnoughCore,
+                FRESULT_FR_INVALID_PARAMETER => Error::InvalidParameter,
+                FRESULT_FR_TOO_MANY_OPEN_FILES => Error::TooManyOpenFiles,
                 _ => Error::InternalLogicError,
             }
         }
@@ -724,7 +724,6 @@ pub mod fatfs {
 use crate::fatfs::inc_bindings::*;
 use crate::fatfs::*;
 use core::ptr::addr_of_mut;
-use core::str::FromStr;
 extern crate alloc;
 
 /// Opens the file at the given path in the given mode. FileOption flags may be OR'd together.

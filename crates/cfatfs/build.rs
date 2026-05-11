@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = cc::Build::new();
-    let builder = builder
+    let _builder = builder
         .file("fatfs/source/ff.c")
         .file("fatfs/source/ffunicode.c")
         .target("armv5te-none-eabi")
@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .flag("-Oz")
         .compile("fatfs");
 
-    let target = env::var("TARGET")?;
+    let _target = env::var("TARGET")?;
 
     let bindings = bindgen::Builder::default()
         .header("fatfs/source/ff.h")

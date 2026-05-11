@@ -2,11 +2,8 @@ mod diskio_bindings;
 
 use crate::fatfs::diskio::diskio_bindings::*;
 use crate::fatfs::*;
-use alloc::boxed::Box;
 use core::ptr;
 
-#[cfg(feature = "chrono")]
-use chrono::{Datelike, NaiveDateTime, Timelike};
 
 pub enum IoctlCommand {
     CtrlSync(()),
