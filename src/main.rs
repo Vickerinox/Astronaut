@@ -2,17 +2,14 @@
 use std::{
     env::{self},
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::exit,
 };
 
 use clap::Parser;
-use console::Style;
 use elf::{endian::AnyEndian, ElfBytes};
-use fatfs::{Error, SeekFrom};
 //use rfd::FileDialog;
-use log::{debug, error, info, Level};
-use similar::{ChangeTag, TextDiff};
+use log::{debug, error, info};
 
 
 use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
