@@ -141,9 +141,52 @@ impl AESEngine {
 
         self.wait_aes_busy();
     }
+
+    //crypt a block of data in place
+    pub unsafe fn ctr_crypt_block_cpu(&self, data: &mut [u32], ctr: &[u32; 4]) {
+        let len = data.len() as u32;
+        use crate::ndma::{Control, NDMA_HARDWARE};
+        self.master_control.write(AESCnt::empty());
+        self.reset();
+        self.load_iv(ctr);
+        self.set_block_count((len >> 2) as u16);
+
+        let in_dma = crate::ndma::ChannelConfig {
+            word_count: len,
+            block_size: 4,
+            timing: 8,
+            fill_mode: 0,
+            control: Control::DST_MODE_FIXED
+                | Control::SRC_MODE_INCREMENT
+                | Control::BLOCK_SIZE_4
+                | Control::START_ARM7_WRITE_AES
+                | Control::ENABLE,
+        };
+        let out_dma = crate::ndma::ChannelConfig {
+            word_count: len,
+            block_size: 4,
+            timing: 8,
+            fill_mode: 0,
+            control: Control::SRC_MODE_FIXED
+                | Control::DST_MODE_INCREMENT
+                | Control::BLOCK_SIZE_4
+                | Control::START_ARM7_READ_AES
+                | Control::ENABLE,
+        };
+        let ptr = data as *mut [u32] as *mut u32;
+        //NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
+        //NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
+
+        self.start((0 << 14) | (3 << 12) | (2 << 28));
+
+        //NDMA_HARDWARE.await_channel(0);
+        //NDMA_HARDWARE.await_channel(1);
+
+        self.wait_aes_busy();
+    }
     pub unsafe fn start(&self, flags: u32) {
         self.master_control
-            .write(AESCnt::from_bits_retain(flags) | AESCnt::START);
+            .write(AESCnt::from_bits_retain(flags) | AESCnt::START | AESCnt::FLUSH_READ_FIFO | AESCnt::FLUSH_WRITE_FIFO );
     }
     pub unsafe fn set_block_count(&self, count: u16) {
         self.payload_blocks.write(count);

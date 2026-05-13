@@ -16,6 +16,7 @@ members = [
 , "unlaunch_decomp", "crates/cfatfs"]
 
 [dependencies]
+common = {path="./crates/common"}
 elf = "0.7.4"
 #rfd = "0.15.0"
 fatfs = {git="https://github.com/rafalh/rust-fatfs.git", rev="c4bb76929eb115f228720631b4110f827b998653"}

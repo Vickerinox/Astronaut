@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use common::bootstrap::{BOOTINFO_MEM, HeaderTWL};
+use common::{blowfish::BFCTX, bootstrap::{BOOTINFO_MEM, HeaderTWL}};
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
@@ -42,6 +42,7 @@ unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
     header: &HeaderTWL,
+    bf: &mut BFCTX,
 ) -> ! {
     crate::stop_mod_file();
     
@@ -78,13 +79,28 @@ unsafe fn boot_unreturnable(
             }
         }
     }
+    {
+        let tmp = header.arm9_load as *mut u32;
+        let gamecode = header.tid;
+        let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
+        bf.init2(&mut arg);
+        bf.init2(&mut arg);
+        bf.decrypt(&mut *tmp.add(1), &mut *tmp);
+        arg[1] <<= 1;
+        arg[2] >>= 1;
+        bf.init2(&mut arg);
+        bf.decrypt(&mut *tmp.add(1), &mut *tmp);
 
+        for i in (2..0x200).step_by(2) {
+            bf.decrypt(&mut *tmp.add(i+1), &mut *tmp.add(i));
+        }
+    }
     if header.is_homebrew() {
         common::argv::init(header, file_path);
     }
-    if header.is_dsiware() {
-        common::device_list::init(header, "", "", file_path);
-    }
+    
+        common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
+    
     inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.arm9_entry);
     reboot_lib::flush_mmc();
@@ -108,6 +124,7 @@ unsafe fn boot_unreturnable(
 pub unsafe fn boot_app(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
+    blowfish: &mut BFCTX,
 ) -> BootError {
     let mem = BOOTINFO_MEM as *mut () as *mut u32;
     for i in 0..0x1000 {
@@ -136,22 +153,12 @@ pub unsafe fn boot_app(
     if !arm9_range.contains(&header.arm9_entry) {
         return BootError::BadEntrypoint(header.arm9_entry);
     }
-    boot_unreturnable(r, file_path, header);
+    boot_unreturnable(r, file_path, header, blowfish);
 }
 pub unsafe fn inject_bootstrap() {
     //inject bootstrap into VRAM BANK I
     core::ptr::write_volatile(0x04000249 as *mut u8, 0x80); //enable VRAM bank I
-    let mut stor: u32 = 0;
     for (i, byte) in BOOTSTRAP_BINARY.iter().enumerate() {
-        stor |= (*byte as u32) << 24;
-        if i & 3 == 3 {
-            (common::bootstrap::BOOTLOADER_MEM as *mut u32)
-                .add(i >> 2)
-                .write_volatile(stor);
-            stor = 0;
-        } else {
-            stor >>= 8;
-        }
+        (common::bootstrap::BOOTLOADER_MEM as *mut u8).add(i).write_volatile(*byte);
     }
-    //bootstrap.copy_from_slice(crate::BOOTSTRAP_BINARY);
 }

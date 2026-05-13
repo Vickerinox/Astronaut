@@ -336,41 +336,49 @@ fn main() {
                     let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
 
+                    let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
+                    
+
+                    response = 0;
+
+                    /* 
+                    if core::slice::from_raw_parts(header.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {
+                        response = 10;
+                    }
+                    */
+
                     AES_HARDWARE.init_from_header(
                         &*(common::bootstrap::BOOTLOADER_MEM
                             as *const common::bootstrap::HeaderTWL),
                         console_id,
                     );
 
-                    let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
+                    
 
 
-                    response = 0x8000_0000;
 
-                    if header.arm9i_offset == header.modcrypt1_offset || header.arm9_offset == header.modcrypt1_offset {
-                        if header.modcrypt2_len == 0 {
-                            response = 0
-                        } else {
-                            if header.arm7i_offset == header.modcrypt2_offset {
-                                response = 0;
-                            } else {
+                    if header.arm9i_offset != header.modcrypt1_offset && header.arm9_offset != header.modcrypt1_offset {
+                        response = 1;
+                    }
+                    if header.modcrypt2_len != 0 {
+                            if header.arm7i_offset != header.modcrypt2_offset {
                                 response = 2;
                             }
                         } 
-                    } else {
-                        response = 1;
-                    }
 
                     //response = 0x8000_0000;
                     
-                    if response == 0 {
+                    if false /*response == 0*/ {
 
-                        
+                        let  ptr = if header.arm9i_offset == header.modcrypt1_offset {
+                            header.arm9i_load
+                        } else {
+                            header.arm9_load
+                        };
                         
 
-                        let key: [u32; 4] = core::array::from_fn(|i| header.arm9i_sha1[i]);
-                        let ptr = header.arm9i_load;
-                        let len = header.modcrypt1_len;
+                        let key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
+                        let len = header.modcrypt1_len >> 2;
                         AES_HARDWARE.reset();
                         AES_HARDWARE.reset();
                         AES_HARDWARE.wait_key_busy();
@@ -384,9 +392,9 @@ fn main() {
                         
 
                         if header.modcrypt2_len > 0 {    
-                            let key: [u32; 4] = core::array::from_fn(|i| header.arm7i_sha1[i]);
+                            let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
                             let ptr = header.arm7i_load;
-                            let len = header.modcrypt2_len;
+                            let len = header.modcrypt2_len >> 2;
                             AES_HARDWARE.reset();
                             AES_HARDWARE.reset();
                             AES_HARDWARE.wait_key_busy();

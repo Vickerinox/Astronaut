@@ -9,7 +9,6 @@ pub unsafe fn boot_arm9() -> ! {
     
     let header = &(*BOOTINFO_MEM).twl_header;
     let is_twl = (*BOOTINFO_MEM).twl_header.is_dsi_mode();
-    
 
     //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
     if is_twl {
@@ -45,7 +44,7 @@ pub unsafe fn boot_arm9() -> ! {
     w(0x4004040 as *mut u32, 0);
     w(0x4000210 as *mut u32, 0);
     (0x4000214 as *mut u32).write_volatile(!0);
-
+    (*BOOTINFO_MEM).other[0] = 1;
     while VCOUNT_REG.read_volatile() != 192 {}
 
 
@@ -78,14 +77,13 @@ pub unsafe fn boot_arm7() -> ! {
     //clear all interrups
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
-
-    if header.arm7_device_list != 0 {
-        core::arch::asm!("mov r11, r11");
-        let dest = header.arm7_device_list as *mut u32;
-        let src = core::ptr::addr_of!((*BOOTINFO_MEM).device_list_copy) as *const u32;
-        for i in 0..0x100 {
-            dest.add(i).write_volatile(*src.add(i));
-        }
+    
+    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) == 0 {}
+    
+    let dest = header.arm7_device_list as *mut u32;
+    let src = core::ptr::addr_of!((*BOOTINFO_MEM).device_list_copy) as *const u32;
+    for i in 0..0x100 {
+        dest.add(i).write_volatile(*src.add(i));
     }
     
 
@@ -95,6 +93,7 @@ pub unsafe fn boot_arm7() -> ! {
 
     //jump to entrypoint
     let entry = core::ptr::addr_of!(header.arm7_entry);
+    core::arch::asm!("mov r11, r11");
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -277,8 +276,8 @@ pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 #[repr(C)]
 pub struct BootInfoTWL {
     card_header: HeaderTWL,
-    _0x1000: [u8; 0x3B0],
-    pub device_list_copy: DeviceList,
+    _0x1000: [u8; 0x7B0],
+    
     sysmenu_id: [u8; 9],
     init_code: u8,
     hotboot: u16,
@@ -287,12 +286,20 @@ pub struct BootInfoTWL {
     pub mountinfo: [u8; 0x3C0],
     pub boot_path: [u8; 0x40],
     pub twl_header: HeaderTWL,
-    other: [u8; 0x680],
+    pub other: [u8; 0x280],
+    pub device_list_copy: DeviceList,
     _0x3680: [u8; 0x180],
     ntr: BootInfoNTR,
 }
 #[repr(C)]
 pub struct BootInfoNTR {
-    _0x0: [u8; 0x800]
+    _0x0: [u8; 0x800],
+    /* 
+    header: [u8; 0x160],
+    download: [u8; 0x20],
+    bootcheck: [u8; 0x20],
+    reset: u32,
+    _0x0424: [u8; 8],
+    */
 }
 

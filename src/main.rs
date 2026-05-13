@@ -16,6 +16,7 @@ use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
 mod build;
 mod errors;
 mod mmc;
+mod testing;
 
 fn construct_tmd(
     elf_file_path: PathBuf,

@@ -8,6 +8,7 @@ const ARM7_BINARY: &[u8] = include_bytes!("./arm7.bin");
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
 use alloc::{boxed::Box, string::String, vec::Vec};
+use common::blowfish::BFCTX;
 use core::arch::asm;
 use core::str;
 
@@ -428,6 +429,8 @@ unsafe fn base_init_graphics() {
 }
 unsafe fn main() {
     unsafe {
+        let blowfish_key = &mut *(0x2F1_0000 as *mut BFCTX);
+        *blowfish_key = (*(0x1FFC894 as *const BFCTX)).clone();
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
 
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
@@ -515,7 +518,8 @@ unsafe fn main() {
         fatfs_embedded::fatfs::diskio::install(&mut SDMMC_DRIVER);
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
-        let mut frontend = gui::AppData::new();
+        
+        let mut frontend = gui::AppData::new(blowfish_key);
         FS_NAND.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
 
         FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sd:\0"));

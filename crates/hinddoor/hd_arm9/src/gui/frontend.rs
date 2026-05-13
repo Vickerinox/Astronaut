@@ -9,6 +9,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::{FileOptions, FS_SD};
 use micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
@@ -36,14 +37,16 @@ enum CurrentUI {
     },
 }
 
-pub struct AppData {
+pub struct AppData<'a> {
     current_dir: CurrentUI,
+    blowfish: &'a mut BFCTX,
     loading_mod_file: Option<MODAsyncLoader>,
 }
-impl AppData {
-    pub fn new() -> Self {
+impl<'a> AppData<'a> {
+    pub fn new(blowfish: &'a mut BFCTX) -> Self {
         Self {
             current_dir: CurrentUI::None,
+            blowfish,
             loading_mod_file: None,
         }
     }
@@ -78,7 +81,7 @@ impl AppData {
                 error_string: String::from("No Filesystem could be mounted."),
             })
     } 
-    pub unsafe fn autoboot(&self) {
+    pub unsafe fn autoboot(&mut self) {
         match fatfs_embedded::open(
                 &mut "sd:/_nds/vlaunch/autoboot.bin".to_string(),
                 FileOptions::Read,
@@ -95,7 +98,7 @@ impl AppData {
                     let Ok(mut file) = fatfs_embedded::open(&mut str, FileOptions::Read) else {
                         return;
                     };
-                    crate::boot::boot_app(&mut file, &str);
+                    crate::boot::boot_app(&mut file, &str, &mut self.blowfish);
                 }
                 Err(_abort) => {}
             }
@@ -181,7 +184,7 @@ impl AppData {
                     }
                     CurrentUI::LoadingApp { file, file_path } => {
                         ui.request_repaint();
-                        let error = unsafe { boot::boot_app(file, &file_path) };
+                        let error = unsafe { boot::boot_app(file, &file_path, self.blowfish) };
                         let error_string = alloc::format!("Failed to boot file: {error:?}");
                         Some(Box::new(|_| CurrentUI::Error { error_string }))
                     }
