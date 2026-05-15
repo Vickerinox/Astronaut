@@ -7,11 +7,11 @@ pub fn test_blowfish() {
     let mut temp = vec![0u64; head.len()/8];
     unsafe { core::slice::from_raw_parts_mut(core::ptr::addr_of!(temp[0]) as *mut u8, 0x1000).copy_from_slice(head);};
     let header = unsafe { &*(core::ptr::addr_of!(temp[0]) as *const common::bootstrap::HeaderTWL)};
-    if !(0x4000..0x8000).contains(&header.arm9_offset) {
+    if !(0x4000..0x8000).contains(&header.head.arm9_offset) {
         println!("NO SECURE AREA!")
     }
-    println!("test {:x?}", header.arm9_offset);
-    let o = (header.arm9_offset-0x1000) as usize;
+    println!("test {:x?}", header.head.arm9_offset);
+    let o = (header.head.arm9_offset-0x1000) as usize;
     if app[o..][..8] == 0xE7FFDEFFE7FFDEFFu64.to_le_bytes() {
         println!("SECURE AREA ALREADY DECRYPTED!")
     }
@@ -23,7 +23,7 @@ pub fn test_blowfish() {
         
     bf.init1( NTR_BLOWFISH_TABLE);
     
-    let gamecode = header.tid;
+    let gamecode = header.head.tid;
     let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
     bf.init2(&mut arg);
     println!("{:x?} {:x?} {:x?}", arg, tmp2, tmp1);

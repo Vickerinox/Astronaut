@@ -268,6 +268,7 @@ impl MMC {
         self.status.write(Status::empty());
         self.block_count.write(port.buffer.len() as u16);
         self.stop_action.write(1 << 8);
+        
 
         self.data_control.write(Control::USE_DATA32);
         self.data_control_32

@@ -24,6 +24,8 @@ mod video;
 pub use bitflags;
 pub mod rtc;
 use core::num::NonZeroU32;
+pub mod twl_wifi;
+
 
 pub use aes::*;
 pub use allocator::ALLOCATOR;
@@ -57,6 +59,12 @@ pub unsafe fn critical_function<F: FnOnce()>(closure: F) {
 
     closure();
     REG_IME.write_volatile(ime);
+}
+pub unsafe fn nocash_write(str: &str) {
+    const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
+    for byte in str.as_bytes() {
+        NOCASH_OUT_CHR.write_volatile(*byte);
+    }
 }
 
 #[repr(u8)]

@@ -18,7 +18,7 @@ pub struct ArgvStructutre {
 
 pub unsafe fn init(header: &HeaderTWL, file_path: &str) {
     //find argv location
-    let ntr_arg_destination = (header.arm9_load + header.arm9_size + 7) & !3;
+    let ntr_arg_destination = (header.head.arm9_load + header.head.arm9_size + 7) & !3;
     let arg_destination = if header.is_dsi_mode() {
         let twl_arg_destination = (header.arm9i_load + header.arm9i_size + 7) & !3;
         ntr_arg_destination.max(twl_arg_destination)

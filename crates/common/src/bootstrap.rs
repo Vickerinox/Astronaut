@@ -92,7 +92,7 @@ pub unsafe fn boot_arm7() -> ! {
     while VCOUNT_REG.read_volatile() == 192 {}
 
     //jump to entrypoint
-    let entry = core::ptr::addr_of!(header.arm7_entry);
+    let entry = core::ptr::addr_of!(header.head.arm7_entry);
     core::arch::asm!("mov r11, r11");
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
@@ -106,8 +106,9 @@ const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
 
 #[repr(C)]
-pub struct HeaderTWL {
-    pub title: [u8; 12],
+#[derive(Debug, Clone)]
+pub struct HeaderStart {
+pub title: [u8; 12],
     pub tid: u32,
     pub maker_code: u16,
     pub unit_code: u8,
@@ -167,7 +168,10 @@ pub struct HeaderTWL {
 
     pub logo_crc: u16,
     pub header_crc: u16,
-
+}
+#[repr(C)]
+pub struct HeaderTWL {
+    pub head: HeaderStart,
     pub debug_rom_offset: u32,
     pub debug_rom_size: u32,
     pub debug_rom_load: u32, //doubles as arm9 entry
@@ -260,13 +264,13 @@ pub struct BootStub {
 
 impl HeaderTWL {
     pub fn is_dsi_mode(&self) -> bool {
-        self.unit_code & 2 > 0
+        self.head.unit_code & 2 > 0
     }
     pub fn is_dsiware(&self) -> bool {
         self.is_dsi_mode() && ((self.title_id << 32) & 0xFF) != 0
     }
     pub fn is_homebrew(&self) -> bool {
-        self.maker_code == 0 || self.arm9_autoload_hook == 0 || self.arm7_load >= 0x03000000
+        self.head.maker_code == 0 || self.head.arm9_autoload_hook == 0 || self.head.arm7_load >= 0x03000000
     }
 }
 
@@ -289,17 +293,64 @@ pub struct BootInfoTWL {
     pub other: [u8; 0x280],
     pub device_list_copy: DeviceList,
     _0x3680: [u8; 0x180],
-    ntr: BootInfoNTR,
+    pub ntr: BootInfoNTR,
 }
 #[repr(C)]
 pub struct BootInfoNTR {
-    _0x0: [u8; 0x800],
-    /* 
-    header: [u8; 0x160],
-    download: [u8; 0x20],
-    bootcheck: [u8; 0x20],
-    reset: u32,
+    
+    //_0x0: [u8; 0x800],
+    pub gap: [u8; 0x280],
+    pub header: HeaderStart,
+    pub download: [u8; 0x20],
+    pub bootcheck: [u8; 0x20],
+    pub reset: u32,
     _0x0424: [u8; 8],
-    */
+    pub rom_offset: u32,
+    pub slot_2_info: [u8; 0xC],
+    pub vblank_counter: u32,
+    _0x440: [u8; 0x40],
+    pub firmware_data: [u8; 0x100],
+    pub arm9_exceptions: [u8; 0x1C],
+    pub arm9_excep_vector: u32,
+    _0x5a0: [u8; 0x48],
+    pub rtc: [u8; 8],
+    pub sysconf: [u8; 6],
+    pub arm9print: u8,
+    pub arm7print: u8,
+    pub arm9err: u8,
+    pub arm7err: u8,
+    _0x5fa: [u8; 6],
+    
+    pub header_again: HeaderStart,
+    pub debugger_again: [u8; 0x20],
+    pub arm9ipc: u32,
+    pub arm7ipc: u32,
+    pub arm9ipch: u32,
+    pub arm7ipch: u32,
+    pub last_mic: u32,
+    pub last_mic_data: u16,
+    pub wifi_call: u16,
+    pub wifi_rssi: u16,
+    pub slot2_info: u8,
+    pub slot2_in: u8,
+    pub arm7arg: u32,
+    pub arm9thread: u32,
+    pub arm7thread: u32,
+    pub buttons: u16,
+    pub touch: [u8; 4],
+    pub autoload: u16,
+    pub arm9lock: [u8; 8],
+    pub arm7lock: [u8; 8],
+    pub vramclock:  [u8; 8],
+    pub vramdlock: [u8; 8],
+    pub wram0lock: [u8; 8],
+    pub wram1lock: [u8; 8],
+    pub slot1lock: [u8; 8],
+    pub slot2lock: [u8; 8],
+    pub initlock: [u8; 8],
+    pub arm9memc: u16,
+    pub arm7memc: u16,
+    pub memcmd: u16,
+    pub wat: u16,
 }
 

@@ -26,7 +26,7 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, l
     next_entry += 1;
 
     if header.private_save_size != 0 && !prv_sav_path.is_empty() {
-        list.drives[next_entry] = DeviceEntry::new(b'G', DeviceFlags::FILEBASED, DeviceRights::READ_WRITE, b"dataPrv", b"nand2:/photo");
+        list.drives[next_entry] = DeviceEntry::new(b'G', DeviceFlags::FILEBASED, DeviceRights::READ_WRITE, b"dataPrv", b"sdmc:/LAUNCH~1.NDS");
         next_entry += 1;
     }
     if header.public_save_size != 0 && !pub_sav_path.is_empty() {
@@ -34,7 +34,7 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, l
         //next_entry += 1;
     }
 
-    let path = location.as_bytes();
+    let path = b"sdmc:/photod.nds"; //location.as_bytes();
 
     list.app_path[..path.len()].copy_from_slice(path);
 

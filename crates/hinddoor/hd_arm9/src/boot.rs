@@ -1,6 +1,7 @@
 use core::fmt::Debug;
 
 use common::{blowfish::BFCTX, bootstrap::{BOOTINFO_MEM, HeaderTWL}};
+use reboot_lib::swi_crc16;
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
@@ -46,15 +47,21 @@ unsafe fn boot_unreturnable(
 ) -> ! {
     crate::stop_mod_file();
     
+    (*BOOTINFO_MEM).ntr.header_again = (*BOOTINFO_MEM).twl_header.head.clone();
     let arm9_ram =
-        core::slice::from_raw_parts_mut(header.arm9_load as *mut u8, header.arm9_size as usize);
-    fatfs_embedded::seek(r, header.arm9_offset).unwrap();
+        core::slice::from_raw_parts_mut(header.head.arm9_load as *mut u8, header.head.arm9_size as usize);
+    fatfs_embedded::seek(r, header.head.arm9_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
+    reboot_lib::nocash_write("> ARM9 binary loaded \n");
+
     let arm9_ram =
-        core::slice::from_raw_parts_mut(header.arm7_load as *mut u8, header.arm7_size as usize);
-    fatfs_embedded::seek(r, header.arm7_offset).unwrap();
+        core::slice::from_raw_parts_mut(header.head.arm7_load as *mut u8, header.head.arm7_size as usize);
+    fatfs_embedded::seek(r, header.head.arm7_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
+
+    reboot_lib::nocash_write("> ARM7 binary loaded \n");
+
 
     if header.is_dsi_mode() {
         let arm9_ram = core::slice::from_raw_parts_mut(
@@ -65,6 +72,8 @@ unsafe fn boot_unreturnable(
         fatfs_embedded::seek(r, header.arm9i_offset).unwrap();
         read_all(arm9_ram, r).unwrap();
 
+        reboot_lib::nocash_write("> ARM9i binary loaded \n");
+
         let arm9_ram = core::slice::from_raw_parts_mut(
             header.arm7i_load as *mut u8,
             header.arm7i_size as usize,
@@ -72,16 +81,19 @@ unsafe fn boot_unreturnable(
         fatfs_embedded::seek(r, header.arm7i_offset).unwrap();
         read_all(arm9_ram, r).unwrap();
 
-        if header.twl_flags & (1<<1) > 0 {
+        reboot_lib::nocash_write("> ARM7i binary loaded \n");
+
+        if header.head.twl_flags & (1<<1) > 0 {
             match reboot_lib::arm9_decrypt_modcrypt(0) {
                 Ok(()) => (),
                 Err(code) => {panic!("Failed to modcrypt, code: {code}");},
             }
+            reboot_lib::nocash_write("> Applied Modcrypt \n");
         }
-    }
+    } 
     {
-        let tmp = header.arm9_load as *mut u32;
-        let gamecode = header.tid;
+        let tmp = header.head.arm9_load as *mut u32;
+        let gamecode = header.head.tid;
         let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
         bf.init2(&mut arg);
         bf.init2(&mut arg);
@@ -94,20 +106,43 @@ unsafe fn boot_unreturnable(
         for i in (2..0x200).step_by(2) {
             bf.decrypt(&mut *tmp.add(i+1), &mut *tmp.add(i));
         }
+        if tmp.read() == 0x72636E65 && tmp.add(1).read() == 0x6A624F79{
+            tmp.write(0xE7FFDEFF);
+            tmp.add(1).write(0xE7FFDEFF);
+        }
+        reboot_lib::nocash_write("> Decrypted Secure Area \n");
     }
     if header.is_homebrew() {
         common::argv::init(header, file_path);
+
+        reboot_lib::nocash_write("> Inserted ARGV \n");
     }
-    
+        
         common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
-    
+        reboot_lib::nocash_write("> Inserted Device List \n");
+    {
+        common::config::init(header);
+        let wifi_type = (*BOOTINFO_MEM).ntr.firmware_data[0xFF];
+        (0x20005E0 as *mut u8).write_volatile(wifi_type);
+        if wifi_type == 2 || wifi_type == 3 {
+            (0x20005E4 as *mut u32).write_volatile(0x520000);
+            (0x20005E8 as *mut u32).write_volatile(0x520000);
+            (0x20005EC as *mut u32).write_volatile(0x020000);
+        } else {
+            (0x20005E4 as *mut u32).write_volatile(0x500400);
+            (0x20005E8 as *mut u32).write_volatile(0x500000);
+            (0x20005EC as *mut u32).write_volatile(0x02E000);
+        }
+        (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF,0x020005E4 as *const u16, 0xC));
+        reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
+    }
     inject_bootstrap();
-    (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.arm9_entry);
+    (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.head.arm9_entry);
     reboot_lib::flush_mmc();
 
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
-    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.arm7_entry).unwrap_err();
+    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
     reboot_lib::disable_all_interrupts();
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     while VCOUNT_REG.read_volatile() != 192 {}
@@ -126,8 +161,11 @@ pub unsafe fn boot_app(
     file_path: &str,
     blowfish: &mut BFCTX,
 ) -> BootError {
+    reboot_lib::nocash_write("> booting ");
+    reboot_lib::nocash_write(file_path);
+    reboot_lib::nocash_write("\n");
     let mem = BOOTINFO_MEM as *mut () as *mut u32;
-    for i in 0..0x1000 {
+    for i in 0..0xE00 {
         mem.add(i).write_volatile(0);
     }
     let header = &mut (*common::bootstrap::BOOTINFO_MEM).twl_header;
@@ -135,8 +173,9 @@ pub unsafe fn boot_app(
     if read_all(head_buf, r).is_err() {
         return BootError::FileReadError;
     }
-    let arm9_range = (header.arm9_load)..(header.arm9_load + header.arm9_size);
-    let arm7_range = (header.arm7_load)..(header.arm7_load + header.arm7_size);
+    reboot_lib::nocash_write("> Loaded Header");
+    let arm9_range = (header.head.arm9_load)..(header.head.arm9_load + header.head.arm9_size);
+    let arm7_range = (header.head.arm7_load)..(header.head.arm7_load + header.head.arm7_size);
     if (!(0x200_0000..0x2FE_0000).contains(&arm9_range.start))
         || (!(0x200_0000..0x2FE_0000).contains(&arm9_range.end))
     {
@@ -147,12 +186,14 @@ pub unsafe fn boot_app(
     {
         return BootError::BadBinaryLocation(arm7_range);
     }
-    if !arm7_range.contains(&header.arm7_entry) {
-        return BootError::BadEntrypoint(header.arm7_entry);
+    if !arm7_range.contains(&header.head.arm7_entry) {
+        return BootError::BadEntrypoint(header.head.arm7_entry);
     }
-    if !arm9_range.contains(&header.arm9_entry) {
-        return BootError::BadEntrypoint(header.arm9_entry);
+    if !arm9_range.contains(&header.head.arm9_entry) {
+        return BootError::BadEntrypoint(header.head.arm9_entry);
     }
+    
+
     boot_unreturnable(r, file_path, header, blowfish);
 }
 pub unsafe fn inject_bootstrap() {

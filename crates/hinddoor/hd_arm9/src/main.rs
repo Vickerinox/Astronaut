@@ -153,12 +153,6 @@ impl NandAutobootEntry {
 }
 static mut NAND_AUTOBOOTS: [NandAutobootEntry; 40] = [NandAutobootEntry::EMPTY; 40];
 
-pub unsafe fn nocash_write(str: &str) {
-    const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
-    for byte in str.as_bytes() {
-        NOCASH_OUT_CHR.write_volatile(*byte);
-    }
-}
 
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 unsafe fn interrupt_handler() {
@@ -429,10 +423,11 @@ unsafe fn base_init_graphics() {
 }
 unsafe fn main() {
     unsafe {
+        reboot_lib::nocash_write("> Welcome to vlaunch!\n");
         let blowfish_key = &mut *(0x2F1_0000 as *mut BFCTX);
         *blowfish_key = (*(0x1FFC894 as *const BFCTX)).clone();
-        core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001110);
-
+        VIDEO_HARDWARE.power_control.write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
+        
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
         //set background color to brat green.
@@ -465,7 +460,6 @@ unsafe fn main() {
         core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
         core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-
         //copy font to vram
         init_font();
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
@@ -475,7 +469,7 @@ unsafe fn main() {
             min: Vec2::ZERO,
             max: Vec2::new(255, 191),
         };
-
+        
         gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
             text_pass.set_color(0x7FFF);
             text_pass.layout_str("If you can see this screen, the Co-CPU (ARM7) has yet to respond. And most likely the console has crashed.", 8);
@@ -488,17 +482,8 @@ unsafe fn main() {
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 0 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
 
-        #[cfg(target_arch = "arm")]
-        {
-            let mut dtcm: u32 = 0x2FE_000A;
-
-            core::arch::asm!(
-                "mcr p15, 0, {0}, c9, c1, 0",
-                "mrc p15, 0, {0}, c9, c1, 0",
-                inout(reg) dtcm,
-            );
-        }
-
+        
+        
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
 
@@ -752,10 +737,24 @@ unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
     slice as *mut T as *mut () as *mut U
 }
 unsafe fn irq_init() {
-    use reboot_lib::INTERUPT_HARDWARE;
+    
+
     INTERUPT_HARDWARE.master.write(0);
     INTERUPT_HARDWARE.enable.write(0);
     INTERUPT_HARDWARE.request.write(!0);
-    (0x02FE_3FFC as *mut unsafe fn()).write(interrupt_handler);
+    use reboot_lib::INTERUPT_HARDWARE;
+    let mut dtcm: u32 = 0; 
+    #[cfg(target_arch = "arm")]
+        {
+            // = 0x2FE_000A;
+
+            core::arch::asm!(
+                //"mcr p15, 0, {0}, c9, c1, 0",
+                "mrc p15, 0, {0}, c9, c1, 0",
+                inout(reg) dtcm,
+            );
+        }
+    
+    (((dtcm & !0xFFF) + 0x3FFC) as *mut unsafe fn()).write(interrupt_handler);
     INTERUPT_HARDWARE.master.write(1);
 }

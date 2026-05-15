@@ -151,6 +151,7 @@ bitflags! {
         const ENABLE_3D_GEOMETRY = (1<<3);
         const ENABLE_ENGINE_B = (1<<9);
         const ENGINE_A_ON_TOP = (1<<15);
+        const ENABLE_LCDS = (1<<0);
     }
     #[derive(Clone, Copy)]
     pub struct PrimaryDisplayControl: u32 {

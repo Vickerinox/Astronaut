@@ -70,8 +70,8 @@ impl AESEngine {
             let module = &self.keyslots[0];
             module.key_x[0].write(0x746E694E);
             module.key_x[1].write(0x6F646E65);
-            module.key_x[2].write(header.tid);
-            module.key_x[3].write(header.tid.swap_bytes());
+            module.key_x[2].write(header.head.tid);
+            module.key_x[3].write(header.head.tid.swap_bytes());
             module.key_y[0].write(header.arm9i_sha1[0]);
             module.key_y[1].write(header.arm9i_sha1[1]);
             module.key_y[2].write(header.arm9i_sha1[2]);

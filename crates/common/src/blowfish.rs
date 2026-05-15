@@ -200,8 +200,8 @@ impl BFCTX {
     }
 }
 pub unsafe fn decrypt_secure_area(header: &HeaderTWL) {
-    if (0x4000..0x8000).contains(&header.arm9_offset) {
-        if core::slice::from_raw_parts(header.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {
+    if (0x4000..0x8000).contains(&header.head.arm9_offset) {
+        if core::slice::from_raw_parts(header.head.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {
             
         }
     }

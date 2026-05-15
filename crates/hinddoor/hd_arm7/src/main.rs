@@ -5,20 +5,12 @@ mod mmc;
 mod mmc_new;
 mod swi;
 
-use common::bootstrap;
+use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
 use reboot_lib::{
-    check_sdmmc,
-    i2c::I2CRegister,
-    ndma::NDMA_HARDWARE,
-    sound::SOUND_HARDWARE,
-    spi::{
-        touchscreen::read_tsc_pos_cdc,
-        Control, PowerRegiser,
-    },
-    timers::TIMERS,
-    write_sd_sectors, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
-    MMC_CONTROLLER, SDIO_CONTROLLER,
+    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, sound::SOUND_HARDWARE, spi::{
+        Control, PowerRegiser, SPI_HARDWARE, touchscreen::read_tsc_pos_cdc
+    }, timers::TIMERS, write_sd_sectors
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -143,23 +135,47 @@ fn main() {
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
-        let mut firm = [StorageSector::default()];
+        
+        let mut location = [0u8; 2];
+        SPI_HARDWARE.read_firmware(&mut location, 0x20);
+        let settings_offset = (u16::from_le_bytes(location) as u32) * 8;
 
-        firmware_read(&mut firm, 0);
-        let settings_offset = u16::from_le_bytes([firm[0].bytes()[0x20], firm[0].bytes()[0x21]]);
+        let mut ctr1 = [0u8];
+        SPI_HARDWARE.read_firmware(&mut ctr1, settings_offset+0x70);
+        let [ctr1] = ctr1;
 
-        firmware_read(&mut firm, settings_offset as u32 * 8);
-        let firm = firm[0].bytes();
+        let mut ctr2 = [0u8];
+        SPI_HARDWARE.read_firmware(&mut ctr2, settings_offset+0x170);
+        let [ctr2] = ctr2;
+        
+        let mut wifi_ver = [0u8];
+        SPI_HARDWARE.read_firmware(&mut wifi_ver, 0x1FD);
+        let [wifi_ver] = wifi_ver;
 
-        let adcx1 = u16::from_le_bytes([firm[0x158], firm[0x159]]);
-        let adcy1 = u16::from_le_bytes([firm[0x15A], firm[0x15B]]);
-        let scrx1 = firm[0x15C];
-        let scry1 = firm[0x15D];
+        let offset = if (ctr1&0x7f) == ((ctr2+1)&0x7f) {
+            settings_offset
+        } else {
+            settings_offset + 0x100
+        };
+        let firm_buffer = &mut (*BOOTINFO_MEM).ntr.firmware_data;
+        let (user, remainder) = firm_buffer.split_at_mut(0x74);
+        SPI_HARDWARE.read_firmware(user, offset);
+        let (mac, remainder) = remainder.split_at_mut(6);
+        SPI_HARDWARE.read_firmware(mac, 0x36);
+        remainder[0] = 0x41;
+        remainder[1] = 0x10;
+        remainder[0xE8-0x7A..(0xEC-0x7A)+4].copy_from_slice(&[0x3E,0,0,0,0,0,0,0]);
+        remainder[0xF0-0x7A] = 2;
+        remainder[0xFF-0x7A] = wifi_ver;
+        let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
+        let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
+        let scrx1 = user[0x5C];
+        let scry1 = user[0x5D];
 
-        let adcx2 = u16::from_le_bytes([firm[0x15E], firm[0x15F]]);
-        let adcy2 = u16::from_le_bytes([firm[0x160], firm[0x161]]);
-        let scrx2 = firm[0x162];
-        let scry2 = firm[0x163];
+        let adcx2 = u16::from_le_bytes([user[0x5E], user[0x5F]]);
+        let adcy2 = u16::from_le_bytes([user[0x60], user[0x61]]);
+        let scrx2 = user[0x62];
+        let scry2 = user[0x63];
 
         let x_scale = ((scrx2 as i32 - scrx1 as i32) << 19) / (adcx2 as i32 - adcx1 as i32);
         let y_scale = ((scry2 as i32 - scry1 as i32) << 19) / (adcy2 as i32 - adcy1 as i32);
@@ -303,7 +319,8 @@ fn main() {
                 }
                 7 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-                    firmware_read(buffer, arg);
+                    response = 0x80000000
+                    //firmware_read(buffer, arg);
                 }
 
                 8 => {
@@ -357,7 +374,7 @@ fn main() {
 
 
 
-                    if header.arm9i_offset != header.modcrypt1_offset && header.arm9_offset != header.modcrypt1_offset {
+                    if header.arm9i_offset != header.modcrypt1_offset && header.head.arm9_offset != header.modcrypt1_offset {
                         response = 1;
                     }
                     if header.modcrypt2_len != 0 {
@@ -373,7 +390,7 @@ fn main() {
                         let  ptr = if header.arm9i_offset == header.modcrypt1_offset {
                             header.arm9i_load
                         } else {
-                            header.arm9_load
+                            header.head.arm9_load
                         };
                         
 
@@ -430,7 +447,7 @@ pub unsafe fn clear_arm7_regs() {
 pub unsafe fn firmware_read(data: *mut [reboot_lib::StorageSector], offset: u32) {
     let (ptr, len) = data.to_raw_parts();
     let buffer = core::slice::from_raw_parts_mut(ptr as *mut u8, len << 9);
-    reboot_lib::spi::SPI_HARDWARE.read_firmware(buffer, offset);
+    SPI_HARDWARE.read_firmware(buffer, offset);
 }
 /// read and decrypt the given sectors from NAND using NDMA.
 pub unsafe fn mmc_read_decrypt(
