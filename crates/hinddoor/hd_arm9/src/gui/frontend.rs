@@ -24,7 +24,6 @@ enum CurrentUI {
     Browsing {
         immediate_files: Vec<(String, String, bool, Color)>,
         file_path: String,
-        is_nand: bool,
         offset: usize,
     },
     LoadingApp {
@@ -57,7 +56,6 @@ impl<'a> AppData<'a> {
             CurrentUI::Browsing {
                 immediate_files,
                 file_path,
-                is_nand: false,
                 offset: 0,
             }
         })
@@ -69,7 +67,6 @@ impl<'a> AppData<'a> {
             CurrentUI::Browsing {
                 immediate_files,
                 file_path,
-                is_nand: false,
                 offset: 0,
             }
         })
@@ -83,7 +80,7 @@ impl<'a> AppData<'a> {
     } 
     pub unsafe fn autoboot(&mut self) {
         match fatfs_embedded::open(
-                &mut "sd:/_nds/vlaunch/autoboot.bin".to_string(),
+                &mut "sd:/_nds/vlaunch/autoboot.txt".to_string(),
                 FileOptions::Read,
             ) {
                 Ok(mut file) => {
@@ -130,7 +127,8 @@ impl<'a> AppData<'a> {
         let _mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {
             unsafe {
-                ui.label(&format!("SD stat: {:?} NAND stat: {:?}", crate::SD_ERROR, crate::EMMC_ERROR));
+                let sdio = reboot_lib::twl_wifi::STATUS.read_volatile();
+                ui.label(&format!("SDMC: {:?} MMC: {:?} SDIO: {:08x?}", crate::SD_ERROR, crate::EMMC_ERROR, sdio));
             }
             if let Some(loading_mod) = self.loading_mod_file.take() {
                 let (progress, max) = loading_mod.progress();
@@ -231,7 +229,6 @@ impl<'a> AppData<'a> {
                     CurrentUI::Browsing {
                         immediate_files,
                         file_path: current_path,
-                        is_nand: _,
                         offset,
                     } => {
                         if ui.input_pressed(Input(Buttons::DIRECTION_UP)) {

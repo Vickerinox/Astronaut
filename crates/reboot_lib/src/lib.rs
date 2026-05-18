@@ -26,7 +26,7 @@ pub mod rtc;
 use core::num::NonZeroU32;
 pub mod twl_wifi;
 
-
+pub use memory::{VRAMCtrl};
 pub use aes::*;
 pub use allocator::ALLOCATOR;
 pub use dma::*;
@@ -61,8 +61,14 @@ pub unsafe fn critical_function<F: FnOnce()>(closure: F) {
     REG_IME.write_volatile(ime);
 }
 pub unsafe fn nocash_write(str: &str) {
+    nocash_write_bytes(str.as_bytes());
+}
+pub unsafe fn nocash_str(str: &str) {
+    (0x4fffa10 as *mut u32).write(core::ptr::addr_of!(*str) as *const u8 as usize as u32);
+}
+pub unsafe fn nocash_write_bytes(str: &[u8]) {
     const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
-    for byte in str.as_bytes() {
+    for byte in str {
         NOCASH_OUT_CHR.write_volatile(*byte);
     }
 }

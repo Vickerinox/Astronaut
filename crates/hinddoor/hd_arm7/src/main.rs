@@ -200,6 +200,9 @@ fn main() {
         let mut last_y = 0;
         let mut pen_down = false;
         let mut last_pen = false;
+    
+        //cwf::init_wifi_card();
+        reboot_lib::twl_wifi::nwifi_init_complete();
         //reboot_lib::spi::touchscreen::enable_tsc();
 
         loop {
@@ -208,7 +211,7 @@ fn main() {
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
                     if IPC_FIFO_HARDWARE.recieve_raw_blocking() != 0 {
-                        response = 0x8000_0000;
+                        //response = 0x8000_0000;
                         continue;
                     };
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
@@ -272,8 +275,8 @@ fn main() {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match arg {
-                        1 => check_sdmmc(reboot_lib::DeviceSelect::SDCardSlot).bits(),
-                        2 => check_sdmmc(reboot_lib::DeviceSelect::EMMC).bits(),
+                        1 => Status::EMPTY.bits(),//check_sdmmc(reboot_lib::DeviceSelect::SDCardSlot).bits(),
+                        2 => Status::EMPTY.bits(),//check_sdmmc(reboot_lib::DeviceSelect::EMMC).bits(),
                         _ => 1,
                     }
                 }
@@ -311,14 +314,14 @@ fn main() {
                     NDMA_HARDWARE.reset();
                     MMC_CONTROLLER.reset();
                     SDIO_CONTROLLER.reset();
-                    reboot_lib::i2c::I2C_HARDWARE.write_register(
+                    let _ = reboot_lib::i2c::I2C_HARDWARE.write_register(
                         I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR),
                         0,
                     );
                     bootstrap::boot_arm7();
                 }
                 7 => {
-                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     response = 0x80000000
                     //firmware_read(buffer, arg);
                 }

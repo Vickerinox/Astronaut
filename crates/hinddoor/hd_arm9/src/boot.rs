@@ -53,6 +53,7 @@ unsafe fn boot_unreturnable(
     fatfs_embedded::seek(r, header.head.arm9_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
+    crate::set_background(0b0_01100_01100_01100);
     reboot_lib::nocash_write("> ARM9 binary loaded \n");
 
     let arm9_ram =
@@ -61,7 +62,7 @@ unsafe fn boot_unreturnable(
     read_all(arm9_ram, r).unwrap();
 
     reboot_lib::nocash_write("> ARM7 binary loaded \n");
-
+    crate::set_background(0b0_10100_10100_10100);
 
     if header.is_dsi_mode() {
         let arm9_ram = core::slice::from_raw_parts_mut(
@@ -91,26 +92,29 @@ unsafe fn boot_unreturnable(
             reboot_lib::nocash_write("> Applied Modcrypt \n");
         }
     } 
-    {
+    crate::set_background(0b0_11100_11100_11100);
+    if (0x4000..0x8000).contains(&header.head.arm9_offset) {
         let tmp = header.head.arm9_load as *mut u32;
-        let gamecode = header.head.tid;
-        let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
-        bf.init2(&mut arg);
-        bf.init2(&mut arg);
-        bf.decrypt(&mut *tmp.add(1), &mut *tmp);
-        arg[1] <<= 1;
-        arg[2] >>= 1;
-        bf.init2(&mut arg);
-        bf.decrypt(&mut *tmp.add(1), &mut *tmp);
+        if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
+            let gamecode = header.head.tid;
+            let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
+            bf.init2(&mut arg);
+            bf.init2(&mut arg);
+            bf.decrypt(&mut *tmp.add(1), &mut *tmp);
+            arg[1] <<= 1;
+            arg[2] >>= 1;
+            bf.init2(&mut arg);
+            bf.decrypt(&mut *tmp.add(1), &mut *tmp);
 
-        for i in (2..0x200).step_by(2) {
-            bf.decrypt(&mut *tmp.add(i+1), &mut *tmp.add(i));
+            for i in (2..0x200).step_by(2) {
+                bf.decrypt(&mut *tmp.add(i+1), &mut *tmp.add(i));
+            }
+            if tmp.read() == 0x72636E65 && tmp.add(1).read() == 0x6A624F79{
+                tmp.write(0xE7FFDEFF);
+                tmp.add(1).write(0xE7FFDEFF);
+            }
+            reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
-        if tmp.read() == 0x72636E65 && tmp.add(1).read() == 0x6A624F79{
-            tmp.write(0xE7FFDEFF);
-            tmp.add(1).write(0xE7FFDEFF);
-        }
-        reboot_lib::nocash_write("> Decrypted Secure Area \n");
     }
     if header.is_homebrew() {
         common::argv::init(header, file_path);
@@ -149,9 +153,8 @@ unsafe fn boot_unreturnable(
     while VCOUNT_REG.read_volatile() == 192 {}
 
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
-    core::ptr::write_volatile(0x5000000 as *mut u16, 0b0100001000010000);
-    core::ptr::write_volatile(0x5000400 as *mut u16, 0b0100001000010000);
-
+   
+    crate::set_background(0x7FFF);
     reboot_lib::flush_mmc();
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}

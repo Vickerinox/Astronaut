@@ -2,7 +2,7 @@ use core::ops::BitOr;
 
 use crate::bootstrap::{BOOTINFO_MEM, HeaderTWL};
 
-pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, location: &str) {
+pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _location: &str) {
     if header.arm7_device_list == 0 {
         return;
     }

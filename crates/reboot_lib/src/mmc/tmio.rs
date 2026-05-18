@@ -31,8 +31,9 @@ impl MMC {
         self.sdio_mask.write(0xFFFF);
         self.ext_sdio_irq.write((1<<10) | (1<<9) | (1<<8));
 
-        enable_interrupt(ARM7Interrupt::SDMMC);
+        //enable_interrupt(ARM7Interrupt::SDMMC);
     }
+    
     pub unsafe fn powerup_port(&self, port: &mut TMIOPort) {
         self.clock_control.write(ClockCnt::ENABLE | ClockCnt::FREQ_262K);
         self.port_select.write(port.port_num);

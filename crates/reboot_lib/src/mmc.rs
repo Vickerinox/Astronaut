@@ -92,8 +92,6 @@ bitflags! {
 
         const UNKNOWN = (1<<27);
 
-
-
         const CMD_BUSY = (1<<30);
         const ERR_ILLEGAL_ACCESS = (1<<31);
 
@@ -218,6 +216,7 @@ impl MMC {
 
         //disable SDIO
         self.sdio_mode.write(0);
+        self.sdio_mode.write(0);
         self.sdio_mask.write(0xFFFF);
         //crate::enable_interrupt(crate::ARM7Interrupt::SDMMC);
         //crate::enable_interrupt(crate::ARM7Interrupt::SDMMCData1);
@@ -261,43 +260,33 @@ impl MMC {
         command: Command,
         argument: u32,
     ) -> Status {
+        crate::nocash_write_bytes(&[command as u8]);
         //return self.new_send_command(port, command, argument);
-
+        while self.status.read().contains(Status::CMD_BUSY) {}
         self.tmio_set_port(port);
-        self.irmask.write(Status::empty());
-        self.status.write(Status::empty());
         self.block_count.write(port.buffer.len() as u16);
-        self.stop_action.write(1 << 8);
+        self.block_count_32.write(port.buffer.len() as u16);
         
-
+        self.irmask.write(Status::all());
+        self.status.write(Status::empty());
+        self.stop_action.write(1<<8);
+        
         self.data_control.write(Control::USE_DATA32);
-        self.data_control_32
-            .write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
+        self.data_control_32.write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
+        
         let mut timeout = 0;
-        while self
-            .data_control_32
-            .read()
-            .intersects(DataControl32::RX_READY)
-        {
-            timeout += 1;
-            if timeout > 0x10_0000 {
-                return !Status::INSERTED;
-            }
-        }
+
         self.param.write(argument);
         self.command.write(command as u16);
-
-        while !self.status.read().contains(Status::RESPONSE_END) {
+        
+        let mut value = self.status.read();
+        while !value.contains(Status::RESPONSE_END) {
             timeout += 1;
             if timeout > 0x10_0000 {
                 return !Status::INSERTED;
             }
+            value |= self.status.read();
         }
-
-        //swi_delay(0x100);
-        
-        let value = self.status.read();
-        self.status.write(!value | Status::CMD_BUSY);
 
         self.tmio_get_response(port, command as u16);
 
@@ -312,7 +301,7 @@ impl MMC {
             timeout = 0;
             if command.reads_data() {
                 // Read loop
-                while !self.status.read().intersects(Status::ALL_ERRORS) {
+                while !value.intersects(Status::ALL_ERRORS ^ Status::ERR_CMD_TIMEOUT) {
                     timeout += 1;
                     if timeout > 0x10_0000 {
                         return !Status::INSERTED;
@@ -323,8 +312,7 @@ impl MMC {
                         .contains(DataControl32::RX_READY)
                     {
                         timeout = 0;
-                        //self.status.write(!Status::RX_READY);
-                        for (i, word) in current_sector.0.iter_mut().enumerate() {
+                        for word in current_sector.0.iter_mut() {
                             (word as *mut u32).write_volatile(self.data_fifo_32.read());
                         }
                         let Some(next_sector) = sector_iter.next() else {
@@ -332,17 +320,18 @@ impl MMC {
                         };
                         current_sector = next_sector;
                     }
+                    value |= self.status.read();
                 }
             } else {
                 // Write loop
-                while !self.status.read().intersects(Status::ALL_ERRORS) {
+                while !value.intersects(Status::ALL_ERRORS ^ Status::ERR_CMD_TIMEOUT) {
                     timeout += 1;
                     if timeout > 0x10_0000 {
                         return !Status::INSERTED;
                     }
                     if !self.data_control_32.read().contains(DataControl32::TX_BUSY) {
                         timeout = 0;
-                        for (i, word) in current_sector.0.iter_mut().enumerate() {
+                        for word in current_sector.0.iter_mut() {
                             self.data_fifo_32.write(*word);
                         }
                         let Some(next_sector) = sector_iter.next() else {
@@ -350,9 +339,27 @@ impl MMC {
                         };
                         current_sector = next_sector;
                     }
+                    value |= self.status.read();
                 }
             }
+            /* 
+            while !self.status.read().contains(Status::DATA_END) {
+                timeout += 1;
+                if timeout > 0x10_0000 {
+                    return !Status::INSERTED;
+                }
+            }
+            */
+            //This is dumb. i hate it. this sucks. fuck this. I don't know why i need it.
+            //Nobody else needs this in their drivers. why do i need it. fuck this.
+            if value.contains(Status::ERR_CMD_TIMEOUT) {
+                value &= !Status::ERR_CMD_TIMEOUT
+            }
+            
         }
+        
+    
+
         while self.status.read().contains(Status::CMD_BUSY) {
             timeout += 1;
             if timeout > 0x10_0000 {
@@ -360,13 +367,12 @@ impl MMC {
             }
         }
         
-        // let resp: [u32; 4] = core::array::from_fn(|i| self.response[i].read());
-        //port.response[0] = resp[3]<<8 | resp[2]>>24;
-		//port.response[1] = resp[2]<<8 | resp[1]>>24;
-		//port.response[2] = resp[1]<<8 | resp[0]>>24;
-		//port.response[3] = resp[0]<<8;
-        //port.response = resp;
-        self.status.read().intersection(Status::ALL_ERRORS)
+        let ret = value.intersection(Status::ALL_ERRORS);
+        if ret.intersects(Status::ALL_ERRORS) {
+            crate::twl_wifi::STATUS.write(ret.bits() | (self.response[0].read() & 0xFF00) | ((command as u8) as u32));
+        }
+        ret
+        
     }
 }
 const fn none(command_number: u16) -> u16 {
@@ -415,6 +421,9 @@ const fn acmd_r1_r(command_number: u16) -> u16 {
 #[repr(u16)]
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
+    Test = 3,
+    SDIOOpCond = 0x705,
+    SDIORegRW = 0x434,
     //basic commands (class 0)
     GoIdleState = none(0),
     AllSendCID = r2(2),
@@ -434,14 +443,14 @@ pub enum Command {
     //block oriented commands
     SetBlockLen = r1(16),
     ReadSingleBlock = r1_r(17),
-    ReadMutliBlocks = r1_r(18) | CMD_DATA_MULTI,
+    ReadMutliBlocks = 18 | CMD_DATA_EN | CMD_DATA_MULTI | CMD_DATA_R,//r1_r(18) | CMD_DATA_MULTI,
     SendTuningBlock = r1_r(19),
     SpeedClassControl = r1b(20),
     AddressExtension = r1(22),
     SetBlockCount = r1(23),
 
     WriteSingleBlock = r1_w(24),
-    WriteMultiBlocks = r1_w(25) | CMD_DATA_MULTI,
+    WriteMultiBlocks = 25 | CMD_DATA_EN | CMD_DATA_MULTI | CMD_DATA_W,//r1_w(25) | CMD_DATA_MULTI,
     ProgramCSD = r1_w(27),
 
     SetWriteProtection = r1b(28),
@@ -529,6 +538,14 @@ impl TMIOPort {
             response: [0; 4],
         }
     }
+    pub const fn dsio() -> Self {
+    Self {    port_num: 0,
+        clock: ClockCnt::FREQ_131K,
+        block_len: 128,
+        option: (1 << 15),
+        buffer: &mut [],
+        response: [0; 4],
+    }}
     pub fn set_bus_width(&mut self, width: u8) {
         self.option = if width == 4 {
             0 | (1<<14) | (11 << 4) | 8

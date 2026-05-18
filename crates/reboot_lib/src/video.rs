@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::MemoryWrapper;
+use crate::{MemoryWrapper, VRAMCtrl};
 use bitflags::bitflags;
 use volatile_register::{RO, RW, WO};
 
@@ -8,14 +8,19 @@ use volatile_register::{RO, RW, WO};
 pub const VIDEO_HARDWARE: MemoryWrapper<VideoHardware> =
     MemoryWrapper(0x0400_0000 as *mut VideoHardware);
 
-pub const ENGINE_A_BG_PALETTES: MemoryWrapper<[u16; 256]> =
-    MemoryWrapper(0x0500_0000 as *mut [u16; 256]);
-pub const ENGINE_A_OBJ_PALETTES: MemoryWrapper<[u16; 256]> =
-    MemoryWrapper(0x0500_0200 as *mut [u16; 256]);
-pub const ENGINE_B_BG_PALETTES: MemoryWrapper<[u16; 256]> =
-    MemoryWrapper(0x0500_0400 as *mut [u16; 256]);
-pub const ENGINE_B_OBJ_PALETTES: MemoryWrapper<[u16; 256]> =
-    MemoryWrapper(0x0500_0600 as *mut [u16; 256]);
+#[allow(const_item_mutation)]
+pub const ENGINE_A_PALETTES: MemoryWrapper<PPUEngine> =
+    MemoryWrapper(0x0500_0000 as *mut PPUEngine);
+
+
+
+#[repr(C)]
+pub struct PPUEngine {
+    pub bg_palettes: [WO<u16>; 256],
+    pub obj_palettets: [WO<u16>; 256],
+}
+pub const ENGINE_B_PALETTES: MemoryWrapper<PPUEngine> =
+    MemoryWrapper(0x0500_0400 as *mut PPUEngine);
 
 pub const ENGINE_A_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0000 as *mut [u16; 512]);
 pub const ENGINE_B_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0400 as *mut [u16; 512]);
@@ -154,7 +159,7 @@ bitflags! {
         const ENABLE_LCDS = (1<<0);
     }
     #[derive(Clone, Copy)]
-    pub struct PrimaryDisplayControl: u32 {
+    pub struct DisplayControl: u32 {
         const BG_MODE_0 = 0x10000;
         const BG_MODE_1 = 0x10001;
         const BG_MODE_2 = 0x10002;
@@ -233,20 +238,20 @@ impl Viewport {
 
 #[repr(C)]
 pub struct VideoHardware {
-    pub primary_display_control: RW<PrimaryDisplayControl>,
-    _unimplemented: [u8; 0x5C],
+    pub engine_a_ctrl: RW<DisplayControl>,
+    _0x4: [u8; 0x5C],
     pub display_control_3d: RW<u16>,
-    _unimplemented2: [u8; 0x1DE],
-    pub vram_control_bank_a: WO<u8>,
-    pub vram_control_bank_b: WO<u8>,
-    pub vram_control_bank_c: WO<u8>,
-    pub vram_control_bank_d: WO<u8>,
-    pub vram_control_bank_e: WO<u8>,
-    pub vram_control_bank_f: WO<u8>,
-    pub vram_control_bank_g: WO<u8>,
-    _vram_empty: u8,
-    pub vram_control_bank_h: WO<u8>,
-    pub vram_control_bank_i: WO<u8>,
+    _0x62: [u8; 0x1DE],
+    pub vram_control_bank_a: WO<VRAMCtrl>,
+    pub vram_control_bank_b: WO<VRAMCtrl>,
+    pub vram_control_bank_c: WO<VRAMCtrl>,
+    pub vram_control_bank_d: WO<VRAMCtrl>,
+    pub vram_control_bank_e: WO<VRAMCtrl>,
+    pub vram_control_bank_f: WO<VRAMCtrl>,
+    pub vram_control_bank_g: WO<VRAMCtrl>,
+    _0x247: u8,
+    pub vram_control_bank_h: WO<VRAMCtrl>,
+    pub vram_control_bank_i: WO<VRAMCtrl>,
     _unimplemented_3: [u8; 0xBA],
     pub power_control: WO<VideoPowerControl>,
     _unimplemented_4: [u8; 0x1A],

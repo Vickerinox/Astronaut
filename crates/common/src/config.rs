@@ -62,6 +62,7 @@ enum Region {
     China = 4,
     Korea = 5,
 }
+/* 
 enum UserLanguage {
     Japanese = 0,
     English = 1,
@@ -72,6 +73,7 @@ enum UserLanguage {
     Chinese = 6,
     Korean = 7,
 }
+*/
 impl Region {
     pub fn from_gamecode(tid: u32) -> Region {
         let code = (tid >> 24) as u8;

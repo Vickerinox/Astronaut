@@ -53,14 +53,14 @@ impl core::ops::Add for Vec2 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::new(self.x.saturating_add(rhs.x), self.y.saturating_add(rhs.y))
+        Self::new(self.x.wrapping_add(rhs.x), self.y.wrapping_add(rhs.y))
     }
 }
 impl core::ops::Sub for Vec2 {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(self.x.saturating_sub(rhs.x), self.y.saturating_sub(rhs.y))
+        Self::new(self.x.wrapping_sub(rhs.x), self.y.wrapping_sub(rhs.y))
     }
 }
 impl Vec2 {

@@ -44,7 +44,7 @@ impl RTCHardware {
         crate::swi_delay(84);
     }
 }
-const RTC_HARDWARE: MemoryWrapper<RTCHardware> = MemoryWrapper(0x04000138 as *mut RTCHardware);
+pub const RTC_HARDWARE: MemoryWrapper<RTCHardware> = MemoryWrapper(0x04000138 as *mut RTCHardware);
 bitflags::bitflags! {
     #[derive(Clone, Copy)]
     pub struct RTCReg: u8 {

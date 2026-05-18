@@ -1,32 +1,27 @@
-use reboot_lib::flush_mmc;
+use reboot_lib::{VIDEO_HARDWARE, VRAMCtrl, flush_mmc};
 
-unsafe fn mysterious_function_2() {
-    //WRAM C set to appear on arm9,
-    core::ptr::write_volatile(0x400405c as *mut u32, 0x0C003800);
-    core::ptr::write_volatile(0x4004050 as *mut u8, 0x80);
-
-    //mmc flush
-    flush_mmc();
-    let mut r1 = 0x3800000;
-    let mut r2 = 0x8000;
-
-    //fill 32KB with our entry address?
-    while r2 != 0 {
-        core::ptr::write_volatile(r1 as *mut u32, 0x6023CD8);
-        r1 += 4;
-        r2 -= 4;
-    }
-    //mmc flush
-    flush_mmc();
-
-    //Remap WRAM C Back.
-    let r0 = core::ptr::read_volatile(0x4004050 as *const u32);
-    let r0 = r0 & 0xFF00FF00 | 0x99;
-    core::ptr::write_volatile(0x4004050 as *mut u32, r0);
+ pub struct WordAligned<Bytes: ?Sized> {
+    pub _align: [u32; 0],
+    pub bytes: Bytes,
 }
 
-pub unsafe fn mysterious_takeover_function() {
-    core::ptr::write_volatile(0x4000243 as *mut u8, 0x80);
+macro_rules! include_bytes_word_align {
+    ($path:literal) => {
+        {  
+            static ALIGNED: &WordAligned::<[u8]> = &WordAligned {
+                _align: [],
+                bytes: *include_bytes!($path),
+            };
+
+            &ALIGNED.bytes
+        }
+    };
+}
+
+const ARM7_BINARY: &[u8] = include_bytes_word_align!("./arm7.bin");
+
+pub unsafe fn takeover_arm7() {
+    
     flush_mmc();
 
     //remember this is where the wram appears on the arm9
@@ -35,33 +30,41 @@ pub unsafe fn mysterious_takeover_function() {
     const BINARY_ENTRY_ADDR_ARM9: *mut u32 = 0x6860000 as *mut u32;
     const BINARY_ENTRY_ADDR_ARM7: u32 = 0x6000000;
 
-    let mut arm7_bytes = crate::ARM7_BINARY.iter().copied();
-    for i in 0..0x4000 {
-        let byte1 = arm7_bytes.next().unwrap_or(0);
-        let byte2 = arm7_bytes.next().unwrap_or(0);
-        let byte3 = arm7_bytes.next().unwrap_or(0);
-        let byte4 = arm7_bytes.next().unwrap_or(0);
-        let stuff = u32::from_le_bytes([byte1, byte2, byte3, byte4]);
-        BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(stuff);
+    // SEGMENT 1: Injecting the ARM7 binary
+    {
+        //Map VRAM D to us
+        VIDEO_HARDWARE.vram_control_bank_d.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+        let arm7_bytes = core::ptr::addr_of!(*ARM7_BINARY) as *const u32;
+        
+        // Put the ARM7 Binary into VRAM, which it can execute from later.
+        for i in 0..0x4000 {
+            if i < (ARM7_BINARY.len() >> 2) {
+                BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(arm7_bytes.add(i).read());
+            } else {
+                BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(0);
+            }
+        }
+        //set VRAM D to arm7
+        VIDEO_HARDWARE.vram_control_bank_d.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_2);
     }
+    // SEGMENT 2: Injecting jumpslide for ARM7
+    {
+        //WRAM C set to appear on arm9,
+        core::ptr::write_volatile(0x400405c as *mut u32, 0x0C003800);
+        core::ptr::write_volatile(0x4004050 as *mut u8, 0x80);
 
-    //WRAM C set to appear on arm9,
-    core::ptr::write_volatile(0x400405c as *mut u32, 0x0C003800);
-    core::ptr::write_volatile(0x4004050 as *mut u8, 0x80);
+        flush_mmc();
+        for i in 0..0x800 {
+            MAGIC_JUMP_START
+                .add(i)
+                .write_volatile(BINARY_ENTRY_ADDR_ARM7);
+        }
+        flush_mmc();
 
-    flush_mmc();
-
-    for i in 0..0x800 {
-        MAGIC_JUMP_START
-            .add(i)
-            .write_volatile(BINARY_ENTRY_ADDR_ARM7);
+        //Remap WRAM C Back to arm7.
+        let r0 = ((0x4004050 as *const u32).read() & 0xFF00FF00) | 0x99;
+        core::ptr::write_volatile(0x4004050 as *mut u32, r0);
     }
-
-    flush_mmc();
-
-    core::ptr::write_volatile(0x4000243 as *mut u8, 0x82); //set VRAM D to arm7
-                                                           //Remap WRAM C Back to arm7.
-    let r0 = core::ptr::read_volatile(0x4004050 as *const u32);
-    let r0 = r0 & 0xFF00FF00 | 0x99;
-    core::ptr::write_volatile(0x4004050 as *mut u32, r0);
+    // What will happen after this is that the ARM7 enters the jump slide into VRAM, and begins executing the binary from there.
 }

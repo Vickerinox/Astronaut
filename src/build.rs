@@ -99,6 +99,8 @@ pub fn compile_arm7(
         empty_bin[file_range].copy_from_slice(data);
     }
 
+    while empty_bin.len() % 4 != 0 {empty_bin.push(0u8);}
+    info!("ARM Binary is {:x?} bytes", empty_bin.len());
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)
         .open(&include_file_path)
