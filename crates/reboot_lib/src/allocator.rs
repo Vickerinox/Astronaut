@@ -41,7 +41,7 @@ pub struct DualSuperAllocator {
 pub struct LockGuard<'a>(&'a DualSuperAllocator);
 
 //master interrupt enable register.
-const ALLOCATOR_LOCATION: usize = 0x200_0000;
+const ALLOCATOR_LOCATION: usize = 0x200_1000;
 const HEAP_START: usize = ALLOCATOR_LOCATION + size_of::<DualSuperAllocator>();
 const HEAP_LEN: usize = 0x2F0_0000 - HEAP_START;
 impl DualSuperAllocator {

@@ -14,7 +14,7 @@ use core::str;
 
 use micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
-use reboot_lib::{ ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, VRAMCtrl, VideoHardwareHandle, arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc};
+use reboot_lib::{ ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, MemoryWrapper, VRAMCtrl, VideoHardwareHandle, arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc};
 use reboot_lib::{
     Buttons, MatrixMode, PolygonAttributes, DisplayControl, StorageSector,
     VideoPowerControl, Viewport, VIDEO_HARDWARE,
@@ -519,7 +519,7 @@ unsafe fn main() {
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
         
-        let mut frontend = gui::AppData::new(blowfish_key);
+        let mut frontend = Box::new(gui::AppData::new(blowfish_key));
         
         FS_NAND.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
         FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sd:\0"));

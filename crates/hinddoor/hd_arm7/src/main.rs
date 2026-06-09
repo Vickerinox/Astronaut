@@ -201,7 +201,6 @@ fn main() {
         let mut pen_down = false;
         let mut last_pen = false;
     
-        //cwf::init_wifi_card();
         reboot_lib::twl_wifi::nwifi_init_complete();
         //reboot_lib::spi::touchscreen::enable_tsc();
 

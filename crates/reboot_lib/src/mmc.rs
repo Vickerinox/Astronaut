@@ -367,12 +367,7 @@ impl MMC {
             }
         }
         
-        let ret = value.intersection(Status::ALL_ERRORS);
-        if ret.intersects(Status::ALL_ERRORS) {
-            crate::twl_wifi::STATUS.write(ret.bits() | (self.response[0].read() & 0xFF00) | ((command as u8) as u32));
-        }
-        ret
-        
+        value.intersection(Status::ALL_ERRORS)      
     }
 }
 const fn none(command_number: u16) -> u16 {

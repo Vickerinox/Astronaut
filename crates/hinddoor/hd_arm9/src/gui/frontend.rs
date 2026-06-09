@@ -13,8 +13,7 @@ use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::{FileOptions, FS_SD};
 use micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
-    music_modules::mods::MODAsyncLoader,
-    Buttons,
+    Buttons, autoboot_info::UNLAUNCH_AUTOBOOT_PARAM, music_modules::mods::MODAsyncLoader
 };
 enum CurrentUI {
     None,
@@ -35,15 +34,22 @@ enum CurrentUI {
         file_path: String,
     },
 }
-
 pub struct AppData<'a> {
+    autoboot: Option<String>,
     current_dir: CurrentUI,
     blowfish: &'a mut BFCTX,
     loading_mod_file: Option<MODAsyncLoader>,
 }
 impl<'a> AppData<'a> {
     pub fn new(blowfish: &'a mut BFCTX) -> Self {
+        let autoboot = if UNLAUNCH_AUTOBOOT_PARAM.is_valid() {
+            Some(UNLAUNCH_AUTOBOOT_PARAM.parse_path())
+        } else {
+            None
+        };
+
         Self {
+            autoboot,
             current_dir: CurrentUI::None,
             blowfish,
             loading_mod_file: None,
@@ -129,6 +135,11 @@ impl<'a> AppData<'a> {
             unsafe {
                 let sdio = reboot_lib::twl_wifi::STATUS.read_volatile();
                 ui.label(&format!("SDMC: {:?} MMC: {:?} SDIO: {:08x?}", crate::SD_ERROR, crate::EMMC_ERROR, sdio));
+                if let Some(ab) = &self.autoboot {
+                    ui.label(&ab);
+                } else {
+                    ui.label("no ab");
+                }
             }
             if let Some(loading_mod) = self.loading_mod_file.take() {
                 let (progress, max) = loading_mod.progress();

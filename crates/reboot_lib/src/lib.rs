@@ -13,6 +13,7 @@ mod ipc;
 pub mod mbk;
 mod memory;
 pub mod mmc;
+pub mod autoboot_info;
 pub mod music_modules;
 pub mod ndma;
 pub mod scfg;
