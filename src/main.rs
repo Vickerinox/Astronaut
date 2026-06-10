@@ -67,8 +67,8 @@ fn construct_tmd(
             .map_err(|e| Crate::TMD.err()(CompileError::ElfSegmentError(e)))?;
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
         debug!(
-            "Processing segment: {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
-            segment.p_filesz, file_offset_start, file_offset_end
+            "Processing segment '{:x?}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
+            segment.p_flags, segment.p_filesz, file_offset_start, file_offset_end
         );
         empty_tmd[file_range].copy_from_slice(data);
     }

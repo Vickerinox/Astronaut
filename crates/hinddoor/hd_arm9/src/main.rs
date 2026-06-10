@@ -7,6 +7,13 @@
 
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
+static mut SD_ERROR: u32 = 0;
+static mut EMMC_ERROR: u32 = 0;
+static mut SDMMC_DRIVER: SDMMCDriver = SDMMCDriver {
+    nand_controller: None,
+    sd_controller: None,
+};
+
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
 use core::arch::asm;
@@ -20,113 +27,9 @@ use reboot_lib::{
     VideoPowerControl, Viewport, VIDEO_HARDWARE,
 };
 
-use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
-static mut SD_ERROR: u32 = 0;
-static mut EMMC_ERROR: u32 = 0;
-pub struct SDMMCDriver {
-    nand_controller: Option<BasicSDMMCCursor<'static>>,
-    sd_controller: Option<BasicSDMMCCursor<'static>>,
-}
-pub unsafe fn set_background(color: u16) {
-    ENGINE_A_PALETTES.bg_palettes[0].write(color);
-        ENGINE_B_PALETTES.bg_palettes[0].write(color);
-}
-impl FatFsDriver for SDMMCDriver {
-    fn disk_status(&mut self, drive: u8) -> u8 {
-        match unsafe { arm9_check_sdmmc(drive) } {
-            Ok(()) => 0,
-            Err(_any) => 1,
-        }
-    }
-    fn disk_initialize(&mut self, drive: u8) -> u8 {
-        match unsafe { arm9_init_sdmmc(drive) } {
-            Ok(()) => match drive {
-                1 => {
-                    self.sd_controller = unsafe { try_mount_sd() };
-                    self.sd_controller.is_none() as u8
-                }
-                2 => {
-                    self.nand_controller = unsafe { try_mount_nand() };
-                    self.nand_controller.is_none() as u8
-                }
-                _ => 1,
-            },
-            Err(bits) => {
-                match drive {
-                    1 => unsafe {
-                        SD_ERROR = bits.get();
-                    },
-                    2 => unsafe {
-                        EMMC_ERROR = bits.get();
-                    },
-                    _ => (),
-                }
-                1
-            },
-        }
-    }
-    fn disk_ioctl(&mut self, data: &mut IoctlCommand) -> DiskResult {
-        match data {
-            IoctlCommand::CtrlSync(_) => {
-                if let Some(flusha) = &mut self.sd_controller {
-                    flusha.flush();
-                }
-                DiskResult::Ok
-            }
-            IoctlCommand::GetSectorCount(_) => DiskResult::ParameterError,
-            IoctlCommand::GetSectorSize(_) => DiskResult::ParameterError,
-            IoctlCommand::GetBlockSize(_) => DiskResult::ParameterError,
-        }
-    }
-    fn disk_read(&mut self, drive: u8, mut buffer: &mut [u8], sector: u32) -> DiskResult {
-        let Some(controller) = (match drive {
-            1 => &mut self.sd_controller,
-            2 => &mut self.nand_controller,
-            _ => return DiskResult::ParameterError,
-        }) else {
-            return DiskResult::NotReady;
-        };
-        let new_pos = sector;
-        if controller.seek(new_pos) != Ok(new_pos) {
-            return DiskResult::NotReady;
-        }
-        while !buffer.is_empty() {
-            let Ok(progress) = controller.read(buffer) else {
-                return DiskResult::NotReady;
-            };
-            let Some(remaining_buffer) = buffer.get_mut(progress..) else {
-                return DiskResult::Error;
-            };
-            buffer = remaining_buffer;
-        }
-        DiskResult::Ok
-    }
-    fn disk_write(&mut self, drive: u8, mut buffer: &[u8], sector: u32) -> DiskResult {
-        let Some(controller) = (match drive {
-            1 => &mut self.sd_controller,
-            2 => return DiskResult::WriteProtected, //&mut self.nand_controller,
-            _ => return DiskResult::ParameterError,
-        }) else {
-            return DiskResult::NotReady;
-        };
-        let new_pos = sector;
-        if controller.seek(new_pos) != Ok(new_pos) {
-            return DiskResult::NotReady;
-        }
-        while !buffer.is_empty() {
-            let Ok(progress) = controller.write(buffer) else {
-                return DiskResult::NotReady;
-            };
-            let Some(remaining_buffer) = buffer.get(progress..) else {
-                return DiskResult::Error;
-            };
-            buffer = remaining_buffer;
-        }
-        DiskResult::Ok
-    }
-}
 
-use crate::gui::TextLayoutHandle;
+use crate::fat::driver::SDMMCDriver;
+use crate::gui::{AppData, TextLayoutHandle};
 use crate::nand::BasicSDMMCCursor;
 
 extern crate alloc;
@@ -239,19 +142,19 @@ unsafe fn init_font() {
     {
         const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
         for (i, w) in FONT_FILE.iter().enumerate() {
-            core::ptr::write_volatile((0x2000800 as *mut u8).add(i), *w);
+            core::ptr::write_volatile((0x2002000 as *mut u8).add(i), *w);
         }
         core::arch::asm!(
             "SWI 0x110000",
-            in("r0") 0x2000800,
-            in("r1") 0x2000000,
+            in("r0") 0x2002000,
+            in("r1") 0x2001000,
             lateout("r0") _,
             lateout("r1") _,
             out("r2") _,
             out("r3") _,
         );
         for i in 0..0x200 {
-            let reg = core::ptr::read_volatile((0x200_0000 as *const u32).add(i));
+            let reg = core::ptr::read_volatile((0x200_1000 as *const u32).add(i));
             core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
         }
     }
@@ -309,39 +212,6 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
 }
 
-unsafe fn try_mount_sd() -> Option<BasicSDMMCCursor<'static>> {
-    let sd_buffer = core::slice::from_raw_parts_mut(0x2FE8000 as *mut StorageSector, 4);
-    read_sd_card(sd_buffer, 0).ok()?;
-    let mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
-    if !mbr.has_valid_signature() {
-        return None;
-    }
-    let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-    let sd_buffer =
-        core::slice::from_raw_parts_mut(0x2FE8000 as *mut reboot_lib::StorageSector, 32);
-    match BasicSDMMCCursor::new(sd_buffer, twl_lba, false) {
-        Ok(succ) => Some(succ),
-        Err(code) => { SD_ERROR = code; None},
-    }
-}
-
-unsafe fn try_mount_nand() -> Option<BasicSDMMCCursor<'static>> {
-    let nand_buffer = core::slice::from_raw_parts_mut(0x2FEC000 as *mut StorageSector, 4);
-    read_encrypted_nand(nand_buffer, 0).ok()?;
-    let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
-    if !mbr.has_valid_signature() {
-        return None;
-    }
-    let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-    read_encrypted_nand(nand_buffer, twl_lba).ok()?;
-    let _twl_size = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
-    let nand_buffer =
-        core::slice::from_raw_parts_mut(0x2FEC000 as *mut reboot_lib::StorageSector, 32);
-    match BasicSDMMCCursor::new(nand_buffer, twl_lba, true) {
-         Ok(succ) => Some(succ),
-        Err(code) => { EMMC_ERROR = code; None},
-    }
-}
 pub struct RebootState {
     current_path: String,
 }
@@ -518,14 +388,14 @@ unsafe fn main() {
         fatfs_embedded::fatfs::diskio::install(&mut SDMMC_DRIVER);
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
-        
-        let mut frontend = Box::new(gui::AppData::new(blowfish_key));
-        
+        static mut APP_DATA: Option<AppData> = None;
+        let frontend = APP_DATA.insert(gui::AppData::new(blowfish_key));
+
         FS_NAND.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
-        FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sd:\0"));
+        FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
 
-        if (0x4000130 as *const u16).read_volatile() & 3 == 3 {
+        if !(0x4000130 as *const u16).read_volatile() & 3 != 3 {
             frontend.autoboot();
         }
 
@@ -536,10 +406,11 @@ unsafe fn main() {
         });
     }
 }
-static mut SDMMC_DRIVER: SDMMCDriver = SDMMCDriver {
-    nand_controller: None,
-    sd_controller: None,
-};
+
+pub unsafe fn set_background(color: u16) {
+    ENGINE_A_PALETTES.bg_palettes[0].write(color);
+        ENGINE_B_PALETTES.bg_palettes[0].write(color);
+}
 
 pub fn is_bootable(str: &[u8]) -> bool {
     let len = str.len() - 4;
@@ -557,6 +428,9 @@ pub fn is_music_module(str: &[u8]) -> bool {
 }
 
 const DSI_WRAM_START: usize = 0x037C0000;
+const BINARY_START: usize = 0x037DF27C;
+const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
+const APP_AREA_LEN: usize = BINARY_START-APP_AREA_START;
 #[no_mangle]
 pub unsafe extern "C" fn _start() {
     asm!(

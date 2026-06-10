@@ -108,7 +108,7 @@ const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct HeaderStart {
-pub title: [u8; 12],
+    pub title: [u8; 12],
     pub tid: u32,
     pub maker_code: u16,
     pub unit_code: u8,
@@ -120,11 +120,14 @@ pub title: [u8; 12],
     pub rom_version: u8,
     pub flags: u8,
 
+    // info for loading the arm9 binary
     pub arm9_offset: u32,
     pub arm9_entry: u32,
     pub arm9_load: u32,
     pub arm9_size: u32,
 
+
+    // info for loading the arm7 binary
     pub arm7_offset: u32,
     pub arm7_entry: u32,
     pub arm7_load: u32,
@@ -169,6 +172,9 @@ pub title: [u8; 12],
     pub logo_crc: u16,
     pub header_crc: u16,
 }
+
+const_assert!(core::mem::size_of::<HeaderStart>() == 0x160);
+
 #[repr(C)]
 pub struct HeaderTWL {
     pub head: HeaderStart,
@@ -248,6 +254,7 @@ pub struct HeaderTWL {
     _0xf00: [u8; 0x80],
     pub rsa_signature: [u8; 0x80],
 }
+const_assert!(core::mem::size_of::<HeaderTWL>() == 0x1000);
 
 //DKA bootstub struct
 const _BOOTSTUB_MAGIC: u64 = 0x62757473746F6F62; // "bootstub"

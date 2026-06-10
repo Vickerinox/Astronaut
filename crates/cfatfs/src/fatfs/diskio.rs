@@ -6,7 +6,7 @@ use core::ptr;
 
 
 pub enum IoctlCommand {
-    CtrlSync(()),
+    CtrlSync(()), 
     GetSectorCount(DWORD),
     GetSectorSize(WORD),
     GetBlockSize(DWORD),

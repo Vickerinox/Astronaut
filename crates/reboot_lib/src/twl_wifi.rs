@@ -222,7 +222,7 @@ pub unsafe fn nwifi_write_func0(reg: FuncReg, byte: u8) -> bool {
     SDIO_CONTROLLER.send_command(&mut PORT, crate::mmc::Command::SDIORegRW, reg.0).successful()
 }
 pub unsafe fn nwifi_init_complete() {
-    
+    return
 
     STATUS.write_volatile(1);
     (*(0x4004008 as *mut RW<u32>)).modify(|i| i  | (1<<19));

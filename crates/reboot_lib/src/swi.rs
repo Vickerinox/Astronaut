@@ -32,7 +32,7 @@ pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
 
 
 #[allow(unused_variables)]
-pub unsafe fn swi_crc16(start: u16, source: *const u16, len: usize) -> u16 {
+pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     
     let mut retu = start;
     #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER

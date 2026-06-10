@@ -14,7 +14,7 @@ impl MMC {
         self.data_control.write(Control::USE_DATA32);
 
         self.soft_reset.write(0);
-        self.soft_reset.write(1);
+        self.soft_reset.write(1); 
         
         self.port_select.write(0);
         self.block_count.write(1);

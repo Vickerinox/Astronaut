@@ -19,7 +19,7 @@ const DSI_WRAM_START: usize = 0x037B8000;
 pub unsafe extern "C" fn _start() {
     asm!(
         //turn off interrupts via the IME register
-        "mov r0, #0x04000000",
+        "mov r0, #0x04000000", 
         "str r0, [r0, #0x208]",
 
         //load start of stack(s)

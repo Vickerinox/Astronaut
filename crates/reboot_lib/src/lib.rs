@@ -3,6 +3,13 @@
 #![feature(ptr_metadata)]
 #![allow(unused)]
 extern crate alloc;
+
+macro_rules! const_assert {
+    ($($tt:tt)*) => {
+        const _: () = assert!($($tt)*);
+    }
+}
+
 mod aes;
 mod allocator;
 pub mod dma;

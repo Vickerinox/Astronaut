@@ -137,7 +137,7 @@ unsafe fn boot_unreturnable(
             (0x20005E8 as *mut u32).write_volatile(0x500000);
             (0x20005EC as *mut u32).write_volatile(0x02E000);
         }
-        (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF,0x020005E4 as *const u16, 0xC));
+        (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF,0x020005E4 as *const (), 0xC));
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
     inject_bootstrap();

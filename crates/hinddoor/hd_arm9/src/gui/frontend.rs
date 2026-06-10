@@ -56,7 +56,7 @@ impl<'a> AppData<'a> {
         }
     }
     pub fn open_sd() -> Option<CurrentUI> {
-        let mut file_path = String::from("sd:/");
+        let mut file_path = String::from("sdmc:/");
         fatfs_embedded::opendir(&mut file_path).ok().map(|mut i| {
             let immediate_files = populate_fs_vec(&mut i);
             CurrentUI::Browsing {
@@ -86,7 +86,7 @@ impl<'a> AppData<'a> {
     } 
     pub unsafe fn autoboot(&mut self) {
         match fatfs_embedded::open(
-                &mut "sd:/_nds/vlaunch/autoboot.txt".to_string(),
+                &mut "sdmc:/_nds/vlaunch/autoboot.txt".to_string(),
                 FileOptions::Read,
             ) {
                 Ok(mut file) => {
@@ -108,7 +108,7 @@ impl<'a> AppData<'a> {
     }
     pub fn play_startup_music(&mut self) {
         match fatfs_embedded::open(
-            &mut "sd:/_nds/vlaunch/music.bin".to_string(),
+            &mut "sdmc:/_nds/vlaunch/music.bin".to_string(),
             FileOptions::Read,
         ) {
             Ok(mut file) => {
@@ -228,7 +228,12 @@ impl<'a> AppData<'a> {
                                     _ => panic!(),
                                 };
                                 fatfs_embedded::truncate(&mut file).unwrap();
-                                unsafe { FS_SD.sync(&mut file).unwrap() };
+                                
+                                unsafe { 
+
+                                        FS_SD.sync(&mut file).unwrap()
+                                
+                                     };
                             }
 
                             pop_dir_entry(file_path);
@@ -311,7 +316,7 @@ impl<'a> AppData<'a> {
                             }
                         }
                         if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) && new_folder.is_none() {
-                            if current_path != "sd:/" && current_path != "nand:/" {
+                            if current_path != "sdmc:/" && current_path != "nand:/" {
                                 pop_dir_entry(current_path);
                                 if let Ok(f) = fatfs_embedded::opendir(current_path) {
                                     new_folder = Some(f);
