@@ -3,7 +3,7 @@ use reboot_lib::{VertexListHost, VertexListType, VideoHardwareHandle};
 
 mod backend;
 pub use backend::{DSMicroGuiBackend, Input};
-pub use frontend::AppData;
+pub use frontend::{AppData, CurrentUI};
 mod frontend;
 
 pub struct VideoTextPass<'a>(&'a mut VideoHardwareHandle, micro_imgui::Rect);

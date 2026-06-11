@@ -11,16 +11,13 @@ use elf::{endian::AnyEndian, ElfBytes};
 //use rfd::FileDialog;
 use log::{debug, error, info};
 
-
 use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
 mod build;
 mod errors;
 mod mmc;
 mod testing;
 
-fn construct_tmd(
-    elf_file_path: PathBuf,
-) -> Result<Vec<u8>, BuildError> {
+fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
     const M_STATE_OVERWRITE: &[u8] = &[
         84, 72, 73, 83, 32, 73, 83, 0, 0, 0, 0, 0, 223, 0, 0, 0, 87, 72, 69, 82, 69, 32, 84, 72,
@@ -76,7 +73,6 @@ fn construct_tmd(
     let values = entry_value.to_le_bytes();
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
 
-
     Ok(empty_tmd)
 }
 #[derive(Parser)]
@@ -128,7 +124,9 @@ impl FixedCompilerArgs {
         */
 
         let arm7_include_path = env_us.clone().join("crates/hinddoor/hd_arm9/src/arm7.bin");
-        let bootstrap_include_path = env_us.clone().join("crates/hinddoor/hd_arm9/src/bootstrap.bin");
+        let bootstrap_include_path = env_us
+            .clone()
+            .join("crates/hinddoor/hd_arm9/src/bootstrap.bin");
 
         //let span = span!(Level::TRACE, "Compiling Bootstrap");
         //let _enter = span.enter();

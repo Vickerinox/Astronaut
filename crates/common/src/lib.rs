@@ -6,10 +6,9 @@ macro_rules! const_assert {
     }
 }
 
+pub mod argv;
+pub mod blowfish;
 pub mod bootstrap;
 pub mod config;
-pub mod argv;
 pub mod device_list;
 pub mod modcrypt;
-pub mod blowfish;
-

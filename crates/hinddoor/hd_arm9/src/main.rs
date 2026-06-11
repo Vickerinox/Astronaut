@@ -4,29 +4,36 @@
 #![feature(str_from_utf16_endian)]
 #![feature(str_from_raw_parts)]
 
-
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
-static mut SD_ERROR: u32 = 0;
-static mut EMMC_ERROR: u32 = 0;
-static mut SDMMC_DRIVER: SDMMCDriver = SDMMCDriver {
-    nand_controller: None,
-    sd_controller: None,
-};
+pub struct AppArea {
+    sdmmc_driver: core::mem::MaybeUninit<SDMMCDriver>,
+    app_data: core::mem::MaybeUninit<AppData>,
+    fader: Fader,
+}
+pub struct Fader {
+    current: reboot_lib::volatile_register::RW<i8>,
+    target: reboot_lib::volatile_register::RW<i8>,
+}
+reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
 use core::arch::asm;
 use core::str;
+use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
+use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 
 use micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
-use reboot_lib::{ ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, MemoryWrapper, VRAMCtrl, VideoHardwareHandle, arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc};
 use reboot_lib::{
-    Buttons, MatrixMode, PolygonAttributes, DisplayControl, StorageSector,
-    VideoPowerControl, Viewport, VIDEO_HARDWARE,
+    arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc, MemoryWrapper, VRAMCtrl, VideoHardwareHandle,
+    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
 };
-
+use reboot_lib::{
+    Buttons, DisplayControl, MatrixMode, PolygonAttributes, StorageSector, VideoPowerControl,
+    Viewport, VIDEO_HARDWARE,
+};
 
 use crate::fat::driver::SDMMCDriver;
 use crate::gui::{AppData, TextLayoutHandle};
@@ -43,7 +50,7 @@ mod nand;
 pub mod new_takeover;
 #[repr(C)]
 pub struct NandAutobootEntry {
-    category: u32,
+    category: u16,
     title_id: u32,
     version: u32,
     buttons: reboot_lib::Buttons,
@@ -59,7 +66,6 @@ impl NandAutobootEntry {
     };
 }
 static mut NAND_AUTOBOOTS: [NandAutobootEntry; 40] = [NandAutobootEntry::EMPTY; 40];
-
 
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 unsafe fn interrupt_handler() {
@@ -131,12 +137,16 @@ unsafe fn interrupt_handler() {
     );
 }
 
-static mut INTERRUPT_TABLE: [*mut fn(); 32] = [core::ptr::null_mut(); 32];
+static mut INTERRUPT_TABLE: [*mut unsafe fn(); 32] = [core::ptr::null_mut(); 32];
 
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
 }
-
+#[inline(always)]
+pub unsafe fn unlaunch_breakpoint() {
+    #[cfg(target_arch = "arm")]
+    core::arch::asm!("mov r11, r11");
+}
 unsafe fn init_font() {
     #[cfg(target_arch = "arm")]
     {
@@ -159,16 +169,19 @@ unsafe fn init_font() {
         }
     }
 }
+
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     //setup 3d hardware
     VIDEO_HARDWARE.power_control.write(VideoPowerControl::all());
-    VIDEO_HARDWARE.vram_control_bank_a.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK A
-    VIDEO_HARDWARE.vram_control_bank_e.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK E
-    VIDEO_HARDWARE.engine_a_ctrl.write(
-        DisplayControl::BG_MODE_0
-            | DisplayControl::ENABLE_3D
-            | DisplayControl::ENABLE_BG_0,
-    );
+    VIDEO_HARDWARE
+        .vram_control_bank_a
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK A
+    VIDEO_HARDWARE
+        .vram_control_bank_e
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK E
+    VIDEO_HARDWARE
+        .engine_a_ctrl
+        .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_3D | DisplayControl::ENABLE_BG_0);
     VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
     video_context.next_frame(); //swap geometry buffers
 
@@ -215,10 +228,11 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
 pub struct RebootState {
     current_path: String,
 }
-use fatfs_embedded::fatfs::{FS_NAND, FS_SD};
 const COLOR_BOOTABLE: Color = Color::new(100, 200, 100);
 const COLOR_MUSIC: Color = Color::new(100, 100, 200);
-fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<(String, String, bool, Color)> {
+fn populate_fs_vec(
+    folder: &mut fatfs_embedded::fatfs::Directory,
+) -> Vec<(String, String, bool, Color)> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
         loop {
@@ -314,13 +328,38 @@ unsafe fn arm7_crash() -> ! {
     video_context.next_frame();
     loop {}
 }
+
+unsafe fn fade_out() {
+    let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
+    let read = area.current.read();
+    let target = area.target.read();
+    let new = match read.cmp(&target) {
+        core::cmp::Ordering::Less => {
+            (read + 3).min(target)
+            
+        },
+        core::cmp::Ordering::Equal => return,
+        core::cmp::Ordering::Greater => {
+            (read - 3).max(target)
+        },
+    };
+    area.current.write(new);
+    set_bright(new as u16 | (1<<14)); 
+}
+unsafe fn set_bright(factor: u16) {
+    VIDEO_HARDWARE.master_brightness.write(factor);
+    VIDEO_HARDWARE.disp_b_master_bright.write(factor);
+}
+
 unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
-        let blowfish_key = &mut *(0x2F1_0000 as *mut BFCTX);
-        *blowfish_key = (*(0x1FFC894 as *const BFCTX)).clone();
-        VIDEO_HARDWARE.power_control.write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
-        
+        let app_area = &mut *(APP_AREA_START as *mut AppArea);
+        (&raw mut (*app_area.app_data.as_mut_ptr()).blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
+        VIDEO_HARDWARE
+            .power_control
+            .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
+
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
         set_background(0b00010_00010_00010);
@@ -331,11 +370,17 @@ unsafe fn main() {
         new_takeover::takeover_arm7();
 
         //enable VRAM bank A
-        VIDEO_HARDWARE.vram_control_bank_a.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-        VIDEO_HARDWARE.vram_control_bank_e.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+        VIDEO_HARDWARE
+            .vram_control_bank_a
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+        VIDEO_HARDWARE
+            .vram_control_bank_e
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
         //enable the 2D engine A, with no backgrounds on.
-        VIDEO_HARDWARE.engine_a_ctrl.write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
-        
+        VIDEO_HARDWARE
+            .engine_a_ctrl
+            .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
+
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
         video_context.next_frame();
 
@@ -377,39 +422,64 @@ unsafe fn main() {
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
-
+        
         IPC_FIFO_HARDWARE.enable_recv_irq();
+        INTERRUPT_TABLE[0] = fade_out as *mut _;
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
 
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
         set_background(0b0_00100_00100_00100);
 
-        fatfs_embedded::fatfs::diskio::install(&mut SDMMC_DRIVER);
+        app_area.sdmmc_driver.write(SDMMCDriver::new());
+        let sdmmc_driver = app_area.sdmmc_driver.assume_init_mut();
+        fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
+
+        app_area.fader.current.write(0);
+        
+
+        let ptr = app_area.app_data.as_mut_ptr();
+        (&raw mut (*ptr).autoboot).write(None);
+        (&raw mut (*ptr).current_dir).write(gui::CurrentUI::None);
+        (&raw mut (*ptr).loading_mod_file).write(None);
+        let app_data = app_area.app_data.assume_init_mut();
+        let _ = app_data
+            .nand_fs
+            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
+        let _ = app_data
+            .sdmc_fs
+            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
         let backend = gui::DSMicroGuiBackend::new(video_context);
-        static mut APP_DATA: Option<AppData> = None;
-        let frontend = APP_DATA.insert(gui::AppData::new(blowfish_key));
 
-        FS_NAND.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
-        FS_SD.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
-
-
-        if !(0x4000130 as *const u16).read_volatile() & 3 != 3 {
-            frontend.autoboot();
+        app_area.fader.target.write(16);
+        let force_menu = !(0x4000130 as *const u16).read_volatile() & 3 == 3;
+        if !force_menu {
+            if let Some(params) = BOOT_INFO.unlaunch.parameters() {
+                if params.flags.contains(UnlaunchBootFlags::BOOT) {
+                    let mut file_path = params.parse_path();
+                    (&raw mut app_data.autoboot).write(Some((file_path.clone(), params)));
+                    if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
+                        boot::boot_app(&mut file, &mut file_path, &mut app_data.blowfish);
+                    }
+                }
+            } else {
+                app_data.autoboot();
+            }
         }
+        
 
-        frontend.play_startup_music();
-
+        app_data.play_startup_music();
+        app_area.fader.target.write(0);
         micro_imgui::run(backend, (), |mut f, _| {
-            frontend.update(&mut f);
+            app_data.update(&mut f);
         });
     }
 }
 
 pub unsafe fn set_background(color: u16) {
     ENGINE_A_PALETTES.bg_palettes[0].write(color);
-        ENGINE_B_PALETTES.bg_palettes[0].write(color);
+    ENGINE_B_PALETTES.bg_palettes[0].write(color);
 }
 
 pub fn is_bootable(str: &[u8]) -> bool {
@@ -430,7 +500,7 @@ pub fn is_music_module(str: &[u8]) -> bool {
 const DSI_WRAM_START: usize = 0x037C0000;
 const BINARY_START: usize = 0x037DF27C;
 const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
-const APP_AREA_LEN: usize = BINARY_START-APP_AREA_START;
+const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
 #[no_mangle]
 pub unsafe extern "C" fn _start() {
     asm!(
@@ -575,23 +645,31 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         }
     }
 }
-pub struct PanicFmt{ 
-    base: *mut u8, 
-    len: usize, 
+pub struct PanicFmt {
+    base: *mut u8,
+    len: usize,
     cap: usize,
 }
 impl PanicFmt {
     pub fn new(ptr: *mut u8, size: usize) -> Self {
-        Self { base: ptr, len: 0, cap: size }
+        Self {
+            base: ptr,
+            len: 0,
+            cap: size,
+        }
     }
 }
 impl core::fmt::Write for PanicFmt {
     fn write_str(&mut self, arg: &str) -> Result<(), core::fmt::Error> {
         for byte in arg.as_bytes() {
             if self.len < self.cap {
-                unsafe { self.base.add(self.len).write(*byte); };
+                unsafe {
+                    self.base.add(self.len).write(*byte);
+                };
                 self.len += 1;
-            } else { break;}
+            } else {
+                break;
+            }
         }
         Ok(())
     }
@@ -603,38 +681,38 @@ impl PanicFmt {
     }
 }
 unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHandle) {
-     
     let mut buf = PanicFmt::new(0x20F_0000 as *mut u8, 0x1000);
     use core::fmt::Write;
-    let _ = write!(&mut buf, "{}",info.message());
+    let _ = write!(&mut buf, "{}", info.message());
 
-    let _ = write!(&mut buf, " STATUS: {:x?}", reboot_lib::twl_wifi::STATUS.read());
-    text_pass.layout_str(buf.as_str(),8);
-    if let Some(loc) = info.location(){
+    let _ = write!(
+        &mut buf,
+        " STATUS: {:x?}",
+        reboot_lib::twl_wifi::STATUS.read()
+    );
+    text_pass.layout_str(buf.as_str(), 8);
+    if let Some(loc) = info.location() {
         use core::fmt::Write;
         text_pass.next_line();
         text_pass.next_line();
-        text_pass.layout_str("Error location:",8);
+        text_pass.layout_str("Error location:", 8);
         text_pass.next_line();
-        
-        let mut buf =  PanicFmt::new(0x20F_1000 as *mut u8, 0x1000);//if 
+
+        let mut buf = PanicFmt::new(0x20F_1000 as *mut u8, 0x1000); //if
         let _ = write!(buf, "{loc}");
         text_pass.layout_str(buf.as_str(), 8);
     };
-    
 }
 #[inline]
 unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
     slice as *mut T as *mut () as *mut U
 }
 unsafe fn irq_init() {
-    
-
     INTERUPT_HARDWARE.master.write(0);
     INTERUPT_HARDWARE.enable.write(0);
     INTERUPT_HARDWARE.request.write(!0);
     use reboot_lib::INTERUPT_HARDWARE;
-    let dtcm: u32; 
+    let dtcm: u32;
     #[cfg(target_arch = "arm")]
     {
         // Read location of DTCM

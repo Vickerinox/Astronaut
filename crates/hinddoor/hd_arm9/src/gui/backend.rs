@@ -100,7 +100,9 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     type InputQuery = Input;
 
     fn gather_inputs(&mut self) -> bool {
-        unsafe { reboot_lib::swi_halt(); }
+        unsafe {
+            reboot_lib::swi_halt();
+        }
         let (buttons, x, y) = crate::read_controller();
         self.input.update(buttons, Vec2::new(x as i16, y as i16))
     }

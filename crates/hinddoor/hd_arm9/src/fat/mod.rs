@@ -1,6 +1,6 @@
 pub mod bs; //Boot sector
-pub mod fs;
 pub mod driver;
+pub mod fs;
 pub trait SectorManager {
     type Error;
     fn read_sectors(

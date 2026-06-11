@@ -1,7 +1,10 @@
 use core::fmt::Debug;
 
-use common::{blowfish::BFCTX, bootstrap::{BOOTINFO_MEM, HeaderTWL}};
-use reboot_lib::swi_crc16;
+use common::{
+    blowfish::BFCTX,
+    bootstrap::{HeaderTWL, BOOTINFO_MEM},
+};
+use reboot_lib::{VIDEO_HARDWARE, swi_crc16};
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
@@ -23,7 +26,7 @@ impl Debug for BootError {
         }
     }
 }
-use crate::BOOTSTRAP_BINARY;
+use crate::{APP_AREA_START, AppArea, BOOTSTRAP_BINARY, INTERRUPT_TABLE, set_background};
 
 unsafe fn read_all(
     mut buffer: &mut [u8],
@@ -38,6 +41,8 @@ unsafe fn read_all(
     }
     Ok(())
 }
+
+
 #[inline]
 unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
@@ -45,24 +50,25 @@ unsafe fn boot_unreturnable(
     header: &HeaderTWL,
     bf: &mut BFCTX,
 ) -> ! {
-    crate::stop_mod_file();
-    
+
     (*BOOTINFO_MEM).ntr.header_again = (*BOOTINFO_MEM).twl_header.head.clone();
-    let arm9_ram =
-        core::slice::from_raw_parts_mut(header.head.arm9_load as *mut u8, header.head.arm9_size as usize);
+    let arm9_ram = core::slice::from_raw_parts_mut(
+        header.head.arm9_load as *mut u8,
+        header.head.arm9_size as usize,
+    );
     fatfs_embedded::seek(r, header.head.arm9_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
-    crate::set_background(0b0_01100_01100_01100);
     reboot_lib::nocash_write("> ARM9 binary loaded \n");
 
-    let arm9_ram =
-        core::slice::from_raw_parts_mut(header.head.arm7_load as *mut u8, header.head.arm7_size as usize);
+    let arm9_ram = core::slice::from_raw_parts_mut(
+        header.head.arm7_load as *mut u8,
+        header.head.arm7_size as usize,
+    );
     fatfs_embedded::seek(r, header.head.arm7_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
     reboot_lib::nocash_write("> ARM7 binary loaded \n");
-    crate::set_background(0b0_10100_10100_10100);
 
     if header.is_dsi_mode() {
         let arm9_ram = core::slice::from_raw_parts_mut(
@@ -84,15 +90,17 @@ unsafe fn boot_unreturnable(
 
         reboot_lib::nocash_write("> ARM7i binary loaded \n");
 
-        if header.head.twl_flags & (1<<1) > 0 {
+        if header.head.twl_flags & (1 << 1) > 0 {
             match reboot_lib::arm9_decrypt_modcrypt(0) {
                 Ok(()) => (),
-                Err(code) => {panic!("Failed to modcrypt, code: {code}");},
+                Err(code) => {
+                    panic!("Failed to modcrypt, code: {code}");
+                }
             }
             reboot_lib::nocash_write("> Applied Modcrypt \n");
         }
-    } 
-    crate::set_background(0b0_11100_11100_11100);
+    }
+
     if (0x4000..0x8000).contains(&header.head.arm9_offset) {
         let tmp = header.head.arm9_load as *mut u32;
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
@@ -107,9 +115,9 @@ unsafe fn boot_unreturnable(
             bf.decrypt(&mut *tmp.add(1), &mut *tmp);
 
             for i in (2..0x200).step_by(2) {
-                bf.decrypt(&mut *tmp.add(i+1), &mut *tmp.add(i));
+                bf.decrypt(&mut *tmp.add(i + 1), &mut *tmp.add(i));
             }
-            if tmp.read() == 0x72636E65 && tmp.add(1).read() == 0x6A624F79{
+            if tmp.read() == 0x72636E65 && tmp.add(1).read() == 0x6A624F79 {
                 tmp.write(0xE7FFDEFF);
                 tmp.add(1).write(0xE7FFDEFF);
             }
@@ -121,9 +129,9 @@ unsafe fn boot_unreturnable(
 
         reboot_lib::nocash_write("> Inserted ARGV \n");
     }
-        
-        common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
-        reboot_lib::nocash_write("> Inserted Device List \n");
+
+    common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
+    reboot_lib::nocash_write("> Inserted Device List \n");
     {
         common::config::init(header);
         let wifi_type = (*BOOTINFO_MEM).ntr.firmware_data[0xFF];
@@ -137,28 +145,37 @@ unsafe fn boot_unreturnable(
             (0x20005E8 as *mut u32).write_volatile(0x500000);
             (0x20005EC as *mut u32).write_volatile(0x02E000);
         }
-        (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF,0x020005E4 as *const (), 0xC));
+        (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF, 0x020005E4 as *const (), 0xC));
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
     inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.head.arm9_entry);
     reboot_lib::flush_mmc();
 
+   
+    while (&*(APP_AREA_START as *mut AppArea)).fader.current.read() != (&*(APP_AREA_START as *mut AppArea)).fader.target.read() {}
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
-    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
     reboot_lib::disable_all_interrupts();
+    core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
+    if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15  {
+        set_background(0x7FFF);
+        crate::set_bright(0);
+    }
+    
+
+    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
 
-    core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
-   
-    crate::set_background(0x7FFF);
+    
+
     reboot_lib::flush_mmc();
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }
+
 pub unsafe fn boot_app(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
@@ -172,7 +189,10 @@ pub unsafe fn boot_app(
         mem.add(i).write_volatile(0);
     }
     let header = &mut (*common::bootstrap::BOOTINFO_MEM).twl_header;
-    let head_buf = core::slice::from_raw_parts_mut(header as *mut HeaderTWL as *mut () as *mut u8, size_of::<HeaderTWL>());
+    let head_buf = core::slice::from_raw_parts_mut(
+        header as *mut HeaderTWL as *mut () as *mut u8,
+        size_of::<HeaderTWL>(),
+    );
     if read_all(head_buf, r).is_err() {
         return BootError::FileReadError;
     }
@@ -195,7 +215,6 @@ pub unsafe fn boot_app(
     if !arm9_range.contains(&header.head.arm9_entry) {
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
-    
 
     boot_unreturnable(r, file_path, header, blowfish);
 }
@@ -203,6 +222,8 @@ pub unsafe fn inject_bootstrap() {
     //inject bootstrap into VRAM BANK I
     core::ptr::write_volatile(0x04000249 as *mut u8, 0x80); //enable VRAM bank I
     for (i, byte) in BOOTSTRAP_BINARY.iter().enumerate() {
-        (common::bootstrap::BOOTLOADER_MEM as *mut u8).add(i).write_volatile(*byte);
+        (common::bootstrap::BOOTLOADER_MEM as *mut u8)
+            .add(i)
+            .write_volatile(*byte);
     }
 }

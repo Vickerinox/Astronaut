@@ -1,4 +1,4 @@
-use crate::bootstrap::{BOOTINFO_MEM, HeaderTWL};
+use crate::bootstrap::{HeaderTWL, BOOTINFO_MEM};
 
 #[repr(C)]
 pub struct Config {
@@ -62,7 +62,7 @@ enum Region {
     China = 4,
     Korea = 5,
 }
-/* 
+/*
 enum UserLanguage {
     Japanese = 0,
     English = 1,
@@ -83,7 +83,7 @@ impl Region {
             b'U' => Region::Australia,
             b'C' => Region::China,
             b'K' => Region::Korea,
-            _ => Region::Europe
+            _ => Region::Europe,
         }
     }
     pub fn lang_bitmask(&self) -> u32 {
@@ -118,11 +118,11 @@ pub unsafe fn init(header: &HeaderTWL) {
     config.alarm_minute = common[0x53];
     config.alarm_enable = common[0x56];
     config.rtc_year = common[0x66];
-    config.nickname.copy_from_slice(&common[0x6..0x6+0x16]);
-    config.message.copy_from_slice(&common[0x1C..0x1C+0x36]);
+    config.nickname.copy_from_slice(&common[0x6..0x6 + 0x16]);
+    config.message.copy_from_slice(&common[0x1C..0x1C + 0x36]);
     config.rtc_offset.copy_from_slice(&common[0x68..0x70]);
-    
+
     (0x2FFFD68 as *mut u32).write_volatile(gamecode.lang_bitmask());
     (0x2FFFD6C as *mut u32).write_volatile(0);
-    (0x2FFFD70 as *mut u8).write_volatile(gamecode as u8); 
+    (0x2FFFD70 as *mut u8).write_volatile(gamecode as u8);
 }

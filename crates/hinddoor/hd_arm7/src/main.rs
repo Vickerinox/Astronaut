@@ -8,9 +8,14 @@ mod swi;
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
 use reboot_lib::{
-    AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, sound::SOUND_HARDWARE, spi::{
-        Control, PowerRegiser, SPI_HARDWARE, touchscreen::read_tsc_pos_cdc
-    }, timers::TIMERS, write_sd_sectors
+    check_sdmmc,
+    i2c::I2CRegister,
+    ndma::NDMA_HARDWARE,
+    sound::SOUND_HARDWARE,
+    spi::{touchscreen::read_tsc_pos_cdc, Control, PowerRegiser, SPI_HARDWARE},
+    timers::TIMERS,
+    write_sd_sectors, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
+    MMC_CONTROLLER, SDIO_CONTROLLER,
 };
 
 //use crate::mmc::NAND_DEVICE;
@@ -19,7 +24,7 @@ const DSI_WRAM_START: usize = 0x037B8000;
 pub unsafe extern "C" fn _start() {
     asm!(
         //turn off interrupts via the IME register
-        "mov r0, #0x04000000", 
+        "mov r0, #0x04000000",
         "str r0, [r0, #0x208]",
 
         //load start of stack(s)
@@ -90,7 +95,7 @@ fn main() {
     unsafe {
         //start talking to the ARM9 ASAP
         IPC_FIFO_HARDWARE.enable();
-        
+
         //start doing hardware init
         init::init_power_regs();
         init::init_i2c();
@@ -135,24 +140,24 @@ fn main() {
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
-        
+
         let mut location = [0u8; 2];
         SPI_HARDWARE.read_firmware(&mut location, 0x20);
         let settings_offset = (u16::from_le_bytes(location) as u32) * 8;
 
         let mut ctr1 = [0u8];
-        SPI_HARDWARE.read_firmware(&mut ctr1, settings_offset+0x70);
+        SPI_HARDWARE.read_firmware(&mut ctr1, settings_offset + 0x70);
         let [ctr1] = ctr1;
 
         let mut ctr2 = [0u8];
-        SPI_HARDWARE.read_firmware(&mut ctr2, settings_offset+0x170);
+        SPI_HARDWARE.read_firmware(&mut ctr2, settings_offset + 0x170);
         let [ctr2] = ctr2;
-        
+
         let mut wifi_ver = [0u8];
         SPI_HARDWARE.read_firmware(&mut wifi_ver, 0x1FD);
         let [wifi_ver] = wifi_ver;
 
-        let offset = if (ctr1&0x7f) == ((ctr2+1)&0x7f) {
+        let offset = if (ctr1 & 0x7f) == ((ctr2 + 1) & 0x7f) {
             settings_offset
         } else {
             settings_offset + 0x100
@@ -164,9 +169,9 @@ fn main() {
         SPI_HARDWARE.read_firmware(mac, 0x36);
         remainder[0] = 0x41;
         remainder[1] = 0x10;
-        remainder[0xE8-0x7A..(0xEC-0x7A)+4].copy_from_slice(&[0x3E,0,0,0,0,0,0,0]);
-        remainder[0xF0-0x7A] = 2;
-        remainder[0xFF-0x7A] = wifi_ver;
+        remainder[0xE8 - 0x7A..(0xEC - 0x7A) + 4].copy_from_slice(&[0x3E, 0, 0, 0, 0, 0, 0, 0]);
+        remainder[0xF0 - 0x7A] = 2;
+        remainder[0xFF - 0x7A] = wifi_ver;
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
         let scrx1 = user[0x5C];
@@ -200,7 +205,7 @@ fn main() {
         let mut last_y = 0;
         let mut pen_down = false;
         let mut last_pen = false;
-    
+
         reboot_lib::twl_wifi::nwifi_init_complete();
         //reboot_lib::spi::touchscreen::enable_tsc();
 
@@ -274,8 +279,8 @@ fn main() {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match arg {
-                        1 => Status::EMPTY.bits(),//check_sdmmc(reboot_lib::DeviceSelect::SDCardSlot).bits(),
-                        2 => Status::EMPTY.bits(),//check_sdmmc(reboot_lib::DeviceSelect::EMMC).bits(),
+                        1 => Status::EMPTY.bits(), //check_sdmmc(reboot_lib::DeviceSelect::SDCardSlot).bits(),
+                        2 => Status::EMPTY.bits(), //check_sdmmc(reboot_lib::DeviceSelect::EMMC).bits(),
                         _ => 1,
                     }
                 }
@@ -300,7 +305,8 @@ fn main() {
                 6 => {
                     let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    IPC_FIFO_HARDWARE.send_raw_blocking(common::bootstrap::boot_arm9 as *const () as u32);
+                    IPC_FIFO_HARDWARE
+                        .send_raw_blocking(common::bootstrap::boot_arm9 as *const () as u32);
                     reboot_lib::disable_all_interrupts();
                     SOUND_HARDWARE.init();
                     AES_HARDWARE.init_from_header(
@@ -356,11 +362,10 @@ fn main() {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
 
                     let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
-                    
 
                     response = 0;
 
-                    /* 
+                    /*
                     if core::slice::from_raw_parts(header.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {
                         response = 10;
                     }
@@ -372,29 +377,27 @@ fn main() {
                         console_id,
                     );
 
-                    
-
-
-
-                    if header.arm9i_offset != header.modcrypt1_offset && header.head.arm9_offset != header.modcrypt1_offset {
+                    if header.arm9i_offset != header.modcrypt1_offset
+                        && header.head.arm9_offset != header.modcrypt1_offset
+                    {
                         response = 1;
                     }
                     if header.modcrypt2_len != 0 {
-                            if header.arm7i_offset != header.modcrypt2_offset {
-                                response = 2;
-                            }
-                        } 
+                        if header.arm7i_offset != header.modcrypt2_offset {
+                            response = 2;
+                        }
+                    }
 
                     //response = 0x8000_0000;
-                    
-                    if false /*response == 0*/ {
 
-                        let  ptr = if header.arm9i_offset == header.modcrypt1_offset {
+                    if false
+                    /*response == 0*/
+                    {
+                        let ptr = if header.arm9i_offset == header.modcrypt1_offset {
                             header.arm9i_load
                         } else {
                             header.head.arm9_load
                         };
-                        
 
                         let key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
                         let len = header.modcrypt1_len >> 2;
@@ -408,9 +411,7 @@ fn main() {
                             &key,
                         );
 
-                        
-
-                        if header.modcrypt2_len > 0 {    
+                        if header.modcrypt2_len > 0 {
                             let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
                             let ptr = header.arm7i_load;
                             let len = header.modcrypt2_len >> 2;
@@ -424,7 +425,6 @@ fn main() {
                                 &key,
                             );
                         }
-
                     }
                 }
                 _ => response = 0x8000_0000,

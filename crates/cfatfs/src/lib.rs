@@ -293,11 +293,6 @@ pub mod fatfs {
     pub type Directory = DIR;
     pub type FileInfo = FILINFO;
 
-    /// This is the file system singleton object. Access the file system
-    /// API by acquiring a lock on this object.
-    pub static mut FS_SD: FileSystem = RawFileSystem::uninit();
-    pub static mut FS_NAND: FileSystem = RawFileSystem::uninit();
-
     /// The file system API is located here.
     pub struct RawFileSystem {
         fs: FATFS,
@@ -306,30 +301,30 @@ pub mod fatfs {
     impl RawFileSystem {
         pub const fn uninit() -> Self {
             RawFileSystem {
-        fs: FATFS {
-            fs_type: 0,
-            pdrv: 0,
-            ldrv: 0,
-            n_fats: 0,
-            wflag: 0,
-            fsi_flag: 0,
-            id: 0,
-            n_rootdir: 0,
-            csize: 0,
-            last_clst: 0,
-            free_clst: 0,
-            n_fatent: 0,
-            fsize: 0,
-            volbase: 0,
-            fatbase: 0,
-            dirbase: 0,
-            database: 0,
-            winsect: 0,
-            win: [0; 512],
-            lfnbuf: ptr::null_mut(),
-            cdir: 0,
-        },
-    }
+                fs: FATFS {
+                    fs_type: 0,
+                    pdrv: 0,
+                    ldrv: 0,
+                    n_fats: 0,
+                    wflag: 0,
+                    fsi_flag: 0,
+                    id: 0,
+                    n_rootdir: 0,
+                    csize: 0,
+                    last_clst: 0,
+                    free_clst: 0,
+                    n_fatent: 0,
+                    fsize: 0,
+                    volbase: 0,
+                    fatbase: 0,
+                    dirbase: 0,
+                    database: 0,
+                    winsect: 0,
+                    win: [0; 512],
+                    lfnbuf: ptr::null_mut(),
+                    cdir: 0,
+                },
+            }
         }
         /// Forces a write of all data to storage. Whether this has any effect depends on the driver implementation.
         pub fn sync(&self, file: &mut File) -> Result<(), Error> {

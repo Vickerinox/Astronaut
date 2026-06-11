@@ -30,7 +30,6 @@ pub const VRAM_BANK_I_SIZE: usize = 1024 * 16;
 
 pub const NWRAM_BANK_A: usize = 0x300_0000;
 
-
 pub struct NWRAM {
     pub bank_a: [WO<NWRAMCtrl>; 4],
     pub bank_b: [WO<NWRAMCtrl>; 8],
@@ -38,7 +37,6 @@ pub struct NWRAM {
     pub bank_a_size: RW<BankSizing>,
     pub bank_b_size: RW<BankSizing>,
     pub bank_c_size: RW<BankSizing>,
-    
 }
 #[repr(u32)]
 pub enum NWRAMSize {
@@ -47,11 +45,15 @@ pub enum NWRAMSize {
     Size128KB = 2,
     Size256KB = 3,
 }
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub struct BankSizing(u32);
 impl BankSizing {
     pub const unsafe fn new(size: NWRAMSize, start: usize, end: usize) -> Self {
-        Self(((0xFF8 & start as u32)<<3) | ((size as u32) << 12) | ((0x1FF8_0000 & end as u32) << 19))
+        Self(
+            ((0xFF8 & start as u32) << 3)
+                | ((size as u32) << 12)
+                | ((0x1FF8_0000 & end as u32) << 19),
+        )
     }
 }
 
@@ -59,7 +61,7 @@ bitflags::bitflags! {
     #[derive(Clone, Copy)]
     pub struct NWRAMCtrl: u8 {
         const ENABLE = (1<<7);
-        
+
         const ON_DSP = 2;
         const ON_ARM7 = 1;
         const ON_ARM9 = 0;
@@ -78,7 +80,7 @@ bitflags::bitflags! {
     pub struct VRAMCtrl: u8 {
         // Enable this VRAM bank
         const ENABLE = (1<<7);
-        
+
         // Set the offset of this bank to 0 within the MST
         const OFFSET_0 = (0<<3);
         // Set the offset of this bank to 1 within the MST
@@ -87,7 +89,7 @@ bitflags::bitflags! {
         const OFFSET_2 = (2<<3);
         // Set the offset of this bank to 3 within the MST
         const OFFSET_3 = (3<<3);
-        
+
         // LCD Mapping for the VRAM bank
         const MST_0 = 0;
         const MST_1 = 1;

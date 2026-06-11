@@ -1,27 +1,24 @@
-use reboot_lib::{VIDEO_HARDWARE, VRAMCtrl, flush_mmc};
+use reboot_lib::{flush_mmc, VRAMCtrl, VIDEO_HARDWARE};
 
- pub struct WordAligned<Bytes: ?Sized> {
+pub struct WordAligned<Bytes: ?Sized> {
     pub _align: [u32; 0],
     pub bytes: Bytes,
 }
 
 macro_rules! include_bytes_word_align {
-    ($path:literal) => {
-        {  
-            static ALIGNED: &WordAligned::<[u8]> = &WordAligned {
-                _align: [],
-                bytes: *include_bytes!($path),
-            };
+    ($path:literal) => {{
+        static ALIGNED: &WordAligned<[u8]> = &WordAligned {
+            _align: [],
+            bytes: *include_bytes!($path),
+        };
 
-            &ALIGNED.bytes
-        }
-    };
+        &ALIGNED.bytes
+    }};
 }
 
 const ARM7_BINARY: &[u8] = include_bytes_word_align!("./arm7.bin");
 
 pub unsafe fn takeover_arm7() {
-    
     flush_mmc();
 
     //remember this is where the wram appears on the arm9
@@ -33,20 +30,26 @@ pub unsafe fn takeover_arm7() {
     // SEGMENT 1: Injecting the ARM7 binary
     {
         //Map VRAM D to us
-        VIDEO_HARDWARE.vram_control_bank_d.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+        VIDEO_HARDWARE
+            .vram_control_bank_d
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
         let arm7_bytes = core::ptr::addr_of!(*ARM7_BINARY) as *const u32;
-        
+
         // Put the ARM7 Binary into VRAM, which it can execute from later.
         for i in 0..0x4000 {
             if i < (ARM7_BINARY.len() >> 2) {
-                BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(arm7_bytes.add(i).read());
+                BINARY_ENTRY_ADDR_ARM9
+                    .add(i)
+                    .write_volatile(arm7_bytes.add(i).read());
             } else {
                 BINARY_ENTRY_ADDR_ARM9.add(i).write_volatile(0);
             }
         }
         //set VRAM D to arm7
-        VIDEO_HARDWARE.vram_control_bank_d.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_2);
+        VIDEO_HARDWARE
+            .vram_control_bank_d
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_2);
     }
     // SEGMENT 2: Injecting jumpslide for ARM7
     {

@@ -13,7 +13,7 @@ enum PartitionTypes {
     Far32LBA = 0x0E,
 }
 #[derive(Debug)]
-pub enum MBRError { 
+pub enum MBRError {
     BadBootstrap,
     BadPartitions,
     BadSignature,

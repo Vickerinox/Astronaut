@@ -4,14 +4,16 @@
 #![allow(unused)]
 extern crate alloc;
 
+#[macro_export]
 macro_rules! const_assert {
     ($($tt:tt)*) => {
         const _: () = assert!($($tt)*);
     }
 }
-
+pub use volatile_register;
 mod aes;
 mod allocator;
+pub mod autoboot_info;
 pub mod dma;
 mod fs;
 pub mod i2c;
@@ -20,7 +22,6 @@ mod ipc;
 pub mod mbk;
 mod memory;
 pub mod mmc;
-pub mod autoboot_info;
 pub mod music_modules;
 pub mod ndma;
 pub mod scfg;
@@ -34,12 +35,12 @@ pub mod rtc;
 use core::num::NonZeroU32;
 pub mod twl_wifi;
 
-pub use memory::{VRAMCtrl};
 pub use aes::*;
 pub use allocator::ALLOCATOR;
 pub use dma::*;
 pub use interupts::*;
 pub use ipc::IPC_FIFO_HARDWARE;
+pub use memory::VRAMCtrl;
 pub use mmc::driver::*;
 pub use mmc::tmio::*;
 pub use mmc::*;

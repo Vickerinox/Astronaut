@@ -32,15 +32,7 @@ pub struct ITHeader {
     instruments: *mut [*mut ITInstrument],
     patterns: *mut [*mut ITPattern],
 }
-pub struct ITOrder {
-
-}
-pub struct ITSample {
-
-}
-pub struct ITInstrument {
-
-}
-pub struct ITPattern {
-
-}
+pub struct ITOrder {}
+pub struct ITSample {}
+pub struct ITInstrument {}
+pub struct ITPattern {}

@@ -19,15 +19,12 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     );
     info!(
         "libclang path is: {:?}",
-        std::env::var("LIBCLANG_PATH")
-
-        /*  
-        std::env::set_var(
-            "LIBCLANG_PATH",
-            "/nix/store/2hn01gz32n3axgmzrcclivngcgkcxqbm-clang-21.1.7-lib/lib"
-        )
-        */
-        
+        std::env::var("LIBCLANG_PATH") /*
+                                       std::env::set_var(
+                                           "LIBCLANG_PATH",
+                                           "/nix/store/2hn01gz32n3axgmzrcclivngcgkcxqbm-clang-21.1.7-lib/lib"
+                                       )
+                                       */
     );
     if !cwd
         .wait()
@@ -99,7 +96,9 @@ pub fn compile_arm7(
         empty_bin[file_range].copy_from_slice(data);
     }
 
-    while empty_bin.len() % 4 != 0 {empty_bin.push(0u8);}
+    while empty_bin.len() % 4 != 0 {
+        empty_bin.push(0u8);
+    }
     info!("ARM Binary is {:x?} bytes", empty_bin.len());
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)

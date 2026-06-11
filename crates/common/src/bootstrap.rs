@@ -6,7 +6,7 @@ use crate::device_list::DeviceList;
 pub unsafe fn boot_arm9() -> ! {
     //disable interrupts
     w(0x4000208 as *mut u32, 0);
-    
+
     let header = &(*BOOTINFO_MEM).twl_header;
     let is_twl = (*BOOTINFO_MEM).twl_header.is_dsi_mode();
 
@@ -29,7 +29,7 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x400404C as *mut u32, 0);
         w(0x4004050 as *mut u32, 0);
     }
-    
+
     //Setup local MBKS
     if is_twl {
         w(0x4004054 as *mut u32, header.arm9_mbks[0]);
@@ -46,7 +46,6 @@ pub unsafe fn boot_arm9() -> ! {
     (0x4000214 as *mut u32).write_volatile(!0);
     (*BOOTINFO_MEM).other[0] = 1;
     while VCOUNT_REG.read_volatile() != 192 {}
-
 
     //Sync to ARM7
     while VCOUNT_REG.read_volatile() == 192 {}
@@ -77,15 +76,14 @@ pub unsafe fn boot_arm7() -> ! {
     //clear all interrups
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
-    
+
     while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) == 0 {}
-    
+
     let dest = header.arm7_device_list as *mut u32;
     let src = core::ptr::addr_of!((*BOOTINFO_MEM).device_list_copy) as *const u32;
     for i in 0..0x100 {
         dest.add(i).write_volatile(*src.add(i));
     }
-    
 
     //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
@@ -102,8 +100,6 @@ pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
-
-
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -125,7 +121,6 @@ pub struct HeaderStart {
     pub arm9_entry: u32,
     pub arm9_load: u32,
     pub arm9_size: u32,
-
 
     // info for loading the arm7 binary
     pub arm7_offset: u32,
@@ -267,8 +262,6 @@ pub struct BootStub {
     pub loader_size: u32,
 }
 
-
-
 impl HeaderTWL {
     pub fn is_dsi_mode(&self) -> bool {
         self.head.unit_code & 2 > 0
@@ -277,10 +270,11 @@ impl HeaderTWL {
         self.is_dsi_mode() && ((self.title_id << 32) & 0xFF) != 0
     }
     pub fn is_homebrew(&self) -> bool {
-        self.head.maker_code == 0 || self.head.arm9_autoload_hook == 0 || self.head.arm7_load >= 0x03000000
+        self.head.maker_code == 0
+            || self.head.arm9_autoload_hook == 0
+            || self.head.arm7_load >= 0x03000000
     }
 }
-
 
 pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 
@@ -288,7 +282,7 @@ pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 pub struct BootInfoTWL {
     card_header: HeaderTWL,
     _0x1000: [u8; 0x7B0],
-    
+
     sysmenu_id: [u8; 9],
     init_code: u8,
     hotboot: u16,
@@ -304,7 +298,6 @@ pub struct BootInfoTWL {
 }
 #[repr(C)]
 pub struct BootInfoNTR {
-    
     //_0x0: [u8; 0x800],
     pub gap: [u8; 0x280],
     pub header: HeaderStart,
@@ -327,7 +320,7 @@ pub struct BootInfoNTR {
     pub arm9err: u8,
     pub arm7err: u8,
     _0x5fa: [u8; 6],
-    
+
     pub header_again: HeaderStart,
     pub debugger_again: [u8; 0x20],
     pub arm9ipc: u32,
@@ -348,7 +341,7 @@ pub struct BootInfoNTR {
     pub autoload: u16,
     pub arm9lock: [u8; 8],
     pub arm7lock: [u8; 8],
-    pub vramclock:  [u8; 8],
+    pub vramclock: [u8; 8],
     pub vramdlock: [u8; 8],
     pub wram0lock: [u8; 8],
     pub wram1lock: [u8; 8],
@@ -360,4 +353,3 @@ pub struct BootInfoNTR {
     pub memcmd: u16,
     pub wat: u16,
 }
-

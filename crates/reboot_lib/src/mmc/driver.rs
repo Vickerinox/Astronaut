@@ -137,8 +137,6 @@ pub enum InitSDMMCError {
     Status = 20,
     BusWidthSD = 21,
     StatusVerify = 22,
-
-
 }
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCError> {
     if device_number == DeviceSelect::SDCardSlot {}
@@ -167,7 +165,7 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
     let mut kind = DeviceType::SDSC;
     let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
     let is_mmc = match res {
-        Ok(Status::EMPTY) => false, //No$GBA compatability, maybe kind of dangerous? really the voltage should be verified here but idk.  
+        Ok(Status::EMPTY) => false, //No$GBA compatability, maybe kind of dangerous? really the voltage should be verified here but idk.
         Ok(Status::ERR_CMD_TIMEOUT) => true,
         Err(Status::ERR_CMD_TIMEOUT) => true,
         err => return Err(InitSDMMCError::FailedReadyState),
@@ -179,7 +177,11 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
             if tries == 200 {
                 return Err(InitSDMMCError::FailedOcrTimeout);
             }
-            let res = MMC_CONTROLLER.send_command(&mut dev.port, Command::MMCSendOptionalCondition, (2<<29) | (1<<20));
+            let res = MMC_CONTROLLER.send_command(
+                &mut dev.port,
+                Command::MMCSendOptionalCondition,
+                (2 << 29) | (1 << 20),
+            );
             if res != Status::empty() {
                 return Err(InitSDMMCError::FailedIdleOpCondMMC);
             }
@@ -200,20 +202,19 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
         };
     } else {
         loop {
-        if tries == 200 {
-            return Err(InitSDMMCError::FailedOcrTimeout);
-        }
-        ocr = dev.port.response[0];
-        if (ocr & (1 << 31)) > 0 {
-            break;
-        }
-        let res =
-            send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
-        if res != Ok(Status::empty()) {
-            return Err(InitSDMMCError::FailedIdleOpCondSD);
-        }
-        crate::swi::swi_delay(0x20BA * 5);
-        tries += 1;
+            if tries == 200 {
+                return Err(InitSDMMCError::FailedOcrTimeout);
+            }
+            ocr = dev.port.response[0];
+            if (ocr & (1 << 31)) > 0 {
+                break;
+            }
+            let res = send_app_command(&mut dev.port, Command::AppSendOpCondition, op_cond_arg, 0);
+            if res != Ok(Status::empty()) {
+                return Err(InitSDMMCError::FailedIdleOpCondSD);
+            }
+            crate::swi::swi_delay(0x20BA * 5);
+            tries += 1;
         }
         if (ocr & (1 << 20)) == 0 {
             return Err(InitSDMMCError::FailedIdleOpCondSD2);
@@ -224,7 +225,7 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
             kind = DeviceType::SDSC
         }
     }
-    
+
     dev.port.clock = ClockCnt::FREQ_262K | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
 
     match MMC_CONTROLLER.send_command(&mut dev.port, Command::AllSendCID, 0) {
@@ -242,11 +243,9 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
             Status::EMPTY => (),
             err => return Err(InitSDMMCError::RelAddr),
         }
-        
-        dev.port.response[0] & 0xFFFF0000
-        
-    };
 
+        dev.port.response[0] & 0xFFFF0000
+    };
 
     match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendCSD, rca) {
         Status::EMPTY => (),
@@ -258,16 +257,13 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
         err => return Err(InitSDMMCError::Select),
     }
 
-    
     dev.rca = rca;
     dev.port.clock = ClockCnt::ENABLE | ClockCnt::FREQ_16M | ClockCnt::AUTO_STOP;
 
     crate::swi_delay(0x208 * 5);
-    
+
     if kind.is_mmc() {
-        
     } else {
-         
         match send_app_command(&mut dev.port, Command::AppSetClearCardSelect, 0, rca) {
             Ok(Status::EMPTY) => (),
             err => return Err(InitSDMMCError::Desel),
@@ -277,15 +273,14 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
             err => return Err(InitSDMMCError::BusWidthSD),
         }
         dev.port.set_bus_width(4);
-        
     }
     match MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, rca) {
         Status::EMPTY => {
-            
+
             //if dev.port.response[0]&0x1e00 != 0x800 {
             //    return Err(InitSDMMCError::Status)
             //}
-        },
+        }
         err => return Err(InitSDMMCError::StatusVerify),
     }
     dev.kind = Some(kind);
@@ -333,7 +328,12 @@ fn extract_bits(resp: &[u32; 4], start: usize, size: usize) -> u32 {
     }
     res & mask
 }
-unsafe fn send_app_command(port: &mut TMIOPort, cmd: Command, arg: u32, rca: u32) -> Result<Status, Status> {
+unsafe fn send_app_command(
+    port: &mut TMIOPort,
+    cmd: Command,
+    arg: u32,
+    rca: u32,
+) -> Result<Status, Status> {
     match MMC_CONTROLLER.send_command(port, Command::AppCommand, rca) {
         Status::EMPTY => Ok(MMC_CONTROLLER.send_command(port, cmd, arg)),
         a => Err(a),
@@ -357,12 +357,12 @@ pub unsafe fn read_sectors(
         _ => sector,
     };
     let res = MMC_CONTROLLER.send_command(&mut device.port, Command::ReadMutliBlocks, sector);
-    
+
     if (res).successful() {
         Ok(())
     } else {
         let res2 = MMC_CONTROLLER.send_command(&mut device.port, Command::StopTransmission, 0);
-        Err(res|res2)
+        Err(res | res2)
     }
 }
 pub unsafe fn write_sd_sectors(

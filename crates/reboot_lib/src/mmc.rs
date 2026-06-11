@@ -3,7 +3,7 @@ use core::{
     ops::{BitAndAssign, BitOrAssign, Not},
 };
 
-use crate::{MemoryWrapper, swi_delay};
+use crate::{swi_delay, MemoryWrapper};
 use volatile_register::*;
 
 pub mod driver;
@@ -266,19 +266,20 @@ impl MMC {
         self.tmio_set_port(port);
         self.block_count.write(port.buffer.len() as u16);
         self.block_count_32.write(port.buffer.len() as u16);
-        
+
         self.irmask.write(Status::all());
         self.status.write(Status::empty());
-        self.stop_action.write(1<<8);
-        
+        self.stop_action.write(1 << 8);
+
         self.data_control.write(Control::USE_DATA32);
-        self.data_control_32.write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
-        
+        self.data_control_32
+            .write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
+
         let mut timeout = 0;
 
         self.param.write(argument);
         self.command.write(command as u16);
-        
+
         let mut value = self.status.read();
         while !value.contains(Status::RESPONSE_END) {
             timeout += 1;
@@ -342,7 +343,7 @@ impl MMC {
                     value |= self.status.read();
                 }
             }
-            /* 
+            /*
             while !self.status.read().contains(Status::DATA_END) {
                 timeout += 1;
                 if timeout > 0x10_0000 {
@@ -355,10 +356,7 @@ impl MMC {
             if value.contains(Status::ERR_CMD_TIMEOUT) {
                 value &= !Status::ERR_CMD_TIMEOUT
             }
-            
         }
-        
-    
 
         while self.status.read().contains(Status::CMD_BUSY) {
             timeout += 1;
@@ -366,8 +364,8 @@ impl MMC {
                 return !Status::INSERTED;
             }
         }
-        
-        value.intersection(Status::ALL_ERRORS)      
+
+        value.intersection(Status::ALL_ERRORS)
     }
 }
 const fn none(command_number: u16) -> u16 {
@@ -438,14 +436,14 @@ pub enum Command {
     //block oriented commands
     SetBlockLen = r1(16),
     ReadSingleBlock = r1_r(17),
-    ReadMutliBlocks = 18 | CMD_DATA_EN | CMD_DATA_MULTI | CMD_DATA_R,//r1_r(18) | CMD_DATA_MULTI,
+    ReadMutliBlocks = 18 | CMD_DATA_EN | CMD_DATA_MULTI | CMD_DATA_R, //r1_r(18) | CMD_DATA_MULTI,
     SendTuningBlock = r1_r(19),
     SpeedClassControl = r1b(20),
     AddressExtension = r1(22),
     SetBlockCount = r1(23),
 
     WriteSingleBlock = r1_w(24),
-    WriteMultiBlocks = 25 | CMD_DATA_EN | CMD_DATA_MULTI | CMD_DATA_W,//r1_w(25) | CMD_DATA_MULTI,
+    WriteMultiBlocks = 25 | CMD_DATA_EN | CMD_DATA_MULTI | CMD_DATA_W, //r1_w(25) | CMD_DATA_MULTI,
     ProgramCSD = r1_w(27),
 
     SetWriteProtection = r1b(28),
@@ -534,18 +532,20 @@ impl TMIOPort {
         }
     }
     pub const fn dsio() -> Self {
-    Self {    port_num: 0,
-        clock: ClockCnt::FREQ_131K,
-        block_len: 128,
-        option: (1 << 15),
-        buffer: &mut [],
-        response: [0; 4],
-    }}
+        Self {
+            port_num: 0,
+            clock: ClockCnt::FREQ_131K,
+            block_len: 128,
+            option: (1 << 15),
+            buffer: &mut [],
+            response: [0; 4],
+        }
+    }
     pub fn set_bus_width(&mut self, width: u8) {
         self.option = if width == 4 {
-            0 | (1<<14) | (11 << 4) | 8
+            0 | (1 << 14) | (11 << 4) | 8
         } else {
-            (1<<15) | (1<<14) | (11 << 4) | 8
+            (1 << 15) | (1 << 14) | (11 << 4) | 8
         };
     }
 }

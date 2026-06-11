@@ -4,9 +4,8 @@ use crate::fatfs::diskio::diskio_bindings::*;
 use crate::fatfs::*;
 use core::ptr;
 
-
 pub enum IoctlCommand {
-    CtrlSync(()), 
+    CtrlSync(()),
     GetSectorCount(DWORD),
     GetSectorSize(WORD),
     GetBlockSize(DWORD),

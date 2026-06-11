@@ -1,4 +1,4 @@
-/* 
+/*
 use reboot_lib::{
     mmc::Command, swi_delay, swi_halt, ClockCnt, Control, DataControl32, Status, MMC,
     MMC_CONTROLLER,

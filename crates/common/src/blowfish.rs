@@ -1,5 +1,5 @@
 use crate::bootstrap::HeaderTWL;
-/* 
+/*
 #[derive(Clone)]
 #[repr(C)]
 pub struct BlowfishContext {
@@ -58,7 +58,7 @@ impl BlowfishContext {
             y = u32::from_le_bytes(z);
         }
         (x ^ self.table[1]) as u64 | (((y ^ self.table[0]) as u64) << 32)
-    
+
     }
     pub fn transform_key1(&mut self, code: u32, level: u32, modulo: u32) {
         let mut ccode = [0u8; 12];
@@ -76,7 +76,7 @@ impl BlowfishContext {
             ccode[4..8].copy_from_slice(&mid.to_le_bytes());
             let mid = u32::from_le_bytes([ccode[8],ccode[9],ccode[10],ccode[11]]) >> 1;
             ccode[8..12].copy_from_slice(&mid.to_le_bytes());
-        
+
             self.apply_key_code(&mut ccode, modulo);
         }
     }
@@ -114,9 +114,9 @@ impl BlowfishContext {
     }
 }
     */
-    #[derive(Clone)]
+#[derive(Clone)]
 pub struct BFCTX {
-    magic: [u32; 0x412]
+    magic: [u32; 0x412],
 }
 impl BFCTX {
     fn lookup(&self, v: u32) -> u32 {
@@ -125,10 +125,10 @@ impl BFCTX {
         let mut c = (v >> 8) & 0xFF;
         let mut d = (v >> 0) & 0xFF;
 
-        a = self.magic[a as usize +18+0];
-        b = self.magic[b as usize +18+256];
-        c = self.magic[c as usize +18+512];
-        d = self.magic[d as usize +18+768];
+        a = self.magic[a as usize + 18 + 0];
+        b = self.magic[b as usize + 18 + 256];
+        c = self.magic[c as usize + 18 + 512];
+        d = self.magic[d as usize + 18 + 768];
 
         d.wrapping_add(c ^ b.wrapping_add(a))
     }
@@ -159,7 +159,7 @@ impl BFCTX {
             let mut r3 = 0u32;
             for i in 0..4 {
                 r3 <<= 8;
-                r3 |= arg[(j*4 + i) & 7] as u32;
+                r3 |= arg[(j * 4 + i) & 7] as u32;
             }
             self.magic[j] ^= r3;
         }
@@ -168,41 +168,36 @@ impl BFCTX {
         let mut tmp2 = 0u32;
         for i in (0..18).step_by(2) {
             self.encrypt(&mut tmp1, &mut tmp2);
-            self.magic[i+0] = tmp1;
-            self.magic[i+1] = tmp2;
+            self.magic[i + 0] = tmp1;
+            self.magic[i + 1] = tmp2;
         }
-        
+
         for i in (0..0x400).step_by(2) {
             self.encrypt(&mut tmp1, &mut tmp2);
-            self.magic[i+18+0] = tmp1;
-            self.magic[i+18+1] = tmp2;
+            self.magic[i + 18 + 0] = tmp1;
+            self.magic[i + 18 + 1] = tmp2;
         }
     }
     pub fn init2(&mut self, a: &mut [u32; 3]) {
-        let [a2,b2,c2] = a;
-        self.encrypt(c2,b2);
-        self.encrypt(b2,a2);
-        let [a,b,c,d] = a2.to_le_bytes();
-        let [e,f,g,h] = b2.to_le_bytes();
-        let mut arg = [a,b,c,d,e,f,g,h];
+        let [a2, b2, c2] = a;
+        self.encrypt(c2, b2);
+        self.encrypt(b2, a2);
+        let [a, b, c, d] = a2.to_le_bytes();
+        let [e, f, g, h] = b2.to_le_bytes();
+        let mut arg = [a, b, c, d, e, f, g, h];
         self.update(&mut arg);
     }
     pub fn init1(&mut self, table: &[u8]) {
         for (i, chunk) in table.chunks_exact(4).enumerate() {
-            self.magic[i] = u32::from_le_bytes([chunk[0],chunk[1],chunk[2],chunk[3]]);
+            self.magic[i] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         }
-        
     }
     pub fn new() -> Self {
-        Self {
-            magic: [0; _]
-        }
+        Self { magic: [0; _] }
     }
 }
 pub unsafe fn decrypt_secure_area(header: &HeaderTWL) {
     if (0x4000..0x8000).contains(&header.head.arm9_offset) {
-        if core::slice::from_raw_parts(header.head.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {
-            
-        }
+        if core::slice::from_raw_parts(header.head.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {}
     }
 }

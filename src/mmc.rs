@@ -3,6 +3,7 @@ use console::Style;
 use core::array;
 use fatfs::Error as FatFsError;
 use fatfs::{FileSystem, FsOptions, StdIoWrapper};
+use log::{debug, error, info};
 use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
 use sha1::{Digest, Sha1};
@@ -13,7 +14,6 @@ use std::{
     io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
-use log::{debug, error, info};
 //pub mod aes_ecb;
 pub mod mbr;
 pub mod nandcursor;
@@ -74,8 +74,6 @@ fn open_main_twl<'a>(
         .map_err(|e| TMDCompileError::FileSystemCreation(e))?;
     Ok(fs)
 }
-
-
 
 pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), CompileError> {
     info!("SELECTED MMC: {:?}", mmc_path.as_ref());

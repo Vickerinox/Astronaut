@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 use reboot_lib::StorageSector;
 
-
 pub struct BasicSDMMCCursor<'a> {
     buffer: &'a mut [StorageSector],
     offset: usize,
@@ -20,7 +19,11 @@ pub enum AsyncSDMMCReadStatus {
     Finished,
 }
 impl<'a> BasicSDMMCCursor<'a> {
-    pub fn new(buffer: &'a mut [StorageSector], lba_sector: u32, is_nand: bool) -> Result<Self, u32> {
+    pub fn new(
+        buffer: &'a mut [StorageSector],
+        lba_sector: u32,
+        is_nand: bool,
+    ) -> Result<Self, u32> {
         let mut oneself = Self {
             buffer_sector: 0,
             buffer,

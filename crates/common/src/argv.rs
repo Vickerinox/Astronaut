@@ -1,7 +1,5 @@
 use crate::bootstrap::HeaderTWL;
 
-
-
 pub const ARGV_MAGIC: i32 = 0x5f617267;
 pub const SYSTEM_ARGV: *mut ArgvStructutre = 0x02FFFE70 as _;
 //DKA argv struct

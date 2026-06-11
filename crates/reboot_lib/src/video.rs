@@ -12,8 +12,6 @@ pub const VIDEO_HARDWARE: MemoryWrapper<VideoHardware> =
 pub const ENGINE_A_PALETTES: MemoryWrapper<PPUEngine> =
     MemoryWrapper(0x0500_0000 as *mut PPUEngine);
 
-
-
 #[repr(C)]
 pub struct PPUEngine {
     pub bg_palettes: [WO<u16>; 256],
@@ -241,7 +239,11 @@ pub struct VideoHardware {
     pub engine_a_ctrl: RW<DisplayControl>,
     _0x4: [u8; 0x5C],
     pub display_control_3d: RW<u16>,
-    _0x62: [u8; 0x1DE],
+    _0x62: u16,
+    pub display_capture: RW<u32>,
+    pub display_memory: RW<u32>,
+    pub master_brightness: RW<u16>,
+    _0x6e: [u8; 0x1D2],
     pub vram_control_bank_a: WO<VRAMCtrl>,
     pub vram_control_bank_b: WO<VRAMCtrl>,
     pub vram_control_bank_c: WO<VRAMCtrl>,
@@ -282,6 +284,12 @@ pub struct VideoHardware {
     _free_bus_8: [u8; 0xA],
     pub clip_matrix_result: [RO<u32>; 0x10],
     pub vector_matrix_result: [RO<u32>; 6],
+    _0x698: [u8; 0x968],
+    pub disp_b_control: RW<DisplayControl>,
+    _0x1004: u32,
+    pub gba_registers: [u8; 0x50],
+    _0x1058: [u8; 0x14],
+    pub disp_b_master_bright: RW<u16>,
 }
 
 #[derive(Clone, Copy)]
