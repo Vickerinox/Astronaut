@@ -234,7 +234,7 @@ impl<B: Backend> Ctx<B> {
             let last = self.backend.last_known_pointer_location();
             let coverage = Rect::from_two_pos(vec, last);
             if coverage.width() | coverage.height() > 5 {
-                self.touchdown_pos = TouchDown::Drag(vec);
+                self.touchdown_pos = TouchDown::Drag(last);
             }
         }
     }

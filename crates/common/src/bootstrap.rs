@@ -5,27 +5,29 @@ use crate::device_list::DeviceList;
 #[inline(always)]
 pub unsafe fn boot_arm9() -> ! {
     //disable interrupts
+    w(0x4004040 as *mut u32, 0);
     w(0x4000208 as *mut u32, 0);
-
-    let header = &(*BOOTINFO_MEM).twl_header;
-    let is_twl = (*BOOTINFO_MEM).twl_header.is_dsi_mode();
-
-        //Setup local MBKS
+    w(0x4000210 as *mut u32, 0);
+    //Setup local MBKS
+    let is_twl = (*HEADER_MEM).is_dsi_mode();
     if is_twl {
-        w(0x4004054 as *mut u32, header.arm9_mbks[0]);
-        w(0x4004058 as *mut u32, header.arm9_mbks[1]);
-        w(0x400405C as *mut u32, header.arm9_mbks[2]);
+        w(0x4004054 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
+        w(0x4004058 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
+        w(0x400405C as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
     } else {
-        w(0x0 as *mut u32, header.arm9_mbks[0]);
-        w(0x0 as *mut u32, header.arm9_mbks[1]);
-        w(0x0 as *mut u32, header.arm9_mbks[2]);
+        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
+        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
+        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
     }
-    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 1 {}
+    //clear all interrupts
+    (0x4000214 as *mut u32).write_volatile(!0);
+    while VCOUNT_REG.read_volatile() != 192 {}
+
     //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
     if is_twl {
-        let gmbks = &header.global_mbks;
+        let gmbks = &(*HEADER_MEM).global_mbks;
         //NTR mbk
-        w(0x4000247 as *mut u8, header.wram_cnt);
+        w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
         //TWL mbk
         w(0x4004040 as *mut u32, gmbks[0]);
         w(0x4004044 as *mut u32, gmbks[1]);
@@ -41,65 +43,47 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x4004050 as *mut u32, 0);
     }
 
-
-    //clear all interrupts
-    w(0x4004040 as *mut u32, 0);
-    w(0x4000210 as *mut u32, 0);
-    (0x4000214 as *mut u32).write_volatile(!0);
-    (*BOOTINFO_MEM).other[0] = 2;
-    while VCOUNT_REG.read_volatile() != 192 {}
+    //Sync to ARM7
     while VCOUNT_REG.read_volatile() == 192 {}
 
     //Jump to Entrypoint
-    let entry = ARM9_JUMP;
-    core::arch::asm!("mov r11,r11");
+    let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
 #[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
-
     //disable all interrupts
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
     (0x4000218 as *mut u32).write_volatile(0);
-    let header = &(*BOOTINFO_MEM).twl_header;
+
     //setup MBKS
-    if header.is_dsi_mode() {
-        w(0x4004054 as *mut u32, header.arm7_mbks[0]);
-        w(0x4004058 as *mut u32, header.arm7_mbks[1]);
-        w(0x400405C as *mut u32, header.arm7_mbks[2]);
+    if (*HEADER_MEM).is_dsi_mode() {
+        w(0x4004054 as *mut u32, (*HEADER_MEM).arm7_mbks[0]);
+        w(0x4004058 as *mut u32, (*HEADER_MEM).arm7_mbks[1]);
+        w(0x400405C as *mut u32, (*HEADER_MEM).arm7_mbks[2]);
     } else {
         w(0x4004054 as *mut u32, 0);
         w(0x4004058 as *mut u32, 0);
         w(0x400405C as *mut u32, 0);
     }
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 1);
 
     //clear all interrups
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
-
-    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 2 {}
-
-    //let dest = header.arm7_device_list as *mut u32;
-    /* 
-    let src = core::ptr::addr_of!((*BOOTINFO_MEM).device_list_copy) as *const u32;
-    for i in 0..0x100 {
-        dest.add(i).write_volatile(*src.add(i));
-    }
-    */
 
     //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
 
     //jump to entrypoint
-    let entry = core::ptr::addr_of!(header.head.arm7_entry);
-    core::arch::asm!("mov r11,r11");
+    let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
+const HEADER_MEM: *const HeaderTWL = 0x2FFE000 as *const HeaderTWL;
+
 pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
@@ -256,16 +240,7 @@ pub struct HeaderTWL {
 }
 const_assert!(core::mem::size_of::<HeaderTWL>() == 0x1000);
 
-//DKA bootstub struct
-const _BOOTSTUB_MAGIC: u64 = 0x62757473746F6F62; // "bootstub"
-const _BOOTSTUB_LOCATION: *mut BootStub = 0x2FF4000 as *mut BootStub;
-#[repr(C)]
-pub struct BootStub {
-    pub magic: u64,
-    pub arm9_entry: *const (),
-    pub arm7_entry: *const (),
-    pub loader_size: u32,
-}
+
 
 impl HeaderTWL {
     pub fn is_dsi_mode(&self) -> bool {

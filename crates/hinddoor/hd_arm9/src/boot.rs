@@ -114,7 +114,7 @@ unsafe fn boot_unreturnable(
 
         reboot_lib::nocash_write("> ARM7i binary loaded \n");
 
-        /* 
+        
         if header.head.twl_flags & (1 << 1) > 0 {
             match reboot_lib::arm9_decrypt_modcrypt(0) {
                 Ok(()) => (),
@@ -124,11 +124,11 @@ unsafe fn boot_unreturnable(
             }
             reboot_lib::nocash_write("> Applied Modcrypt \n");
         }
-        */
+        
     }
     
 
-    /* 
+    
     if (0x4000..0x8000).contains(&header.head.arm9_offset) {
         let tmp = header.head.arm9_load as *mut u32;
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
@@ -152,14 +152,12 @@ unsafe fn boot_unreturnable(
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
-    */
-    /* 
     
-    */
 
-    //common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
-    //reboot_lib::nocash_write("> Inserted Device List \n");
-    /* 
+
+    common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
+    reboot_lib::nocash_write("> Inserted Device List \n");
+    
     {
         common::config::init(header);
         let wifi_type = (*BOOTINFO_MEM).ntr.firmware_data[0xFF];
@@ -176,7 +174,7 @@ unsafe fn boot_unreturnable(
         (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF, 0x020005E4 as *const (), 0xC));
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
-    */
+    
     inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.head.arm9_entry);
     reboot_lib::flush_mmc();

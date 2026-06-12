@@ -12,3 +12,4 @@ pub mod bootstrap;
 pub mod config;
 pub mod device_list;
 pub mod modcrypt;
+pub mod bootstub;
