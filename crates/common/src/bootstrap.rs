@@ -20,7 +20,7 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x0 as *mut u32, header.arm9_mbks[1]);
         w(0x0 as *mut u32, header.arm9_mbks[2]);
     }
-    
+    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 1 {}
     //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
     if is_twl {
         let gmbks = &header.global_mbks;
@@ -46,10 +46,8 @@ pub unsafe fn boot_arm9() -> ! {
     w(0x4004040 as *mut u32, 0);
     w(0x4000210 as *mut u32, 0);
     (0x4000214 as *mut u32).write_volatile(!0);
-    (*BOOTINFO_MEM).other[0] = 1;
+    (*BOOTINFO_MEM).other[0] = 2;
     while VCOUNT_REG.read_volatile() != 192 {}
-
-    //Sync to ARM7
     while VCOUNT_REG.read_volatile() == 192 {}
 
     //Jump to Entrypoint
@@ -60,6 +58,7 @@ pub unsafe fn boot_arm9() -> ! {
 }
 #[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
+
     //disable all interrupts
     (0x4000208 as *mut u32).write_volatile(0);
     (0x4000210 as *mut u32).write_volatile(0);
@@ -75,12 +74,13 @@ pub unsafe fn boot_arm7() -> ! {
         w(0x4004058 as *mut u32, 0);
         w(0x400405C as *mut u32, 0);
     }
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 1);
 
     //clear all interrups
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
 
-    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) == 0 {}
+    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 2 {}
 
     //let dest = header.arm7_device_list as *mut u32;
     /* 

@@ -325,6 +325,7 @@ fn main() {
                         I2CRegister::I2cPower(reboot_lib::i2c::PowerRegister::MMCPWR),
                         0,
                     );
+                    
                     bootstrap::boot_arm7();
                 }
                 7 => {

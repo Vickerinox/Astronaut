@@ -51,7 +51,30 @@ unsafe fn boot_unreturnable(
     bf: &mut BFCTX,
 ) -> ! {
     crate::stop_mod_file();
-    (*BOOTINFO_MEM).ntr.header_again = (*BOOTINFO_MEM).twl_header.head.clone();
+    //(*BOOTINFO_MEM).ntr.header_again = (*BOOTINFO_MEM).twl_header.head.clone();
+    if header.is_homebrew() {
+        let path_bytes = file_path.as_bytes();
+        let (trim, path_bytes) = if path_bytes.get(..4) == Some(b"sdmc") {
+            path_bytes.get(2..).map_or((false, path_bytes), |i| (true, i))
+        } else {
+            (false, path_bytes)
+        };
+        
+        let other = &mut (*(APP_AREA_START as *mut AppArea)).path_buffer;
+        for (i, o) in path_bytes.iter().zip(other.iter_mut()) {
+            *o = *i; 
+        }
+        if trim {
+            other[0..2].copy_from_slice(b"sd");
+        }
+        let path = core::str::from_raw_parts(other as *const u8, path_bytes.len());
+        
+        common::argv::init(header,path);
+        reboot_lib::nocash_write("> Inserted ARGV \n");
+        
+        
+    }
+    
     let arm9_ram = core::slice::from_raw_parts_mut(
         header.head.arm9_load as *mut u8,
         header.head.arm9_size as usize,
@@ -131,10 +154,7 @@ unsafe fn boot_unreturnable(
     }
     */
     /* 
-    if header.is_homebrew() {
-        common::argv::init(header, file_path);
-        reboot_lib::nocash_write("> Inserted ARGV \n");
-    }
+    
     */
 
     //common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
@@ -163,24 +183,21 @@ unsafe fn boot_unreturnable(
 
    
     while (&*(APP_AREA_START as *mut AppArea)).fader.current.read() != (&*(APP_AREA_START as *mut AppArea)).fader.target.read() {}
-    while VCOUNT_REG.read_volatile() != 192 {}
-    while VCOUNT_REG.read_volatile() == 192 {}
     reboot_lib::disable_all_interrupts();
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
     if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15  {
         set_background(0x7FFF);
         crate::set_bright(0);
     }
-    
 
-    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
-
-    
-
     reboot_lib::flush_mmc();
+    reboot_lib::flush_mmc();
+    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
+    while VCOUNT_REG.read_volatile() != 192 {}
+    while VCOUNT_REG.read_volatile() == 192 {}
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }

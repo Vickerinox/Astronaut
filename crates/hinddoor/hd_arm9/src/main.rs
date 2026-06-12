@@ -10,6 +10,7 @@ pub struct AppArea {
     sdmmc_driver: core::mem::MaybeUninit<SDMMCDriver>,
     app_data: core::mem::MaybeUninit<AppData>,
     fader: Fader,
+    path_buffer: [u8; 256],
 }
 pub struct Fader {
     current: reboot_lib::volatile_register::RW<i8>,
