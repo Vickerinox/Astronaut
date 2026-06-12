@@ -4,8 +4,8 @@ use crate::MemoryWrapper;
 
 #[repr(C)]
 pub struct BootMethods {
-    pub optional: OptBoot,
-    pub official: OfficialBoot,
+    pub optional: core::mem::MaybeUninit<OptBoot>,
+    pub official: core::mem::MaybeUninit<OfficialBoot>,
     _0x400: [u8; 0x400],
     pub unlaunch: UnlaunchBoot,
 }

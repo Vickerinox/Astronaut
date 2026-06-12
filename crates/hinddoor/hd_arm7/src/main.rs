@@ -69,7 +69,7 @@ unsafe fn update_volume() {
 unsafe fn power_button_interrupt() {
     let irq_cause = unsafe {
         reboot_lib::i2c::I2C_HARDWARE
-            .read_register(reboot_lib::i2c::PowerRegister::PWRIF)
+            .read_register(reboot_lib::i2c::PowerRegister::PWRIF.into())
             .map(|i| i & 3)
     };
     match irq_cause {
@@ -77,10 +77,10 @@ unsafe fn power_button_interrupt() {
             unsafe {
                 //set warmboot
                 reboot_lib::i2c::I2C_HARDWARE
-                    .write_register(reboot_lib::i2c::PowerRegister::RESETFLAG, 1);
+                    .write_register(reboot_lib::i2c::PowerRegister::RESETFLAG.into(), 1);
                 //trigger reset
                 reboot_lib::i2c::I2C_HARDWARE
-                    .write_register(reboot_lib::i2c::PowerRegister::PWRCNT, 1);
+                    .write_register(reboot_lib::i2c::PowerRegister::PWRCNT.into(), 1);
             }
         }
         Ok(2) => unsafe {
@@ -100,7 +100,7 @@ fn main() {
         init::init_power_regs();
         init::init_i2c();
         init::init_ntr_sound();
-        init::init_powerman();
+        init::init_powerman2();
         init::init_nwram();
 
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
@@ -134,6 +134,8 @@ fn main() {
         reboot_lib::IPC_FIFO_HARDWARE.set_status(1);
         while reboot_lib::IPC_FIFO_HARDWARE.read_status() != 1 {}
         reboot_lib::IPC_FIFO_HARDWARE.set_status(0);
+        
+        
 
         reboot_lib::MMC_CONTROLLER.tmio_init();
 

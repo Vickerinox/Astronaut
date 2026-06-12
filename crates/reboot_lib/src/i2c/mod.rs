@@ -4,8 +4,8 @@ use volatile_register::RW;
 pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as *mut I2CInterface);
 
 pub unsafe fn init() {
-    I2C_HARDWARE.write_register(PowerRegister::WIFILED, 1);
-    I2C_HARDWARE.write_register(PowerRegister::MMCPWR, 0);
+    I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 1);
+    I2C_HARDWARE.write_register(PowerRegister::MMCPWR.into(), 0);
     //I2C_HARDWARE.write_register(PowerRegister::PowerButtonTap, 0x10);
     //I2C_HARDWARE.write_register(PowerRegister::PowerButtonHold, 0x64);
 }
@@ -52,10 +52,10 @@ impl I2CInterface {
     }
     pub unsafe fn write_register(
         &self,
-        register: impl Into<I2CRegister>,
+        register: I2CRegister,
         value: u8,
     ) -> Result<I2CSuccess, I2CFailure> {
-        let (device, register) = register.into().as_chip_and_reg();
+        let (device, register) = register.as_chip_and_reg();
         for i in 0..8 {
             if self.set_device(device).is_ok() && self.set_register(register).is_ok() {
                 crate::swi_delay(0x180);
@@ -69,8 +69,8 @@ impl I2CInterface {
         }
         Err(I2CFailure)
     }
-    pub unsafe fn read_register(&self, register: impl Into<I2CRegister>) -> Result<u8, I2CFailure> {
-        let (device, register) = register.into().as_chip_and_reg();
+    pub unsafe fn read_register(&self, register: I2CRegister) -> Result<u8, I2CFailure> {
+        let (device, register) = register.as_chip_and_reg();
         for i in 0..8 {
             if self.set_device(device).is_ok() && self.set_register(register).is_ok() {
                 crate::swi_delay(0x180);

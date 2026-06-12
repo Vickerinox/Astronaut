@@ -3,7 +3,7 @@ use core::num::NonZeroU16;
 use micro_imgui::{LayerId, Rect, Vec2};
 use reboot_lib::Buttons;
 
-use crate::gui::VideoTextPass;
+use crate::{SCREEN_RECT, gui::VideoTextPass};
 
 pub struct DSMicroGuiBackend {
     input: Inputs,
@@ -91,9 +91,9 @@ impl micro_imgui::InputEvent for Input {
 
     const FOCUS_DOWN: Self = Self(Buttons::DIRECTION_DOWN);
 
-    const FOCUS_NEXT: Self = Self(Buttons::DIRECTION_RIGHT);
+    const FOCUS_NEXT: Self = Self(Buttons::DIRECTION_DOWN);
 
-    const FOCUS_PREVIOUS: Self = Self(Buttons::DIRECTION_LEFT);
+    const FOCUS_PREVIOUS: Self = Self(Buttons::DIRECTION_UP);
 }
 
 impl micro_imgui::Backend for DSMicroGuiBackend {
@@ -107,7 +107,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
         self.input.update(buttons, Vec2::new(x as i16, y as i16))
     }
     fn screen_rect(&self) -> Rect {
-        Rect::from_min_size(micro_imgui::Vec2::ZERO, micro_imgui::Vec2::new(256, 192))
+        SCREEN_RECT
     }
 
     fn start_frame(&mut self) {

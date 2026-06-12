@@ -14,8 +14,8 @@ pub const ENGINE_A_PALETTES: MemoryWrapper<PPUEngine> =
 
 #[repr(C)]
 pub struct PPUEngine {
-    pub bg_palettes: [WO<u16>; 256],
-    pub obj_palettets: [WO<u16>; 256],
+    pub bg_palettes: [RW<u16>; 256],
+    pub obj_palettets: [RW<u16>; 256],
 }
 pub const ENGINE_B_PALETTES: MemoryWrapper<PPUEngine> =
     MemoryWrapper(0x0500_0400 as *mut PPUEngine);

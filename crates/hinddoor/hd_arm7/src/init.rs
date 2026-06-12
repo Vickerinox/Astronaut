@@ -15,6 +15,11 @@ pub unsafe fn init_ntr_sound() {
 }
 pub unsafe fn init_powerman() {
     reboot_lib::spi::write_powerman(PowerRegiser::Control(
+        Control::ENABLE_SOUND_AMP,
+    ));
+}
+pub unsafe fn init_powerman2() {
+    reboot_lib::spi::write_powerman(PowerRegiser::Control(
         Control::ENABLE_BACKLIGHTS | Control::ENABLE_SOUND_AMP,
     ));
 }

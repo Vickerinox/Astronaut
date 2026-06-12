@@ -73,7 +73,7 @@ pub unsafe fn new_nwifi_init() {
 
     RTC_HARDWARE.transact(&[0x72u8, 0x80], &mut []);
     RTC_HARDWARE.transact(&[0x74u8, 0x00], &mut []);
-    I2C_HARDWARE.write_register(PowerRegister::WIFILED, 0x13);
+    I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 0x13);
     (0x4004020 as *mut u16).write_volatile(1);
 
     {
@@ -122,7 +122,7 @@ pub unsafe fn init_nwifi_regs() {
         .write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32);
     SDIO_CONTROLLER.irmask.write(Status::all());
     (*(0x4004C04 as *mut RW<u16>)).modify(|i| i & !0x100);
-    crate::i2c::I2C_HARDWARE.write_register(PowerRegister::WIFILED, 0x13);
+    crate::i2c::I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 0x13);
 }
 pub unsafe fn init_nwifi_opcond() -> bool {
     nwifi_read_func0(FuncReg::func0(4));

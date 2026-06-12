@@ -21,6 +21,18 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             layout: Layout::default(),
         }
     }
+    pub fn paint_shape(&mut self, shape: crate::primitives::Shape) {
+        self.ctx.paint_shape(shape)
+    }
+    pub fn drag(&mut self) -> Option<Vec2> {
+        self.ctx.drag()
+    }
+    pub fn cancel_refocus(&mut self) {
+        self.ctx.cancel_refocus();
+    }
+    pub fn has_focus_anywhere(&mut self) -> bool {
+        self.ctx.has_focus_anywhere()
+    }
     pub fn button<'c>(&mut self, text: &str) -> response::Response {
         self.add(Button::new(
             text,

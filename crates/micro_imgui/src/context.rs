@@ -1,12 +1,18 @@
+use core::ops::Sub;
+
 use crate::{
     primitives::{Backend, Id, InputEvent, Rect, Vec2},
     response::{Response, Sense},
     ui::Ui,
 };
-
+enum TouchDown {
+    None,
+    Touch(Vec2),
+    Drag(Vec2),
+}
 pub struct Ctx<B> {
     pub(crate) backend: B,
-    touchdown_pos: Option<Vec2>,
+    touchdown_pos: TouchDown,
     pressed_response: Option<Id>,
     hovered_response: Option<Id>,
     focused_response: Option<Id>,
@@ -23,6 +29,7 @@ pub struct Frame<'a, B: Backend> {
 
     prev_focus: Option<Id>,
     next_focus: Option<Id>,
+    focus_dir: i8,
 }
 
 impl<'a, B: Backend> core::ops::Deref for Frame<'a, B> {
@@ -39,6 +46,16 @@ impl<'a, B: Backend> core::ops::DerefMut for Frame<'a, B> {
 }
 
 impl<'a, B: Backend> Frame<'a, B> {
+    pub fn paint_shape(&mut self, shape: crate::primitives::Shape) {
+        self.ctx.backend.draw_shape(shape, None);
+    }
+    pub(crate) fn drag(&mut self) -> Option<Vec2> {
+        if let TouchDown::Drag(vec) = &self.ctx.touchdown_pos {
+            Some(self.last_known_pointer_location() - *vec)
+        } else {
+            None
+        }
+    }
     pub(crate) fn id_statistics(&self, id: Id) -> Sense {
         let mut stats = Sense::empty();
         if Some(id) == self.ctx.focused_response {
@@ -55,6 +72,21 @@ impl<'a, B: Backend> Frame<'a, B> {
         }
         stats
     }
+
+    pub fn has_focus_anywhere(&mut self) -> bool {
+        self.ctx.focused_response.is_some()
+    }
+
+    pub fn focus_next(&mut self) {
+        self.focus_dir = 1;
+    }
+    pub fn focus_prev(&mut self) {
+        self.focus_dir = -1;
+    }
+    pub fn cancel_refocus(&mut self) {
+        self.focus_dir = 0;
+    }
+
     pub fn request_repaint(&mut self) {
         self.ctx.wants_repaint = true;
     }
@@ -71,7 +103,12 @@ impl<'a, B: Backend> Frame<'a, B> {
 
         let interact_rect = rect.intersect(clip_rect);
         let focused = ctx.focused_response == Some(id);
-        let hovered = rect.contains(ctx.backend.last_known_pointer_location())
+        let contains = if let TouchDown::Touch(pos) = &ctx.touchdown_pos {
+            rect.contains(*pos)
+        } else {
+            false
+        };
+        let hovered = contains
             && ctx.backend.input_active(B::InputQuery::POINTER_DOWN);
 
         let pressed = (focused && ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS))
@@ -149,7 +186,7 @@ impl<B> Ctx<B> {
             focused_response: None,
             released_response: None,
             wants_repaint: false,
-            touchdown_pos: None,
+            touchdown_pos: TouchDown::None
         }
     }
 }
@@ -167,8 +204,15 @@ impl<B: Backend> Ctx<B> {
         self.backend.start_frame();
         let availble_ground_space = self.backend.screen_rect();
         if self.backend.input_pressed(B::InputQuery::POINTER_DOWN) {
-            self.touchdown_pos = Some(self.backend.last_known_pointer_location());
+            self.touchdown_pos = TouchDown::Touch(self.backend.last_known_pointer_location());
         }
+        let focus_dir = if self.backend.input_pressed(B::InputQuery::FOCUS_NEXT) {
+            1
+        } else if self.backend.input_pressed(B::InputQuery::FOCUS_PREVIOUS) {
+            -1
+        } else {
+            0
+        };
         Frame {
             ctx: self,
             pressed_response: None,
@@ -178,12 +222,20 @@ impl<B: Backend> Ctx<B> {
             prev_focus: None,
             next_focus: None,
             availble_ground_space,
+            focus_dir,
         }
     }
     pub fn end_frame(&mut self) {
         self.backend.end_frame();
+        
         if self.backend.input_released(B::InputQuery::POINTER_DOWN) {
-            self.touchdown_pos = None;
+            self.touchdown_pos = TouchDown::None;
+        } else if let TouchDown::Touch(vec) = self.touchdown_pos {
+            let last = self.backend.last_known_pointer_location();
+            let coverage = Rect::from_two_pos(vec, last);
+            if coverage.width() | coverage.height() > 5 {
+                self.touchdown_pos = TouchDown::Drag(vec);
+            }
         }
     }
 }
@@ -200,11 +252,10 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
             ..
         } = self;
         if !ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS) {
-            if ctx.backend.input_pressed(B::InputQuery::FOCUS_NEXT) {
-                focused_response = *next_focus;
-            }
-            if ctx.backend.input_pressed(B::InputQuery::FOCUS_PREVIOUS) {
-                focused_response = *prev_focus;
+            match self.focus_dir.cmp(&0) {
+                core::cmp::Ordering::Less => focused_response = *prev_focus,
+                core::cmp::Ordering::Equal => (),
+                core::cmp::Ordering::Greater => focused_response = *next_focus,
             }
         }
         ctx.end_frame();

@@ -10,6 +10,17 @@ pub unsafe fn boot_arm9() -> ! {
     let header = &(*BOOTINFO_MEM).twl_header;
     let is_twl = (*BOOTINFO_MEM).twl_header.is_dsi_mode();
 
+        //Setup local MBKS
+    if is_twl {
+        w(0x4004054 as *mut u32, header.arm9_mbks[0]);
+        w(0x4004058 as *mut u32, header.arm9_mbks[1]);
+        w(0x400405C as *mut u32, header.arm9_mbks[2]);
+    } else {
+        w(0x0 as *mut u32, header.arm9_mbks[0]);
+        w(0x0 as *mut u32, header.arm9_mbks[1]);
+        w(0x0 as *mut u32, header.arm9_mbks[2]);
+    }
+    
     //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
     if is_twl {
         let gmbks = &header.global_mbks;
@@ -30,16 +41,7 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x4004050 as *mut u32, 0);
     }
 
-    //Setup local MBKS
-    if is_twl {
-        w(0x4004054 as *mut u32, header.arm9_mbks[0]);
-        w(0x4004058 as *mut u32, header.arm9_mbks[1]);
-        w(0x400405C as *mut u32, header.arm9_mbks[2]);
-    } else {
-        w(0x0 as *mut u32, header.arm9_mbks[0]);
-        w(0x0 as *mut u32, header.arm9_mbks[1]);
-        w(0x0 as *mut u32, header.arm9_mbks[2]);
-    }
+
     //clear all interrupts
     w(0x4004040 as *mut u32, 0);
     w(0x4000210 as *mut u32, 0);
@@ -52,6 +54,7 @@ pub unsafe fn boot_arm9() -> ! {
 
     //Jump to Entrypoint
     let entry = ARM9_JUMP;
+    core::arch::asm!("mov r11,r11");
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -79,11 +82,13 @@ pub unsafe fn boot_arm7() -> ! {
 
     while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) == 0 {}
 
-    let dest = header.arm7_device_list as *mut u32;
+    //let dest = header.arm7_device_list as *mut u32;
+    /* 
     let src = core::ptr::addr_of!((*BOOTINFO_MEM).device_list_copy) as *const u32;
     for i in 0..0x100 {
         dest.add(i).write_volatile(*src.add(i));
     }
+    */
 
     //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
@@ -91,7 +96,7 @@ pub unsafe fn boot_arm7() -> ! {
 
     //jump to entrypoint
     let entry = core::ptr::addr_of!(header.head.arm7_entry);
-    core::arch::asm!("mov r11, r11");
+    core::arch::asm!("mov r11,r11");
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -296,6 +301,9 @@ pub struct BootInfoTWL {
     _0x3680: [u8; 0x180],
     pub ntr: BootInfoNTR,
 }
+
+const_assert!(core::mem::size_of::<BootInfoTWL>() == 0x4000);
+
 #[repr(C)]
 pub struct BootInfoNTR {
     //_0x0: [u8; 0x800],
