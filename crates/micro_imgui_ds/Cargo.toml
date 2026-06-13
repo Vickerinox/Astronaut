@@ -1,0 +1,8 @@
+[package]
+name = "micro_imgui_ds"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+reboot_lib = {path = "../reboot_lib"}
+micro_imgui = {path = "../micro_imgui"}

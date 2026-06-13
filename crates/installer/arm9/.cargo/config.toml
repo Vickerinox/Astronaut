@@ -12,7 +12,7 @@ rustflags = ["-C", "linker-flavor=ld.lld","-C", "link-arg=-Tlinkerscripts/link_a
 
 [build]
 target = "armv5te-none-eabi"
-target-dir = "../../../target-binary"
+target-dir = "../../../target-installer"
 
 [unstable]
 build-std = ["core", "alloc"]

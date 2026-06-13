@@ -48,6 +48,7 @@ pub unsafe fn boot_arm9() -> ! {
 
     //Jump to Entrypoint
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
+    core::arch::asm!("mov r11, r11");
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -79,6 +80,7 @@ pub unsafe fn boot_arm7() -> ! {
 
     //jump to entrypoint
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
+    core::arch::asm!("mov r11, r11");
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -152,8 +154,8 @@ pub struct HeaderStart {
     _0x98: [u8; 0x28],
 
     pub logo: [u8; 0x9C],
-
     pub logo_crc: u16,
+
     pub header_crc: u16,
 }
 
@@ -243,6 +245,125 @@ const_assert!(core::mem::size_of::<HeaderTWL>() == 0x1000);
 
 
 impl HeaderTWL {
+    pub fn new() -> Self {
+        Self {
+            head: HeaderStart {
+                title: Default::default(),
+                tid: Default::default(),
+                maker_code: Default::default(),
+                unit_code: Default::default(),
+                encryption_seed: Default::default(),
+                device_capacity: Default::default(),
+                _0x15: Default::default(),
+                twl_flags: Default::default(),
+                ntr_flags: Default::default(),
+                rom_version: Default::default(),
+                flags: Default::default(),
+                arm9_offset: Default::default(),
+                arm9_entry: Default::default(),
+                arm9_load: Default::default(),
+                arm9_size: Default::default(),
+                arm7_offset: Default::default(),
+                arm7_entry: Default::default(),
+                arm7_load: Default::default(),
+                arm7_size: Default::default(),
+                fnt_offset: Default::default(),
+                fnt_len: Default::default(),
+                fat_offset: Default::default(),
+                fat_len: Default::default(),
+                arm9_overlay_offset: Default::default(),
+                arm9_overlay_len: Default::default(),
+                arm7_overlay_offset: Default::default(),
+                arm7_overlay_len: Default::default(),
+                card_cnt: Default::default(),
+                card_cnt_secure: Default::default(),
+                banner_offset: Default::default(),
+                secure_area_crc: Default::default(),
+                secure_area_timeout: Default::default(),
+                arm9_autoload_hook: Default::default(),
+                arm7_autoload_hook: Default::default(),
+                secure_disable: Default::default(),
+                ntr_rom_size: Default::default(),
+                header_size: Default::default(),
+                arm9_mod_params: Default::default(),
+                arm7_mod_params: Default::default(),
+                ntr_region_end: Default::default(),
+                twl_region_start: Default::default(),
+                nand_region_end: Default::default(),
+                nand_backup_start: Default::default(),
+                _0x98: [0; _],
+                logo: [0; _],
+                logo_crc: Default::default(),
+                header_crc: Default::default(),
+            },
+            debug_rom_offset: Default::default(),
+            debug_rom_size: Default::default(),
+            debug_rom_load: Default::default(),
+            debug_arm7_entry: Default::default(),
+            _0x170: Default::default(),
+            global_mbks: Default::default(),
+            arm9_mbks: Default::default(),
+            arm7_mbks: Default::default(),
+            mbk9: Default::default(),
+            wram_cnt: Default::default(),
+            region: Default::default(),
+            access_control: Default::default(),
+            arm7_scfg: Default::default(),
+            dsi_flags: Default::default(),
+            arm9i_offset: Default::default(),
+            _0x1c4: Default::default(),
+            arm9i_load: Default::default(),
+            arm9i_size: Default::default(),
+            arm7i_offset: Default::default(),
+            arm7_device_list: Default::default(),
+            arm7i_load: Default::default(),
+            arm7i_size: Default::default(),
+            digest_ntr_offset: Default::default(),
+            digest_ntr_len: Default::default(),
+            digest_twl_offset: Default::default(),
+            digest_twl_len: Default::default(),
+            sector_hashtable_offset: Default::default(),
+            sector_hashtable_len: Default::default(),
+            block_hashtable_offset: Default::default(),
+            block_hashtable_len: Default::default(),
+            sector_size: Default::default(),
+            block_sectorcount: Default::default(),
+            icon_banner_size: Default::default(),
+            shared_file_0_size: Default::default(),
+            shared_file_1_size: Default::default(),
+            eula_version: Default::default(),
+            twl_management_flags: Default::default(),
+            total_twl_rom_size: Default::default(),
+            shared_file_2_size: Default::default(),
+            shared_file_3_size: Default::default(),
+            shared_file_4_size: Default::default(),
+            shared_file_5_size: Default::default(),
+            arm9i_module_params: Default::default(),
+            arm7i_module_params: Default::default(),
+            modcrypt1_offset: Default::default(),
+            modcrypt1_len: Default::default(),
+            modcrypt2_offset: Default::default(),
+            modcrypt2_len: Default::default(),
+            title_id: Default::default(),
+            public_save_size: Default::default(),
+            private_save_size: Default::default(),
+            _0x240: [0; _],
+            parental_c_ratings: Default::default(),
+            arm9_sha1: Default::default(),
+            arm7_sha1: Default::default(),
+            digest_sha1: Default::default(),
+            banner_sha1: Default::default(),
+            arm9i_sha1: Default::default(),
+            arm7i_sha1: Default::default(),
+            ntr_header_sha1: Default::default(),
+            ntr_fat_sha1: Default::default(),
+            arm9_sha1_unsecure: Default::default(),
+            _0x3b4: [0; _],
+            debug_args: [0; _],
+            _0xf00: [0; _],
+            rsa_signature: [0; _],
+        }
+    }
     pub fn is_dsi_mode(&self) -> bool {
         self.head.unit_code & 2 > 0
     }

@@ -9,7 +9,8 @@ use alloc::{
 };
 use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
-use micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
+use micro_imgui_ds::micro_imgui;
+use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
     Buttons, VIDEO_HARDWARE, autoboot_info::{BOOT_INFO, UnlaunchParams}, music_modules::mods::MODAsyncLoader
 };

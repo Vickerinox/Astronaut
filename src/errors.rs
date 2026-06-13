@@ -15,6 +15,8 @@ pub enum Crate {
     Arm7BootStrap,
     BootStrap,
     TMD,
+    Arm9Installer,
+    Arm7Installer,
 }
 impl Crate {
     pub fn err(self) -> impl FnOnce(CompileError) -> BuildError {

@@ -17,6 +17,82 @@ mod errors;
 mod mmc;
 mod testing;
 
+pub struct ElfStat {
+    entry_point: u32,
+    size: u32,
+}
+fn inject_elf(elf_file_path: &PathBuf, memory: &mut [u8], start_addr: usize) -> Result<ElfStat, CompileError> {
+    info!("SELECTED ELF: {:?}", &elf_file_path);
+    let file =
+        fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
+    let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
+        .map_err(|e| CompileError::ElfParseError(e))?;
+    let entrypoint = parse.ehdr.e_entry;
+
+    let Some(segments) = parse.segments() else {
+        return Err(CompileError::ElfMissingSegments);
+    };
+    let entry_point = entrypoint - start_addr as u64;
+    let entry_value = (entrypoint as u32) + 4;
+    info!(
+        "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
+        entrypoint, entry_point, entry_value
+    );
+    let mut end = 0;
+    for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
+        let file_offset_start = (segment.p_vaddr as i64) - (start_addr as i64);
+        let file_offset_end = file_offset_start + segment.p_filesz as i64;
+        if file_offset_start.is_negative() {
+            continue;
+        }
+        let data = parse
+            .segment_data(&segment)
+            .map_err(|e| CompileError::ElfSegmentError(e))?;
+        let file_range = (file_offset_start as usize)..(file_offset_end as usize);
+        end = file_offset_end.max(end);
+        debug!(
+            "Processing segment '{:x?}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
+            segment.p_flags, segment.p_filesz, file_offset_start, file_offset_end
+        );
+        memory[file_range].copy_from_slice(data);
+    }
+    Ok(ElfStat { entry_point: entry_value, size: end as u32 })
+}
+fn construct_installer_rom(arm9: PathBuf, arm7: PathBuf) -> Result<Vec<u8>, BuildError> {
+    let mut rom = vec![0u8; 0x80000];
+    let mut header = common::bootstrap::HeaderTWL::new();
+
+    let elf_file_path = &arm9;
+
+    const MAGIC_START_POINT_ARM9: usize = 0x02010000;
+    const MAGIC_START_POINT_ARM7: usize = 0x02300000;
+
+    let ElfStat { entry_point, size } = inject_elf(&arm9, &mut rom[0x4000..], MAGIC_START_POINT_ARM9).map_err(|e| Crate::Arm9Installer.err()(e))?;
+
+    header.head.arm9_load = (MAGIC_START_POINT_ARM9) as u32;
+    header.head.arm9_size = size;
+    header.head.arm9_entry = entry_point;
+    header.head.arm9_offset = 0x4000;
+
+    let arm7_offset = 0x5000+(size & !0xFFF);
+
+    let ElfStat { entry_point, size } = inject_elf(&arm7, &mut rom[(arm7_offset as usize)..], MAGIC_START_POINT_ARM7).map_err(|e| Crate::Arm7Installer.err()(e))?;
+
+    header.head.arm7_load = (MAGIC_START_POINT_ARM7) as u32;
+    header.head.arm7_size = size;
+    header.head.arm7_entry = entry_point;
+    header.head.arm7_offset = arm7_offset;
+
+    header.head.title.copy_from_slice(b"HOMEBREW    ");
+    header.head.unit_code = 3;
+     
+    let header_as_bytes = unsafe { core::slice::from_raw_parts(core::ptr::addr_of!(header) as *const u8, core::mem::size_of_val(&header))};
+    rom[..header_as_bytes.len()].copy_from_slice(header_as_bytes);
+    
+
+    Ok(rom)
+}
+
 fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
     const M_STATE_OVERWRITE: &[u8] = &[
@@ -106,12 +182,24 @@ impl FixedCompilerArgs {
         let arm9_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm9");
         let arm7_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm7");
 
+
+        let arm9_installer_path = env_us.clone().join("crates/installer/arm9");
+        let arm7_installer_path = env_us.clone().join("crates/installer/arm7");
+
         let arm9_elf = env_us
             .clone()
             .join("target-binary/armv5te-none-eabi/release/DeBoot_arm9");
         let arm7_elf = env_us
             .clone()
             .join("target-binary/armv4t-none-eabi/release/DeBoot_arm7");
+
+        let arm9_elf_installer = env_us
+            .clone()
+            .join("target-installer/armv5te-none-eabi/release/arm9");
+        let arm7_elf_installer = env_us
+            .clone()
+            .join("target-installer/armv4t-none-eabi/release/arm7");
+
 
         let arm9_bs_elf = env_us
             .clone()
@@ -157,6 +245,12 @@ impl FixedCompilerArgs {
         info!("Compiling ARM9 binary... ");
         build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
         debug!("Done building ARM9!");
+
+        build::build_crate(arm9_installer_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
+        debug!("Built arm9 installer");
+        build::build_crate(arm7_installer_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
+        debug!("Built arm7 installer");
+
         //drop(_enter);
         //let span = span!(Level::TRACE, "Arm9 binary injection");
         //let _enter = span.enter();
@@ -174,10 +268,22 @@ impl FixedCompilerArgs {
         let exploited_tmd = construct_tmd(arm9_elf)?;
         mmc::write_tmd_to_image(mmc_image_path, &exploited_tmd).map_err(Crate::TMD.err())?;
 
-        if let Some(path) = self.export_tmd {
-            if fs::write(path, &exploited_tmd[520..]).is_err() {
+        if let Some(mut path) = self.export_tmd {
+            
+            if fs::write(&path, &exploited_tmd[520..]).is_err() {
                 error!("path for TMD export not available");
             }
+            
+            match construct_installer_rom(arm9_elf_installer, arm7_elf_installer) {
+                Ok(installer) => {path.add_extension("dsi");
+                if fs::write(&path, &installer).is_err() {
+                    error!("Path for Installer rom not available");
+                }},
+                Err(err) => {
+                    error!("Failed to build installer {err:?}");
+                }
+            } 
+            
         }
 
         Ok(())

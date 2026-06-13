@@ -21,5 +21,3 @@ bench = false
 
 [dependencies]
 reboot_lib = {path = "../../reboot_lib"}
-bitflags = "2.6.0"
-common = {path = "../../common"}

@@ -51,7 +51,7 @@ unsafe fn boot_unreturnable(
     bf: &mut BFCTX,
 ) -> ! {
     crate::stop_mod_file();
-    //(*BOOTINFO_MEM).ntr.header_again = (*BOOTINFO_MEM).twl_header.head.clone();
+    (*BOOTINFO_MEM).ntr.header_again = (*BOOTINFO_MEM).twl_header.head.clone();
     if header.is_homebrew() {
         let path_bytes = file_path.as_bytes();
         let (trim, path_bytes) = if path_bytes.get(..4) == Some(b"sdmc") {

@@ -25,7 +25,7 @@ use core::str;
 use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 
-use micro_imgui::{Color, Vec2};
+use micro_imgui_ds::micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
     arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc, MemoryWrapper, VRAMCtrl, VideoHardwareHandle,
@@ -37,7 +37,7 @@ use reboot_lib::{
 };
 
 use crate::fat::driver::SDMMCDriver;
-use crate::gui::{AppData, TextLayoutHandle};
+use crate::gui::{AppData};
 use crate::nand::BasicSDMMCCursor;
 
 extern crate alloc;
@@ -300,16 +300,13 @@ fn populate_fs_vec(
     vec
 }
 
-const SCREEN_RECT: micro_imgui::Rect = micro_imgui::Rect {
-        min: Vec2::ZERO,
-        max: Vec2::new(255, 191),
-    };
+pub use micro_imgui_ds::SCREEN_RECT;
     
 unsafe fn arm7_crash() -> ! {
     
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     video_context.next_frame();
-    gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
+    micro_imgui_ds::gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
         text_pass.set_color(0x7FFF);
         text_pass.next_line();
         text_pass.layout_str("oh no!", 16);
@@ -467,7 +464,7 @@ unsafe fn main() {
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
-        let backend = gui::DSMicroGuiBackend::new(video_context);
+        let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
 
         
         let force_menu = !(0x4000130 as *const u16).read_volatile() & 3 == 3;
@@ -492,7 +489,7 @@ unsafe fn main() {
         
         
         
-        micro_imgui::run(backend, (), |mut f, _| {
+        micro_imgui_ds::micro_imgui::run(backend, (), |mut f, _| {
             app_data.update(&mut f);
 
         });
@@ -606,9 +603,6 @@ fn write_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) ->
     }
     Ok(())
 }
-pub fn read_controller() -> (Buttons, u8, u8) {
-    unsafe { reboot_lib::arm9_send_controller_read() }
-}
 fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
     unsafe {
         reboot_lib::arm9_set_buffer(buffer);
@@ -619,6 +613,8 @@ fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
 #[cfg(target_arch = "arm")]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
+    use micro_imgui_ds::gui;
+    use micro_imgui_ds::micro_imgui;
     unsafe {
         core::arch::asm!("mov r11, r11");
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b0111110100000000);
@@ -702,7 +698,7 @@ impl PanicFmt {
         unsafe { str::from_raw_parts(self.base as *const u8, self.len) }
     }
 }
-unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHandle) {
+unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut micro_imgui_ds::gui::TextLayoutHandle) {
     let mut buf = PanicFmt::new(0x20F_0000 as *mut u8, 0x1000);
     use core::fmt::Write;
     let _ = write!(&mut buf, "{}", info.message());

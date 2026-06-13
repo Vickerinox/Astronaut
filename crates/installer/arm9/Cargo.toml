@@ -1,6 +1,17 @@
 [package]
-name = "installer"
+name = "arm9"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+opt-level = 'z'                             # Optimize for size
+lto = true                                  # Enable link-time optimization
+codegen-units = 1                           # Reduce number of codegen units to increase optimizations
+panic = 'abort'                             # Abort on panic
+strip = true                                # Strip symbols from binary*
+
 [dependencies]
+reboot_lib = {path = "../../reboot_lib"}
+micro_imgui_ds = {path = "../../micro_imgui_ds"}
+common = {path = "../../common"}
+fatfs-embedded ={path = "../../cfatfs", default-features = false}
