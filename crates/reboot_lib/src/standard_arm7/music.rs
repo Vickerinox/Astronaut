@@ -1,4 +1,4 @@
-use reboot_lib::sound::{timer_from_freq, RepeatMode, SoundControl, SoundFormat, SOUND_HARDWARE};
+use crate::sound::{timer_from_freq, RepeatMode, SoundControl, SoundFormat, SOUND_HARDWARE};
 
 static MUSIC_FRAME: &[u16] = &[
     0xF000 | 20,
@@ -103,77 +103,77 @@ static MUSIC_FRAME_BASS: &[u16] = &[
 ];
 static MUSIC_PITCHES: &[u16] = &[
     //OCTAVE 1
-    reboot_lib::sound::timer_from_freq(4186 >> 4),
-    reboot_lib::sound::timer_from_freq(4435 >> 4),
-    reboot_lib::sound::timer_from_freq(4699 >> 4),
-    reboot_lib::sound::timer_from_freq(4978 >> 4),
-    reboot_lib::sound::timer_from_freq(5274 >> 4),
-    reboot_lib::sound::timer_from_freq(5588 >> 4),
-    reboot_lib::sound::timer_from_freq(5920 >> 4),
-    reboot_lib::sound::timer_from_freq(6272 >> 4),
-    reboot_lib::sound::timer_from_freq(6645 >> 4),
-    reboot_lib::sound::timer_from_freq(7040 >> 4),
-    reboot_lib::sound::timer_from_freq(7459 >> 4),
-    reboot_lib::sound::timer_from_freq(7902 >> 4),
+    crate::sound::timer_from_freq(4186 >> 4),
+    crate::sound::timer_from_freq(4435 >> 4),
+    crate::sound::timer_from_freq(4699 >> 4),
+    crate::sound::timer_from_freq(4978 >> 4),
+    crate::sound::timer_from_freq(5274 >> 4),
+    crate::sound::timer_from_freq(5588 >> 4),
+    crate::sound::timer_from_freq(5920 >> 4),
+    crate::sound::timer_from_freq(6272 >> 4),
+    crate::sound::timer_from_freq(6645 >> 4),
+    crate::sound::timer_from_freq(7040 >> 4),
+    crate::sound::timer_from_freq(7459 >> 4),
+    crate::sound::timer_from_freq(7902 >> 4),
     //OCTAVE 1
-    reboot_lib::sound::timer_from_freq(4186 >> 3),
-    reboot_lib::sound::timer_from_freq(4435 >> 3),
-    reboot_lib::sound::timer_from_freq(4699 >> 3),
-    reboot_lib::sound::timer_from_freq(4978 >> 3),
-    reboot_lib::sound::timer_from_freq(5274 >> 3),
-    reboot_lib::sound::timer_from_freq(5588 >> 3),
-    reboot_lib::sound::timer_from_freq(5920 >> 3),
-    reboot_lib::sound::timer_from_freq(6272 >> 3),
-    reboot_lib::sound::timer_from_freq(6645 >> 3),
-    reboot_lib::sound::timer_from_freq(7040 >> 3),
-    reboot_lib::sound::timer_from_freq(7459 >> 3),
-    reboot_lib::sound::timer_from_freq(7902 >> 3),
+    crate::sound::timer_from_freq(4186 >> 3),
+    crate::sound::timer_from_freq(4435 >> 3),
+    crate::sound::timer_from_freq(4699 >> 3),
+    crate::sound::timer_from_freq(4978 >> 3),
+    crate::sound::timer_from_freq(5274 >> 3),
+    crate::sound::timer_from_freq(5588 >> 3),
+    crate::sound::timer_from_freq(5920 >> 3),
+    crate::sound::timer_from_freq(6272 >> 3),
+    crate::sound::timer_from_freq(6645 >> 3),
+    crate::sound::timer_from_freq(7040 >> 3),
+    crate::sound::timer_from_freq(7459 >> 3),
+    crate::sound::timer_from_freq(7902 >> 3),
     //OCTAVE 1
-    reboot_lib::sound::timer_from_freq(4186 >> 2),
-    reboot_lib::sound::timer_from_freq(4435 >> 2),
-    reboot_lib::sound::timer_from_freq(4699 >> 2),
-    reboot_lib::sound::timer_from_freq(4978 >> 2),
-    reboot_lib::sound::timer_from_freq(5274 >> 2),
-    reboot_lib::sound::timer_from_freq(5588 >> 2),
-    reboot_lib::sound::timer_from_freq(5920 >> 2),
-    reboot_lib::sound::timer_from_freq(6272 >> 2),
-    reboot_lib::sound::timer_from_freq(6645 >> 2),
-    reboot_lib::sound::timer_from_freq(7040 >> 2),
-    reboot_lib::sound::timer_from_freq(7459 >> 2),
-    reboot_lib::sound::timer_from_freq(7902 >> 2),
+    crate::sound::timer_from_freq(4186 >> 2),
+    crate::sound::timer_from_freq(4435 >> 2),
+    crate::sound::timer_from_freq(4699 >> 2),
+    crate::sound::timer_from_freq(4978 >> 2),
+    crate::sound::timer_from_freq(5274 >> 2),
+    crate::sound::timer_from_freq(5588 >> 2),
+    crate::sound::timer_from_freq(5920 >> 2),
+    crate::sound::timer_from_freq(6272 >> 2),
+    crate::sound::timer_from_freq(6645 >> 2),
+    crate::sound::timer_from_freq(7040 >> 2),
+    crate::sound::timer_from_freq(7459 >> 2),
+    crate::sound::timer_from_freq(7902 >> 2),
     //OCTAVE 1
-    reboot_lib::sound::timer_from_freq(4186 >> 1),
-    reboot_lib::sound::timer_from_freq(4435 >> 1),
-    reboot_lib::sound::timer_from_freq(4699 >> 1),
-    reboot_lib::sound::timer_from_freq(4978 >> 1),
-    reboot_lib::sound::timer_from_freq(5274 >> 1),
-    reboot_lib::sound::timer_from_freq(5588 >> 1),
-    reboot_lib::sound::timer_from_freq(5920 >> 1),
-    reboot_lib::sound::timer_from_freq(6272 >> 1),
-    reboot_lib::sound::timer_from_freq(6645 >> 1),
-    reboot_lib::sound::timer_from_freq(7040 >> 1),
-    reboot_lib::sound::timer_from_freq(7459 >> 1),
-    reboot_lib::sound::timer_from_freq(7902 >> 1),
+    crate::sound::timer_from_freq(4186 >> 1),
+    crate::sound::timer_from_freq(4435 >> 1),
+    crate::sound::timer_from_freq(4699 >> 1),
+    crate::sound::timer_from_freq(4978 >> 1),
+    crate::sound::timer_from_freq(5274 >> 1),
+    crate::sound::timer_from_freq(5588 >> 1),
+    crate::sound::timer_from_freq(5920 >> 1),
+    crate::sound::timer_from_freq(6272 >> 1),
+    crate::sound::timer_from_freq(6645 >> 1),
+    crate::sound::timer_from_freq(7040 >> 1),
+    crate::sound::timer_from_freq(7459 >> 1),
+    crate::sound::timer_from_freq(7902 >> 1),
     //OCTAVE 1
-    reboot_lib::sound::timer_from_freq(4186),
-    reboot_lib::sound::timer_from_freq(4435),
-    reboot_lib::sound::timer_from_freq(4699),
-    reboot_lib::sound::timer_from_freq(4978),
-    reboot_lib::sound::timer_from_freq(5274),
-    reboot_lib::sound::timer_from_freq(5588),
-    reboot_lib::sound::timer_from_freq(5920),
-    reboot_lib::sound::timer_from_freq(6272),
-    reboot_lib::sound::timer_from_freq(6645),
-    reboot_lib::sound::timer_from_freq(7040),
-    reboot_lib::sound::timer_from_freq(7459),
-    reboot_lib::sound::timer_from_freq(7902),
+    crate::sound::timer_from_freq(4186),
+    crate::sound::timer_from_freq(4435),
+    crate::sound::timer_from_freq(4699),
+    crate::sound::timer_from_freq(4978),
+    crate::sound::timer_from_freq(5274),
+    crate::sound::timer_from_freq(5588),
+    crate::sound::timer_from_freq(5920),
+    crate::sound::timer_from_freq(6272),
+    crate::sound::timer_from_freq(6645),
+    crate::sound::timer_from_freq(7040),
+    crate::sound::timer_from_freq(7459),
+    crate::sound::timer_from_freq(7902),
 ];
 
 pub const fn amiga_to_nds_period(period: u16) -> u16 {
     0xFFFF - ((33513982 / 2) / (3549546 / period as u32)) as u16
 }
-use reboot_lib::music_modules::mods::*;
-use reboot_lib::timers::{Timer, TimerControl, TIMERS};
+use crate::music_modules::mods::*;
+use crate::timers::{Timer, TimerControl, TIMERS};
 
 pub enum PitchModulation {
     SlideUp { ammount: u8 },
@@ -268,7 +268,7 @@ pub fn play_mod() {
                                     .write_volatile(0xFFFF - timer_counter as u16 + 1);
                             }
                         }
-                        let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[channel_id];
+                        let channel = &crate::sound::SOUND_HARDWARE.channels[channel_id];
                         let mut control = channel.control.read().difference(SoundControl::START);
 
                         if sample > 0 {
@@ -398,7 +398,7 @@ pub fn play_mod() {
                     for (channel_id, note) in pattern[*row as usize].iter().enumerate() {
                         let command = note.command();
 
-                        let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[channel_id];
+                        let channel = &crate::sound::SOUND_HARDWARE.channels[channel_id];
 
                         match command.kind {
                             0xA => {
@@ -472,7 +472,7 @@ pub fn play_mod() {
 }
 pub fn set_mod(module: *mut MODHeader) {
     unsafe {
-        reboot_lib::disable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
+        crate::disable_interrupt(crate::ARM7Interrupt::Timer0);
         SOUND_HARDWARE.init();
         MODULE = MODPlayData {
             current_song: module,
@@ -484,21 +484,21 @@ pub fn set_mod(module: *mut MODHeader) {
             0xFFFF - 10473,
             TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ,
         ));
-        reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::Timer0, play_mod);
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
+        crate::set_interrupt_function(crate::ARM7Interrupt::Timer0, play_mod);
+        crate::enable_interrupt(crate::ARM7Interrupt::Timer0);
     }
 }
 pub fn set_procedural() {
     unsafe {
-        reboot_lib::disable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
+        crate::disable_interrupt(crate::ARM7Interrupt::Timer0);
         SOUND_HARDWARE.init();
         TIMERS[0].write(Timer::RESET);
         TIMERS[0].write(Timer::new(
             0xFFFF - 8800,
             TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ,
         ));
-        reboot_lib::set_interrupt_function(reboot_lib::ARM7Interrupt::Timer0, music_routine);
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
+        crate::set_interrupt_function(crate::ARM7Interrupt::Timer0, music_routine);
+        crate::enable_interrupt(crate::ARM7Interrupt::Timer0);
     }
 }
 pub static mut FRAME_COUNTER: u32 = 0;
@@ -511,7 +511,7 @@ pub fn music_routine() {
         delay: u16,
         add: usize,
     ) {
-        let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[channel];
+        let channel = &crate::sound::SOUND_HARDWARE.channels[channel];
         let [note, volume] =
             MUSIC_FRAME[((MUSIC_COUNTER + 64 - delay) & 0x3F) as usize].to_le_bytes();
         channel.timer.write(MUSIC_PITCHES[note as usize + add]);
@@ -527,7 +527,7 @@ pub fn music_routine() {
     unsafe {
         if FRAME_COUNTER % 7 == 0 {
             if MUSIC_COUNTER >= 128 {
-                let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[15];
+                let channel = &crate::sound::SOUND_HARDWARE.channels[15];
                 channel.timer.write(0xFFFF);
                 let control = SoundControl::START
                     .with_repeat_mode(RepeatMode::Oneshot)
@@ -539,7 +539,7 @@ pub fn music_routine() {
             if MUSIC_COUNTER >= 318 {
                 let beat = MUSIC_COUNTER & 0xF;
                 if beat == 0 || beat == 4 || beat == 7 || beat == 10 || beat == 12 {
-                    let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[1];
+                    let channel = &crate::sound::SOUND_HARDWARE.channels[1];
                     channel.timer.write(timer_from_freq(22050));
                     let adr = include_bytes!("./music_samples/kick.raw");
                     channel.source.write(core::ptr::addr_of!(*adr) as u32 & !3);
@@ -552,7 +552,7 @@ pub fn music_routine() {
                     channel.control.write(control);
                 }
                 if beat == 4 || beat == 12 || (MUSIC_COUNTER % 320) > 316 {
-                    let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[2];
+                    let channel = &crate::sound::SOUND_HARDWARE.channels[2];
                     channel.control.write(SoundControl::empty());
                     channel.timer.write(timer_from_freq(22050));
                     let adr = include_bytes!("./music_samples/snare.raw");
@@ -570,7 +570,7 @@ pub fn music_routine() {
             let add = if MUSIC_COUNTER >= 64 {
                 let [note, volume] =
                     MUSIC_FRAME_BASS[(MUSIC_COUNTER & 0x1F) as usize].to_le_bytes();
-                let channel = &reboot_lib::sound::SOUND_HARDWARE.channels[8];
+                let channel = &crate::sound::SOUND_HARDWARE.channels[8];
                 channel.timer.write(MUSIC_PITCHES[note as usize]);
 
                 let control = SoundControl::START
@@ -597,9 +597,9 @@ pub fn music_routine() {
         } else {
             #[allow(const_item_mutation)]
             {
-                let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[8] as *mut u8;
+                let ptr = &raw mut crate::sound::SOUND_HARDWARE.channels[8] as *mut u8;
                 ptr.write_volatile(ptr.read().saturating_sub(1));
-                let ptr = &raw mut reboot_lib::sound::SOUND_HARDWARE.channels[15] as *mut u8;
+                let ptr = &raw mut crate::sound::SOUND_HARDWARE.channels[15] as *mut u8;
                 let dec = if MUSIC_COUNTER % 16 != 7 { 10 } else { 1 };
                 ptr.write_volatile(ptr.read().saturating_sub(dec));
             }

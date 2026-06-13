@@ -13,7 +13,7 @@ members = [
     "crates/magic_values",
     "crates/micro_imgui",
     "crates/reboot_lib"
-, "unlaunch_decomp", "crates/cfatfs"]
+, "unlaunch_decomp", "crates/cfatfs", "crates/installer/arm9", "crates/installer/arm7"]
 
 [dependencies]
 common = {path="./crates/common"}
