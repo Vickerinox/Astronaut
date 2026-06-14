@@ -5,14 +5,7 @@ mod swi;
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
 use crate::{
-    check_sdmmc,
-    i2c::I2CRegister,
-    ndma::NDMA_HARDWARE,
-    sound::SOUND_HARDWARE,
-    spi::{touchscreen::read_tsc_pos_cdc, Control, PowerRegiser, SPI_HARDWARE},
-    timers::TIMERS,
-    write_sd_sectors, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
-    MMC_CONTROLLER, SDIO_CONTROLLER,
+    AES_HARDWARE, AESCnt, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, sound::SOUND_HARDWARE, spi::{Control, PowerRegiser, SPI_HARDWARE, touchscreen::read_tsc_pos_cdc}, timers::TIMERS, write_sd_sectors
 };
 
 
@@ -335,9 +328,7 @@ pub fn main_arm7() {
                     }
                     */
 
-                    AES_HARDWARE.init_from_header(
-                        &*(common::bootstrap::BOOTLOADER_MEM
-                            as *const common::bootstrap::HeaderTWL),
+                    AES_HARDWARE.init_from_header(header,
                         console_id,
                     );
 
@@ -354,41 +345,76 @@ pub fn main_arm7() {
 
                     //response = 0x8000_0000;
 
-                    if false
-                    /*response == 0*/
-                    {
+                    if response == 0 {
                         let ptr = if header.arm9i_offset == header.modcrypt1_offset {
                             header.arm9i_load
                         } else {
                             header.head.arm9_load
                         };
 
-                        let key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
-                        let len = header.modcrypt1_len >> 2;
-                        AES_HARDWARE.reset();
-                        AES_HARDWARE.reset();
-                        AES_HARDWARE.wait_key_busy();
-                        AES_HARDWARE.set_key_slot(0);
-                        AES_HARDWARE.wait_key_busy();
-                        crate::AES_HARDWARE.ctr_crypt_block(
-                            core::slice::from_raw_parts_mut(ptr as *mut _, len as usize),
-                            &key,
-                        );
-
+                        let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
+                        
+                        let len = header.modcrypt1_len;
+                        
+                        use crate::ndma::Control;
+                         
+                        let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >>2);
+                        
+                        decrypt_module(mem, key);
                         if header.modcrypt2_len > 0 {
+                            
                             let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
                             let ptr = header.arm7i_load;
-                            let len = header.modcrypt2_len >> 2;
+                            let len = header.modcrypt2_len;
+                            let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >>2);
+                            decrypt_module(mem, key);
+                            /* 
                             AES_HARDWARE.reset();
                             AES_HARDWARE.reset();
                             AES_HARDWARE.wait_key_busy();
                             AES_HARDWARE.set_key_slot(0);
                             AES_HARDWARE.wait_key_busy();
-                            crate::AES_HARDWARE.ctr_crypt_block(
-                                core::slice::from_raw_parts_mut(ptr as *mut _, len as usize),
-                                &key,
-                            );
-                        }
+                            core::arch::asm!("mov r11, r11");
+                            AES_HARDWARE.master_control.write(AESCnt::empty());
+                            AES_HARDWARE.reset();
+                            AES_HARDWARE.load_iv(&key);
+                            AES_HARDWARE.payload_blocks.write(len as u16 >> 4);
+
+                            
+                            let in_dma = crate::ndma::ChannelConfig {
+                                word_count: len >> 2,
+                                block_size: 4,
+                                timing: 8,
+                                fill_mode: 0,
+                                control: Control::DST_MODE_FIXED
+                                    | Control::SRC_MODE_INCREMENT
+                                    | Control::BLOCK_SIZE_4
+                                    | Control::START_ARM7_WRITE_AES
+                                    | Control::ENABLE,
+                            };
+                            NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
+                            let out_dma = crate::ndma::ChannelConfig {
+                                word_count: len >> 2,
+                                block_size: 4,
+                                timing: 8,
+                                fill_mode: 0,
+                                control: Control::SRC_MODE_FIXED
+                                    | Control::DST_MODE_INCREMENT
+                                    | Control::BLOCK_SIZE_4
+                                    | Control::START_ARM7_READ_AES
+                                    | Control::ENABLE,
+                            };
+                            NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
+               
+                            AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28));
+
+                            NDMA_HARDWARE.await_channel(0);
+
+                            AES_HARDWARE.wait_aes_busy();
+                            core::arch::asm!("mov r11, r11");
+                            */
+                        } 
+                        
                     }
                 }
                 _ => response = 0x8000_0000,
@@ -399,6 +425,75 @@ pub fn main_arm7() {
 }
 
 
+pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
+
+    AES_HARDWARE.master_control.write(AESCnt::empty());
+    AES_HARDWARE.reset();
+    AES_HARDWARE.reset();
+    AES_HARDWARE.wait_key_busy();
+    AES_HARDWARE.set_key_slot(0);
+    AES_HARDWARE.wait_key_busy();
+
+    //AES_HARDWARE.master_control.write(AESCnt::empty());
+    //AES_HARDWARE.reset();
+    //AES_HARDWARE.load_iv(&key);
+    //AES_HARDWARE.payload_blocks.write((len >> 4) as u16 );
+
+    /* 
+    let in_dma = crate::ndma::ChannelConfig {
+        word_count: len >> 2,
+        block_size: 4,
+        timing: 8,
+        fill_mode: 0,
+        control: Control::DST_MODE_FIXED
+            | Control::SRC_MODE_INCREMENT
+            | Control::BLOCK_SIZE_4
+            | Control::START_ARM7_WRITE_AES
+            | Control::ENABLE,
+    };
+    //NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
+    let out_dma = crate::ndma::ChannelConfig {
+        word_count: len >> 2,
+        block_size: 4,
+        timing: 8,
+        fill_mode: 0,
+        control: Control::SRC_MODE_FIXED
+            | Control::DST_MODE_INCREMENT
+            | Control::BLOCK_SIZE_4
+            | Control::START_ARM7_READ_AES
+            | Control::ENABLE,
+    };
+    */
+    //NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
+    
+    //AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1<<31));
+
+    for (d,i) in mem.chunks_exact_mut(4).enumerate() {
+        AES_HARDWARE.master_control.write(AESCnt::empty());
+        AES_HARDWARE.reset();
+        
+        AES_HARDWARE.load_iv(&key);
+        add_on_key(&mut key, 1);
+        AES_HARDWARE.payload_blocks.write(1); 
+        AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1<<31));
+
+        while AES_HARDWARE.master_control.read().bits() & 0x1F != 0 {}
+        for word in i.iter() {
+            AES_HARDWARE.write_fifo.write(*word);
+        }
+        
+        while (AES_HARDWARE.master_control.read().bits() >> 5) & 0x1F != i.len() as u32 {}
+        for word in i {
+            *word = AES_HARDWARE.read_fifo.read();
+        }
+    }
+    //NDMA_HARDWARE.await_channel(0);
+
+    AES_HARDWARE.wait_aes_busy();
+    
+                         
+}
+
 pub unsafe fn clear_arm7_regs() {
     (0x04000004 as *mut u16).write_volatile(0);
 }
@@ -407,15 +502,7 @@ pub unsafe fn firmware_read(data: *mut [crate::StorageSector], offset: u32) {
     let buffer = core::slice::from_raw_parts_mut(ptr as *mut u8, len << 9);
     SPI_HARDWARE.read_firmware(buffer, offset);
 }
-/// read and decrypt the given sectors from NAND using NDMA.
-pub unsafe fn mmc_read_decrypt(
-    data: *mut [crate::StorageSector],
-    ctr_base: &[u32; 4],
-    sector: u32,
-) -> Result<(), crate::Status> {
-    crate::read_sectors(crate::DeviceSelect::EMMC, sector, data)?;
-
-    fn add_on_key(key: &mut [u32; 4], add: u32) {
+fn add_on_key(key: &mut [u32; 4], add: u32) {
         let carry;
         let carry2;
         let carry3;
@@ -424,6 +511,15 @@ pub unsafe fn mmc_read_decrypt(
         (key[2], carry3) = key[2].overflowing_add(carry2 as u32);
         key[3] = key[3].wrapping_add(carry3 as u32);
     }
+/// read and decrypt the given sectors from NAND using NDMA.
+pub unsafe fn mmc_read_decrypt(
+    data: *mut [crate::StorageSector],
+    ctr_base: &[u32; 4],
+    sector: u32,
+) -> Result<(), crate::Status> {
+    crate::read_sectors(crate::DeviceSelect::EMMC, sector, data)?;
+
+    
     let mut key = ctr_base.clone();
     add_on_key(&mut key, sector << 5);
     let ptr = data as *mut ();

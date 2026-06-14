@@ -43,6 +43,47 @@ unsafe fn read_all(
 }
 
 
+
+pub unsafe fn setup_shared_mem(header: &HeaderTWL) {
+    let mem = &mut *BOOTINFO_MEM;
+
+    mem.ntr.header_again = mem.twl_header.head.clone();
+    mem.ntr.header = mem.twl_header.head.clone();
+
+    let card_id = header.head.tid;
+    let agbmem = 0;
+    let reset = 0;
+    let rom_offset = 0;
+    let boot_type = if header.is_dsiware() {
+        1
+    } else {
+        3
+    };
+    
+    mem.ntr.bootcheck.tid_1 = header.head.tid;
+    mem.ntr.bootcheck.tid_2 = header.head.tid;
+    mem.ntr.bootcheck.header_crc = header.head.header_crc;
+    mem.ntr.bootcheck.secure_crc = header.head.secure_area_crc;
+    mem.ntr.bootcheck.bios_crc = 0x5835;
+    
+    mem.ntr.reset = reset;
+    mem.ntr.rom_offset = rom_offset;
+    mem.ntr.boot_method.boot_type = boot_type;
+    
+    //for DSi mode only technically
+    mem.sysmenu_id.clone_from_slice(b"00000009\0");
+    mem.init_code = b'P';
+
+    mem.sdmmc_context.option = 0x40E0;
+    mem.sdmmc_context.clock_ctl = 0x100;
+    mem.sdmmc_context.csr = 0x900;
+    mem.sdmmc_context.rca = 1;
+    mem.sdmmc_context.device = 1;
+    
+
+}
+
+
 #[inline]
 unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
@@ -51,7 +92,10 @@ unsafe fn boot_unreturnable(
     bf: &mut BFCTX,
 ) -> ! {
     crate::stop_mod_file();
-    (*BOOTINFO_MEM).ntr.header_again = (*BOOTINFO_MEM).twl_header.head.clone();
+    
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],0);
+
+    setup_shared_mem(&(*BOOTINFO_MEM).twl_header);
     if header.is_homebrew() {
         let path_bytes = file_path.as_bytes();
         let (trim, path_bytes) = if path_bytes.get(..4) == Some(b"sdmc") {

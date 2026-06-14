@@ -315,7 +315,7 @@ unsafe fn arm7_crash() -> ! {
         text_pass.layout_str("If you can see this screen then something has gone wrong.", 8);
         text_pass.next_line();
         text_pass.next_line();
-        text_pass.layout_str("For support, reach out to the DSi hacking server on Discord", 8);
+        text_pass.layout_str("For support, reach to the DSi hacking server on Discord", 8);
         text_pass.next_line();
         text_pass.next_line();
         text_pass.layout_str("Alternatively, try to reach me via email: viktor@koda.re", 8);
@@ -486,6 +486,7 @@ unsafe fn main() {
         
         app_data.play_startup_music();
         app_area.fader.target.write(0);
+        
         
         
         

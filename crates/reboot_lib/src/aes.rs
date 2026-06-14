@@ -187,9 +187,7 @@ impl AESEngine {
     pub unsafe fn start(&self, flags: u32) {
         self.master_control.write(
             AESCnt::from_bits_retain(flags)
-                | AESCnt::START
-                | AESCnt::FLUSH_READ_FIFO
-                | AESCnt::FLUSH_WRITE_FIFO,
+                | AESCnt::START,
         );
     }
     pub unsafe fn set_block_count(&self, count: u16) {

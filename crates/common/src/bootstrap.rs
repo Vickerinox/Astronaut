@@ -21,7 +21,8 @@ pub unsafe fn boot_arm9() -> ! {
     }
     //clear all interrupts
     (0x4000214 as *mut u32).write_volatile(!0);
-    while VCOUNT_REG.read_volatile() != 192 {}
+    
+    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 1 {}
 
     //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
     if is_twl {
@@ -43,12 +44,15 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x4004050 as *mut u32, 0);
     }
 
-    //Sync to ARM7
-    while VCOUNT_REG.read_volatile() == 192 {}
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],2);
+    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 3 {}
 
-    //Jump to Entrypoint
+    
+    //Sync to ARM9
+    while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
-    core::arch::asm!("mov r11, r11");
+    while VCOUNT_REG.read_volatile() == 192 {}
+    //Jump to Entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -74,13 +78,31 @@ pub unsafe fn boot_arm7() -> ! {
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
 
+    
+    //Sync to ARM9
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],1);
+    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 2 {}
+     
+    let header = &(*BOOTINFO_MEM).twl_header;
+    if header.is_dsi_mode() {
+        let device_list_location = header.arm7_device_list;
+        if device_list_location != 0 {
+            let dev_list_src = core::ptr::addr_of_mut!((*BOOTINFO_MEM).device_list_copy) as *const u32;
+            for i in 0..(core::mem::size_of::<DeviceList>()/core::mem::size_of::<u32>()) {
+
+                (device_list_location as *mut u32).add(i).write(dev_list_src.add(i).read());
+            }
+        }
+    }
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],3);
+
     //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
+    let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
     while VCOUNT_REG.read_volatile() == 192 {}
 
+    
     //jump to entrypoint
-    let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
-    core::arch::asm!("mov r11, r11");
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -166,7 +188,7 @@ pub struct HeaderTWL {
     pub head: HeaderStart,
     pub debug_rom_offset: u32,
     pub debug_rom_size: u32,
-    pub debug_rom_load: u32, //doubles as arm9 entry
+    pub debug_rom_load: u32, //doubles as arm9 entry?
     pub debug_arm7_entry: u32,
 
     _0x170: [u8; 16],
@@ -381,38 +403,91 @@ pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 
 #[repr(C)]
 pub struct BootInfoTWL {
-    card_header: HeaderTWL,
+    pub card_header: HeaderTWL,
     _0x1000: [u8; 0x7B0],
-
-    sysmenu_id: [u8; 9],
-    init_code: u8,
-    hotboot: u16,
-    sdmmc_context: [u8; 0x44],
-    title_list: [u8; 0x400],
+    pub sysmenu_id: [u8; 9],
+    pub init_code: u8,
+    pub hotboot: u16,
+    pub sdmmc_context: SDMMCContext,
+    pub title_list: TitleList,
     pub mountinfo: [u8; 0x3C0],
     pub boot_path: [u8; 0x40],
     pub twl_header: HeaderTWL,
     pub other: [u8; 0x280],
+    // UNOFFICIAL
     pub device_list_copy: DeviceList,
     _0x3680: [u8; 0x180],
     pub ntr: BootInfoNTR,
 }
-
 const_assert!(core::mem::size_of::<BootInfoTWL>() == 0x4000);
 
+
+#[repr(C)]
+pub struct SDMMCContext {
+    pub cid: [u8; 16],
+    pub csd: [u8; 16],
+    pub ocr: [u8; 4],
+    pub scr: [u8; 8],
+    pub rca: u16,
+    pub slot: u16,
+    pub hcs: u16,
+    pub unknown0: u16,
+    pub unknown1: u32,
+    pub csr: u32,
+    pub clock_ctl: u16,
+    pub option: u16,
+    pub unknown2: u16,
+    pub device: u16,
+}
+const_assert!(core::mem::size_of::<SDMMCContext>() == 0x44);
+
+#[repr(C)]
+pub struct TitleList {
+    length: u8,
+    padding: [u8; 15],
+    pub_flags: [u8; 16],
+    prv_flags: [u8; 16],
+    jmp_flags: [u8; 16],
+    mkr_flags: [u8; 16],
+    title_ids: [u64; 0x76],
+}
+const_assert!(core::mem::size_of::<TitleList>() == 0x400);
+
+#[repr(C)]
+pub struct BootCheckInfo {
+    pub tid_1: u32,
+    pub tid_2: u32,
+    pub header_crc: u16,
+    pub secure_crc: u16,
+    pub missing_crc: u16,
+    pub secure_bad: u16,
+    pub bios_crc: u16,
+    pub secure_disable: u16,
+    pub sio_flag: u16,
+    pub rtc_status: u8,
+    pub random: u8,
+    _0x18: [u8; 8],
+}
+
+#[repr(C)]
+pub struct BootMethod {
+    pub boot_type: u16,
+    pub dlplay_info: [u8; 0x3C],
+    _0x3e: u16,
+}
 #[repr(C)]
 pub struct BootInfoNTR {
     //_0x0: [u8; 0x800],
     pub gap: [u8; 0x280],
     pub header: HeaderStart,
     pub download: [u8; 0x20],
-    pub bootcheck: [u8; 0x20],
+    pub bootcheck: BootCheckInfo,
     pub reset: u32,
     _0x0424: [u8; 8],
     pub rom_offset: u32,
     pub slot_2_info: [u8; 0xC],
     pub vblank_counter: u32,
-    _0x440: [u8; 0x40],
+    pub boot_method: BootMethod,
     pub firmware_data: [u8; 0x100],
     pub arm9_exceptions: [u8; 0x1C],
     pub arm9_excep_vector: u32,
@@ -457,3 +532,4 @@ pub struct BootInfoNTR {
     pub memcmd: u16,
     pub wat: u16,
 }
+const_assert!(core::mem::size_of::<BootInfoNTR>() == 0x800);

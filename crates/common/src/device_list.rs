@@ -12,7 +12,7 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _
 
     list.drives[next_entry] = DeviceEntry::new(
         b'I',
-        DeviceFlags::SDMC_SLOT,
+        DeviceFlags::COMBO_SDMC_SLOT,
         DeviceRights::READ_WRITE,
         b"sdmc",
         b"/",
@@ -21,7 +21,7 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _
 
     list.drives[next_entry] = DeviceEntry::new(
         b'A',
-        DeviceFlags::TWL_MAIN,
+        DeviceFlags::DRIVE_SDMC,
         DeviceRights::NONE,
         b"nand",
         b"/",
@@ -30,7 +30,7 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _
 
     list.drives[next_entry] = DeviceEntry::new(
         b'B',
-        DeviceFlags::TWL_PHOTO,
+        DeviceFlags::COMBO_TWL_PHOTO,
         DeviceRights::NONE,
         b"nand2",
         b"/",
@@ -39,7 +39,7 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _
 
     list.drives[next_entry] = DeviceEntry::new(
         b'D',
-        DeviceFlags::FOLDERBASED | DeviceFlags::NAND | DeviceFlags::PARTITION_ONE,
+        DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_ONE,
         DeviceRights::WRITE,
         b"shared1",
         b"nand:/shared1",
@@ -48,7 +48,7 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _
 
     list.drives[next_entry] = DeviceEntry::new(
         b'F',
-        DeviceFlags::FOLDERBASED | DeviceFlags::NAND | DeviceFlags::PARTITION_TWO,
+        DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_TWO,
         DeviceRights::READ_WRITE,
         b"photo",
         b"nand2:/photo",
@@ -58,25 +58,25 @@ pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _
     if header.private_save_size != 0 && !prv_sav_path.is_empty() {
         list.drives[next_entry] = DeviceEntry::new(
             b'G',
-            DeviceFlags::FILEBASED,
+            DeviceFlags::FILEBASED | DeviceFlags::DRIVE_SDMC,
             DeviceRights::READ_WRITE,
             b"dataPrv",
-            b"sdmc:/LAUNCH~1.NDS",
+            b"nand:/photod.prv",
         );
         next_entry += 1;
     }
     if header.public_save_size != 0 && !pub_sav_path.is_empty() {
         list.drives[next_entry] = DeviceEntry::new(
             b'H',
-            DeviceFlags::FILEBASED,
+            DeviceFlags::FILEBASED | DeviceFlags::DRIVE_SDMC,
             DeviceRights::READ_WRITE,
             b"dataPub",
-            b"nand2:/photo",
+            b"sdmc:/photod.pub",
         );
         //next_entry += 1;
     }
 
-    let path = b"sdmc:/photod.nds"; //location.as_bytes();
+    let path = b"sdmc:/photod.nds\0"; //location.as_bytes();
 
     list.app_path[..path.len()].copy_from_slice(path);
 }
@@ -100,19 +100,19 @@ impl DeviceFlags {
     pub const FILEBASED: Self = Self(1 << 3);
     pub const FOLDERBASED: Self = Self(2 << 3);
 
-    pub const SDMC: Self = Self(0);
-    pub const NAND: Self = Self(1);
+    pub const DRIVE_SDMC: Self = Self(0);
+    pub const DRIVE_NAND: Self = Self(1);
 
     pub const PARTITION_ONE: Self = Self(0 << 5);
     pub const PARTITION_TWO: Self = Self(1 << 5);
 
     pub const ENCRYPTED: Self = Self(1 << 7);
 
-    pub const SDMC_SLOT: Self = Self(Self::PHYSICAL.0 | Self::SDMC.0 | Self::PARTITION_ONE.0);
-    pub const TWL_MAIN: Self =
-        Self(Self::PHYSICAL.0 | Self::NAND.0 | Self::PARTITION_ONE.0 | Self::ENCRYPTED.0);
-    pub const TWL_PHOTO: Self =
-        Self(Self::PHYSICAL.0 | Self::NAND.0 | Self::PARTITION_TWO.0 | Self::ENCRYPTED.0);
+    pub const COMBO_SDMC_SLOT: Self = Self(Self::PHYSICAL.0 | Self::DRIVE_SDMC.0 | Self::PARTITION_ONE.0);
+    pub const COMBO_TWL_MAIN: Self =
+        Self(Self::PHYSICAL.0 | Self::DRIVE_NAND.0 | Self::PARTITION_ONE.0 | Self::ENCRYPTED.0);
+    pub const COMBO_TWL_PHOTO: Self =
+        Self(Self::PHYSICAL.0 | Self::DRIVE_NAND.0 | Self::PARTITION_TWO.0 | Self::ENCRYPTED.0);
 }
 impl BitOr for DeviceFlags {
     type Output = Self;
