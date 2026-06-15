@@ -185,10 +185,8 @@ impl AESEngine {
         self.wait_aes_busy();
     }
     pub unsafe fn start(&self, flags: u32) {
-        self.master_control.write(
-            AESCnt::from_bits_retain(flags)
-                | AESCnt::START,
-        );
+        self.master_control
+            .write(AESCnt::from_bits_retain(flags) | AESCnt::START);
     }
     pub unsafe fn set_block_count(&self, count: u16) {
         self.payload_blocks.write(count);

@@ -1,5 +1,8 @@
 use crate::{
-    APP_AREA_START, AppArea, BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT, boot, gui::{self, Input}, populate_fs_vec, send_mod_file, stop_mod_file
+    boot,
+    gui::{self, Input},
+    populate_fs_vec, send_mod_file, stop_mod_file, AppArea, APP_AREA_START, BACKGROUND_COLOR,
+    COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT,
 };
 use alloc::{
     boxed::Box,
@@ -12,7 +15,9 @@ use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
-    Buttons, VIDEO_HARDWARE, autoboot_info::{BOOT_INFO, UnlaunchParams}, music_modules::mods::MODAsyncLoader
+    autoboot_info::{UnlaunchParams, BOOT_INFO},
+    music_modules::mods::MODAsyncLoader,
+    Buttons, VIDEO_HARDWARE,
 };
 pub enum CurrentUI {
     None,
@@ -118,10 +123,15 @@ impl AppData {
         f.central_panel(|ui| {
             {
                 let color = BACKGROUND_COLOR;
-                ui.paint_shape(micro_imgui::Shape::Rectangle { area: SCREEN_RECT.include_point(Vec2::new(256, 256)), fill: Color(color), rounding: 0, outline_color: Color(color), outline_size: 0 });
-              
+                ui.paint_shape(micro_imgui::Shape::Rectangle {
+                    area: SCREEN_RECT.include_point(Vec2::new(256, 256)),
+                    fill: Color(color),
+                    rounding: 0,
+                    outline_color: Color(color),
+                    outline_size: 0,
+                });
             }
-                  
+
             unsafe {
                 let sdio = reboot_lib::twl_wifi::STATUS.read_volatile();
                 ui.label(&format!("SDIO: {:08x?}", sdio));
@@ -176,7 +186,7 @@ impl AppData {
                 }
                 CurrentUI::LoadingApp { file, file_path } => {
                     ui.request_repaint();
-                    let error = unsafe { 
+                    let error = unsafe {
                         (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
                         boot::boot_app(file, &file_path, &mut self.blowfish)
                     };
@@ -231,26 +241,29 @@ impl AppData {
                     offset,
                     drag_start,
                 } => {
-                    
                     const ITEM_SPACING: i32 = 14;
-                    
+
                     if let Some(drag) = ui.drag() {
                         let new_drag = drag.y - *drag_start;
                         *drag_start += new_drag;
                         *offset -= new_drag as i32;
-                        *offset = (*offset).min(((immediate_files.len()*14) as i32) - (ITEM_SPACING*10)).max(0);
+                        *offset = (*offset)
+                            .min(((immediate_files.len() * 14) as i32) - (ITEM_SPACING * 10))
+                            .max(0);
                     } else {
                         *drag_start = 0;
                     }
 
-                    let shown_items = immediate_files.get(((*offset / ITEM_SPACING) as usize)..).unwrap_or(&[]);
+                    let shown_items = immediate_files
+                        .get(((*offset / ITEM_SPACING) as usize)..)
+                        .unwrap_or(&[]);
                     let shown_items = if let Some(clamped) = shown_items.get(..12) {
                         clamped
                     } else {
                         shown_items
                     };
-                    
-                    let in_step = *offset%ITEM_SPACING;
+
+                    let in_step = *offset % ITEM_SPACING;
                     if ui.input_pressed(Input(Buttons::DIRECTION_UP)) {
                         if ui.has_focus_anywhere() && *offset > 0 {
                             *offset = offset.wrapping_sub(ITEM_SPACING).max(0);
@@ -260,7 +273,7 @@ impl AppData {
                             *offset -= in_step;
                         }
                     }
-                
+
                     if ui.input_pressed(Input(Buttons::DIRECTION_DOWN)) {
                         if ui.has_focus_anywhere() && shown_items.len() >= 11 {
                             *offset = offset.saturating_add(ITEM_SPACING);
@@ -270,26 +283,25 @@ impl AppData {
                             *offset -= in_step;
                         }
                     }
-                
-                
-                    
 
                     let mut new_state: Option<
                         alloc::boxed::Box<dyn FnOnce(CurrentUI) -> CurrentUI>,
                     > = None;
                     let mut new_folder = None;
                     ui.label(current_path);
-                    let rect = micro_imgui::Rect::from_two_pos(ui.clip_rect().top_left(), ui.clip_rect().top_right() + Vec2::new(0, ITEM_SPACING as _));
-                    let rect2 = micro_imgui::Rect::from_two_pos(SCREEN_RECT.bottom_left() - Vec2::new(0, 8 as _), SCREEN_RECT.bottom_right() + Vec2::new(0, 1));
+                    let rect = micro_imgui::Rect::from_two_pos(
+                        ui.clip_rect().top_left(),
+                        ui.clip_rect().top_right() + Vec2::new(0, ITEM_SPACING as _),
+                    );
+                    let rect2 = micro_imgui::Rect::from_two_pos(
+                        SCREEN_RECT.bottom_left() - Vec2::new(0, 8 as _),
+                        SCREEN_RECT.bottom_right() + Vec2::new(0, 1),
+                    );
 
                     let color = BACKGROUND_COLOR;
-                    
-                    ui.add_space((ITEM_SPACING-in_step) as i16);
-                    let items = if in_step == 0 {
-                        10
-                    } else {
-                        11
-                    };
+
+                    ui.add_space((ITEM_SPACING - in_step) as i16);
+                    let items = if in_step == 0 { 10 } else { 11 };
                     for item in shown_items.iter().take(items) {
                         if ui
                             .add(Button::new(
@@ -335,9 +347,21 @@ impl AppData {
                             }
                         }
                     }
-                    ui.paint_shape(micro_imgui::Shape::Rectangle { area: rect, fill: Color(color), rounding: 0, outline_color: Color(color), outline_size: 0 });
-                    ui.paint_shape(micro_imgui::Shape::Rectangle { area: rect2, fill: Color(color), rounding: 0, outline_color: Color(color), outline_size: 0 });
-                    
+                    ui.paint_shape(micro_imgui::Shape::Rectangle {
+                        area: rect,
+                        fill: Color(color),
+                        rounding: 0,
+                        outline_color: Color(color),
+                        outline_size: 0,
+                    });
+                    ui.paint_shape(micro_imgui::Shape::Rectangle {
+                        area: rect2,
+                        fill: Color(color),
+                        rounding: 0,
+                        outline_color: Color(color),
+                        outline_size: 0,
+                    });
+
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) && new_folder.is_none() {
                         if current_path != "sdmc:/" && current_path != "nand:/" {
                             pop_dir_entry(current_path);

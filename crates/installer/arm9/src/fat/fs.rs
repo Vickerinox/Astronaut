@@ -1,6 +1,6 @@
 use crate::fat::{
-    bs::{BadFSError, BootSector, FSType},
     SectorManager,
+    bs::{BadFSError, BootSector, FSType},
 };
 
 pub struct FileSystem<'a, T> {

@@ -14,9 +14,7 @@ pub unsafe fn init_ntr_sound() {
     swi_delay(0x20BA * 16);
 }
 pub unsafe fn init_powerman() {
-    crate::spi::write_powerman(PowerRegiser::Control(
-        Control::ENABLE_SOUND_AMP,
-    ));
+    crate::spi::write_powerman(PowerRegiser::Control(Control::ENABLE_SOUND_AMP));
 }
 pub unsafe fn init_powerman2() {
     crate::spi::write_powerman(PowerRegiser::Control(

@@ -3,7 +3,7 @@
 #[instruction_set(arm::a32)]
 unsafe fn interrupt_handler_arm7() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
-    
+
     core::arch::asm!(
         // r0-r3, as well as r12 and lr (r14) are saved by the original BIOS IRQ handler (Viewable at 0x0000006C).
         "mov r12, {i_base}",
@@ -135,7 +135,9 @@ unsafe fn interrupt_handler_arm7() {
     );
 }
 #[cfg(not(target_arch = "arm"))]
-unsafe fn interrupt_handler_arm7() {panic!()}
+unsafe fn interrupt_handler_arm7() {
+    panic!()
+}
 
 static mut INTERRUPT_TABLE: [*mut fn(); 32] = [core::ptr::null_mut(); 32];
 static mut INTERRUPT_TABLE_AUX: [*mut fn(); 15] = [core::ptr::null_mut(); 15];

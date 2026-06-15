@@ -108,8 +108,7 @@ impl<'a, B: Backend> Frame<'a, B> {
         } else {
             false
         };
-        let hovered = contains
-            && ctx.backend.input_active(B::InputQuery::POINTER_DOWN);
+        let hovered = contains && ctx.backend.input_active(B::InputQuery::POINTER_DOWN);
 
         let pressed = (focused && ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS))
             || (hovered && ctx.backend.input_active(B::InputQuery::POINTER_PRESS));
@@ -186,7 +185,7 @@ impl<B> Ctx<B> {
             focused_response: None,
             released_response: None,
             wants_repaint: false,
-            touchdown_pos: TouchDown::None
+            touchdown_pos: TouchDown::None,
         }
     }
 }
@@ -227,7 +226,7 @@ impl<B: Backend> Ctx<B> {
     }
     pub fn end_frame(&mut self) {
         self.backend.end_frame();
-        
+
         if self.backend.input_released(B::InputQuery::POINTER_DOWN) {
             self.touchdown_pos = TouchDown::None;
         } else if let TouchDown::Touch(vec) = self.touchdown_pos {

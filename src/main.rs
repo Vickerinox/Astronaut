@@ -21,10 +21,13 @@ pub struct ElfStat {
     entry_point: u32,
     size: u32,
 }
-fn inject_elf(elf_file_path: &PathBuf, memory: &mut [u8], start_addr: usize) -> Result<ElfStat, CompileError> {
+fn inject_elf(
+    elf_file_path: &PathBuf,
+    memory: &mut [u8],
+    start_addr: usize,
+) -> Result<ElfStat, CompileError> {
     info!("SELECTED ELF: {:?}", &elf_file_path);
-    let file =
-        fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
+    let file = fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
         .map_err(|e| CompileError::ElfParseError(e))?;
     let entrypoint = parse.ehdr.e_entry;
@@ -56,7 +59,10 @@ fn inject_elf(elf_file_path: &PathBuf, memory: &mut [u8], start_addr: usize) -> 
         );
         memory[file_range].copy_from_slice(data);
     }
-    Ok(ElfStat { entry_point: entry_value, size: end as u32 })
+    Ok(ElfStat {
+        entry_point: entry_value,
+        size: end as u32,
+    })
 }
 fn construct_installer_rom(arm9: PathBuf, arm7: PathBuf) -> Result<Vec<u8>, BuildError> {
     let mut rom = vec![0u8; 0x80000];
@@ -67,16 +73,23 @@ fn construct_installer_rom(arm9: PathBuf, arm7: PathBuf) -> Result<Vec<u8>, Buil
     const MAGIC_START_POINT_ARM9: usize = 0x02010000;
     const MAGIC_START_POINT_ARM7: usize = 0x02300000;
 
-    let ElfStat { entry_point, size } = inject_elf(&arm9, &mut rom[0x4000..], MAGIC_START_POINT_ARM9).map_err(|e| Crate::Arm9Installer.err()(e))?;
+    let ElfStat { entry_point, size } =
+        inject_elf(&arm9, &mut rom[0x4000..], MAGIC_START_POINT_ARM9)
+            .map_err(|e| Crate::Arm9Installer.err()(e))?;
 
     header.head.arm9_load = (MAGIC_START_POINT_ARM9) as u32;
     header.head.arm9_size = size;
     header.head.arm9_entry = entry_point;
     header.head.arm9_offset = 0x4000;
 
-    let arm7_offset = 0x5000+(size & !0xFFF);
+    let arm7_offset = 0x5000 + (size & !0xFFF);
 
-    let ElfStat { entry_point, size } = inject_elf(&arm7, &mut rom[(arm7_offset as usize)..], MAGIC_START_POINT_ARM7).map_err(|e| Crate::Arm7Installer.err()(e))?;
+    let ElfStat { entry_point, size } = inject_elf(
+        &arm7,
+        &mut rom[(arm7_offset as usize)..],
+        MAGIC_START_POINT_ARM7,
+    )
+    .map_err(|e| Crate::Arm7Installer.err()(e))?;
 
     header.head.arm7_load = (MAGIC_START_POINT_ARM7) as u32;
     header.head.arm7_size = size;
@@ -85,10 +98,14 @@ fn construct_installer_rom(arm9: PathBuf, arm7: PathBuf) -> Result<Vec<u8>, Buil
 
     header.head.title.copy_from_slice(b"HOMEBREW    ");
     header.head.unit_code = 3;
-     
-    let header_as_bytes = unsafe { core::slice::from_raw_parts(core::ptr::addr_of!(header) as *const u8, core::mem::size_of_val(&header))};
+
+    let header_as_bytes = unsafe {
+        core::slice::from_raw_parts(
+            core::ptr::addr_of!(header) as *const u8,
+            core::mem::size_of_val(&header),
+        )
+    };
     rom[..header_as_bytes.len()].copy_from_slice(header_as_bytes);
-    
 
     Ok(rom)
 }
@@ -182,7 +199,6 @@ impl FixedCompilerArgs {
         let arm9_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm9");
         let arm7_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm7");
 
-
         let arm9_installer_path = env_us.clone().join("crates/installer/arm9");
         let arm7_installer_path = env_us.clone().join("crates/installer/arm7");
 
@@ -199,7 +215,6 @@ impl FixedCompilerArgs {
         let arm7_elf_installer = env_us
             .clone()
             .join("target-installer/armv4t-none-eabi/release/arm7");
-
 
         let arm9_bs_elf = env_us
             .clone()
@@ -246,7 +261,7 @@ impl FixedCompilerArgs {
         build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
         debug!("Done building ARM9!");
 
-        /* 
+        /*
         build::build_crate(arm9_installer_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
         debug!("Built arm9 installer");
         build::build_crate(arm7_installer_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
@@ -270,11 +285,10 @@ impl FixedCompilerArgs {
         mmc::write_tmd_to_image(mmc_image_path, &exploited_tmd).map_err(Crate::TMD.err())?;
 
         if let Some(mut path) = self.export_tmd {
-            
             if fs::write(&path, &exploited_tmd[520..]).is_err() {
                 error!("path for TMD export not available");
             }
-            /* 
+            /*
             match construct_installer_rom(arm9_elf_installer, arm7_elf_installer) {
                 Ok(installer) => {path.add_extension("dsi");
                 if fs::write(&path, &installer).is_err() {
@@ -283,9 +297,8 @@ impl FixedCompilerArgs {
                 Err(err) => {
                     error!("Failed to build installer {err:?}");
                 }
-            } 
+            }
             */
-            
         }
 
         Ok(())

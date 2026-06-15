@@ -1,17 +1,16 @@
 #![no_std]
-pub use micro_imgui;
 use core::num::NonZeroU16;
+pub use micro_imgui;
 
 use micro_imgui::{LayerId, Rect, Vec2};
 use reboot_lib::Buttons;
-
 
 pub const SCREEN_RECT: micro_imgui::Rect = micro_imgui::Rect {
     min: Vec2::ZERO,
     max: Vec2::new(255, 191),
 };
 pub mod gui;
-use crate::{gui::VideoTextPass};
+use crate::gui::VideoTextPass;
 
 pub struct DSMicroGuiBackend {
     input: Inputs,

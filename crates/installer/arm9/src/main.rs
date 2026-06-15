@@ -4,7 +4,6 @@
 #![feature(str_from_utf16_endian)]
 #![feature(str_from_raw_parts)]
 
-
 static mut SDMMC_DRIVER: SDMMCDriver = SDMMCDriver::new();
 static mut FADER: core::mem::MaybeUninit<Fader> = core::mem::MaybeUninit::<Fader>::uninit();
 pub struct Fader {
@@ -17,17 +16,17 @@ use common::blowfish::BFCTX;
 use core::arch::asm;
 use core::str;
 use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
-use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
+use reboot_lib::autoboot_info::{BOOT_INFO, UnlaunchBootFlags};
 
 use micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
-    arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc, MemoryWrapper, VRAMCtrl, VideoHardwareHandle,
-    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
+    Buttons, DisplayControl, MatrixMode, PolygonAttributes, StorageSector, VIDEO_HARDWARE,
+    VideoPowerControl, Viewport,
 };
 use reboot_lib::{
-    Buttons, DisplayControl, MatrixMode, PolygonAttributes, StorageSector, VideoPowerControl,
-    Viewport, VIDEO_HARDWARE,
+    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, MemoryWrapper, VRAMCtrl,
+    VideoHardwareHandle, arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc,
 };
 
 use crate::fat::driver::SDMMCDriver;
@@ -61,7 +60,7 @@ impl NandAutobootEntry {
     };
 }
 static mut NAND_FS: fatfs_embedded::fatfs::RawFileSystem = RawFileSystem::uninit();
-static mut SDMC_FS: fatfs_embedded::fatfs::RawFileSystem = RawFileSystem::uninit(); 
+static mut SDMC_FS: fatfs_embedded::fatfs::RawFileSystem = RawFileSystem::uninit();
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 unsafe fn interrupt_handler() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
@@ -145,7 +144,7 @@ pub unsafe fn unlaunch_breakpoint() {
 unsafe fn init_font() {
     #[cfg(target_arch = "arm")]
     {
-        /* 
+        /*
         const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
         for (i, w) in FONT_FILE.iter().enumerate() {
             core::ptr::write_volatile((0x2002000 as *mut u8).add(i), *w);
@@ -170,7 +169,6 @@ unsafe fn init_font() {
         let reg = core::ptr::read_volatile((0x200_1000 as *const u32).add(i));
         core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
     }
-
 }
 
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
@@ -287,7 +285,7 @@ fn populate_fs_vec(
         let mut j = i;
         loop {
             let Some(under) = vec.get(j - 1) else { break };
-            if under.3 .0 > temp.3 .0 {
+            if under.3.0 > temp.3.0 {
                 let under = under.clone();
                 let Some(over) = vec.get_mut(j) else { break };
                 *over = under;
@@ -302,15 +300,14 @@ fn populate_fs_vec(
     vec
 }
 
-use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::gui::{self, TextLayoutHandle};
+use micro_imgui_ds::micro_imgui;
 const SCREEN_RECT: micro_imgui::Rect = micro_imgui::Rect {
-        min: Vec2::ZERO,
-        max: Vec2::new(255, 191),
-    };
-    
+    min: Vec2::ZERO,
+    max: Vec2::new(255, 191),
+};
+
 unsafe fn arm7_crash() -> ! {
-    
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     video_context.next_frame();
     gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
@@ -319,13 +316,22 @@ unsafe fn arm7_crash() -> ! {
         text_pass.layout_str("oh no!", 16);
         text_pass.next_line();
         text_pass.next_line();
-        text_pass.layout_str("If you can see this screen then something has gone wrong.", 8);
+        text_pass.layout_str(
+            "If you can see this screen then something has gone wrong.",
+            8,
+        );
         text_pass.next_line();
         text_pass.next_line();
-        text_pass.layout_str("For support, reach out to the DSi hacking server on Discord", 8);
+        text_pass.layout_str(
+            "For support, reach out to the DSi hacking server on Discord",
+            8,
+        );
         text_pass.next_line();
         text_pass.next_line();
-        text_pass.layout_str("Alternatively, try to reach me via email: viktor@koda.re", 8);
+        text_pass.layout_str(
+            "Alternatively, try to reach me via email: viktor@koda.re",
+            8,
+        );
     });
     video_context.next_frame();
     loop {}
@@ -337,17 +343,12 @@ unsafe fn fade_out() {
     let read = area.current.read();
     let target = area.target.read();
     let new = match read.cmp(&target) {
-        core::cmp::Ordering::Less => {
-            (read + 3).min(target)
-            
-        },
+        core::cmp::Ordering::Less => (read + 3).min(target),
         core::cmp::Ordering::Equal => return,
-        core::cmp::Ordering::Greater => {
-            (read - 2).max(target)
-        },
+        core::cmp::Ordering::Greater => (read - 2).max(target),
     };
     area.current.write(new);
-    set_bright(new as u16 | (1<<14)); 
+    set_bright(new as u16 | (1 << 14));
 }
 unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
@@ -364,10 +365,8 @@ unsafe fn main() {
 
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
-        set_bright(16 | (1<<14));
+        set_bright(16 | (1 << 14));
         set_background(BACKGROUND_COLOR);
-        
-
 
         IPC_FIFO_HARDWARE.enable();
         IPC_FIFO_HARDWARE.set_status(0);
@@ -383,7 +382,6 @@ unsafe fn main() {
         VIDEO_HARDWARE
             .engine_a_ctrl
             .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
-        
 
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
         video_context.next_frame();
@@ -396,7 +394,6 @@ unsafe fn main() {
             0x4001000 as *mut u32,
             0b00000000000000001_0000_0000_0000_0_000,
         );
-        
 
         //write to "color palette 0"
         core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
@@ -408,7 +405,6 @@ unsafe fn main() {
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
         init_3d_hardware(&mut video_context);
         steal_main_mem();
-        
 
         // Check in with the ARM7 to make sure it's alive
         let mut timeout_counter = 0;
@@ -427,19 +423,17 @@ unsafe fn main() {
         }
         // ARM7 is alive! make sure to let it know.
         IPC_FIFO_HARDWARE.set_status(0);
-        
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
-        
+
         IPC_FIFO_HARDWARE.enable_recv_irq();
-        
+
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
-        
 
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
-        
+
         #[allow(static_mut_refs)]
         {
             let _ = NAND_FS.mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
@@ -450,18 +444,16 @@ unsafe fn main() {
             fader.current.write(16);
         }
 
-
         let backend = gui::DSMicroGuiBackend::new(video_context);
 
-        
         let force_menu = !(0x4000130 as *const u16).read_volatile() & 3 == 3;
-        
+
         INTERRUPT_TABLE[0] = fade_out as *mut _;
-        
+
         micro_imgui::run(backend, (), |mut f, _| {
             f.central_panel(|ui| {
                 ui.label("Holy balls it works!");
-            });                                                                                                                                                                                                                                                                            
+            });
         });
     }
 }

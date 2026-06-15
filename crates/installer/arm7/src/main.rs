@@ -2,7 +2,6 @@
 #![no_main]
 #![no_std]
 
-
 const DSI_WRAM_START: usize = 0x0380_0000;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start() {

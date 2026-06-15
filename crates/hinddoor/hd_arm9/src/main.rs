@@ -37,7 +37,7 @@ use reboot_lib::{
 };
 
 use crate::fat::driver::SDMMCDriver;
-use crate::gui::{AppData};
+use crate::gui::AppData;
 use crate::nand::BasicSDMMCCursor;
 
 extern crate alloc;
@@ -154,12 +154,12 @@ pub unsafe fn unlaunch_breakpoint() {
 
 #[instruction_set(arm::a32)]
 #[cfg(target_arch = "arm")]
-unsafe fn init_font() {    
+unsafe fn init_font() {
     const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
     for (i, w) in FONT_FILE.iter().enumerate() {
         core::ptr::write_volatile((0x2002000 as *mut u8).add(i), *w);
     }
-    
+
     core::arch::asm!(
         "SWI 0x110000",
         in("r0") 0x2002000,
@@ -175,7 +175,9 @@ unsafe fn init_font() {
     }
 }
 #[cfg(not(target_arch = "arm"))]
-unsafe fn init_font() { panic!() }
+unsafe fn init_font() {
+    panic!()
+}
 
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     //setup 3d hardware
@@ -307,46 +309,47 @@ fn populate_fs_vec(
 }
 
 pub use micro_imgui_ds::SCREEN_RECT;
-    
+
 unsafe fn arm7_crash() -> ! {
-    
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     video_context.next_frame();
-    micro_imgui_ds::gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(|text_pass| {
-        text_pass.set_color(0x7FFF);
-        text_pass.next_line();
-        text_pass.layout_str("oh no!", 16);
-        text_pass.next_line();
-        text_pass.next_line();
-        text_pass.layout_str("If you can see this screen then something has gone wrong.", 8);
-        text_pass.next_line();
-        text_pass.next_line();
-        text_pass.layout_str("For support, reach to the DSi hacking server on Discord", 8);
-        text_pass.next_line();
-        text_pass.next_line();
-        text_pass.layout_str("Alternatively, try to reach me via email: viktor@koda.re", 8);
-    });
+    micro_imgui_ds::gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(
+        |text_pass| {
+            text_pass.set_color(0x7FFF);
+            text_pass.next_line();
+            text_pass.layout_str("oh no!", 16);
+            text_pass.next_line();
+            text_pass.next_line();
+            text_pass.layout_str(
+                "If you can see this screen then something has gone wrong.",
+                8,
+            );
+            text_pass.next_line();
+            text_pass.next_line();
+            text_pass.layout_str("For support, reach to the DSi hacking server on Discord", 8);
+            text_pass.next_line();
+            text_pass.next_line();
+            text_pass.layout_str(
+                "Alternatively, try to reach me via email: viktor@koda.re",
+                8,
+            );
+        },
+    );
     video_context.next_frame();
     loop {}
 }
 
 unsafe fn fade_out() {
-    
     let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
     let read = area.current.read();
     let target = area.target.read();
     let new = match read.cmp(&target) {
-        core::cmp::Ordering::Less => {
-            (read + 3).min(target)
-            
-        },
+        core::cmp::Ordering::Less => (read + 3).min(target),
         core::cmp::Ordering::Equal => return,
-        core::cmp::Ordering::Greater => {
-            (read - 2).max(target)
-        },
+        core::cmp::Ordering::Greater => (read - 2).max(target),
     };
     area.current.write(new);
-    set_bright(new as u16 | (1<<14)); 
+    set_bright(new as u16 | (1 << 14));
 }
 unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
@@ -357,17 +360,16 @@ unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
-        (&raw mut (*app_area.app_data.as_mut_ptr()).blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
+        (&raw mut (*app_area.app_data.as_mut_ptr()).blowfish)
+            .write((*(0x1FFC894 as *const BFCTX)).clone());
         VIDEO_HARDWARE
             .power_control
             .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
 
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
-        set_bright(16 | (1<<14));
+        set_bright(16 | (1 << 14));
         set_background(BACKGROUND_COLOR);
-        
-
 
         IPC_FIFO_HARDWARE.enable();
         IPC_FIFO_HARDWARE.set_status(0);
@@ -385,7 +387,6 @@ unsafe fn main() {
         VIDEO_HARDWARE
             .engine_a_ctrl
             .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
-        
 
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
         video_context.next_frame();
@@ -398,7 +399,6 @@ unsafe fn main() {
             0x4001000 as *mut u32,
             0b00000000000000001_0000_0000_0000_0_000,
         );
-        
 
         //write to "color palette 0"
         core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
@@ -410,7 +410,6 @@ unsafe fn main() {
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
         init_3d_hardware(&mut video_context);
         steal_main_mem();
-        
 
         // Check in with the ARM7 to make sure it's alive
         let mut timeout_counter = 0;
@@ -434,29 +433,17 @@ unsafe fn main() {
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         irq_init();
-        
+
         IPC_FIFO_HARDWARE.enable_recv_irq();
-        
+
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
 
-        
-        
-        
-        
-        
-        
-        
-
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
-        
-        
+
         app_area.sdmmc_driver.write(SDMMCDriver::new());
         let sdmmc_driver = app_area.sdmmc_driver.assume_init_mut();
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
-
-        
-        
 
         let ptr = app_area.app_data.as_mut_ptr();
         (&raw mut (*ptr).autoboot).write(None);
@@ -472,16 +459,15 @@ unsafe fn main() {
 
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
 
-        
         let force_menu = !(0x4000130 as *const u16).read_volatile() & 3 == 3;
-        
+
         INTERRUPT_TABLE[0] = fade_out as *mut _;
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
                     let mut file_path = params.parse_path();
                     (&raw mut app_data.autoboot).write(Some((file_path.clone(), params)));
-                    if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {    
+                    if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
                         boot::boot_app(&mut file, &mut file_path, &mut app_data.blowfish);
                     }
                 }
@@ -489,16 +475,12 @@ unsafe fn main() {
                 app_data.autoboot();
             }
         }
-        
+
         app_data.play_startup_music();
         app_area.fader.target.write(0);
-        
-        
-        
-        
+
         micro_imgui_ds::micro_imgui::run(backend, (), |mut f, _| {
             app_data.update(&mut f);
-
         });
     }
 }
@@ -711,7 +693,10 @@ impl PanicFmt {
         unsafe { str::from_raw_parts(self.base as *const u8, self.len) }
     }
 }
-unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut micro_imgui_ds::gui::TextLayoutHandle) {
+unsafe fn print_msg(
+    info: &core::panic::PanicInfo,
+    text_pass: &mut micro_imgui_ds::gui::TextLayoutHandle,
+) {
     let mut buf = PanicFmt::new(0x20F_0000 as *mut u8, 0x1000);
     use core::fmt::Write;
     let _ = write!(&mut buf, "{}", info.message());
@@ -758,4 +743,6 @@ unsafe fn irq_init() {
     INTERUPT_HARDWARE.master.write(1);
 }
 #[cfg(not(target_arch = "arm"))]
-unsafe fn irq_init() { panic!() }
+unsafe fn irq_init() {
+    panic!()
+}

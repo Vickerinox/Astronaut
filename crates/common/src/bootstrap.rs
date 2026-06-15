@@ -21,7 +21,7 @@ pub unsafe fn boot_arm9() -> ! {
     }
     //clear all interrupts
     (0x4000214 as *mut u32).write_volatile(!0);
-    
+
     while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 1 {}
 
     //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
@@ -44,10 +44,9 @@ pub unsafe fn boot_arm9() -> ! {
         w(0x4004050 as *mut u32, 0);
     }
 
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],2);
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 2);
     while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 3 {}
 
-    
     //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
@@ -78,30 +77,30 @@ pub unsafe fn boot_arm7() -> ! {
     (0x4000214 as *mut u32).write_volatile(!0);
     (0x400021C as *mut u32).write_volatile(!0);
 
-    
     //Sync to ARM9
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],1);
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 1);
     while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 2 {}
-     
+
     let header = &(*BOOTINFO_MEM).twl_header;
     if header.is_dsi_mode() {
         let device_list_location = header.arm7_device_list;
         if device_list_location != 0 {
-            let dev_list_src = core::ptr::addr_of_mut!((*BOOTINFO_MEM).device_list_copy) as *const u32;
-            for i in 0..(core::mem::size_of::<DeviceList>()/core::mem::size_of::<u32>()) {
-
-                (device_list_location as *mut u32).add(i).write(dev_list_src.add(i).read());
+            let dev_list_src =
+                core::ptr::addr_of_mut!((*BOOTINFO_MEM).device_list_copy) as *const u32;
+            for i in 0..(core::mem::size_of::<DeviceList>() / core::mem::size_of::<u32>()) {
+                (device_list_location as *mut u32)
+                    .add(i)
+                    .write(dev_list_src.add(i).read());
             }
         }
     }
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],3);
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 3);
 
     //Sync to ARM9
     while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
     while VCOUNT_REG.read_volatile() == 192 {}
 
-    
     //jump to entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
@@ -264,8 +263,6 @@ pub struct HeaderTWL {
 }
 const_assert!(core::mem::size_of::<HeaderTWL>() == 0x1000);
 
-
-
 impl HeaderTWL {
     pub fn new() -> Self {
         Self {
@@ -420,7 +417,6 @@ pub struct BootInfoTWL {
     pub ntr: BootInfoNTR,
 }
 const_assert!(core::mem::size_of::<BootInfoTWL>() == 0x4000);
-
 
 #[repr(C)]
 pub struct SDMMCContext {

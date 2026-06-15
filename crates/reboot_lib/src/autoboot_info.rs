@@ -105,7 +105,7 @@ impl UnlaunchBoot {
 }
 impl UnlaunchParams {
     /// Convert the UTF-16 path in the parameters to a standard rust string.
-    /// 
+    ///
     /// If an error occurs, an empty string is returned instead.
     pub fn parse_path(&self) -> String {
         // NOTE: unwrap_or_default is a code size optimization.

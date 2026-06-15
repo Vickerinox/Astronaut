@@ -5,7 +5,7 @@ use common::{
     blowfish::BFCTX,
     bootstrap::{HeaderTWL, BOOTINFO_MEM},
 };
-use reboot_lib::{VIDEO_HARDWARE, swi_crc16};
+use reboot_lib::{swi_crc16, VIDEO_HARDWARE};
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
@@ -27,7 +27,7 @@ impl Debug for BootError {
         }
     }
 }
-use crate::{APP_AREA_START, AppArea, BOOTSTRAP_BINARY, INTERRUPT_TABLE, set_background};
+use crate::{set_background, AppArea, APP_AREA_START, BOOTSTRAP_BINARY, INTERRUPT_TABLE};
 
 unsafe fn read_all(
     mut buffer: &mut [u8],
@@ -43,8 +43,6 @@ unsafe fn read_all(
     Ok(())
 }
 
-
-
 pub unsafe fn setup_shared_mem(header: &HeaderTWL) {
     let mem = &mut *BOOTINFO_MEM;
 
@@ -53,28 +51,22 @@ pub unsafe fn setup_shared_mem(header: &HeaderTWL) {
 
     let reset = 0;
     let rom_offset = 0;
-    let boot_type = if header.is_dsiware() {
-        1
-    } else {
-        3
-    };
-    
+    let boot_type = if header.is_dsiware() { 1 } else { 3 };
+
     mem.ntr.bootcheck.tid_1 = header.head.tid;
     mem.ntr.bootcheck.tid_2 = header.head.tid;
     mem.ntr.bootcheck.header_crc = header.head.header_crc;
     mem.ntr.bootcheck.secure_crc = header.head.secure_area_crc;
     mem.ntr.bootcheck.bios_crc = 0x5835;
-    
+
     mem.ntr.reset = reset;
     mem.ntr.rom_offset = rom_offset;
     mem.ntr.boot_method.boot_type = boot_type;
-    
+
     //for DSi mode only technically
     mem.sysmenu_id.clone_from_slice(b"00000009\0");
     mem.init_code = b'P';
-
 }
-
 
 #[inline]
 unsafe fn boot_unreturnable(
@@ -84,7 +76,7 @@ unsafe fn boot_unreturnable(
     bf: &mut BFCTX,
 ) -> ! {
     crate::stop_mod_file();
-    
+
     let mut prv_path = String::with_capacity(file_path.len());
     let mut pub_path = String::with_capacity(file_path.len());
 
@@ -94,41 +86,40 @@ unsafe fn boot_unreturnable(
         prv_path.push_str("data/private.sav");
         pub_path.push_str("data/public.sav");
     } else {
-        prv_path.push_str(&file_path[..file_path.len()-3]);
-        pub_path.push_str(&file_path[..file_path.len()-3]);
+        prv_path.push_str(&file_path[..file_path.len() - 3]);
+        pub_path.push_str(&file_path[..file_path.len() - 3]);
         prv_path.push_str("prv");
         pub_path.push_str("pub");
     }
-    
 
-    common::device_list::init(header, file_path,&pub_path, &prv_path);
+    common::device_list::init(header, file_path, &pub_path, &prv_path);
 
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],0);
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 0);
 
     setup_shared_mem(&(*BOOTINFO_MEM).twl_header);
     if header.is_homebrew() {
         let path_bytes = file_path.as_bytes();
         let (trim, path_bytes) = if path_bytes.get(..4) == Some(b"sdmc") {
-            path_bytes.get(2..).map_or((false, path_bytes), |i| (true, i))
+            path_bytes
+                .get(2..)
+                .map_or((false, path_bytes), |i| (true, i))
         } else {
             (false, path_bytes)
         };
-        
+
         let other = &mut (*(APP_AREA_START as *mut AppArea)).path_buffer;
         for (i, o) in path_bytes.iter().zip(other.iter_mut()) {
-            *o = *i; 
+            *o = *i;
         }
         if trim {
             other[0..2].copy_from_slice(b"sd");
         }
         let path = core::str::from_raw_parts(other as *const u8, path_bytes.len());
-        
-        common::argv::init(header,path);
+
+        common::argv::init(header, path);
         reboot_lib::nocash_write("> Inserted ARGV \n");
-        
-        
     }
-    
+
     let arm9_ram = core::slice::from_raw_parts_mut(
         header.head.arm9_load as *mut u8,
         header.head.arm9_size as usize,
@@ -147,7 +138,6 @@ unsafe fn boot_unreturnable(
 
     reboot_lib::nocash_write("> ARM7 binary loaded \n");
 
-    
     if header.is_dsi_mode() {
         let arm9_ram = core::slice::from_raw_parts_mut(
             header.arm9i_load as *mut u8,
@@ -168,7 +158,6 @@ unsafe fn boot_unreturnable(
 
         reboot_lib::nocash_write("> ARM7i binary loaded \n");
 
-        
         if header.head.twl_flags & (1 << 1) > 0 {
             match reboot_lib::arm9_decrypt_modcrypt(0) {
                 Ok(()) => (),
@@ -178,11 +167,8 @@ unsafe fn boot_unreturnable(
             }
             reboot_lib::nocash_write("> Applied Modcrypt \n");
         }
-        
     }
-    
 
-    
     if (0x4000..0x8000).contains(&header.head.arm9_offset) {
         let tmp = header.head.arm9_load as *mut u32;
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
@@ -206,12 +192,9 @@ unsafe fn boot_unreturnable(
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
-    
 
-
-    
     reboot_lib::nocash_write("> Inserted Device List \n");
-    
+
     {
         common::config::init(header);
         let wifi_type = (*BOOTINFO_MEM).ntr.firmware_data[0xFF];
@@ -228,16 +211,17 @@ unsafe fn boot_unreturnable(
         (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF, 0x020005E4 as *const (), 0xC));
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
-    
+
     inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.head.arm9_entry);
     reboot_lib::flush_mmc();
 
-   
-    while (&*(APP_AREA_START as *mut AppArea)).fader.current.read() != (&*(APP_AREA_START as *mut AppArea)).fader.target.read() {}
+    while (&*(APP_AREA_START as *mut AppArea)).fader.current.read()
+        != (&*(APP_AREA_START as *mut AppArea)).fader.target.read()
+    {}
     reboot_lib::disable_all_interrupts();
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
-    if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15  {
+    if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15 {
         set_background(0x7FFF);
         crate::set_bright(0);
     }

@@ -1,12 +1,12 @@
+use super::{mbr, nand::BasicSDMMCCursor};
+use crate::{read_encrypted_nand, read_sd_card, transmute_slice};
 use fatfs_embedded::fatfs::{
-    diskio::{DiskResult, FatFsDriver, IoctlCommand},
     RawFileSystem,
+    diskio::{DiskResult, FatFsDriver, IoctlCommand},
 };
 use reboot_lib::{
-    arm9_check_sdmmc, arm9_init_sdmmc, StorageSector, ENGINE_A_PALETTES, ENGINE_B_PALETTES,
+    ENGINE_A_PALETTES, ENGINE_B_PALETTES, StorageSector, arm9_check_sdmmc, arm9_init_sdmmc,
 };
-use super::{mbr,nand::BasicSDMMCCursor};
-use crate::{ read_encrypted_nand, read_sd_card, transmute_slice};
 
 pub struct SDMMCDriver {
     pub nand_controller: Option<BasicSDMMCCursor<'static>>,

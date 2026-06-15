@@ -15,7 +15,6 @@ mod aes;
 mod allocator;
 pub mod autoboot_info;
 pub mod dma;
-pub mod standard_arm7;
 mod fs;
 pub mod i2c;
 pub mod interupts;
@@ -28,6 +27,7 @@ pub mod ndma;
 pub mod scfg;
 pub mod sound;
 pub mod spi;
+pub mod standard_arm7;
 mod swi;
 pub mod timers;
 mod video;
@@ -222,7 +222,9 @@ impl StorageSector {
     }
 }
 #[cfg(not(target_arch = "arm"))]
-pub unsafe fn flush_mmc() { panic!() }
+pub unsafe fn flush_mmc() {
+    panic!()
+}
 
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]

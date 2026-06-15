@@ -8,6 +8,4 @@ pub struct BootStub {
     pub arm7_entry: *const (),
     pub loader_size: u32,
 }
-pub fn install() {
-    
-}
+pub fn install() {}

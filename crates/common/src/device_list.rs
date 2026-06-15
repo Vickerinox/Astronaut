@@ -10,14 +10,17 @@ impl<'a> DeviceListBuilder<'a> {
     pub fn new(list: &'a mut DeviceList, app_path: &'a str) -> Self {
         list.clear();
         list.app_path[..app_path.len()].copy_from_slice(app_path.as_bytes());
-        Self { list, drive_count: 0, app_path }
+        Self {
+            list,
+            drive_count: 0,
+            app_path,
+        }
     }
     pub fn add_drive(&mut self, drive: DeviceEntry) -> &mut Self {
         self.list.drives[self.drive_count] = drive;
         self.drive_count += 1;
         self
     }
-    
 }
 pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_sav_path: &str) {
     if header.arm7_device_list == 0 {
@@ -25,44 +28,49 @@ pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_s
     }
     let list = &mut (*BOOTINFO_MEM).device_list_copy;
     let mut list_builder = DeviceListBuilder::new(list, app_path);
-    list_builder.add_drive(DeviceEntry::new(
-        b'I',
-        DeviceFlags::COMBO_SDMC_SLOT,
-        DeviceRights::READ_WRITE,
-        "sdmc",
-        "/",
-    )).add_drive(DeviceEntry::new(
-        b'A',
-        DeviceFlags::DRIVE_SDMC,
-        DeviceRights::NONE,
-        "nand",
-        "/",
-    )).add_drive(DeviceEntry::new(
-        b'B',
-        DeviceFlags::COMBO_TWL_PHOTO,
-        DeviceRights::NONE,
-        "nand2",
-        "/",
-    )).add_drive(DeviceEntry::new(
-        b'D',
-        DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_ONE,
-        DeviceRights::WRITE,
-        "shared1",
-        "nand:/shared1",
-    )).add_drive(DeviceEntry::new(
-        b'F',
-        DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_TWO,
-        DeviceRights::READ_WRITE,
-        "photo",
-        "nand2:/photo",
-    ));
+    list_builder
+        .add_drive(DeviceEntry::new(
+            b'I',
+            DeviceFlags::COMBO_SDMC_SLOT,
+            DeviceRights::READ_WRITE,
+            "sdmc",
+            "/",
+        ))
+        .add_drive(DeviceEntry::new(
+            b'A',
+            DeviceFlags::DRIVE_SDMC,
+            DeviceRights::NONE,
+            "nand",
+            "/",
+        ))
+        .add_drive(DeviceEntry::new(
+            b'B',
+            DeviceFlags::COMBO_TWL_PHOTO,
+            DeviceRights::NONE,
+            "nand2",
+            "/",
+        ))
+        .add_drive(DeviceEntry::new(
+            b'D',
+            DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_ONE,
+            DeviceRights::WRITE,
+            "shared1",
+            "nand:/shared1",
+        ))
+        .add_drive(DeviceEntry::new(
+            b'F',
+            DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_TWO,
+            DeviceRights::READ_WRITE,
+            "photo",
+            "nand2:/photo",
+        ));
     if header.private_save_size != 0 {
         add_save(&mut list_builder, prv_sav_path, "dataPrv", b'G');
     }
     if header.public_save_size != 0 {
         add_save(&mut list_builder, pub_sav_path, "dataPub", b'H');
     }
-    
+
     list_builder.add_drive(DeviceEntry::new(
         b'C',
         DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
@@ -70,7 +78,6 @@ pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_s
         "share",
         "nand:/shared2/0000",
     ));
-    
 }
 pub fn add_save(builder: &mut DeviceListBuilder, path: &str, name: &str, drive: u8) {
     let drive_sort = match path.get(..4) {
@@ -113,7 +120,8 @@ impl DeviceFlags {
 
     pub const ENCRYPTED: Self = Self(1 << 7);
 
-    pub const COMBO_SDMC_SLOT: Self = Self(Self::PHYSICAL.0 | Self::DRIVE_SDMC.0 | Self::PARTITION_ONE.0);
+    pub const COMBO_SDMC_SLOT: Self =
+        Self(Self::PHYSICAL.0 | Self::DRIVE_SDMC.0 | Self::PARTITION_ONE.0);
     pub const COMBO_TWL_MAIN: Self =
         Self(Self::PHYSICAL.0 | Self::DRIVE_NAND.0 | Self::PARTITION_ONE.0 | Self::ENCRYPTED.0);
     pub const COMBO_TWL_PHOTO: Self =
