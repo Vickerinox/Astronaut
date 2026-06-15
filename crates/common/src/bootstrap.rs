@@ -2,7 +2,13 @@ use core::ptr::write_volatile as w;
 
 use crate::device_list::DeviceList;
 
-#[inline(always)]
+#[cfg(not(target_arch = "arm"))]
+pub unsafe fn boot_arm9() -> ! { loop {}}
+#[cfg(not(target_arch = "arm"))]
+pub unsafe fn boot_arm7() -> ! { loop {}}
+
+#[cfg(target_arch = "arm")]
+#[instruction_set(arm::a32)]
 pub unsafe fn boot_arm9() -> ! {
     //disable interrupts
     w(0x4004040 as *mut u32, 0);
@@ -51,11 +57,12 @@ pub unsafe fn boot_arm9() -> ! {
     while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
     while VCOUNT_REG.read_volatile() == 192 {}
+    core::arch::asm!("mov r11, r11");
     //Jump to Entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
-#[inline(always)]
+#[cfg(target_arch = "arm")]
 pub unsafe fn boot_arm7() -> ! {
     //disable all interrupts
     (0x4000208 as *mut u32).write_volatile(0);
@@ -100,7 +107,7 @@ pub unsafe fn boot_arm7() -> ! {
     while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
     while VCOUNT_REG.read_volatile() == 192 {}
-
+    core::arch::asm!("mov r11, r11");
     //jump to entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}

@@ -284,6 +284,7 @@ pub fn main_arm7() {
                         0,
                     );
 
+                    core::arch::asm!("mov r11, r11");
                     bootstrap::boot_arm7();
                 }
                 7 => {

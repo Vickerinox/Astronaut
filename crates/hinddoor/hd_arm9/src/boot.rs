@@ -234,6 +234,7 @@ unsafe fn boot_unreturnable(
     let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
     while VCOUNT_REG.read_volatile() != 192 {}
     while VCOUNT_REG.read_volatile() == 192 {}
+    core::arch::asm!("mov r11, r11");
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }
