@@ -283,8 +283,6 @@ pub fn main_arm7() {
                         I2CRegister::I2cPower(crate::i2c::PowerRegister::MMCPWR),
                         0,
                     );
-
-                    core::arch::asm!("mov r11, r11");
                     bootstrap::boot_arm7();
                 }
                 7 => {

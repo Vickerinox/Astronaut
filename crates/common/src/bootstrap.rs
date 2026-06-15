@@ -57,7 +57,6 @@ pub unsafe fn boot_arm9() -> ! {
     while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
     while VCOUNT_REG.read_volatile() == 192 {}
-    core::arch::asm!("mov r11, r11");
     //Jump to Entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
@@ -107,7 +106,6 @@ pub unsafe fn boot_arm7() -> ! {
     while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
     while VCOUNT_REG.read_volatile() == 192 {}
-    core::arch::asm!("mov r11, r11");
     //jump to entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
