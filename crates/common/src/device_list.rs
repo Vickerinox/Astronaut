@@ -1,86 +1,91 @@
 use core::ops::BitOr;
 
 use crate::bootstrap::{HeaderTWL, BOOTINFO_MEM};
-
-pub unsafe fn init(header: &HeaderTWL, pub_sav_path: &str, prv_sav_path: &str, _location: &str) {
+pub struct DeviceListBuilder<'a> {
+    list: &'a mut DeviceList,
+    drive_count: usize,
+    app_path: &'a str,
+}
+impl<'a> DeviceListBuilder<'a> {
+    pub fn new(list: &'a mut DeviceList, app_path: &'a str) -> Self {
+        list.clear();
+        list.app_path[..app_path.len()].copy_from_slice(app_path.as_bytes());
+        Self { list, drive_count: 0, app_path }
+    }
+    pub fn add_drive(&mut self, drive: DeviceEntry) -> &mut Self {
+        self.list.drives[self.drive_count] = drive;
+        self.drive_count += 1;
+        self
+    }
+    
+}
+pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_sav_path: &str) {
     if header.arm7_device_list == 0 {
         return;
     }
     let list = &mut (*BOOTINFO_MEM).device_list_copy;
-    list.clear();
-    let mut next_entry = 0;
-
-    list.drives[next_entry] = DeviceEntry::new(
+    let mut list_builder = DeviceListBuilder::new(list, app_path);
+    list_builder.add_drive(DeviceEntry::new(
         b'I',
         DeviceFlags::COMBO_SDMC_SLOT,
         DeviceRights::READ_WRITE,
-        b"sdmc",
-        b"/",
-    );
-    next_entry += 1;
-
-    list.drives[next_entry] = DeviceEntry::new(
+        "sdmc",
+        "/",
+    )).add_drive(DeviceEntry::new(
         b'A',
         DeviceFlags::DRIVE_SDMC,
         DeviceRights::NONE,
-        b"nand",
-        b"/",
-    );
-    next_entry += 1;
-
-    list.drives[next_entry] = DeviceEntry::new(
+        "nand",
+        "/",
+    )).add_drive(DeviceEntry::new(
         b'B',
         DeviceFlags::COMBO_TWL_PHOTO,
         DeviceRights::NONE,
-        b"nand2",
-        b"/",
-    );
-    next_entry += 1;
-
-    list.drives[next_entry] = DeviceEntry::new(
+        "nand2",
+        "/",
+    )).add_drive(DeviceEntry::new(
         b'D',
         DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_ONE,
         DeviceRights::WRITE,
-        b"shared1",
-        b"nand:/shared1",
-    );
-    next_entry += 1;
-
-    list.drives[next_entry] = DeviceEntry::new(
+        "shared1",
+        "nand:/shared1",
+    )).add_drive(DeviceEntry::new(
         b'F',
         DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_TWO,
         DeviceRights::READ_WRITE,
-        b"photo",
-        b"nand2:/photo",
-    );
-    next_entry += 1;
-
-    if header.private_save_size != 0 && !prv_sav_path.is_empty() {
-        list.drives[next_entry] = DeviceEntry::new(
-            b'G',
-            DeviceFlags::FILEBASED | DeviceFlags::DRIVE_SDMC,
-            DeviceRights::READ_WRITE,
-            b"dataPrv",
-            b"nand:/photod.prv",
-        );
-        next_entry += 1;
+        "photo",
+        "nand2:/photo",
+    ));
+    if header.private_save_size != 0 {
+        add_save(&mut list_builder, prv_sav_path, "dataPrv", b'G');
     }
-    if header.public_save_size != 0 && !pub_sav_path.is_empty() {
-        list.drives[next_entry] = DeviceEntry::new(
-            b'H',
-            DeviceFlags::FILEBASED | DeviceFlags::DRIVE_SDMC,
-            DeviceRights::READ_WRITE,
-            b"dataPub",
-            b"sdmc:/photod.pub",
-        );
-        //next_entry += 1;
+    if header.public_save_size != 0 {
+        add_save(&mut list_builder, pub_sav_path, "dataPub", b'H');
     }
-
-    let path = b"sdmc:/photod.nds\0"; //location.as_bytes();
-
-    list.app_path[..path.len()].copy_from_slice(path);
+    
+    list_builder.add_drive(DeviceEntry::new(
+        b'C',
+        DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
+        DeviceRights::READ_WRITE,
+        "share",
+        "nand:/shared2/0000",
+    ));
+    
 }
-
+pub fn add_save(builder: &mut DeviceListBuilder, path: &str, name: &str, drive: u8) {
+    let drive_sort = match path.get(..4) {
+        Some("nand") => DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
+        Some("sdmc") => DeviceFlags::FILEBASED | DeviceFlags::DRIVE_SDMC,
+        _ => return,
+    };
+    builder.add_drive(DeviceEntry::new(
+        drive,
+        drive_sort,
+        DeviceRights::READ_WRITE,
+        name,
+        path,
+    ));
+}
 #[repr(C)]
 #[derive(Clone)]
 pub struct DeviceList {
@@ -151,14 +156,14 @@ impl DeviceEntry {
         drive_letter: u8,
         drive_flags: DeviceFlags,
         access_rights: DeviceRights,
-        name: &[u8],
-        path: &[u8],
+        name: &str,
+        path: &str,
     ) -> Self {
         let mut device_name = [0u8; 16];
-        device_name[..name.len()].copy_from_slice(name);
+        device_name[..name.len()].copy_from_slice(name.as_bytes());
 
         let mut device_path = [0u8; 64];
-        device_path[..path.len()].copy_from_slice(path);
+        device_path[..path.len()].copy_from_slice(path.as_bytes());
         Self {
             drive_letter,
             drive_flags: drive_flags.0,

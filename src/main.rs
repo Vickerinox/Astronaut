@@ -188,10 +188,10 @@ impl FixedCompilerArgs {
 
         let arm9_elf = env_us
             .clone()
-            .join("target-binary/armv5te-none-eabi/release/DeBoot_arm9");
+            .join("target-binary/thumbv5te-none-eabi/release/DeBoot_arm9");
         let arm7_elf = env_us
             .clone()
-            .join("target-binary/armv4t-none-eabi/release/DeBoot_arm7");
+            .join("target-binary/thumbv4t-none-eabi/release/DeBoot_arm7");
 
         let arm9_elf_installer = env_us
             .clone()
@@ -246,11 +246,12 @@ impl FixedCompilerArgs {
         build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
         debug!("Done building ARM9!");
 
+        /* 
         build::build_crate(arm9_installer_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
         debug!("Built arm9 installer");
         build::build_crate(arm7_installer_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
         debug!("Built arm7 installer");
-
+        */
         //drop(_enter);
         //let span = span!(Level::TRACE, "Arm9 binary injection");
         //let _enter = span.enter();
@@ -273,7 +274,7 @@ impl FixedCompilerArgs {
             if fs::write(&path, &exploited_tmd[520..]).is_err() {
                 error!("path for TMD export not available");
             }
-            
+            /* 
             match construct_installer_rom(arm9_elf_installer, arm7_elf_installer) {
                 Ok(installer) => {path.add_extension("dsi");
                 if fs::write(&path, &installer).is_err() {
@@ -283,6 +284,7 @@ impl FixedCompilerArgs {
                     error!("Failed to build installer {err:?}");
                 }
             } 
+            */
             
         }
 

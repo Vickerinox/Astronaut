@@ -5,6 +5,8 @@
 
 const DSI_WRAM_START: usize = 0x037B8000;
 #[no_mangle]
+#[cfg(target_arch = "arm")]
+#[instruction_set(arm::a32)]
 pub unsafe extern "C" fn _start() {
     core::arch::asm!(
         //turn off interrupts via the IME register
@@ -38,6 +40,9 @@ pub unsafe extern "C" fn _start() {
         options(noreturn) // No return possible from this function
     );
 }
+#[no_mangle]
+#[cfg(not(target_arch = "arm"))]
+pub unsafe extern "C" fn _start() { loop {} }
 fn main() {
     reboot_lib::standard_arm7::main_arm7();
 }

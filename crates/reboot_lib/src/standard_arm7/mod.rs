@@ -425,7 +425,7 @@ pub fn main_arm7() {
 }
 
 
-pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
+pub unsafe fn decrypt_module(mut mem: &mut [u32], mut key: [u32; 4]) {
 
     AES_HARDWARE.master_control.write(AESCnt::empty());
     AES_HARDWARE.reset();
@@ -434,64 +434,48 @@ pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
     AES_HARDWARE.set_key_slot(0);
     AES_HARDWARE.wait_key_busy();
 
-    //AES_HARDWARE.master_control.write(AESCnt::empty());
-    //AES_HARDWARE.reset();
-    //AES_HARDWARE.load_iv(&key);
-    //AES_HARDWARE.payload_blocks.write((len >> 4) as u16 );
+    let mut offset = 0;
+    while !mem.is_empty() {
+        let split = (0xFFFF*4).min(mem.len());
+        let (chunk, remainder) = mem.split_at_mut(split);
+        mem = remainder;
+        use crate::ndma::Control;
+        let ptr = core::ptr::addr_of_mut!(*chunk);
 
-    /* 
-    let in_dma = crate::ndma::ChannelConfig {
-        word_count: len >> 2,
-        block_size: 4,
-        timing: 8,
-        fill_mode: 0,
-        control: Control::DST_MODE_FIXED
-            | Control::SRC_MODE_INCREMENT
-            | Control::BLOCK_SIZE_4
-            | Control::START_ARM7_WRITE_AES
-            | Control::ENABLE,
-    };
-    //NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
-    let out_dma = crate::ndma::ChannelConfig {
-        word_count: len >> 2,
-        block_size: 4,
-        timing: 8,
-        fill_mode: 0,
-        control: Control::SRC_MODE_FIXED
-            | Control::DST_MODE_INCREMENT
-            | Control::BLOCK_SIZE_4
-            | Control::START_ARM7_READ_AES
-            | Control::ENABLE,
-    };
-    */
-    //NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
-    
-    //AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1<<31));
-
-    for (d,i) in mem.chunks_exact_mut(4).enumerate() {
+        let in_dma = crate::ndma::ChannelConfig {
+            word_count: split as _,
+            block_size: 4,
+            timing: 8,
+            fill_mode: 0,
+            control: Control::DST_MODE_FIXED
+                | Control::SRC_MODE_INCREMENT
+                | Control::BLOCK_SIZE_4
+                | Control::START_ARM7_WRITE_AES
+                | Control::ENABLE,
+        };
+        
+        let out_dma = crate::ndma::ChannelConfig {
+            word_count: split as _,
+            block_size: 4,
+            timing: 8,
+            fill_mode: 0,
+            control: Control::SRC_MODE_FIXED
+                | Control::DST_MODE_INCREMENT
+                | Control::BLOCK_SIZE_4
+                | Control::START_ARM7_READ_AES
+                | Control::ENABLE,
+        };
         AES_HARDWARE.master_control.write(AESCnt::empty());
         AES_HARDWARE.reset();
-        
         AES_HARDWARE.load_iv(&key);
-        add_on_key(&mut key, 1);
-        AES_HARDWARE.payload_blocks.write(1); 
+        add_on_key(&mut key, (split >> 2) as _);
+        AES_HARDWARE.payload_blocks.write((split >> 2) as u16 );
+        NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
+        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
         AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1<<31));
-
-        while AES_HARDWARE.master_control.read().bits() & 0x1F != 0 {}
-        for word in i.iter() {
-            AES_HARDWARE.write_fifo.write(*word);
-        }
-        
-        while (AES_HARDWARE.master_control.read().bits() >> 5) & 0x1F != i.len() as u32 {}
-        for word in i {
-            *word = AES_HARDWARE.read_fifo.read();
-        }
-    }
-    //NDMA_HARDWARE.await_channel(0);
-
-    AES_HARDWARE.wait_aes_busy();
-    
-                         
+        NDMA_HARDWARE.await_channel(0);
+        AES_HARDWARE.wait_aes_busy();
+    }                         
 }
 
 pub unsafe fn clear_arm7_regs() {
@@ -524,7 +508,15 @@ pub unsafe fn mmc_read_decrypt(
     add_on_key(&mut key, sector << 5);
     let ptr = data as *mut ();
     let len = data.len();
+    //AES_HARDWARE.set_key_slot(3);
+
+    AES_HARDWARE.master_control.write(AESCnt::empty());
+    AES_HARDWARE.reset();
+    AES_HARDWARE.reset();
+    AES_HARDWARE.wait_key_busy();
     AES_HARDWARE.set_key_slot(3);
+    AES_HARDWARE.wait_key_busy();
+    
     crate::AES_HARDWARE.ctr_crypt_block(
         core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
         &key,

@@ -1,5 +1,6 @@
 use core::fmt::Debug;
 
+use alloc::string::{String, ToString};
 use common::{
     blowfish::BFCTX,
     bootstrap::{HeaderTWL, BOOTINFO_MEM},
@@ -50,8 +51,6 @@ pub unsafe fn setup_shared_mem(header: &HeaderTWL) {
     mem.ntr.header_again = mem.twl_header.head.clone();
     mem.ntr.header = mem.twl_header.head.clone();
 
-    let card_id = header.head.tid;
-    let agbmem = 0;
     let reset = 0;
     let rom_offset = 0;
     let boot_type = if header.is_dsiware() {
@@ -74,13 +73,6 @@ pub unsafe fn setup_shared_mem(header: &HeaderTWL) {
     mem.sysmenu_id.clone_from_slice(b"00000009\0");
     mem.init_code = b'P';
 
-    mem.sdmmc_context.option = 0x40E0;
-    mem.sdmmc_context.clock_ctl = 0x100;
-    mem.sdmmc_context.csr = 0x900;
-    mem.sdmmc_context.rca = 1;
-    mem.sdmmc_context.device = 1;
-    
-
 }
 
 
@@ -93,6 +85,24 @@ unsafe fn boot_unreturnable(
 ) -> ! {
     crate::stop_mod_file();
     
+    let mut prv_path = String::with_capacity(file_path.len());
+    let mut pub_path = String::with_capacity(file_path.len());
+
+    if file_path.get(..12) == Some("nand:/title/") {
+        prv_path.push_str(&file_path[..30]);
+        pub_path.push_str(&file_path[..30]);
+        prv_path.push_str("data/private.sav");
+        pub_path.push_str("data/public.sav");
+    } else {
+        prv_path.push_str(&file_path[..file_path.len()-3]);
+        pub_path.push_str(&file_path[..file_path.len()-3]);
+        prv_path.push_str("prv");
+        pub_path.push_str("pub");
+    }
+    
+
+    common::device_list::init(header, file_path,&pub_path, &prv_path);
+
     core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0],0);
 
     setup_shared_mem(&(*BOOTINFO_MEM).twl_header);
@@ -199,7 +209,7 @@ unsafe fn boot_unreturnable(
     
 
 
-    common::device_list::init(header, "sdmc:/pub.sav", "sdmc:/prv.sav", file_path);
+    
     reboot_lib::nocash_write("> Inserted Device List \n");
     
     {

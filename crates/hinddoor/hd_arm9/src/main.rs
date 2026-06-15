@@ -69,6 +69,8 @@ impl NandAutobootEntry {
 static mut NAND_AUTOBOOTS: [NandAutobootEntry; 40] = [NandAutobootEntry::EMPTY; 40];
 
 /// A interrupt handler appropriate for the ds, courtesy of libnds
+#[cfg(target_arch = "arm")]
+#[instruction_set(arm::a32)]
 unsafe fn interrupt_handler() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
     core::arch::asm!(
@@ -137,7 +139,8 @@ unsafe fn interrupt_handler() {
         user_set = const 0x1F,  //Set mode to "System"
     );
 }
-
+#[cfg(not(target_arch = "arm"))]
+unsafe fn interrupt_handler() {}
 static mut INTERRUPT_TABLE: [*mut unsafe fn(); 32] = [core::ptr::null_mut(); 32];
 
 pub unsafe fn steal_main_mem() {
@@ -148,28 +151,31 @@ pub unsafe fn unlaunch_breakpoint() {
     #[cfg(target_arch = "arm")]
     core::arch::asm!("mov r11, r11");
 }
-unsafe fn init_font() {
-    #[cfg(target_arch = "arm")]
-    {
-        const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
-        for (i, w) in FONT_FILE.iter().enumerate() {
-            core::ptr::write_volatile((0x2002000 as *mut u8).add(i), *w);
-        }
-        core::arch::asm!(
-            "SWI 0x110000",
-            in("r0") 0x2002000,
-            in("r1") 0x2001000,
-            lateout("r0") _,
-            lateout("r1") _,
-            out("r2") _,
-            out("r3") _,
-        );
-        for i in 0..0x200 {
-            let reg = core::ptr::read_volatile((0x200_1000 as *const u32).add(i));
-            core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
-        }
+
+#[instruction_set(arm::a32)]
+#[cfg(target_arch = "arm")]
+unsafe fn init_font() {    
+    const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
+    for (i, w) in FONT_FILE.iter().enumerate() {
+        core::ptr::write_volatile((0x2002000 as *mut u8).add(i), *w);
+    }
+    
+    core::arch::asm!(
+        "SWI 0x110000",
+        in("r0") 0x2002000,
+        in("r1") 0x2001000,
+        lateout("r0") _,
+        lateout("r1") _,
+        out("r2") _,
+        out("r3") _,
+    );
+    for i in 0..0x200 {
+        let reg = core::ptr::read_volatile((0x200_1000 as *const u32).add(i));
+        core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
     }
 }
+#[cfg(not(target_arch = "arm"))]
+unsafe fn init_font() { panic!() }
 
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     //setup 3d hardware
@@ -522,6 +528,8 @@ const BINARY_START: usize = 0x037DF27C;
 const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
 const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
 #[no_mangle]
+#[cfg(target_arch = "arm")]
+#[instruction_set(arm::a32)]
 pub unsafe extern "C" fn _start() {
     asm!(
         //turn of interrupts via the IME register
@@ -553,6 +561,10 @@ pub unsafe extern "C" fn _start() {
         main = sym main, // Link the `main` symbol
         options(noreturn) // No return possible from this function
     );
+}
+#[cfg(not(target_arch = "arm"))]
+pub unsafe extern "C" fn _start() {
+    loop {}
 }
 
 fn send_mod_file(module: Box<MODHeader>) -> Option<Box<MODHeader>> {
@@ -726,13 +738,14 @@ unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut micro_imgui_d
 unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
     slice as *mut T as *mut () as *mut U
 }
+#[cfg(target_arch = "arm")]
+#[instruction_set(arm::a32)]
 unsafe fn irq_init() {
     INTERUPT_HARDWARE.master.write(0);
     INTERUPT_HARDWARE.enable.write(0);
     INTERUPT_HARDWARE.request.write(!0);
     use reboot_lib::INTERUPT_HARDWARE;
     let dtcm: u32;
-    #[cfg(target_arch = "arm")]
     {
         // Read location of DTCM
         core::arch::asm!(
@@ -740,11 +753,9 @@ unsafe fn irq_init() {
             out(reg) dtcm,
         );
     }
-    #[cfg(not(target_arch = "arm"))]
-    {
-        dtcm = 0xDEADBEEF;
-    }
     //mask out the address and location
     (((dtcm & !0xFFF) + 0x3FFC) as *mut unsafe fn()).write(interrupt_handler);
     INTERUPT_HARDWARE.master.write(1);
 }
+#[cfg(not(target_arch = "arm"))]
+unsafe fn irq_init() { panic!() }
