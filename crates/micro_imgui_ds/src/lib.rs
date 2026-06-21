@@ -105,8 +105,12 @@ impl micro_imgui::InputEvent for Input {
 pub fn read_controller() -> (Buttons, u8, u8) {
     unsafe { reboot_lib::arm9_send_controller_read() }
 }
+pub struct Banner {
+
+}
 impl micro_imgui::Backend for DSMicroGuiBackend {
     type InputQuery = Input;
+    type Image = Banner;
 
     fn gather_inputs(&mut self) -> bool {
         unsafe {
@@ -143,7 +147,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
         unsafe { self.video.next_frame() };
     }
 
-    fn draw_shape(&mut self, shape: micro_imgui::Shape, regression: Option<LayerId>) -> Rect {
+    fn draw_shape(&mut self, shape: micro_imgui::Shape<Self::Image>, regression: Option<LayerId>) -> Rect {
         let translation = regression
             .map(|i| self.layer.wrapping_sub(i.0.get()) << 3)
             .unwrap_or(0);
@@ -217,6 +221,9 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                     })
                 }
             }
+            micro_imgui::Shape::Image { bounds, image } => {
+                bounds
+            },
         };
 
         if translation != 0 {

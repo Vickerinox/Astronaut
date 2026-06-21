@@ -1,7 +1,7 @@
 const NTR_BLOWFISH_TABLE: &[u8] = &[];
 #[test]
 pub fn test_blowfish() {
-    let mut app = include_bytes!("/home/vik/Documents/NocashGBA/SD card/photod.nds").to_vec();
+    let mut app = vec![]; //include_bytes!("/home/vik/Documents/NocashGBA/SD card/photod.nds").to_vec();
     let (head, app) = app.split_at_mut(0x1000);
     let mut app_worded: Vec<_> = app
         .chunks_exact(4)

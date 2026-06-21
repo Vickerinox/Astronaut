@@ -186,8 +186,10 @@ pub struct Rect {
     pub max: Vec2,
 }
 
+pub trait Image {}
 pub trait Backend {
     type InputQuery: InputEvent;
+    type Image;
     /// The resolution of the screen at this moment
     fn screen_rect(&self) -> Rect;
 
@@ -201,7 +203,7 @@ pub trait Backend {
     fn end_frame(&mut self);
 
     /// Draw a shape to the current frame, and return the area which it occupied
-    fn draw_shape(&mut self, shape: Shape, layer: Option<LayerId>) -> Rect;
+    fn draw_shape(&mut self, shape: Shape<Self::Image>, layer: Option<LayerId>) -> Rect;
 
     fn reserve_layer(&mut self) -> LayerId;
 
@@ -249,7 +251,7 @@ pub enum Sizing {
     Cropped(Vec2),
     Padded(Vec2),
 }
-pub enum Shape<'a> {
+pub enum Shape<'a, I> {
     Rectangle {
         area: Rect,
         fill: Color,
@@ -264,4 +266,8 @@ pub enum Shape<'a> {
         outline: Color,
         size: u8,
     },
+    Image {
+        bounds: Rect,
+        image: I,
+    }
 }

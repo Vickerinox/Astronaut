@@ -41,7 +41,7 @@ pub enum CurrentUI {
 }
 pub struct AppData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
-    pub current_dir: CurrentUI,
+    pub current_ui: CurrentUI,
     pub blowfish: BFCTX,
     pub loading_mod_file: Option<MODAsyncLoader>,
     pub nand_fs: RawFileSystem,
@@ -156,7 +156,7 @@ impl AppData {
             }
 
             let new_state_fn: Option<Box<dyn FnOnce(CurrentUI) -> CurrentUI>> = match &mut self
-                .current_dir
+                .current_ui
             {
                 CurrentUI::Error { error_string } => {
                     ui.header("ERROR:");
@@ -257,31 +257,17 @@ impl AppData {
                     let shown_items = immediate_files
                         .get(((*offset / ITEM_SPACING) as usize)..)
                         .unwrap_or(&[]);
-                    let shown_items = if let Some(clamped) = shown_items.get(..12) {
-                        clamped
-                    } else {
-                        shown_items
-                    };
 
                     let in_step = *offset % ITEM_SPACING;
+
+                    let mut control_dir = 0;
                     if ui.input_pressed(Input(Buttons::DIRECTION_UP)) {
-                        if ui.has_focus_anywhere() && *offset > 0 {
-                            *offset = offset.wrapping_sub(ITEM_SPACING).max(0);
-                            ui.cancel_refocus();
-                        }
-                        if in_step != 0 {
-                            *offset -= in_step;
-                        }
+                        control_dir = 1;
                     }
 
                     if ui.input_pressed(Input(Buttons::DIRECTION_DOWN)) {
-                        if ui.has_focus_anywhere() && shown_items.len() >= 11 {
-                            *offset = offset.saturating_add(ITEM_SPACING);
-                            ui.cancel_refocus();
-                        }
-                        if in_step != 0 {
-                            *offset -= in_step;
-                        }
+                        
+                        control_dir = -1;
                     }
 
                     let mut new_state: Option<
@@ -302,14 +288,18 @@ impl AppData {
 
                     ui.add_space((ITEM_SPACING - in_step) as i16);
                     let items = if in_step == 0 { 10 } else { 11 };
-                    for item in shown_items.iter().take(items) {
-                        if ui
+                    let mut focus = None;
+                    for (i, item) in shown_items.iter().take(items).enumerate() {
+                        let response = ui
                             .add(Button::new(
                                 &item.0,
                                 Sizing::Padded(Vec2::new(248, 8)),
                                 item.3,
-                            ))
-                            .clicked()
+                            ));
+                        if response.focused() {
+                            focus = Some(i);
+                        }
+                        if response.clicked()
                         {
                             if item.2 {
                                 current_path.push_str(&item.1);
@@ -362,28 +352,46 @@ impl AppData {
                         outline_size: 0,
                     });
 
+                    if control_dir == 1 {
+                        if focus == Some(0) && *offset > 0 {
+                            *offset = offset.wrapping_sub(ITEM_SPACING).max(0);
+                            ui.cancel_refocus();
+                        }
+                        
+                        *offset -= in_step;
+                        
+                    }
+                    else if control_dir == -1 {
+                        if focus == Some(9) && shown_items.len() >= 11 {
+                            *offset = offset.saturating_add(ITEM_SPACING);
+                            ui.cancel_refocus();
+                        }
+                        
+                        *offset -= in_step;
+                        
+                    }
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) && new_folder.is_none() {
-                        if current_path != "sdmc:/" && current_path != "nand:/" {
-                            pop_dir_entry(current_path);
-                            if let Ok(f) = fatfs_embedded::opendir(current_path) {
-                                new_folder = Some(f);
-                            }
-                        } else {
+                        if ["nand:/","sdmc:/"].contains(&current_path.as_str()) {
                             new_state = Some(Box::new(|_| CurrentUI::None));
+                        } else {
+                            pop_dir_entry(current_path);
+                            match fatfs_embedded::opendir(current_path) {
+                               Ok(f) => {new_folder = Some(f);}
+                               Err(_err) => {new_state = Some(Box::new(|_| CurrentUI::Error { error_string: format!("Filesystem error!") }));}
+                            }
                         }
                     }
                     if let Some(mut new_folder) = new_folder {
                         *immediate_files = populate_fs_vec(&mut new_folder);
                         *offset = 0;
                     }
-
                     new_state
                 }
             };
             if let Some(new_state) = new_state_fn {
-                let mut fuck_off = CurrentUI::None;
-                core::mem::swap(&mut fuck_off, &mut self.current_dir);
-                self.current_dir = new_state(fuck_off);
+                let mut current_ui = CurrentUI::None;
+                core::mem::swap(&mut current_ui, &mut self.current_ui);
+                self.current_ui = new_state(current_ui);
             }
         });
     }

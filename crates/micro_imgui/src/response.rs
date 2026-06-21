@@ -24,6 +24,9 @@ impl Response {
     pub fn hovered(&self) -> bool {
         self.stats.contains(Sense::HOVERED)
     }
+    pub fn focused(&self) -> bool {
+        self.stats.contains(Sense::FOCUSED)
+    }
 }
 impl Sense {
     pub fn clickable() -> Self {

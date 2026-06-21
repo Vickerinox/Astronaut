@@ -66,7 +66,6 @@ impl NandAutobootEntry {
         _reserved: 0,
     };
 }
-static mut NAND_AUTOBOOTS: [NandAutobootEntry; 40] = [NandAutobootEntry::EMPTY; 40];
 
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 #[cfg(target_arch = "arm")]
@@ -447,7 +446,7 @@ unsafe fn main() {
 
         let ptr = app_area.app_data.as_mut_ptr();
         (&raw mut (*ptr).autoboot).write(None);
-        (&raw mut (*ptr).current_dir).write(gui::CurrentUI::None);
+        (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
         (&raw mut (*ptr).loading_mod_file).write(None);
         let app_data = app_area.app_data.assume_init_mut();
         let _ = app_data

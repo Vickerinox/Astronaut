@@ -21,7 +21,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             layout: Layout::default(),
         }
     }
-    pub fn paint_shape(&mut self, shape: crate::primitives::Shape) {
+    pub fn paint_shape(&mut self, shape: crate::primitives::Shape<B::Image>) {
         self.ctx.paint_shape(shape)
     }
     pub fn drag(&mut self) -> Option<Vec2> {
@@ -67,15 +67,19 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         let response = self.ctx.id_statistics(unsafe { self.id.current() });
         (Rect::from_two_pos(rect_min, rect_min + size), response)
     }
+    
     pub fn input_down(&self, input: B::InputQuery) -> bool {
         self.ctx.input_active(input)
     }
+    
     pub fn input_pressed(&self, input: B::InputQuery) -> bool {
         self.ctx.input_pressed(input)
     }
+    
     pub fn input_released(&self, input: B::InputQuery) -> bool {
         self.ctx.input_released(input)
     }
+    
     pub fn horizontal<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {
         let old_clip_rect = self.clip_rect();
         let old_layout = self.layout.clone();
@@ -86,6 +90,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         self.add_space(16);
         ret
     }
+    
     pub fn allocate_size(&mut self, size: Vec2, sense: Sense) -> Response {
         let Layout(direction, align) = self.layout;
         let (rsd_min, rsd_max) = match direction {
@@ -132,9 +137,11 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         self.clip_rect = remaining_space;
         return response;
     }
+    
     pub fn add(&mut self, widget: impl AutoAdd) -> Response {
         widget.ui(self)
     }
+    
     pub fn add_space(&mut self, ammount: i16) {
         match self.layout.0 {
             Direction::RightLeft => self.clip_rect.max.x -= ammount,
@@ -143,15 +150,19 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             Direction::BottomUp => self.clip_rect.max.y -= ammount,
         }
     }
+    
     pub fn clip_rect(&self) -> Rect {
         self.clip_rect
     }
-    pub fn draw(&mut self, shape: crate::primitives::Shape) -> Rect {
+    
+    pub fn draw(&mut self, shape: crate::primitives::Shape<B::Image>) -> Rect {
         self.ctx.draw_shape(shape, None)
     }
-    pub fn draw_under(&mut self, shape: crate::primitives::Shape, layer: LayerId) -> Rect {
+    
+    pub fn draw_under(&mut self, shape: crate::primitives::Shape<B::Image>, layer: LayerId) -> Rect {
         self.ctx.draw_shape(shape, Some(layer))
     }
+
     pub fn reserve_shape(&mut self) -> LayerId {
         self.ctx.reserve_layer()
     }

@@ -46,7 +46,7 @@ impl<'a, B: Backend> core::ops::DerefMut for Frame<'a, B> {
 }
 
 impl<'a, B: Backend> Frame<'a, B> {
-    pub fn paint_shape(&mut self, shape: crate::primitives::Shape) {
+    pub fn paint_shape(&mut self, shape: crate::primitives::Shape<B::Image>) {
         self.ctx.backend.draw_shape(shape, None);
     }
     pub(crate) fn drag(&mut self) -> Option<Vec2> {
