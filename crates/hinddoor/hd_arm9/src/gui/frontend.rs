@@ -38,6 +38,7 @@ pub enum CurrentUI {
         file: fatfs_embedded::fatfs::File,
         file_path: String,
     },
+    SpecialThanks,
 }
 pub struct AppData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
@@ -47,6 +48,12 @@ pub struct AppData {
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
 }
+pub struct FileEntry {
+    filename: String,
+    truncated_name: String,
+    file_type: FileType,
+}
+pub enum FileType {}
 impl AppData {
     pub fn open_sd() -> Option<CurrentUI> {
         let mut file_path = String::from("sdmc:/");
@@ -182,6 +189,12 @@ impl AppData {
                             res = Some(Box::new(move |_| sd))
                         }
                     }
+                    if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
+                        res = Some(Box::new(|_| CurrentUI::SpecialThanks));
+                    }
+                    ui.add_space(80);
+                    ui.label("build commit:");
+                    ui.label(env!("GIT_HASH"));
                     res
                 }
                 CurrentUI::LoadingApp { file, file_path } => {
@@ -387,6 +400,21 @@ impl AppData {
                     }
                     new_state
                 }
+                CurrentUI::SpecialThanks => {
+                    ui.header("Special thanks");
+                    ui.label("edo9300");
+                    ui.label("NO$");
+                    ui.label("Team LNH");
+                    ui.label("f3l1x_10m");
+                    ui.label("coderkei");
+                    ui.label("rmc");
+                    ui.label("and you!");
+                    if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) {
+                        Some(Box::new(|_| CurrentUI::None))
+                    } else {
+                        None
+                    }
+                },
             };
             if let Some(new_state) = new_state_fn {
                 let mut current_ui = CurrentUI::None;

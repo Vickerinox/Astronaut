@@ -477,6 +477,10 @@ pub struct BootMethod {
     _0x3e: u16,
 }
 #[repr(C)]
+pub struct FirmwareData {
+
+}
+#[repr(C)]
 pub struct BootInfoNTR {
     //_0x0: [u8; 0x800],
     pub gap: [u8; 0x280],
