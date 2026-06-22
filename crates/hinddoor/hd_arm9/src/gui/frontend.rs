@@ -193,8 +193,8 @@ impl AppData {
                         res = Some(Box::new(|_| CurrentUI::SpecialThanks));
                     }
                     ui.add_space(80);
-                    ui.label("build commit:");
-                    ui.label(env!("GIT_HASH"));
+                    
+                    ui.label(concat!("build commit: ",env!("GIT_HASH")));
                     res
                 }
                 CurrentUI::LoadingApp { file, file_path } => {
