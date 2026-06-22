@@ -192,8 +192,7 @@ impl AppData {
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
                         res = Some(Box::new(|_| CurrentUI::SpecialThanks));
                     }
-                    ui.add_space(80);
-                    
+                    ui.add_space(90);
                     ui.label(concat!("build commit: ",env!("GIT_HASH")));
                     res
                 }
