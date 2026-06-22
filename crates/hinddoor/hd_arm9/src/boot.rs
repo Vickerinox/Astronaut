@@ -224,6 +224,7 @@ unsafe fn boot_unreturnable(
     if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15 {
         set_background(0x7FFF);
         crate::set_bright(0);
+        VIDEO_HARDWARE.geometry_commands.pipeline_swap_buffers.write(0);
     }
 
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
