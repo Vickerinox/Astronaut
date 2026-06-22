@@ -227,15 +227,10 @@ unsafe fn boot_unreturnable(
         VIDEO_HARDWARE.disp_b_control.write(DisplayControl::empty());
         crate::set_bright(0);
     }
-
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
-    while VCOUNT_REG.read_volatile() != 192 {}
-    while VCOUNT_REG.read_volatile() == 192 {}
     reboot_lib::flush_mmc();
     reboot_lib::flush_mmc();
     let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
-    while VCOUNT_REG.read_volatile() != 192 {}
-    while VCOUNT_REG.read_volatile() == 192 {}
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }
