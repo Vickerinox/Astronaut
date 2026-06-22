@@ -5,7 +5,7 @@ use common::{
     blowfish::BFCTX,
     bootstrap::{HeaderTWL, BOOTINFO_MEM},
 };
-use reboot_lib::{DisplayControl, VIDEO_HARDWARE, swi_crc16};
+use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, Viewport, swi_crc16};
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
@@ -223,8 +223,10 @@ unsafe fn boot_unreturnable(
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
     if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15 {
         set_background(0x7FFF);
+        VIDEO_HARDWARE.geometry_commands.pipeline_swap_buffers.write(0);
         VIDEO_HARDWARE.engine_a_ctrl.write(DisplayControl::empty());
         VIDEO_HARDWARE.disp_b_control.write(DisplayControl::empty());
+
         crate::set_bright(0);
     }
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
