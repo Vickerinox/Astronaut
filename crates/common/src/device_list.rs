@@ -28,6 +28,13 @@ pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_s
     }
     let list = &mut (*BOOTINFO_MEM).device_list_copy;
     let mut list_builder = DeviceListBuilder::new(list, app_path);
+
+    let nand_properties = match app_path.get(..4) {
+        Some("nand") => DeviceFlags::COMBO_TWL_MAIN,
+        Some("sdmc") => DeviceFlags::COMBO_SDMC_SLOT,
+        _ => DeviceFlags::COMBO_TWL_MAIN,
+    };
+
     list_builder
         .add_drive(DeviceEntry::new(
             b'I',
@@ -38,7 +45,7 @@ pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_s
         ))
         .add_drive(DeviceEntry::new(
             b'A',
-            DeviceFlags::DRIVE_SDMC,
+            nand_properties,
             DeviceRights::NONE,
             "nand",
             "/",
@@ -70,7 +77,7 @@ pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_s
     if header.public_save_size != 0 {
         add_save(&mut list_builder, pub_sav_path, "dataPub", b'H');
     }
-
+    /* 
     list_builder.add_drive(DeviceEntry::new(
         b'C',
         DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
@@ -78,13 +85,10 @@ pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_s
         "share",
         "nand:/shared2/0000",
     ));
+    */
 }
 pub fn add_save(builder: &mut DeviceListBuilder, path: &str, name: &str, drive: u8) {
-    let drive_sort = match path.get(..4) {
-        Some("nand") => DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
-        Some("sdmc") => DeviceFlags::FILEBASED | DeviceFlags::DRIVE_SDMC,
-        _ => return,
-    };
+    let drive_sort = DeviceFlags::FILEBASED; 
     builder.add_drive(DeviceEntry::new(
         drive,
         drive_sort,

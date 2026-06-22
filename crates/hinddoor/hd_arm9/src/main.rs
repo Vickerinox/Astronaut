@@ -154,7 +154,7 @@ pub unsafe fn unlaunch_breakpoint() {
 #[instruction_set(arm::a32)]
 #[cfg(target_arch = "arm")]
 unsafe fn init_font() {
-    const FONT_FILE: &[u8] = include_bytes!("./font_compressed.bin");
+    const FONT_FILE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));
     for (i, w) in FONT_FILE.iter().enumerate() {
         core::ptr::write_volatile((0x2002000 as *mut u8).add(i), *w);
     }

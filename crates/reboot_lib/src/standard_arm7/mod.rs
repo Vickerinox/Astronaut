@@ -131,7 +131,7 @@ pub fn main_arm7() {
         remainder[1] = 0x10;
         remainder[0xE8 - 0x7A..(0xEC - 0x7A) + 4].copy_from_slice(&[0, 0, 0, 0x3E, 0, 0, 0, 0]);
         remainder[0xF0 - 0x7A] = 2;
-        remainder[0xF1 - 0x7A..][..12].copy_from_slice(b"TEF111080557");
+        remainder[0xF1 - 0x7A..][..11].copy_from_slice(b"TEF11108055");
         remainder[0xFF - 0x7A] = wifi_ver;
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
