@@ -80,7 +80,7 @@ unsafe fn boot_unreturnable(
     let mut prv_path = String::with_capacity(file_path.len());
     let mut pub_path = String::with_capacity(file_path.len());
 
-    if file_path.get(..12) == Some("nand:/title/") {
+    if file_path.get(4..12) == Some(":/title/") {
         prv_path.push_str(&file_path[..30]);
         pub_path.push_str(&file_path[..30]);
         prv_path.push_str("data/private.sav");
