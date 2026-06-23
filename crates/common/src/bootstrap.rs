@@ -54,10 +54,10 @@ pub unsafe fn boot_arm9() -> ! {
     while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 3 {}
 
     //Sync to ARM9
-    while VCOUNT_REG.read_volatile() != 191 {}
-    while VCOUNT_REG.read_volatile() == 191 {}
-    //Jump to Entrypoint
+    while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
+    while VCOUNT_REG.read_volatile() == 192 {}
+    //Jump to Entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -103,10 +103,10 @@ pub unsafe fn boot_arm7() -> ! {
     core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 3);
 
     //Sync to ARM9
-    while VCOUNT_REG.read_volatile() != 191 {}
-    while VCOUNT_REG.read_volatile() == 191 {}
-    //jump to entrypoint
+    while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
+    while VCOUNT_REG.read_volatile() == 192 {}
+    //jump to entrypoint
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -406,9 +406,7 @@ pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 #[repr(C)]
 pub struct BootInfoTWL {
     pub card_header: HeaderTWL,
-    // UNOFFICIAL
-    pub device_list_copy: DeviceList,
-    _0x1400: [u8; 0x3B0],
+    _0x1000: [u8; 0x7B0],
     pub sysmenu_id: [u8; 9],
     pub init_code: u8,
     pub hotboot: u16,
@@ -417,7 +415,9 @@ pub struct BootInfoTWL {
     pub mountinfo: [u8; 0x3C0],
     pub boot_path: [u8; 0x40],
     pub twl_header: HeaderTWL,
-    pub other: [u8; 0x680],
+    pub other: [u8; 0x280],
+    // UNOFFICIAL
+    pub device_list_copy: DeviceList,
     _0x3680: [u8; 0x180],
     pub ntr: BootInfoNTR,
 }
