@@ -1,4 +1,4 @@
-use crate::bootstrap::{HeaderTWL, BOOTINFO_MEM};
+use crate::bootstrap::{BOOTINFO_MEM, BootInfoTWL, HeaderTWL};
 
 #[repr(C)]
 pub struct Config {
@@ -97,9 +97,9 @@ impl Region {
         }
     }
 }
-pub unsafe fn init(header: &HeaderTWL) {
-    let gamecode = Region::from_gamecode(header.head.tid);
-    let common = &(*BOOTINFO_MEM).ntr.firmware_data;
+pub unsafe fn init(header: &BootInfoTWL) {
+    let gamecode = Region::from_gamecode(header.twl_header.head.tid);
+    let common = &header.ntr.firmware_data;
     let config = &mut *(0x2000400 as *mut Config);
     config.config_flags = 0x0100000F;
     config.country = 0x4E;

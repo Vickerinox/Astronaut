@@ -1,6 +1,6 @@
 use core::ops::BitOr;
 
-use crate::bootstrap::{HeaderTWL, BOOTINFO_MEM};
+use crate::bootstrap::{BOOTINFO_MEM, BootInfoTWL, HeaderTWL};
 pub struct DeviceListBuilder<'a> {
     list: &'a mut DeviceList,
     drive_count: usize,
@@ -22,11 +22,11 @@ impl<'a> DeviceListBuilder<'a> {
         self
     }
 }
-pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_sav_path: &str) {
-    if header.arm7_device_list == 0 {
+pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sav_path: &str) {
+    if header.twl_header.arm7_device_list == 0 {
         return;
     }
-    let list = &mut (*BOOTINFO_MEM).device_list_copy;
+    let list = &mut header.device_list_copy;
     let mut list_builder = DeviceListBuilder::new(list, app_path);
 
     let nand_properties = match app_path.get(..4) {
@@ -71,10 +71,10 @@ pub unsafe fn init(header: &HeaderTWL, app_path: &str, pub_sav_path: &str, prv_s
             "photo",
             "nand2:/photo",
         ));
-    if header.private_save_size != 0 {
+    if header.twl_header.private_save_size != 0 {
         add_save(&mut list_builder, prv_sav_path, "dataPrv", b'G');
     }
-    if header.public_save_size != 0 {
+    if header.twl_header.public_save_size != 0 {
         add_save(&mut list_builder, pub_sav_path, "dataPub", b'H');
     }
     /* 

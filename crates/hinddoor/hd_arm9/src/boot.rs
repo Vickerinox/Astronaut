@@ -2,8 +2,7 @@ use core::fmt::Debug;
 
 use alloc::string::{String, ToString};
 use common::{
-    blowfish::BFCTX,
-    bootstrap::{HeaderTWL, BOOTINFO_MEM},
+    blowfish::BFCTX, bootstrap::{BOOTINFO_MEM, BootInfoTWL, HeaderTWL},
 };
 use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, Viewport, swi_crc16};
 
@@ -43,20 +42,19 @@ unsafe fn read_all(
     Ok(())
 }
 
-pub unsafe fn setup_shared_mem(header: &HeaderTWL) {
-    let mem = &mut *BOOTINFO_MEM;
-
+unsafe fn setup_shared_mem(mem: &mut BootInfoTWL) {
+    
     mem.ntr.header_again = mem.twl_header.head.clone();
     mem.ntr.header = mem.twl_header.head.clone();
 
     let reset = 0;
     let rom_offset = 0;
-    let boot_type = if header.is_dsiware() { 1 } else { 3 };
+    let boot_type = if mem.twl_header.is_dsiware() { 1 } else { 3 };
 
-    mem.ntr.bootcheck.tid_1 = header.head.tid;
-    mem.ntr.bootcheck.tid_2 = header.head.tid;
-    mem.ntr.bootcheck.header_crc = header.head.header_crc;
-    mem.ntr.bootcheck.secure_crc = header.head.secure_area_crc;
+    mem.ntr.bootcheck.tid_1 = mem.twl_header.head.tid;
+    mem.ntr.bootcheck.tid_2 = mem.twl_header.head.tid;
+    mem.ntr.bootcheck.header_crc = mem.twl_header.head.header_crc;
+    mem.ntr.bootcheck.secure_crc = mem.twl_header.head.secure_area_crc;
     mem.ntr.bootcheck.bios_crc = 0x5835;
 
     mem.ntr.reset = reset;
@@ -72,7 +70,7 @@ pub unsafe fn setup_shared_mem(header: &HeaderTWL) {
 unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
-    header: &HeaderTWL,
+    boot_info: &mut BootInfoTWL,
     app_data: &mut AppData
 ) -> ! {
     crate::stop_mod_file();
@@ -91,12 +89,12 @@ unsafe fn boot_unreturnable(
         prv_path.push_str("prv");
         pub_path.push_str("pub");
     }
+    common::device_list::init(boot_info, file_path, &pub_path, &prv_path);
 
-    common::device_list::init(header, file_path, &pub_path, &prv_path);
+    core::ptr::write_volatile(&mut boot_info.other[0], 0);
 
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 0);
-
-    setup_shared_mem(&(*BOOTINFO_MEM).twl_header);
+    setup_shared_mem(boot_info);
+    let header = &boot_info.twl_header;
     if header.is_homebrew() {
         let path_bytes = file_path.as_bytes();
         let (trim, path_bytes) = if path_bytes.get(..4) == Some(b"sdmc") {
@@ -202,7 +200,7 @@ unsafe fn boot_unreturnable(
     reboot_lib::nocash_write("> Inserted Device List \n");
 
     {
-        common::config::init(header);
+        common::config::init(boot_info);
         let wifi_type = (*BOOTINFO_MEM).ntr.firmware_data[0xFF];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
         if wifi_type == 2 || wifi_type == 3 {
@@ -255,7 +253,8 @@ pub unsafe fn boot_app(
     for i in 0..0xE00 {
         mem.add(i).write_volatile(0);
     }
-    let header = &mut (*common::bootstrap::BOOTINFO_MEM).twl_header;
+    let boot_info = &mut (*common::bootstrap::BOOTINFO_MEM);
+    let header = &mut boot_info.twl_header;
     let head_buf = core::slice::from_raw_parts_mut(
         header as *mut HeaderTWL as *mut () as *mut u8,
         size_of::<HeaderTWL>(),
@@ -283,7 +282,7 @@ pub unsafe fn boot_app(
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
 
-    boot_unreturnable(r, file_path, header, app_data);
+    boot_unreturnable(r, file_path, boot_info, app_data);
 }
 pub unsafe fn inject_bootstrap() {
     //inject bootstrap into VRAM BANK I
