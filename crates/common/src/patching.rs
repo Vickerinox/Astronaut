@@ -184,10 +184,8 @@ pub unsafe fn look_for_launcher_patch() {
     let header = &(*BOOTINFO_MEM).twl_header;
     if header.title_id & !0xFF == 0x00030017_484E4100 {
         let binary = core::slice::from_raw_parts_mut(header.head.arm9_load as *mut u16, header.head.arm9_size as usize /2 );
-        if app_vlaunch_patch(binary, &LAUNCHER_ARM9_PATCH) == VPatchResult::Ok {
-
-        } else {
-
+        if app_vlaunch_patch(binary, &LAUNCHER_ARM9_PATCH) != VPatchResult::Ok {
+                        
         };
     }
 }
