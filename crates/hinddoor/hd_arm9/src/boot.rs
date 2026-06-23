@@ -136,6 +136,8 @@ unsafe fn boot_unreturnable(
     fatfs_embedded::seek(r, header.head.arm7_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
+    
+
     reboot_lib::nocash_write("> ARM7 binary loaded \n");
 
     if header.is_dsi_mode() {
@@ -192,7 +194,7 @@ unsafe fn boot_unreturnable(
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
-
+    common::patching::look_for_launcher_patch();
     reboot_lib::nocash_write("> Inserted Device List \n");
 
     {

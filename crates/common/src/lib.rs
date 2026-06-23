@@ -13,3 +13,4 @@ pub mod bootstub;
 pub mod config;
 pub mod device_list;
 pub mod modcrypt;
+pub mod patching;
