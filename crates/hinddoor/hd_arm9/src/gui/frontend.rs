@@ -411,13 +411,21 @@ impl AppData {
                 }
                 CurrentUI::SpecialThanks => {
                     ui.header("Special thanks");
-                    ui.label("edo9300");
-                    ui.label("NO$");
-                    ui.label("Team LNH");
-                    ui.label("f3l1x_10m");
-                    ui.label("coderkei");
-                    ui.label("rmc");
-                    ui.label("and you!");
+                    let names = &[
+                        "edo9300",
+                        "nocash",
+                        "Team LNH",
+                        "f3l1x_10m",
+                        "coderkei",
+                        "rmc",
+                        "PoroCYon",
+                        "AntonioND",
+                        "and you!",        
+                    ];
+                    for name in names {
+                        ui.label(name);
+                    }
+                    
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) {
                         Some(Box::new(|_| CurrentUI::None))
                     } else {
