@@ -180,7 +180,7 @@ unsafe fn init_font() {
 
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     //setup 3d hardware
-    VIDEO_HARDWARE.power_control.write(VideoPowerControl::all());
+    VIDEO_HARDWARE.power_control.write(VideoPowerControl::all()^VideoPowerControl::ENGINE_A_ON_TOP);
     VIDEO_HARDWARE
         .vram_control_bank_a
         .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK A
@@ -311,6 +311,14 @@ pub use micro_imgui_ds::SCREEN_RECT;
 
 unsafe fn arm7_crash() -> ! {
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
+
+    //write to "color palette 0"
+    core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
+    core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
+    core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
+    core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
+    let mut video_context = reboot_lib::VideoHardwareHandle::new();
+    init_3d_hardware(&mut video_context);
     video_context.next_frame();
     micro_imgui_ds::gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(
         |text_pass| {
@@ -359,6 +367,7 @@ unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
+        
         (&raw mut (*app_area.app_data.as_mut_ptr()).blowfish)
             .write((*(0x1FFC894 as *const BFCTX)).clone());
         VIDEO_HARDWARE
@@ -399,15 +408,9 @@ unsafe fn main() {
             0b00000000000000001_0000_0000_0000_0_000,
         );
 
-        //write to "color palette 0"
-        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
+        
         //copy font to vram
         init_font();
-        let mut video_context = reboot_lib::VideoHardwareHandle::new();
-        init_3d_hardware(&mut video_context);
         steal_main_mem();
 
         // Check in with the ARM7 to make sure it's alive
@@ -470,14 +473,23 @@ unsafe fn main() {
                     let mut file_path = params.parse_path();
                     (&raw mut app_data.autoboot).write(Some((file_path.clone(), params)));
                     if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
-                        app_data.current_ui = CurrentUI::LoadingApp { file, file_path };
-                        //boot::boot_app(&mut file, &mut file_path, app_data);
+                        //app_data.current_ui = CurrentUI::LoadingApp { file, file_path };
+                        boot::boot_app(&mut file, &mut file_path, app_data);
                     }
                 }
             } else {
                 app_data.autoboot();
             }
         }
+
+
+        //write to "color palette 0"
+        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
+        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
+        let mut video_context = reboot_lib::VideoHardwareHandle::new();
+        init_3d_hardware(&mut video_context);
 
         app_data.play_startup_music();
         app_area.fader.target.write(0);
