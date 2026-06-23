@@ -73,7 +73,7 @@ unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
     header: &HeaderTWL,
-    bf: &mut AppData
+    app_data: &mut AppData
 ) -> ! {
     crate::stop_mod_file();
 
@@ -172,7 +172,7 @@ unsafe fn boot_unreturnable(
     }
 
     if (0x4000..0x8000).contains(&header.head.arm9_offset) {
-        let bf = &mut bf.blowfish;
+        let bf = &mut app_data.blowfish;
         let tmp = header.head.arm9_load as *mut u32;
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
             let gamecode = header.head.tid;
@@ -195,7 +195,10 @@ unsafe fn boot_unreturnable(
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
-    common::patching::look_for_launcher_patch();
+    if app_data.patch_flag {
+        common::patching::look_for_launcher_patch();
+    
+    }
     reboot_lib::nocash_write("> Inserted Device List \n");
 
     {
