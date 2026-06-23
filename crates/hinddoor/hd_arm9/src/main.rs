@@ -448,6 +448,9 @@ unsafe fn main() {
         (&raw mut (*ptr).autoboot).write(None);
         (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
         (&raw mut (*ptr).loading_mod_file).write(None);
+        (&raw mut (*ptr).patch_flag).write(true);
+        
+
         let app_data = app_area.app_data.assume_init_mut();
         let _ = app_data
             .nand_fs
@@ -467,7 +470,7 @@ unsafe fn main() {
                     let mut file_path = params.parse_path();
                     (&raw mut app_data.autoboot).write(Some((file_path.clone(), params)));
                     if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
-                        boot::boot_app(&mut file, &mut file_path, &mut app_data.blowfish);
+                        boot::boot_app(&mut file, &mut file_path, app_data);
                     }
                 }
             } else {

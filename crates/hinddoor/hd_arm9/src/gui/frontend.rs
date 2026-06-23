@@ -12,7 +12,7 @@ use alloc::{
 };
 use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
-use micro_imgui_ds::micro_imgui;
+use micro_imgui_ds::micro_imgui::{self, widgets::checkbox::Checkbox};
 use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
     autoboot_info::{UnlaunchParams, BOOT_INFO},
@@ -47,6 +47,7 @@ pub struct AppData {
     pub loading_mod_file: Option<MODAsyncLoader>,
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
+    pub patch_flag: bool,
 }
 pub struct FileEntry {
     filename: String,
@@ -97,7 +98,7 @@ impl AppData {
                     return;
                 };
                 (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
-                crate::boot::boot_app(&mut file, &str, &mut self.blowfish);
+                crate::boot::boot_app(&mut file, &str, self);
             }
             Err(_abort) => {}
         }
@@ -189,22 +190,31 @@ impl AppData {
                             res = Some(Box::new(move |_| sd))
                         }
                     }
+                    ui.add(Checkbox::new(&mut self.patch_flag, "Enable patching"));
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
                         res = Some(Box::new(|_| CurrentUI::SpecialThanks));
                     }
-                    ui.add_space(90);
+                    ui.add_space(82);
                     ui.label(concat!("build commit: ",env!("GIT_HASH")));
                     res
                 }
                 CurrentUI::LoadingApp { file, file_path } => {
                     ui.request_repaint();
-                    let error = unsafe {
+                    
+                    let mut swap = CurrentUI::None;
+                    core::mem::swap(&mut self.current_ui, &mut swap);
+                    if let CurrentUI::LoadingApp { mut file, file_path } = swap {
+                        let error = unsafe {
                         (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
-                        boot::boot_app(file, &file_path, &mut self.blowfish)
-                    };
-                    unsafe { (*(APP_AREA_START as *mut AppArea)).fader.target.write(0) };
-                    let error_string = alloc::format!("Failed to boot file: {error:?}");
-                    Some(Box::new(|_| CurrentUI::Error { error_string }))
+                        boot::boot_app(&mut file, &file_path, self)
+                        };
+                        unsafe { (*(APP_AREA_START as *mut AppArea)).fader.target.write(0) };
+                        let error_string = alloc::format!("Failed to boot file: {error:?}");
+                        self.current_ui = CurrentUI::Error { error_string };
+                    
+                    }
+                    
+                    None
                 }
                 CurrentUI::LoadingMusic { file, file_path } => {
                     if ui.button("Play song").clicked() {

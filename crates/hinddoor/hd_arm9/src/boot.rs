@@ -27,7 +27,7 @@ impl Debug for BootError {
         }
     }
 }
-use crate::{set_background, AppArea, APP_AREA_START, BOOTSTRAP_BINARY, INTERRUPT_TABLE};
+use crate::{APP_AREA_START, AppArea, BOOTSTRAP_BINARY, INTERRUPT_TABLE, gui::AppData, set_background};
 
 unsafe fn read_all(
     mut buffer: &mut [u8],
@@ -73,7 +73,7 @@ unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
     header: &HeaderTWL,
-    bf: &mut BFCTX,
+    bf: &mut AppData
 ) -> ! {
     crate::stop_mod_file();
 
@@ -172,6 +172,7 @@ unsafe fn boot_unreturnable(
     }
 
     if (0x4000..0x8000).contains(&header.head.arm9_offset) {
+        let bf = &mut bf.blowfish;
         let tmp = header.head.arm9_load as *mut u32;
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
             let gamecode = header.head.tid;
@@ -242,7 +243,7 @@ unsafe fn boot_unreturnable(
 pub unsafe fn boot_app(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
-    blowfish: &mut BFCTX,
+    app_data: &mut AppData,
 ) -> BootError {
     reboot_lib::nocash_write("> booting ");
     reboot_lib::nocash_write(file_path);
@@ -279,7 +280,7 @@ pub unsafe fn boot_app(
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
 
-    boot_unreturnable(r, file_path, header, blowfish);
+    boot_unreturnable(r, file_path, header, app_data);
 }
 pub unsafe fn inject_bootstrap() {
     //inject bootstrap into VRAM BANK I
