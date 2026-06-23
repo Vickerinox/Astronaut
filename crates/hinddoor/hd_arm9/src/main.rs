@@ -466,6 +466,14 @@ unsafe fn main() {
 
         let force_menu = !(0x4000130 as *const u16).read_volatile() & 3 == 3;
 
+        //write to "color palette 0"
+        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
+        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
+        let mut video_context = reboot_lib::VideoHardwareHandle::new();
+        init_3d_hardware(&mut video_context);
+
         INTERRUPT_TABLE[0] = fade_out as *mut _;
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
@@ -483,13 +491,7 @@ unsafe fn main() {
         }
 
 
-        //write to "color palette 0"
-        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-        let mut video_context = reboot_lib::VideoHardwareHandle::new();
-        init_3d_hardware(&mut video_context);
+        
 
         app_data.play_startup_music();
         app_area.fader.target.write(0);
