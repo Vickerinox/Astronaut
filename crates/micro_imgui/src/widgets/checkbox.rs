@@ -33,7 +33,7 @@ impl<'t> AutoAdd for Checkbox<'t> {
             size: 8,
         });
         let wanted_size = rect.size();
-        let alloc_size = wanted_size;
+        let alloc_size = wanted_size + Vec2::new(11, 2);
         let resp = ui.allocate_size(alloc_size, Sense::clickable());
 
         let (outline_color, fill) = if resp.stats.intersects(Sense::PRESSED) {

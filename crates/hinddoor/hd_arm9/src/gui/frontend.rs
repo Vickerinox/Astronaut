@@ -98,7 +98,8 @@ impl AppData {
                     return;
                 };
                 (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
-                crate::boot::boot_app(&mut file, &str, self);
+                self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
+                //crate::boot::boot_app(&mut file, &str, self);
             }
             Err(_abort) => {}
         }
