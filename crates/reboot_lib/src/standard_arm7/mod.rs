@@ -129,10 +129,6 @@ pub fn main_arm7() {
         SPI_HARDWARE.read_firmware(user, offset);
         SPI_HARDWARE.read_firmware(mac, 0x36);
         boot_info.wifi_channels = [0x41, 0x10];
-        boot_info.supported_languages = 0x3E;
-        boot_info.console_region = 2;
-        boot_info.serial_number.copy_from_slice(b"VLAUNCH-DSI");
-        boot_info.unknown = [0,0,0,wifi_ver];
         
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);

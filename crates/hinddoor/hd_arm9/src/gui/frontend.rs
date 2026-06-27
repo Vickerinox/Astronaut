@@ -10,7 +10,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use common::blowfish::BFCTX;
+use common::{blowfish::BFCTX, bootstrap::BOOTINFO_MEM};
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
 use micro_imgui_ds::micro_imgui::{self, widgets::checkbox::Checkbox};
 use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};

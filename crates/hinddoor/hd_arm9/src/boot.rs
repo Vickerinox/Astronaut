@@ -4,6 +4,7 @@ use alloc::string::{String, ToString};
 use common::{
     blowfish::BFCTX, bootstrap::{BOOTINFO_MEM, BootInfoTWL, HeaderTWL},
 };
+use fatfs_embedded::fatfs::FileOptions;
 use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, Viewport, swi_crc16};
 
 pub enum BootError {
@@ -64,6 +65,17 @@ pub unsafe fn setup_shared_mem(mem: &mut BootInfoTWL) {
     //for DSi mode only technically
     mem.sysmenu_id.clone_from_slice(b"00000009\0");
     mem.init_code = b'P';
+
+    let Ok(mut file) = fatfs_embedded::open(&mut "nand:/sys/HWINFO_S.dat".to_string(), FileOptions::Read) else {return};
+    if fatfs_embedded::seek(&mut file, 0x88).is_ok() {
+        if read_all(&mut mem.ntr.hardware_info, &mut file).is_ok() {
+
+        } else {
+
+        }
+        
+    }
+
 }
 
 #[inline]
@@ -205,7 +217,7 @@ unsafe fn boot_unreturnable(
     reboot_lib::nocash_write("> Inserted Device List \n");
     {
         common::config::init(boot_info);
-        let wifi_type = boot_info.ntr.unknown[3];
+        let wifi_type = boot_info.ntr.hardware_info[23];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
         if wifi_type == 2 || wifi_type == 3 {
             (0x20005E4 as *mut u32).write_volatile(0x520000);
