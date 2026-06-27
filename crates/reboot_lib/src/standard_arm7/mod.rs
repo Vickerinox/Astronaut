@@ -132,7 +132,7 @@ pub fn main_arm7() {
         boot_info.supported_languages = 0x3E;
         boot_info.console_region = 2;
         boot_info.serial_number.copy_from_slice(b"VLAUNCH-DSI");
-        boot_info.unknown = [0,0,0,0x3c];
+        boot_info.unknown = [0,0,0,wifi_ver];
         
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
@@ -327,12 +327,6 @@ pub fn main_arm7() {
 
                     response = 0;
 
-                    /*
-                    if core::slice::from_raw_parts(header.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {
-                        response = 10;
-                    }
-                    */
-
                     AES_HARDWARE.init_from_header(header, console_id);
 
                     if header.arm9i_offset != header.modcrypt1_offset
@@ -345,9 +339,6 @@ pub fn main_arm7() {
                             response = 2;
                         }
                     }
-
-                    //response = 0x8000_0000;
-
                     if response == 0 {
                         let ptr = if header.arm9i_offset == header.modcrypt1_offset {
                             header.arm9i_load
@@ -364,59 +355,14 @@ pub fn main_arm7() {
                         let mem =
                             core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
 
-                        decrypt_module(mem, key);
+                        decrypt_module_ndma(mem, key);
                         if header.modcrypt2_len > 0 {
                             let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
                             let ptr = header.arm7i_load;
                             let len = header.modcrypt2_len;
                             let mem =
                                 core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
-                            decrypt_module(mem, key);
-                            /*
-                            AES_HARDWARE.reset();
-                            AES_HARDWARE.reset();
-                            AES_HARDWARE.wait_key_busy();
-                            AES_HARDWARE.set_key_slot(0);
-                            AES_HARDWARE.wait_key_busy();
-                            core::arch::asm!("mov r11, r11");
-                            AES_HARDWARE.master_control.write(AESCnt::empty());
-                            AES_HARDWARE.reset();
-                            AES_HARDWARE.load_iv(&key);
-                            AES_HARDWARE.payload_blocks.write(len as u16 >> 4);
-
-
-                            let in_dma = crate::ndma::ChannelConfig {
-                                word_count: len >> 2,
-                                block_size: 4,
-                                timing: 8,
-                                fill_mode: 0,
-                                control: Control::DST_MODE_FIXED
-                                    | Control::SRC_MODE_INCREMENT
-                                    | Control::BLOCK_SIZE_4
-                                    | Control::START_ARM7_WRITE_AES
-                                    | Control::ENABLE,
-                            };
-                            NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
-                            let out_dma = crate::ndma::ChannelConfig {
-                                word_count: len >> 2,
-                                block_size: 4,
-                                timing: 8,
-                                fill_mode: 0,
-                                control: Control::SRC_MODE_FIXED
-                                    | Control::DST_MODE_INCREMENT
-                                    | Control::BLOCK_SIZE_4
-                                    | Control::START_ARM7_READ_AES
-                                    | Control::ENABLE,
-                            };
-                            NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
-
-                            AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28));
-
-                            NDMA_HARDWARE.await_channel(0);
-
-                            AES_HARDWARE.wait_aes_busy();
-                            core::arch::asm!("mov r11, r11");
-                            */
+                            decrypt_module_ndma(mem, key);
                         }
                     }
                 }
