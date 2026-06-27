@@ -351,11 +351,6 @@ impl MMC {
                 }
             }
             */
-            //This is dumb. i hate it. this sucks. fuck this. I don't know why i need it.
-            //Nobody else needs this in their drivers. why do i need it. fuck this.
-            if value.contains(Status::ERR_CMD_TIMEOUT) {
-                value &= !Status::ERR_CMD_TIMEOUT
-            }
         }
 
         while self.status.read().contains(Status::CMD_BUSY) {
