@@ -70,34 +70,36 @@ pub unsafe fn setup_shared_mem(mem: &mut BootInfoTWL) {
 unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
-    header: &HeaderTWL,
+    header: &mut BootInfoTWL,
     app_data: &mut AppData
 ) -> ! {
     crate::stop_mod_file();
+    let boot_info = header;
+    {
+        let mut prv_path = String::with_capacity(file_path.len());
+        let mut pub_path = String::with_capacity(file_path.len());
 
-    let mut prv_path = String::with_capacity(file_path.len());
-    let mut pub_path = String::with_capacity(file_path.len());
+        if file_path.get(4..12) == Some(":/title/") {
+            prv_path.push_str(&file_path[..30]);
+            pub_path.push_str(&file_path[..30]);
+            prv_path.push_str("data/private.sav");
+            pub_path.push_str("data/public.sav");
+        } else {
+            prv_path.push_str(&file_path[..file_path.len() - 3]);
+            pub_path.push_str(&file_path[..file_path.len() - 3]);
+            prv_path.push_str("prv");
+            pub_path.push_str("pub");
+        }
 
-    if file_path.get(4..12) == Some(":/title/") {
-        prv_path.push_str(&file_path[..30]);
-        pub_path.push_str(&file_path[..30]);
-        prv_path.push_str("data/private.sav");
-        pub_path.push_str("data/public.sav");
-    } else {
-        prv_path.push_str(&file_path[..file_path.len() - 3]);
-        pub_path.push_str(&file_path[..file_path.len() - 3]);
-        prv_path.push_str("prv");
-        pub_path.push_str("pub");
-    }
+        
+        common::device_list::init(boot_info, file_path, &pub_path, &prv_path);
 
-    let boot_info = &mut (*BOOTINFO_MEM);
+    }    
     
-    common::device_list::init(boot_info, file_path, &pub_path, &prv_path);
-
     core::ptr::write_volatile(&mut boot_info.other[0], 0);
 
     setup_shared_mem(boot_info);
-    if header.is_homebrew() {
+    if boot_info.twl_header.is_homebrew() {
         let path_bytes = file_path.as_bytes();
         let (trim, path_bytes) = if path_bytes.get(..4) == Some(b"sdmc") {
             path_bytes
@@ -116,51 +118,53 @@ unsafe fn boot_unreturnable(
         }
         let path = core::str::from_raw_parts(other as *const u8, path_bytes.len());
 
-        common::argv::init(header, path);
+        common::argv::init(&boot_info.twl_header, path);
         reboot_lib::nocash_write("> Inserted ARGV \n");
     }
 
+    unsafe { reboot_lib::ALLOCATOR.invalidate()};
+    
     let arm9_ram = core::slice::from_raw_parts_mut(
-        header.head.arm9_load as *mut u8,
-        header.head.arm9_size as usize,
+        boot_info.twl_header.head.arm9_load as *mut u8,
+        boot_info.twl_header.head.arm9_size as usize,
     );
-    fatfs_embedded::seek(r, header.head.arm9_offset).unwrap();
+    fatfs_embedded::seek(r, boot_info.twl_header.head.arm9_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
     reboot_lib::nocash_write("> ARM9 binary loaded \n");
 
     let arm9_ram = core::slice::from_raw_parts_mut(
-        header.head.arm7_load as *mut u8,
-        header.head.arm7_size as usize,
+        boot_info.twl_header.head.arm7_load as *mut u8,
+        boot_info.twl_header.head.arm7_size as usize,
     );
-    fatfs_embedded::seek(r, header.head.arm7_offset).unwrap();
+    fatfs_embedded::seek(r, boot_info.twl_header.head.arm7_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
     
 
     reboot_lib::nocash_write("> ARM7 binary loaded \n");
 
-    if header.is_dsi_mode() {
+    if boot_info.twl_header.is_dsi_mode() {
         let arm9_ram = core::slice::from_raw_parts_mut(
-            header.arm9i_load as *mut u8,
-            header.arm9i_size as usize,
+            boot_info.twl_header.arm9i_load as *mut u8,
+            boot_info.twl_header.arm9i_size as usize,
         );
 
-        fatfs_embedded::seek(r, header.arm9i_offset).unwrap();
+        fatfs_embedded::seek(r, boot_info.twl_header.arm9i_offset).unwrap();
         read_all(arm9_ram, r).unwrap();
 
         reboot_lib::nocash_write("> ARM9i binary loaded \n");
 
         let arm9_ram = core::slice::from_raw_parts_mut(
-            header.arm7i_load as *mut u8,
-            header.arm7i_size as usize,
+            boot_info.twl_header.arm7i_load as *mut u8,
+            boot_info.twl_header.arm7i_size as usize,
         );
-        fatfs_embedded::seek(r, header.arm7i_offset).unwrap();
+        fatfs_embedded::seek(r, boot_info.twl_header.arm7i_offset).unwrap();
         read_all(arm9_ram, r).unwrap();
 
         reboot_lib::nocash_write("> ARM7i binary loaded \n");
 
-        if header.head.twl_flags & (1 << 1) > 0 {
+        if boot_info.twl_header.head.twl_flags & (1 << 1) > 0 {
             match reboot_lib::arm9_decrypt_modcrypt(0) {
                 Ok(()) => (),
                 Err(code) => {
@@ -171,11 +175,11 @@ unsafe fn boot_unreturnable(
         }
     }
 
-    if (0x4000..0x8000).contains(&header.head.arm9_offset) {
+    if (0x4000..0x8000).contains(&boot_info.twl_header.head.arm9_offset) {
         let bf = &mut app_data.blowfish;
-        let tmp = header.head.arm9_load as *mut u32;
+        let tmp = boot_info.twl_header.head.arm9_load as *mut u32;
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
-            let gamecode = header.head.tid;
+            let gamecode = boot_info.twl_header.head.tid;
             let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
             bf.init2(&mut arg);
             bf.init2(&mut arg);
@@ -196,8 +200,7 @@ unsafe fn boot_unreturnable(
         }
     }
     if app_data.patch_flag {
-        common::patching::look_for_launcher_patch();
-    
+        common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
     reboot_lib::nocash_write("> Inserted Device List \n");
     {
@@ -218,7 +221,7 @@ unsafe fn boot_unreturnable(
     }
 
     inject_bootstrap();
-    (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(header.head.arm9_entry);
+    (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(boot_info.twl_header.head.arm9_entry);
     reboot_lib::flush_mmc();
 
     while (&*(APP_AREA_START as *mut AppArea)).fader.current.read()
@@ -237,7 +240,7 @@ unsafe fn boot_unreturnable(
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     reboot_lib::flush_mmc();
     reboot_lib::flush_mmc();
-    let _boot_func = reboot_lib::arm9_send_arm7_jump(header.head.arm7_entry).unwrap_err();
+    let _boot_func = reboot_lib::arm9_send_arm7_jump(boot_info.twl_header.head.arm7_entry).unwrap_err();
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }
@@ -281,7 +284,7 @@ pub unsafe fn boot_app(
     if !arm9_range.contains(&header.head.arm9_entry) {
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
-
+    let header = &mut *(BOOTINFO_MEM);
     boot_unreturnable(r, file_path, header, app_data);
 }
 pub unsafe fn inject_bootstrap() {

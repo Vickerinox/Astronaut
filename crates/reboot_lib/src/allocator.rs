@@ -37,6 +37,7 @@ unsafe impl GlobalAlloc for DSiAllocator {
 pub struct DualSuperAllocator {
     cell: UnsafeCell<Heap>,
     locked: UnsafeCell<bool>,
+    valid: UnsafeCell<bool>,
 }
 pub struct LockGuard<'a>(&'a DualSuperAllocator);
 
@@ -49,6 +50,9 @@ impl DualSuperAllocator {
     ///
     /// This process uses a basic spinlock
     unsafe fn lock<'a>(&'a self) -> LockGuard<'a> {
+        if self.valid.get().read() == false {
+            panic!("Allocation after invalidation");
+        }
         crate::critical_function(|| {
             while ptr::replace(self.locked.get(), true) {
                 hint::spin_loop();
@@ -63,12 +67,16 @@ impl DualSuperAllocator {
     unsafe fn unlock(&self) {
         crate::critical_function(|| ptr::write_volatile(self.locked.get(), false));
     }
+    pub unsafe fn invalidate(&self) {
+        (*self.valid.get()) = false;
+    }
     /// initialize ourself from uninitialized memory
     unsafe fn self_init(&self) {
         // IDGAF if this is UB like the people on the discord server say, ill do it anyway!
         //let ourself_mut = self as *const Self as usize as *mut Self;
         *(self.cell.get()) = Heap::empty();
         *(self.locked.get()) = false;
+        *(self.valid.get()) = true;
         //(*ourself_mut).cell = UnsafeCell::new(Heap::empty());
         //(*ourself_mut).locked = UnsafeCell::new(false);
     }
