@@ -205,7 +205,7 @@ unsafe fn boot_unreturnable(
     reboot_lib::nocash_write("> Inserted Device List \n");
     {
         common::config::init(boot_info);
-        let wifi_type = boot_info.ntr.firmware_data[0xFF];
+        let wifi_type = boot_info.ntr.unknown[3];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
         if wifi_type == 2 || wifi_type == 3 {
             (0x20005E4 as *mut u32).write_volatile(0x520000);

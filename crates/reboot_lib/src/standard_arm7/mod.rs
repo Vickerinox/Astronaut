@@ -122,17 +122,18 @@ pub fn main_arm7() {
         } else {
             settings_offset + 0x100
         };
-        let firm_buffer = &mut (*BOOTINFO_MEM).ntr.firmware_data;
-        let (user, remainder) = firm_buffer.split_at_mut(0x74);
+        
+        let boot_info = &mut (*BOOTINFO_MEM).ntr;
+        let user = &mut boot_info.firmware_data;
+        let mac = &mut boot_info.mac_address;
         SPI_HARDWARE.read_firmware(user, offset);
-        let (mac, remainder) = remainder.split_at_mut(6);
         SPI_HARDWARE.read_firmware(mac, 0x36);
-        remainder[0] = 0x41;
-        remainder[1] = 0x10;
-        remainder[0xE8 - 0x7A..(0xEC - 0x7A) + 4].copy_from_slice(&[0, 0, 0, 0x3E, 0, 0, 0, 0]);
-        remainder[0xF0 - 0x7A] = 2;
-        remainder[0xF1 - 0x7A..][..11].copy_from_slice(b"VLAUNCH-DSI");
-        remainder[0xFF - 0x7A] = wifi_ver;
+        boot_info.wifi_channels = [0x41, 0x10];
+        boot_info.supported_languages = 0x3E;
+        boot_info.console_region = 2;
+        boot_info.serial_number.copy_from_slice(b"VLAUNCH-DSI");
+        boot_info.unknown = [0,0,0,0x3c];
+        
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
         let scrx1 = user[0x5C];

@@ -406,7 +406,9 @@ pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 #[repr(C)]
 pub struct BootInfoTWL {
     pub card_header: HeaderTWL,
-    _0x1000: [u8; 0x7B0],
+    // UNOFFICIAL
+    pub device_list_copy: DeviceList,
+    _0x1400: [u8; 0x3B0],
     pub sysmenu_id: [u8; 9],
     pub init_code: u8,
     pub hotboot: u16,
@@ -415,9 +417,7 @@ pub struct BootInfoTWL {
     pub mountinfo: [u8; 0x3C0],
     pub boot_path: [u8; 0x40],
     pub twl_header: HeaderTWL,
-    pub other: [u8; 0x280],
-    // UNOFFICIAL
-    pub device_list_copy: DeviceList,
+    pub other: [u8; 0x680],
     _0x3680: [u8; 0x180],
     pub ntr: BootInfoNTR,
 }
@@ -493,7 +493,16 @@ pub struct BootInfoNTR {
     pub slot_2_info: [u8; 0xC],
     pub vblank_counter: u32,
     pub boot_method: BootMethod,
-    pub firmware_data: [u8; 0x100],
+    pub firmware_data: [u8; 0x74],
+    pub mac_address: [u8; 6],
+    pub wifi_channels: [u8; 2],
+    _0x4fc: [u8; 4],
+    _0x500: [u8; 0x68],
+    pub supported_languages: u32,
+    _0x56c: [u8; 4],
+    pub console_region: u8,
+    pub serial_number: [u8; 11],
+    pub unknown: [u8; 4],
     pub arm9_exceptions: [u8; 0x1C],
     pub arm9_excep_vector: u32,
     _0x5a0: [u8; 0x48],
