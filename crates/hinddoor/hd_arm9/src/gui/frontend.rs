@@ -91,9 +91,10 @@ impl AppData {
                 if fatfs_embedded::read(&mut file, &mut path_buf).is_err() {
                     return;
                 }
-                let Ok(mut str) = String::from_utf8(path_buf) else {
+                let Ok(str) = String::from_utf8(path_buf) else {
                     return;
                 };
+                let mut str = str.replace(['\n', '\r'], "");
                 let Ok(mut file) = fatfs_embedded::open(&mut str, FileOptions::Read) else {
                     return;
                 };
