@@ -15,7 +15,7 @@ impl<'a> Ini<'a> {
         let mut segment_name = "";
         let mut segment = Segment(Vec::new());
         let mut segments = Vec::new();
-        for line in from.split(['\n', '\r']) {
+        for line in from.split('\n') {
             let trimmer = line.trim();
             let mut a = trimmer.chars();
             match a.next() {
