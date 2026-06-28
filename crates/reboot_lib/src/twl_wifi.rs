@@ -225,18 +225,18 @@ pub unsafe fn nwifi_write_func0(reg: FuncReg, byte: u8) -> bool {
         .successful()
 }
 pub unsafe fn nwifi_init_complete() {
-    return STATUS.write_volatile(1);
+    STATUS.write_volatile(0);
     (*(0x4004008 as *mut RW<u32>)).modify(|i| i | (1 << 19));
     (0x4004020 as *mut u16).write_volatile(1);
     init_nwifi_regs();
 
-    if !init_nwifi_opcond() {
-        STATUS.write_volatile(2);
-    }
+    //if !init_nwifi_opcond() {
+    //    STATUS.write_volatile(2);
+    //}
 
-    if !init_nwifi_func0() {
-        STATUS.write_volatile(3);
-    }
+    //if !init_nwifi_func0() {
+    //    STATUS.write_volatile(3);
+    //}
 }
 
 pub unsafe fn nwifi_send(param: u32, cmd: u16) -> Option<(Status, u32)> {

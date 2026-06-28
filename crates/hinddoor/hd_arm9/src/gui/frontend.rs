@@ -11,7 +11,7 @@ use alloc::{
     vec::Vec,
 };
 use common::{blowfish::BFCTX, bootstrap::BOOTINFO_MEM};
-use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
+use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
 use micro_imgui_ds::micro_imgui::{self, widgets::checkbox::Checkbox};
 use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
@@ -47,8 +47,9 @@ pub struct AppData {
     pub loading_mod_file: Option<MODAsyncLoader>,
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
-    pub patch_flag: bool,
+    pub config: crate::configuration::Config
 }
+
 pub struct FileEntry {
     filename: String,
     truncated_name: String,
@@ -81,29 +82,11 @@ impl AppData {
         })
     }
     pub unsafe fn autoboot(&mut self) {
-        match fatfs_embedded::open(
-            &mut "sdmc:/_nds/vlaunch/autoboot.txt".to_string(),
-            FileOptions::Read,
-        ) {
-            Ok(mut file) => {
-                let size = fatfs_embedded::size(&mut file) as usize;
-                let mut path_buf: Vec<u8> = alloc::vec![0; size];
-                if fatfs_embedded::read(&mut file, &mut path_buf).is_err() {
-                    return;
-                }
-                let Ok(str) = String::from_utf8(path_buf) else {
-                    return;
-                };
-                let mut str = str.replace(['\n', '\r'], "");
-                let Ok(mut file) = fatfs_embedded::open(&mut str, FileOptions::Read) else {
-                    return;
-                };
-                (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
-                //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
-                crate::boot::boot_app(&mut file, &str, self);
-            }
-            Err(_abort) => {}
-        }
+        let mut path = core::mem::take(&mut self.config.autoboot);
+        let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {return};
+        (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
+        //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
+        crate::boot::boot_app(&mut file, &path, self);
     }
     pub fn play_startup_music(&mut self) {
         match fatfs_embedded::open(
@@ -192,7 +175,7 @@ impl AppData {
                             res = Some(Box::new(move |_| sd))
                         }
                     }
-                    ui.add(Checkbox::new(&mut self.patch_flag, "Enable patching"));
+                    ui.add(Checkbox::new(&mut self.config.patch_flag, "Enable patching"));
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
                         res = Some(Box::new(|_| CurrentUI::SpecialThanks));
                     }

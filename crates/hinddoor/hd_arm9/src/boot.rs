@@ -32,7 +32,7 @@ use crate::{
     gui::AppData, set_background, AppArea, APP_AREA_START, BOOTSTRAP_BINARY, INTERRUPT_TABLE,
 };
 
-fn read_all(
+pub fn read_all(
     mut buffer: &mut [u8],
     file: &mut fatfs_embedded::fatfs::File,
 ) -> Result<(), fatfs_embedded::fatfs::Error> {
@@ -214,7 +214,7 @@ unsafe fn boot_unreturnable(
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
-    if app_data.patch_flag {
+    if app_data.config.patch_flag {
         common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
     reboot_lib::nocash_write("> Inserted Device List \n");

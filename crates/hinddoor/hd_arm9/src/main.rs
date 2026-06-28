@@ -49,6 +49,7 @@ mod gui;
 mod mbr;
 mod nand;
 pub mod new_takeover;
+pub mod configuration;
 #[repr(C)]
 pub struct NandAutobootEntry {
     category: u16,
@@ -452,7 +453,7 @@ unsafe fn main() {
         (&raw mut (*ptr).autoboot).write(None);
         (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
         (&raw mut (*ptr).loading_mod_file).write(None);
-        (&raw mut (*ptr).patch_flag).write(true);
+        (&raw mut (*ptr).config).write(configuration::Config::load());
 
         let app_data = app_area.app_data.assume_init_mut();
         let _ = app_data

@@ -23,7 +23,6 @@ bench = false
 cc = "1"
 
 [dependencies]
-
 reboot_lib = {path = "../../reboot_lib"}
 micro_imgui_ds = {path = "../../micro_imgui_ds"}
 common = {path = "../../common"}

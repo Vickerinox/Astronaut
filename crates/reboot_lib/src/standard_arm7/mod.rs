@@ -146,19 +146,7 @@ pub fn main_arm7() {
             (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19)) / 2;
         let y_offset =
             (((adcy1 as i32 + adcy2 as i32) * y_scale) - ((scry1 as i32 + scry2 as i32) << 19)) / 2;
-        /*
-        let send = ;
-        IPC_FIFO_HARDWARE.send_raw_blocking(send);
-        let send = ;
-        IPC_FIFO_HARDWARE.send_raw_blocking(send);
-        */
-        /*
-        crate::set_interrupt_function(
-            crate::ARM7Interrupt::Powerbutton,
-            power_button_interrupt,
-        );
-        crate::enable_interrupt(crate::ARM7Interrupt::Powerbutton);
-        */
+        
         let mut last_x = 0;
         let mut last_y = 0;
         let mut pen_down = false;
