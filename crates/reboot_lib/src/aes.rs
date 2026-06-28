@@ -1,5 +1,5 @@
 use crate::MemoryWrapper;
-use common::bootstrap::HeaderTWL;
+use common::bootstrap::TWLHeader;
 use volatile_register::*;
 
 pub const AES_HARDWARE: MemoryWrapper<AESEngine> = MemoryWrapper(0x4004400 as *mut AESEngine);
@@ -58,7 +58,7 @@ impl KeySlot {
 }
 
 impl AESEngine {
-    pub unsafe fn init_from_header(&self, header: &HeaderTWL, console_id: [u32; 2]) {
+    pub unsafe fn init_from_header(&self, header: &TWLHeader, console_id: [u32; 2]) {
         if header.is_dsi_mode() {
             self.master_control.write(AESCnt::empty());
             self.reset();

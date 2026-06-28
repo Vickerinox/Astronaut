@@ -1,4 +1,4 @@
-use crate::bootstrap::HeaderTWL;
+use crate::bootstrap::TWLHeader;
 
 pub const ARGV_MAGIC: i32 = 0x5f617267;
 pub const SYSTEM_ARGV: *mut ArgvStructutre = 0x02FFFE70 as _;
@@ -14,7 +14,7 @@ pub struct ArgvStructutre {
     pub host: u32,
 }
 
-pub unsafe fn init(header: &HeaderTWL, file_path: &str) {
+pub unsafe fn init(header: &TWLHeader, file_path: &str) {
     //find argv location
     let ntr_arg_destination = (header.head.arm9_load + header.head.arm9_size + 7) & !3;
     let arg_destination = if header.is_dsi_mode() {

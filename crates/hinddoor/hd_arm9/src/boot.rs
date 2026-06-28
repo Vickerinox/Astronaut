@@ -3,7 +3,7 @@ use core::fmt::Debug;
 use alloc::string::{String, ToString};
 use common::{
     blowfish::BFCTX,
-    bootstrap::{BootInfoTWL, HeaderTWL, BOOTINFO_MEM},
+    bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM},
 };
 use fatfs_embedded::fatfs::FileOptions;
 use reboot_lib::{swi_crc16, DisplayControl, VideoPowerControl, Viewport, VIDEO_HARDWARE};
@@ -32,7 +32,7 @@ use crate::{
     gui::AppData, set_background, AppArea, APP_AREA_START, BOOTSTRAP_BINARY, INTERRUPT_TABLE,
 };
 
-unsafe fn read_all(
+fn read_all(
     mut buffer: &mut [u8],
     file: &mut fatfs_embedded::fatfs::File,
 ) -> Result<(), fatfs_embedded::fatfs::Error> {
@@ -46,7 +46,7 @@ unsafe fn read_all(
     Ok(())
 }
 
-pub unsafe fn setup_shared_mem(mem: &mut BootInfoTWL) {
+pub fn setup_shared_mem(mem: &mut BootInfoTWL) {
     mem.ntr.header_again = mem.twl_header.head.clone();
     mem.ntr.header = mem.twl_header.head.clone();
 
@@ -278,8 +278,8 @@ pub unsafe fn boot_app(
     }
     let header = &mut (*common::bootstrap::BOOTINFO_MEM).twl_header;
     let head_buf = core::slice::from_raw_parts_mut(
-        header as *mut HeaderTWL as *mut () as *mut u8,
-        size_of::<HeaderTWL>(),
+        header as *mut TWLHeader as *mut () as *mut u8,
+        size_of::<TWLHeader>(),
     );
     if read_all(head_buf, r).is_err() {
         return BootError::FileReadError;

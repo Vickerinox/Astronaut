@@ -1,4 +1,4 @@
-use crate::bootstrap::{BootInfoTWL, HeaderTWL, BOOTINFO_MEM};
+use crate::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
 
 #[repr(C)]
 pub struct Config {

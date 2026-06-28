@@ -1,4 +1,4 @@
-use crate::bootstrap::{HeaderTWL, BOOTINFO_MEM};
+use crate::bootstrap::{TWLHeader, BOOTINFO_MEM};
 
 const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
     blocks: &[
@@ -180,7 +180,7 @@ fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
         VPatchResult::MalformedPatch
     }
 }
-pub unsafe fn look_for_launcher_patch(header: &HeaderTWL) {
+pub unsafe fn look_for_launcher_patch(header: &TWLHeader) {
     if header.title_id & !0xFF == 0x00030017_484E4100 {
         let binary = core::slice::from_raw_parts_mut(
             header.head.arm9_load as *mut u16,

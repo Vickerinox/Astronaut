@@ -269,7 +269,7 @@ pub fn main_arm7() {
                     SOUND_HARDWARE.init();
                     AES_HARDWARE.init_from_header(
                         &*(common::bootstrap::BOOTLOADER_MEM
-                            as *const common::bootstrap::HeaderTWL),
+                            as *const common::bootstrap::TWLHeader),
                         console_id,
                     );
                     TIMERS.clear();

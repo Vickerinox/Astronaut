@@ -66,7 +66,7 @@ fn inject_elf(
 }
 fn construct_installer_rom(arm9: PathBuf, arm7: PathBuf) -> Result<Vec<u8>, BuildError> {
     let mut rom = vec![0u8; 0x80000];
-    let mut header = common::bootstrap::HeaderTWL::new();
+    let mut header = common::bootstrap::TWLHeader::new();
 
     let elf_file_path = &arm9;
 

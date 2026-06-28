@@ -12,7 +12,7 @@ pub fn test_blowfish() {
         core::slice::from_raw_parts_mut(core::ptr::addr_of!(temp[0]) as *mut u8, 0x1000)
             .copy_from_slice(head);
     };
-    let header = unsafe { &*(core::ptr::addr_of!(temp[0]) as *const common::bootstrap::HeaderTWL) };
+    let header = unsafe { &*(core::ptr::addr_of!(temp[0]) as *const common::bootstrap::TWLHeader) };
     if !(0x4000..0x8000).contains(&header.head.arm9_offset) {
         println!("NO SECURE AREA!")
     }

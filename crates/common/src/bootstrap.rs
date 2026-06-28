@@ -114,7 +114,7 @@ pub unsafe fn boot_arm7() -> ! {
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
-const HEADER_MEM: *const HeaderTWL = 0x2FFE000 as *const HeaderTWL;
+const HEADER_MEM: *const TWLHeader = 0x2FFE000 as *const TWLHeader;
 
 pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
@@ -122,9 +122,15 @@ pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
+
 #[repr(C)]
 #[derive(Debug, Clone)]
-pub struct HeaderStart {
+pub struct NDSHeader {
+    short: ShortNDSHeader,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct ShortNDSHeader {
     pub title: [u8; 12],
     pub tid: u32,
     pub maker_code: u16,
@@ -189,14 +195,14 @@ pub struct HeaderStart {
     pub header_crc: u16,
 }
 
-const_assert!(core::mem::size_of::<HeaderStart>() == 0x160);
+const_assert!(core::mem::size_of::<ShortNDSHeader>() == 0x160);
 
 #[repr(C)]
-pub struct HeaderTWL {
-    pub head: HeaderStart,
+pub struct TWLHeader {
+    pub head: ShortNDSHeader,
     pub debug_rom_offset: u32,
     pub debug_rom_size: u32,
-    pub debug_rom_load: u32, //doubles as arm9 entry?
+    pub debug_rom_load: u32, //doubles as arm9 entry on dev units?
     pub debug_arm7_entry: u32,
 
     _0x170: [u8; 16],
@@ -270,12 +276,12 @@ pub struct HeaderTWL {
     _0xf00: [u8; 0x80],
     pub rsa_signature: [u8; 0x80],
 }
-const_assert!(core::mem::size_of::<HeaderTWL>() == 0x1000);
+const_assert!(core::mem::size_of::<TWLHeader>() == 0x1000);
 
-impl HeaderTWL {
+impl TWLHeader {
     pub fn new() -> Self {
         Self {
-            head: HeaderStart {
+            head: ShortNDSHeader {
                 title: Default::default(),
                 tid: Default::default(),
                 maker_code: Default::default(),
@@ -409,22 +415,16 @@ pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 
 #[repr(C)]
 pub struct BootInfoTWL {
-    pub card_header: HeaderTWL,
-
+    pub card_header: TWLHeader,
     _0x1400: [u8; 0x7B0],
     pub sysmenu_id: [u8; 9],
     pub init_code: u8,
     pub hotboot: u16,
     pub sdmmc_context: SDMMCContext,
     pub title_list: TitleList,
-    pub mountinfo: [u8; 0x3C0],
-    pub boot_path: [u8; 0x40],
-    pub twl_header: HeaderTWL,
-
-    pub other: [u8; 0x280],
-    // UNOFFICIAL
     pub device_list_copy: DeviceList,
-    _0x3680: [u8; 0x180],
+    pub twl_header: TWLHeader,
+    pub other: [u8; 0x800],
     pub ntr: BootInfoNTR,
 }
 const_assert!(core::mem::size_of::<BootInfoTWL>() == 0x4000);
@@ -486,9 +486,8 @@ pub struct BootMethod {
 pub struct FirmwareData {}
 #[repr(C)]
 pub struct BootInfoNTR {
-    //_0x0: [u8; 0x800],
-    pub gap: [u8; 0x280],
-    pub header: HeaderStart,
+    _0x0: [u8; 0x280],
+    pub header: ShortNDSHeader,
     pub download: [u8; 0x20],
     pub bootcheck: BootCheckInfo,
     pub reset: u32,
@@ -513,37 +512,7 @@ pub struct BootInfoNTR {
     pub arm9err: u8,
     pub arm7err: u8,
     _0x5fa: [u8; 6],
-
-    pub header_again: HeaderStart,
-    pub debugger_again: [u8; 0x20],
-    pub arm9ipc: u32,
-    pub arm7ipc: u32,
-    pub arm9ipch: u32,
-    pub arm7ipch: u32,
-    pub last_mic: u32,
-    pub last_mic_data: u16,
-    pub wifi_call: u16,
-    pub wifi_rssi: u16,
-    pub slot2_info: u8,
-    pub slot2_in: u8,
-    pub arm7arg: u32,
-    pub arm9thread: u32,
-    pub arm7thread: u32,
-    pub buttons: u16,
-    pub touch: [u8; 4],
-    pub autoload: u16,
-    pub arm9lock: [u8; 8],
-    pub arm7lock: [u8; 8],
-    pub vramclock: [u8; 8],
-    pub vramdlock: [u8; 8],
-    pub wram0lock: [u8; 8],
-    pub wram1lock: [u8; 8],
-    pub slot1lock: [u8; 8],
-    pub slot2lock: [u8; 8],
-    pub initlock: [u8; 8],
-    pub arm9memc: u16,
-    pub arm7memc: u16,
-    pub memcmd: u16,
-    pub wat: u16,
+    pub header_again: ShortNDSHeader,
+    _0x660: [u8; 0xA0],
 }
 const_assert!(core::mem::size_of::<BootInfoNTR>() == 0x800);

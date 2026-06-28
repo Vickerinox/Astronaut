@@ -1,4 +1,4 @@
-use crate::bootstrap::HeaderTWL;
+use crate::bootstrap::TWLHeader;
 /*
 #[derive(Clone)]
 #[repr(C)]
@@ -196,7 +196,7 @@ impl BFCTX {
         Self { magic: [0; _] }
     }
 }
-pub unsafe fn decrypt_secure_area(header: &HeaderTWL) {
+pub unsafe fn decrypt_secure_area(header: &TWLHeader) {
     if (0x4000..0x8000).contains(&header.head.arm9_offset) {
         if core::slice::from_raw_parts(header.head.arm9_load as *mut u32, 2) != &[0xE7FFDEFF; 2] {}
     }
