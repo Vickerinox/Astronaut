@@ -34,10 +34,6 @@ pub enum CurrentUI {
         file: fatfs_embedded::fatfs::File,
         file_path: String,
     },
-    LoadingMusic {
-        file: fatfs_embedded::fatfs::File,
-        file_path: String,
-    },
     SpecialThanks,
 }
 pub struct AppData {
@@ -192,48 +188,7 @@ impl AppData {
                     }
 
                     None
-                }
-                CurrentUI::LoadingMusic { file, file_path } => {
-                    if ui.button("Play song").clicked() {
-                        if fatfs_embedded::seek(file, 0) == Ok(()) {
-                            Some(Box::new(|s| {
-                                if let CurrentUI::LoadingMusic { file, file_path: _ } = s {
-                                    self.loading_mod_file = Some(MODAsyncLoader::new(file));
-                                }
-                                CurrentUI::None
-                            }))
-                        } else {
-                            Some(Box::new(|_| CurrentUI::Error {
-                                error_string: "Error loading MOD".into(),
-                            }))
-                        }
-                    } else if ui.button("go back").clicked() {
-                        Some(Box::new(|_| CurrentUI::None))
-                    } else if ui.button("set default").clicked() {
-                        let mut file = match fatfs_embedded::open(
-                            &mut "sdmc:/_nds/vLaunch/music.bin".to_string(),
-                            FileOptions::Write | FileOptions::CreateAlways,
-                        ) {
-                            Ok(file) => file,
-                            Err(what) => panic!("{:?}", what),
-                        };
-                        if file_path.len() < 1000 {
-                            let bytes = file_path.as_bytes();
-                            match fatfs_embedded::write(&mut file, bytes) {
-                                Ok(len) => assert_eq!(len as usize, bytes.len()),
-                                _ => panic!(),
-                            };
-                            fatfs_embedded::truncate(&mut file).unwrap();
-
-                            self.sdmc_fs.sync(&mut file).unwrap()
-                        }
-
-                        pop_dir_entry(file_path);
-                        None
-                    } else {
-                        None
-                    }
-                }
+                },
                 CurrentUI::Browsing {
                     immediate_files,
                     file_path: current_path,
@@ -320,15 +275,11 @@ impl AppData {
                                     current_path.push_str(&item.1);
                                     match fatfs_embedded::open(current_path, FileOptions::Read) {
                                         Ok(module) => {
-                                            let bajs = current_path.clone();
-                                            new_state =
-                                                Some(Box::new(|_| CurrentUI::LoadingMusic {
-                                                    file: module,
-                                                    file_path: bajs,
-                                                }));
+                                            self.loading_mod_file = Some(MODAsyncLoader::new(module));
                                         }
-                                        Err(_abort) => pop_dir_entry(current_path),
+                                        Err(_abort) => (),
                                     }
+                                    pop_dir_entry(current_path);
                                 }
                             }
                         }
