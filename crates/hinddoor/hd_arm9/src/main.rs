@@ -3,6 +3,7 @@
 #![feature(ptr_metadata)]
 #![feature(str_from_utf16_endian)]
 #![feature(str_from_raw_parts)]
+#![feature(str_split_remainder)]
 
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 
@@ -44,12 +45,12 @@ extern crate alloc;
 
 mod autoboot;
 mod boot;
+pub mod configuration;
 pub mod fat;
 mod gui;
 mod mbr;
 mod nand;
 pub mod new_takeover;
-pub mod configuration;
 #[repr(C)]
 pub struct NandAutobootEntry {
     category: u16,
@@ -453,7 +454,6 @@ unsafe fn main() {
         (&raw mut (*ptr).autoboot).write(None);
         (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
         (&raw mut (*ptr).loading_mod_file).write(None);
-        
 
         let app_data = app_area.app_data.assume_init_mut();
         let _ = app_data

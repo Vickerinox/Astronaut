@@ -122,7 +122,6 @@ pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
-
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct NDSHeader {

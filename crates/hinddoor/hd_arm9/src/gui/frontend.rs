@@ -43,7 +43,7 @@ pub struct AppData {
     pub loading_mod_file: Option<MODAsyncLoader>,
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
-    pub config: crate::configuration::Config
+    pub config: crate::configuration::Config,
 }
 
 pub struct FileEntry {
@@ -79,16 +79,15 @@ impl AppData {
     }
     pub unsafe fn autoboot(&mut self) {
         let mut path = core::mem::take(&mut self.config.autoboot);
-        let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {return};
+        let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {
+            return;
+        };
         (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
         //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
         crate::boot::boot_app(&mut file, &path, self);
     }
     pub fn play_startup_music(&mut self) {
-        match fatfs_embedded::open(
-            &mut self.config.music,
-            FileOptions::Read,
-        ) {
+        match fatfs_embedded::open(&mut self.config.music, FileOptions::Read) {
             Ok(file) => {
                 stop_mod_file();
                 self.loading_mod_file = Some(MODAsyncLoader::new(file));
@@ -160,7 +159,10 @@ impl AppData {
                             res = Some(Box::new(move |_| sd))
                         }
                     }
-                    ui.add(Checkbox::new(&mut self.config.patch_flag, "Enable patching"));
+                    ui.add(Checkbox::new(
+                        &mut self.config.patch_flag,
+                        "Enable patching",
+                    ));
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
                         res = Some(Box::new(|_| CurrentUI::SpecialThanks));
                     }
@@ -188,7 +190,7 @@ impl AppData {
                     }
 
                     None
-                },
+                }
                 CurrentUI::Browsing {
                     immediate_files,
                     file_path: current_path,
@@ -275,7 +277,8 @@ impl AppData {
                                     current_path.push_str(&item.1);
                                     match fatfs_embedded::open(current_path, FileOptions::Read) {
                                         Ok(module) => {
-                                            self.loading_mod_file = Some(MODAsyncLoader::new(module));
+                                            self.loading_mod_file =
+                                                Some(MODAsyncLoader::new(module));
                                         }
                                         Err(_abort) => (),
                                     }

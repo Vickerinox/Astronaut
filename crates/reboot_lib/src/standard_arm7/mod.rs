@@ -146,7 +146,7 @@ pub fn main_arm7() {
             (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19)) / 2;
         let y_offset =
             (((adcy1 as i32 + adcy2 as i32) * y_scale) - ((scry1 as i32 + scry2 as i32) << 19)) / 2;
-        
+
         let mut last_x = 0;
         let mut last_y = 0;
         let mut pen_down = false;
