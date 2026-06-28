@@ -90,21 +90,10 @@ impl AppData {
     }
     pub fn play_startup_music(&mut self) {
         match fatfs_embedded::open(
-            &mut "sdmc:/_nds/vlaunch/music.bin".to_string(),
+            &mut self.config.music,
             FileOptions::Read,
         ) {
-            Ok(mut file) => {
-                let size = fatfs_embedded::size(&mut file) as usize;
-                let mut path_buf: Vec<u8> = alloc::vec![0; size];
-                if fatfs_embedded::read(&mut file, &mut path_buf).is_err() {
-                    return;
-                }
-                let Ok(mut str) = String::from_utf8(path_buf) else {
-                    return;
-                };
-                let Ok(file) = fatfs_embedded::open(&mut str, FileOptions::Read) else {
-                    return;
-                };
+            Ok(file) => {
                 stop_mod_file();
                 self.loading_mod_file = Some(MODAsyncLoader::new(file));
             }

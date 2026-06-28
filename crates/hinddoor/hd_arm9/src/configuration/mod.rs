@@ -4,11 +4,12 @@ use fatfs_embedded::fatfs::FileOptions;
 pub struct Config {
     pub patch_flag: bool,
     pub autoboot: String,
+    pub music: String,
     pub ini: String,
 }
 impl Config {
     pub const fn default() -> Self {
-        Self { patch_flag: true, autoboot: String::new(), ini: String::new()}
+        Self { patch_flag: true, autoboot: String::new(), ini: String::new(), music: String::new()}
     }
     pub fn load() -> Self {
         fatfs_embedded::open(
@@ -21,10 +22,16 @@ impl Config {
             crate::boot::read_all(&mut path_buf, &mut file).ok()?;
             let str = String::from_utf8(path_buf).ok()?;
             let ini = ini::Ini::new(&str);
-
+            
             let autoboot = ini.get("[boot]").and_then(|i| i.get("default")).unwrap_or("").to_string();
-            let patch_flag = ini.get("[options]").and_then(|i| i.get("patching")).map(|i| i=="on").unwrap_or(true);
-            Some(Config { patch_flag, autoboot, ini: str })
+            let (patch_flag, music)=  if let Some(i) = ini.get("[options]") {
+                (i.get("patching").map(|i| i=="on"), i.get("music"))
+            } else {
+                (None, None)
+            };
+            let music = music.unwrap_or("").to_string();
+            let patch_flag = patch_flag.unwrap_or(true);
+            Some(Config { patch_flag, autoboot, music, ini: str })
         }).unwrap_or(Config::default())
     }
 }
