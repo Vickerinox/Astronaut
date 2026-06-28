@@ -239,10 +239,10 @@ impl AppData {
                     if ui.input_pressed(Input(Buttons::DIRECTION_DOWN)) {
                         control_dir = -1;
                     }
-                    if ui.input_down(Input(Buttons::DIRECTION_UP)) {
+                    if ui.input_down(Input(Buttons::DIRECTION_UP)) && ui.has_focus_anywhere() {
                         *hold_timer += 1;
                         ui.request_repaint();
-                    } else if ui.input_down(Input(Buttons::DIRECTION_DOWN)) {
+                    } else if ui.input_down(Input(Buttons::DIRECTION_DOWN)) && ui.has_focus_anywhere() {
                         *hold_timer -= 1;
                         ui.request_repaint();
                     } else {
