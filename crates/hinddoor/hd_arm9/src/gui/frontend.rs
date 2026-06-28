@@ -210,19 +210,21 @@ impl AppData {
                         *drag_start += new_drag;
                         *offset -= new_drag as i32;
                         *offset = (*offset)
-                            .min(((immediate_files.len()) as i32 * ITEM_SPACING) - (ITEM_SPACING * 10))
+                            .min(
+                                ((immediate_files.len()) as i32 * ITEM_SPACING)
+                                    - (ITEM_SPACING * 10),
+                            )
                             .max(0);
                     } else {
                         *drag_start = 0;
                     }
 
+                    let mut focus_on = None;
                     if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
-                        *offset = (*offset).add(ITEM_SPACING * 10)
-                            .min(((immediate_files.len()) as i32 * ITEM_SPACING) - (ITEM_SPACING * 10));
+                        focus_on = Some(9);
                     }
                     if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) {
-                        *offset = (*offset).sub(ITEM_SPACING * 10)
-                            .max(0);
+                        focus_on = Some(0);
                     }
 
                     let shown_items = immediate_files
@@ -242,7 +244,9 @@ impl AppData {
                     if ui.input_down(Input(Buttons::DIRECTION_UP)) && ui.has_focus_anywhere() {
                         *hold_timer += 1;
                         ui.request_repaint();
-                    } else if ui.input_down(Input(Buttons::DIRECTION_DOWN)) && ui.has_focus_anywhere() {
+                    } else if ui.input_down(Input(Buttons::DIRECTION_DOWN))
+                        && ui.has_focus_anywhere()
+                    {
                         *hold_timer -= 1;
                         ui.request_repaint();
                     } else {
@@ -269,7 +273,7 @@ impl AppData {
                     );
                     let rect2 = micro_imgui::Rect::from_two_pos(
                         SCREEN_RECT.bottom_left() - Vec2::new(0, 8 as _),
-                        SCREEN_RECT.bottom_right() + Vec2::new(0, 1),
+                        SCREEN_RECT.bottom_right(),
                     );
 
                     let color = BACKGROUND_COLOR;
@@ -285,6 +289,10 @@ impl AppData {
                         ));
                         if response.focused() {
                             focus = Some(i);
+                        }
+                        if Some(i) == focus_on {
+                            ui.set_focus(&response);
+                            ui.request_repaint();
                         }
                         if response.clicked() {
                             if item.2 {
@@ -335,6 +343,20 @@ impl AppData {
                         outline_size: 0,
                     });
 
+                    if focus == focus_on {
+                        if focus_on == Some(0) {
+                            *offset = (*offset).sub(ITEM_SPACING * 10).max(0);
+                        }
+                        if focus_on == Some(9) {
+                            *offset = (*offset)
+                                .add(ITEM_SPACING * 10)
+                                .min(
+                                    ((immediate_files.len()) as i32 * ITEM_SPACING)
+                                        - (ITEM_SPACING * 10),
+                                )
+                                .max(0);
+                        }
+                    }
                     if control_dir == 1 {
                         if focus == Some(0) && *offset > 0 {
                             *offset = offset.wrapping_sub(ITEM_SPACING).max(0);

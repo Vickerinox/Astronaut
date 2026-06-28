@@ -76,7 +76,9 @@ impl<'a, B: Backend> Frame<'a, B> {
     pub fn has_focus_anywhere(&mut self) -> bool {
         self.ctx.focused_response.is_some()
     }
-
+    pub fn focus_on(&mut self, id: Id) {
+        self.focused_response = Some(id)
+    }
     pub fn focus_next(&mut self) {
         self.focus_dir = 1;
     }
@@ -117,7 +119,7 @@ impl<'a, B: Backend> Frame<'a, B> {
             || (ctx.pressed_response == Some(id)
                 && ctx.backend.input_released(B::InputQuery::POINTER_PRESS));
 
-        if focused {
+        if focused && focused_response.is_none() {
             *focused_response = Some(id)
         } else {
             if sense.contains(Sense::FOCUSED) {

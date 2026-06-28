@@ -7,7 +7,7 @@ use reboot_lib::Buttons;
 
 pub const SCREEN_RECT: micro_imgui::Rect = micro_imgui::Rect {
     min: Vec2::ZERO,
-    max: Vec2::new(255, 191),
+    max: Vec2::new(256, 192),
 };
 pub mod gui;
 use crate::gui::VideoTextPass;
