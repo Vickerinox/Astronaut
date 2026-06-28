@@ -2,10 +2,11 @@ use core::fmt::Debug;
 
 use alloc::string::{String, ToString};
 use common::{
-    blowfish::BFCTX, bootstrap::{BOOTINFO_MEM, BootInfoTWL, HeaderTWL},
+    blowfish::BFCTX,
+    bootstrap::{BootInfoTWL, HeaderTWL, BOOTINFO_MEM},
 };
 use fatfs_embedded::fatfs::FileOptions;
-use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, Viewport, swi_crc16};
+use reboot_lib::{swi_crc16, DisplayControl, VideoPowerControl, Viewport, VIDEO_HARDWARE};
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
@@ -27,7 +28,9 @@ impl Debug for BootError {
         }
     }
 }
-use crate::{APP_AREA_START, AppArea, BOOTSTRAP_BINARY, INTERRUPT_TABLE, gui::AppData, set_background};
+use crate::{
+    gui::AppData, set_background, AppArea, APP_AREA_START, BOOTSTRAP_BINARY, INTERRUPT_TABLE,
+};
 
 unsafe fn read_all(
     mut buffer: &mut [u8],
@@ -44,7 +47,6 @@ unsafe fn read_all(
 }
 
 pub unsafe fn setup_shared_mem(mem: &mut BootInfoTWL) {
-
     mem.ntr.header_again = mem.twl_header.head.clone();
     mem.ntr.header = mem.twl_header.head.clone();
 
@@ -66,16 +68,21 @@ pub unsafe fn setup_shared_mem(mem: &mut BootInfoTWL) {
     mem.sysmenu_id.clone_from_slice(b"00000009\0");
     mem.init_code = b'P';
 
-    let Ok(mut file) = fatfs_embedded::open(&mut "nand:/sys/HWINFO_S.dat".to_string(), FileOptions::Read) else {return};
-    if fatfs_embedded::seek(&mut file, 0x88).is_ok() {
-        if read_all(&mut mem.ntr.hardware_info, &mut file).is_ok() {
-
-        } else {
-
-        }
-        
-    }
-
+    const HWINFO_TEMPLATE: [u8; 24] = [
+        0x26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x41, 0x41, 0x41, 0x31, 0x32, 0x33,
+        0x34, 0x35, 0x36, 0x37, 0x38, 0x00, 0x00, 0x00, 0x3C,
+    ];
+    let hw_info_data =
+        fatfs_embedded::open(&mut "nand:/SYS/HWINFO_S.dat".to_string(), FileOptions::Read)
+            .ok()
+            .and_then(|mut file| {
+                fatfs_embedded::seek(&mut file, 0x88).ok()?;
+                let mut buffer = [0u8; 24];
+                read_all(&mut buffer, &mut file).ok()?;
+                Some(buffer)
+            })
+            .unwrap_or(HWINFO_TEMPLATE);
+    mem.ntr.hardware_info = hw_info_data;
 }
 
 #[inline]
@@ -83,7 +90,7 @@ unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
     header: &mut BootInfoTWL,
-    app_data: &mut AppData
+    app_data: &mut AppData,
 ) -> ! {
     crate::stop_mod_file();
     let boot_info = header;
@@ -103,11 +110,9 @@ unsafe fn boot_unreturnable(
             pub_path.push_str("pub");
         }
 
-        
         common::device_list::init(boot_info, file_path, &pub_path, &prv_path);
+    }
 
-    }    
-    
     core::ptr::write_volatile(&mut boot_info.other[0], 0);
 
     setup_shared_mem(boot_info);
@@ -134,8 +139,8 @@ unsafe fn boot_unreturnable(
         reboot_lib::nocash_write("> Inserted ARGV \n");
     }
 
-    unsafe { reboot_lib::ALLOCATOR.invalidate()};
-    
+    unsafe { reboot_lib::ALLOCATOR.invalidate() };
+
     let arm9_ram = core::slice::from_raw_parts_mut(
         boot_info.twl_header.head.arm9_load as *mut u8,
         boot_info.twl_header.head.arm9_size as usize,
@@ -151,8 +156,6 @@ unsafe fn boot_unreturnable(
     );
     fatfs_embedded::seek(r, boot_info.twl_header.head.arm7_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
-
-    
 
     reboot_lib::nocash_write("> ARM7 binary loaded \n");
 
@@ -243,7 +246,10 @@ unsafe fn boot_unreturnable(
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
     if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15 {
         set_background(0x7FFF);
-        VIDEO_HARDWARE.geometry_commands.pipeline_swap_buffers.write(0);
+        VIDEO_HARDWARE
+            .geometry_commands
+            .pipeline_swap_buffers
+            .write(0);
         VIDEO_HARDWARE.engine_a_ctrl.write(DisplayControl::empty());
         VIDEO_HARDWARE.disp_b_control.write(DisplayControl::empty());
 
@@ -252,7 +258,8 @@ unsafe fn boot_unreturnable(
     const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     reboot_lib::flush_mmc();
     reboot_lib::flush_mmc();
-    let _boot_func = reboot_lib::arm9_send_arm7_jump(boot_info.twl_header.head.arm7_entry).unwrap_err();
+    let _boot_func =
+        reboot_lib::arm9_send_arm7_jump(boot_info.twl_header.head.arm7_entry).unwrap_err();
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }

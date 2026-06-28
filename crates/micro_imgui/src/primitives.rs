@@ -269,5 +269,5 @@ pub enum Shape<'a, I> {
     Image {
         bounds: Rect,
         image: I,
-    }
+    },
 }

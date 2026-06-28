@@ -197,25 +197,28 @@ impl AppData {
                         res = Some(Box::new(|_| CurrentUI::SpecialThanks));
                     }
                     ui.add_space(82);
-                    ui.label(concat!("build commit: ",env!("GIT_HASH")));
+                    ui.label(concat!("build commit: ", env!("GIT_HASH")));
                     res
                 }
                 CurrentUI::LoadingApp { file, file_path } => {
                     ui.request_repaint();
-                    
+
                     let mut swap = CurrentUI::None;
                     core::mem::swap(&mut self.current_ui, &mut swap);
-                    if let CurrentUI::LoadingApp { mut file, file_path } = swap {
+                    if let CurrentUI::LoadingApp {
+                        mut file,
+                        file_path,
+                    } = swap
+                    {
                         let error = unsafe {
-                        (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
-                        boot::boot_app(&mut file, &file_path, self)
+                            (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
+                            boot::boot_app(&mut file, &file_path, self)
                         };
                         unsafe { (*(APP_AREA_START as *mut AppArea)).fader.target.write(0) };
                         let error_string = alloc::format!("Failed to boot file: {error:?}");
                         self.current_ui = CurrentUI::Error { error_string };
-                    
                     }
-                    
+
                     None
                 }
                 CurrentUI::LoadingMusic { file, file_path } => {
@@ -290,7 +293,6 @@ impl AppData {
                     }
 
                     if ui.input_pressed(Input(Buttons::DIRECTION_DOWN)) {
-                        
                         control_dir = -1;
                     }
 
@@ -314,17 +316,15 @@ impl AppData {
                     let items = if in_step == 0 { 10 } else { 11 };
                     let mut focus = None;
                     for (i, item) in shown_items.iter().take(items).enumerate() {
-                        let response = ui
-                            .add(Button::new(
-                                &item.0,
-                                Sizing::Padded(Vec2::new(248, 8)),
-                                item.3,
-                            ));
+                        let response = ui.add(Button::new(
+                            &item.0,
+                            Sizing::Padded(Vec2::new(248, 8)),
+                            item.3,
+                        ));
                         if response.focused() {
                             focus = Some(i);
                         }
-                        if response.clicked()
-                        {
+                        if response.clicked() {
                             if item.2 {
                                 current_path.push_str(&item.1);
                                 current_path.push('/');
@@ -381,27 +381,30 @@ impl AppData {
                             *offset = offset.wrapping_sub(ITEM_SPACING).max(0);
                             ui.cancel_refocus();
                         }
-                        
+
                         *offset -= in_step;
-                        
-                    }
-                    else if control_dir == -1 {
+                    } else if control_dir == -1 {
                         if focus == Some(9) && shown_items.len() >= 11 {
                             *offset = offset.saturating_add(ITEM_SPACING);
                             ui.cancel_refocus();
                         }
-                        
+
                         *offset -= in_step;
-                        
                     }
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) && new_folder.is_none() {
-                        if ["nand:/","sdmc:/"].contains(&current_path.as_str()) {
+                        if ["nand:/", "sdmc:/"].contains(&current_path.as_str()) {
                             new_state = Some(Box::new(|_| CurrentUI::None));
                         } else {
                             pop_dir_entry(current_path);
                             match fatfs_embedded::opendir(current_path) {
-                               Ok(f) => {new_folder = Some(f);}
-                               Err(_err) => {new_state = Some(Box::new(|_| CurrentUI::Error { error_string: format!("Filesystem error!") }));}
+                                Ok(f) => {
+                                    new_folder = Some(f);
+                                }
+                                Err(_err) => {
+                                    new_state = Some(Box::new(|_| CurrentUI::Error {
+                                        error_string: format!("Filesystem error!"),
+                                    }));
+                                }
                             }
                         }
                     }
@@ -422,18 +425,18 @@ impl AppData {
                         "rmc",
                         "PoroCYon",
                         "AntonioND",
-                        "and you!",        
+                        "and you!",
                     ];
                     for name in names {
                         ui.label(name);
                     }
-                    
+
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) {
                         Some(Box::new(|_| CurrentUI::None))
                     } else {
                         None
                     }
-                },
+                }
             };
             if let Some(new_state) = new_state_fn {
                 let mut current_ui = CurrentUI::None;

@@ -3,9 +3,13 @@ use core::ptr::write_volatile as w;
 use crate::device_list::DeviceList;
 
 #[cfg(not(target_arch = "arm"))]
-pub unsafe fn boot_arm9() -> ! { loop {}}
+pub unsafe fn boot_arm9() -> ! {
+    loop {}
+}
 #[cfg(not(target_arch = "arm"))]
-pub unsafe fn boot_arm7() -> ! { loop {}}
+pub unsafe fn boot_arm7() -> ! {
+    loop {}
+}
 
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
@@ -406,7 +410,7 @@ pub const BOOTINFO_MEM: *mut BootInfoTWL = 0x2FFC000 as *mut BootInfoTWL;
 #[repr(C)]
 pub struct BootInfoTWL {
     pub card_header: HeaderTWL,
-    
+
     _0x1400: [u8; 0x7B0],
     pub sysmenu_id: [u8; 9],
     pub init_code: u8,
@@ -416,7 +420,7 @@ pub struct BootInfoTWL {
     pub mountinfo: [u8; 0x3C0],
     pub boot_path: [u8; 0x40],
     pub twl_header: HeaderTWL,
-    
+
     pub other: [u8; 0x280],
     // UNOFFICIAL
     pub device_list_copy: DeviceList,
@@ -479,9 +483,7 @@ pub struct BootMethod {
     _0x3e: u16,
 }
 #[repr(C)]
-pub struct FirmwareData {
-
-}
+pub struct FirmwareData {}
 #[repr(C)]
 pub struct BootInfoNTR {
     //_0x0: [u8; 0x800],

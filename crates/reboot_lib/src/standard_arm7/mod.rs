@@ -122,14 +122,14 @@ pub fn main_arm7() {
         } else {
             settings_offset + 0x100
         };
-        
+
         let boot_info = &mut (*BOOTINFO_MEM).ntr;
         let user = &mut boot_info.firmware_data;
         let mac = &mut boot_info.mac_address;
         SPI_HARDWARE.read_firmware(user, offset);
         SPI_HARDWARE.read_firmware(mac, 0x36);
         boot_info.wifi_channels = [0x41, 0x10];
-        
+
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
         let scrx1 = user[0x5C];
@@ -369,9 +369,7 @@ pub fn main_arm7() {
     }
 }
 
-
 pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
-
     AES_HARDWARE.master_control.write(AESCnt::empty());
     AES_HARDWARE.reset();
     AES_HARDWARE.reset();
@@ -379,26 +377,26 @@ pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
     AES_HARDWARE.set_key_slot(0);
     AES_HARDWARE.wait_key_busy();
 
-    for (d,i) in mem.chunks_exact_mut(4).enumerate() {
+    for (d, i) in mem.chunks_exact_mut(4).enumerate() {
         AES_HARDWARE.master_control.write(AESCnt::empty());
         AES_HARDWARE.reset();
-        
+
         AES_HARDWARE.load_iv(&key);
         add_on_key(&mut key, 1);
-        AES_HARDWARE.payload_blocks.write(1); 
-        AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1<<31));
+        AES_HARDWARE.payload_blocks.write(1);
+        AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1 << 31));
 
         while AES_HARDWARE.master_control.read().bits() & 0x1F != 0 {}
         for word in i.iter() {
             AES_HARDWARE.write_fifo.write(*word);
         }
-        
+
         while (AES_HARDWARE.master_control.read().bits() >> 5) & 0x1F != i.len() as u32 {}
         for word in i {
             *word = AES_HARDWARE.read_fifo.read();
         }
     }
-    AES_HARDWARE.wait_aes_busy();       
+    AES_HARDWARE.wait_aes_busy();
 }
 
 pub unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {

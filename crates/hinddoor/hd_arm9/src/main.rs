@@ -180,7 +180,9 @@ unsafe fn init_font() {
 
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     //setup 3d hardware
-    VIDEO_HARDWARE.power_control.write(VideoPowerControl::all()^VideoPowerControl::ENGINE_A_ON_TOP);
+    VIDEO_HARDWARE
+        .power_control
+        .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
     VIDEO_HARDWARE
         .vram_control_bank_a
         .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK A
@@ -367,7 +369,7 @@ unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
-        
+
         (&raw mut (*app_area.app_data.as_mut_ptr()).blowfish)
             .write((*(0x1FFC894 as *const BFCTX)).clone());
         VIDEO_HARDWARE
@@ -408,7 +410,6 @@ unsafe fn main() {
             0b00000000000000001_0000_0000_0000_0_000,
         );
 
-        
         //copy font to vram
         init_font();
         steal_main_mem();
@@ -452,7 +453,6 @@ unsafe fn main() {
         (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
         (&raw mut (*ptr).loading_mod_file).write(None);
         (&raw mut (*ptr).patch_flag).write(true);
-        
 
         let app_data = app_area.app_data.assume_init_mut();
         let _ = app_data
@@ -489,9 +489,6 @@ unsafe fn main() {
                 app_data.autoboot();
             }
         }
-
-
-        
 
         app_data.play_startup_music();
         app_area.fader.target.write(0);

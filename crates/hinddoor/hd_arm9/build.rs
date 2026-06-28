@@ -1,7 +1,6 @@
 // build.rs
 use std::process::Command;
 
-
 #[derive(Debug)]
 pub enum Block {
     Uncompressed(u8),
@@ -141,11 +140,12 @@ fn decompress(data: &[u8]) -> Vec<u8> {
     output
 }
 
-
-
 fn main() {
     // add git commit hash to env
-    let output = Command::new("git").args(&["rev-parse", "HEAD"]).output().unwrap();
+    let output = Command::new("git")
+        .args(&["rev-parse", "HEAD"])
+        .output()
+        .unwrap();
     let git_hash = String::from_utf8(output.stdout).unwrap();
     println!("cargo:rustc-env=GIT_HASH={}", &git_hash[..8]);
 
@@ -153,8 +153,5 @@ fn main() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("font_compressed.bin");
     let compressed_font = compress(include_bytes!("./resources/font.bin"));
-    std::fs::write(
-        &dest_path,
-        &compressed_font
-    ).unwrap();
+    std::fs::write(&dest_path, &compressed_font).unwrap();
 }

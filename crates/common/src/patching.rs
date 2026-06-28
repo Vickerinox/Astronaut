@@ -1,4 +1,4 @@
-use crate::bootstrap::{BOOTINFO_MEM, HeaderTWL};
+use crate::bootstrap::{HeaderTWL, BOOTINFO_MEM};
 
 const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
     blocks: &[
@@ -182,9 +182,10 @@ fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
 }
 pub unsafe fn look_for_launcher_patch(header: &HeaderTWL) {
     if header.title_id & !0xFF == 0x00030017_484E4100 {
-        let binary = core::slice::from_raw_parts_mut(header.head.arm9_load as *mut u16, header.head.arm9_size as usize /2 );
-        if app_vlaunch_patch(binary, &LAUNCHER_ARM9_PATCH) != VPatchResult::Ok {
-                        
-        };
+        let binary = core::slice::from_raw_parts_mut(
+            header.head.arm9_load as *mut u16,
+            header.head.arm9_size as usize / 2,
+        );
+        if app_vlaunch_patch(binary, &LAUNCHER_ARM9_PATCH) != VPatchResult::Ok {};
     }
 }

@@ -1,6 +1,6 @@
 use core::ops::BitOr;
 
-use crate::bootstrap::{BOOTINFO_MEM, BootInfoTWL, HeaderTWL};
+use crate::bootstrap::{BootInfoTWL, HeaderTWL, BOOTINFO_MEM};
 pub struct DeviceListBuilder<'a> {
     list: &'a mut DeviceList,
     drive_count: usize,
@@ -77,7 +77,7 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
     if header.twl_header.public_save_size != 0 {
         add_save(&mut list_builder, pub_sav_path, "dataPub", b'H');
     }
-    /* 
+    /*
     list_builder.add_drive(DeviceEntry::new(
         b'C',
         DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
@@ -88,7 +88,7 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
     */
 }
 pub fn add_save(builder: &mut DeviceListBuilder, path: &str, name: &str, drive: u8) {
-    let drive_sort = DeviceFlags::FILEBASED; 
+    let drive_sort = DeviceFlags::FILEBASED;
     builder.add_drive(DeviceEntry::new(
         drive,
         drive_sort,

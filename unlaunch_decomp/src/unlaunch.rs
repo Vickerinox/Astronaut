@@ -1,4 +1,3 @@
-
 unsafe fn arm7_main() {
     //0x6023D04
     fun_0602bfc8(); // set 0x4000210 to 0 (disables interrupts)

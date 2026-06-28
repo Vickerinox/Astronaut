@@ -1,5 +1,7 @@
 use crate::{
-    Backend, Color, Rect, Response, Sense, Shape, Vec2, primitives::Sizing, ui::{AutoAdd, Ui},
+    primitives::Sizing,
+    ui::{AutoAdd, Ui},
+    Backend, Color, Rect, Response, Sense, Shape, Vec2,
 };
 
 pub struct Checkbox<'a> {
@@ -8,17 +10,12 @@ pub struct Checkbox<'a> {
 }
 impl<'a> Checkbox<'a> {
     pub fn new(option: &'a mut bool, text: &'a str) -> Self {
-        Self {
-            text, option
-        }
+        Self { text, option }
     }
 }
 impl<'t> AutoAdd for Checkbox<'t> {
     fn ui<'a, 'b, B: Backend>(self, ui: &mut Ui<'a, 'b, B>) -> Response {
-        let Self {
-            text,
-            option,
-        } = self;
+        let Self { text, option } = self;
         let prep_size = Vec2::new(0, 8);
         let bounds = ui
             .prepare_complication(prep_size)
@@ -44,26 +41,23 @@ impl<'t> AutoAdd for Checkbox<'t> {
             (Color::new(20, 20, 20), Color::new(100, 100, 100))
         };
 
-        let checkbox = Rect::from_min_size(resp.rect.top_left(), Vec2::unit(8)).translate(Vec2::unit(1));
-        ui.draw(
-            Shape::Rectangle {
-                area: checkbox,
-                fill,
+        let checkbox =
+            Rect::from_min_size(resp.rect.top_left(), Vec2::unit(8)).translate(Vec2::unit(1));
+        ui.draw(Shape::Rectangle {
+            area: checkbox,
+            fill,
+            rounding: 1,
+            outline_color,
+            outline_size: 1,
+        });
+        if *option {
+            ui.draw(Shape::Rectangle {
+                area: checkbox.scale_uniform(-2),
+                fill: Color::new(200, 200, 200),
                 rounding: 1,
                 outline_color,
                 outline_size: 1,
-            },
-        );
-        if *option {
-            ui.draw(
-                Shape::Rectangle {
-                    area: checkbox.scale_uniform(-2),
-                    fill: Color::new(200, 200, 200),
-                    rounding: 1,
-                    outline_color,
-                    outline_size: 1,
-                },
-            );  
+            });
         }
         if resp.clicked() {
             *option = !*option;
