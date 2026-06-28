@@ -33,6 +33,12 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     pub fn has_focus_anywhere(&mut self) -> bool {
         self.ctx.has_focus_anywhere()
     }
+    pub fn focus_next(&mut self) {
+        self.ctx.focus_next();
+    }
+    pub fn focus_prev(&mut self) {
+        self.ctx.focus_prev();
+    }
     pub fn button<'c>(&mut self, text: &str) -> response::Response {
         self.add(Button::new(
             text,

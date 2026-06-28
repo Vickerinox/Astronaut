@@ -1,3 +1,5 @@
+use core::ops::{Add, Sub};
+
 use crate::{
     boot,
     gui::{self, Input},
@@ -29,6 +31,7 @@ pub enum CurrentUI {
         file_path: String,
         offset: i32,
         drag_start: i16,
+        hold_timer: i16,
     },
     LoadingApp {
         file: fatfs_embedded::fatfs::File,
@@ -62,6 +65,7 @@ impl AppData {
                 file_path,
                 offset: 0,
                 drag_start: 0,
+                hold_timer: 0,
             }
         })
     }
@@ -74,6 +78,7 @@ impl AppData {
                 file_path,
                 offset: 0,
                 drag_start: 0,
+                hold_timer: 0,
             }
         })
     }
@@ -196,6 +201,7 @@ impl AppData {
                     file_path: current_path,
                     offset,
                     drag_start,
+                    hold_timer,
                 } => {
                     const ITEM_SPACING: i32 = 14;
 
@@ -204,10 +210,19 @@ impl AppData {
                         *drag_start += new_drag;
                         *offset -= new_drag as i32;
                         *offset = (*offset)
-                            .min(((immediate_files.len() * 14) as i32) - (ITEM_SPACING * 10))
+                            .min(((immediate_files.len()) as i32 * ITEM_SPACING) - (ITEM_SPACING * 10))
                             .max(0);
                     } else {
                         *drag_start = 0;
+                    }
+
+                    if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
+                        *offset = (*offset).add(ITEM_SPACING * 10)
+                            .min(((immediate_files.len()) as i32 * ITEM_SPACING) - (ITEM_SPACING * 10));
+                    }
+                    if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) {
+                        *offset = (*offset).sub(ITEM_SPACING * 10)
+                            .max(0);
                     }
 
                     let shown_items = immediate_files
@@ -223,6 +238,24 @@ impl AppData {
 
                     if ui.input_pressed(Input(Buttons::DIRECTION_DOWN)) {
                         control_dir = -1;
+                    }
+                    if ui.input_down(Input(Buttons::DIRECTION_UP)) {
+                        *hold_timer += 1;
+                        ui.request_repaint();
+                    } else if ui.input_down(Input(Buttons::DIRECTION_DOWN)) {
+                        *hold_timer -= 1;
+                        ui.request_repaint();
+                    } else {
+                        *hold_timer = 0;
+                    }
+                    if hold_timer.abs() > 30 && (*hold_timer & 1 == 0) {
+                        if hold_timer.is_negative() {
+                            ui.focus_next();
+                            control_dir = -1;
+                        } else {
+                            ui.focus_prev();
+                            control_dir = 1
+                        }
                     }
 
                     let mut new_state: Option<
