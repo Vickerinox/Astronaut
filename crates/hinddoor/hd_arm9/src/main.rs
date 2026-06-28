@@ -453,7 +453,7 @@ unsafe fn main() {
         (&raw mut (*ptr).autoboot).write(None);
         (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
         (&raw mut (*ptr).loading_mod_file).write(None);
-        (&raw mut (*ptr).config).write(configuration::Config::load());
+        
 
         let app_data = app_area.app_data.assume_init_mut();
         let _ = app_data
@@ -462,6 +462,8 @@ unsafe fn main() {
         let _ = app_data
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
+
+        (&raw mut (*ptr).config).write(configuration::Config::load());
 
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
 
