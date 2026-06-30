@@ -102,7 +102,7 @@ impl AESEngine {
     //crypt a block of data in place
     pub unsafe fn ctr_crypt_block(&self, data: &mut [u32], ctr: &[u32; 4]) {
         let len = data.len() as u32;
-        use crate::ndma::{Control, NDMA_HARDWARE};
+        use crate::ndma::{NDMAControl, NDMA_HARDWARE};
         self.master_control.write(AESCnt::empty());
         self.reset();
         self.load_iv(ctr);
@@ -113,22 +113,22 @@ impl AESEngine {
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control: Control::DST_MODE_FIXED
-                | Control::SRC_MODE_INCREMENT
-                | Control::BLOCK_SIZE_4
-                | Control::START_ARM7_WRITE_AES
-                | Control::ENABLE,
+            control: NDMAControl::DST_MODE_FIXED
+                | NDMAControl::SRC_MODE_INCREMENT
+                | NDMAControl::BLOCK_SIZE_4
+                | NDMAControl::START_ARM7_WRITE_AES
+                | NDMAControl::ENABLE,
         };
         let out_dma = crate::ndma::ChannelConfig {
             word_count: len,
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control: Control::SRC_MODE_FIXED
-                | Control::DST_MODE_INCREMENT
-                | Control::BLOCK_SIZE_4
-                | Control::START_ARM7_READ_AES
-                | Control::ENABLE,
+            control: NDMAControl::SRC_MODE_FIXED
+                | NDMAControl::DST_MODE_INCREMENT
+                | NDMAControl::BLOCK_SIZE_4
+                | NDMAControl::START_ARM7_READ_AES
+                | NDMAControl::ENABLE,
         };
         let ptr = data as *mut [u32] as *mut u32;
         NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
@@ -145,7 +145,7 @@ impl AESEngine {
     //crypt a block of data in place
     pub unsafe fn ctr_crypt_block_cpu(&self, data: &mut [u32], ctr: &[u32; 4]) {
         let len = data.len() as u32;
-        use crate::ndma::{Control, NDMA_HARDWARE};
+        use crate::ndma::{NDMAControl, NDMA_HARDWARE};
         self.master_control.write(AESCnt::empty());
         self.reset();
         self.load_iv(ctr);
@@ -156,22 +156,22 @@ impl AESEngine {
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control: Control::DST_MODE_FIXED
-                | Control::SRC_MODE_INCREMENT
-                | Control::BLOCK_SIZE_4
-                | Control::START_ARM7_WRITE_AES
-                | Control::ENABLE,
+            control: NDMAControl::DST_MODE_FIXED
+                | NDMAControl::SRC_MODE_INCREMENT
+                | NDMAControl::BLOCK_SIZE_4
+                | NDMAControl::START_ARM7_WRITE_AES
+                | NDMAControl::ENABLE,
         };
         let out_dma = crate::ndma::ChannelConfig {
             word_count: len,
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control: Control::SRC_MODE_FIXED
-                | Control::DST_MODE_INCREMENT
-                | Control::BLOCK_SIZE_4
-                | Control::START_ARM7_READ_AES
-                | Control::ENABLE,
+            control: NDMAControl::SRC_MODE_FIXED
+                | NDMAControl::DST_MODE_INCREMENT
+                | NDMAControl::BLOCK_SIZE_4
+                | NDMAControl::START_ARM7_READ_AES
+                | NDMAControl::ENABLE,
         };
         let ptr = data as *mut [u32] as *mut u32;
         //NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);

@@ -334,7 +334,7 @@ pub fn main_arm7() {
 
                         let len = header.modcrypt1_len;
 
-                        use crate::ndma::Control;
+                        use crate::ndma::NDMAControl;
 
                         let mem =
                             core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
@@ -400,7 +400,7 @@ pub unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {
         let split = (0xFFFF * 4).min(mem.len());
         let (chunk, remainder) = mem.split_at_mut(split);
         mem = remainder;
-        use crate::ndma::Control;
+        use crate::ndma::NDMAControl;
         let ptr = core::ptr::addr_of_mut!(*chunk);
 
         let in_dma = crate::ndma::ChannelConfig {
@@ -408,11 +408,11 @@ pub unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control: Control::DST_MODE_FIXED
-                | Control::SRC_MODE_INCREMENT
-                | Control::BLOCK_SIZE_4
-                | Control::START_ARM7_WRITE_AES
-                | Control::ENABLE,
+            control: NDMAControl::DST_MODE_FIXED
+                | NDMAControl::SRC_MODE_INCREMENT
+                | NDMAControl::BLOCK_SIZE_4
+                | NDMAControl::START_ARM7_WRITE_AES
+                | NDMAControl::ENABLE,
         };
 
         let out_dma = crate::ndma::ChannelConfig {
@@ -420,11 +420,11 @@ pub unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control: Control::SRC_MODE_FIXED
-                | Control::DST_MODE_INCREMENT
-                | Control::BLOCK_SIZE_4
-                | Control::START_ARM7_READ_AES
-                | Control::ENABLE,
+            control: NDMAControl::SRC_MODE_FIXED
+                | NDMAControl::DST_MODE_INCREMENT
+                | NDMAControl::BLOCK_SIZE_4
+                | NDMAControl::START_ARM7_READ_AES
+                | NDMAControl::ENABLE,
         };
         AES_HARDWARE.master_control.write(AESCnt::empty());
         AES_HARDWARE.reset();

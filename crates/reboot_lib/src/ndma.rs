@@ -4,8 +4,8 @@ pub const NDMA_HARDWARE: MemoryWrapper<NDMA> = MemoryWrapper(0x4004100 as *mut N
 
 #[repr(C)]
 pub struct NDMA {
-    global_control: WO<GlobalControl>,
-    channels: [NDMAChannel; 4],
+    pub global_control: WO<GlobalControl>,
+    pub channels: [NDMAChannel; 4],
 }
 impl NDMA {
     pub unsafe fn reset(&self) {
@@ -21,18 +21,18 @@ impl NDMAChannel {
         self.block_size.write(0);
         self.timing.write(0);
         self.fill_mode.write(0);
-        self.control.write(Control::empty());
+        self.control.write(NDMAControl::empty());
     }
 }
 #[repr(C)]
 pub struct NDMAChannel {
-    src: WO<u32>,
-    dst: WO<u32>,
-    word_count: WO<u32>,
-    block_size: WO<u32>,
-    timing: WO<u32>,
-    fill_mode: WO<u32>,
-    control: RW<Control>,
+    pub src: WO<u32>,
+    pub dst: WO<u32>,
+    pub word_count: WO<u32>,
+    pub block_size: WO<u32>,
+    pub timing: WO<u32>,
+    pub fill_mode: WO<u32>,
+    pub control: RW<NDMAControl>,
 }
 #[repr(C)]
 pub struct ChannelConfig {
@@ -40,12 +40,12 @@ pub struct ChannelConfig {
     pub block_size: u32,
     pub timing: u32,
     pub fill_mode: u32,
-    pub control: Control,
+    pub control: NDMAControl,
 }
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy)]
-    pub struct Control: u32 {
+    pub struct NDMAControl: u32 {
         const SRC_MODE_INCREMENT = (0 << 13);
         const SRC_MODE_DECREMENT = (1 << 13);
         const SRC_MODE_FIXED = (2 << 13);
@@ -105,7 +105,7 @@ impl NDMA {
         while self.channels[channel]
             .control
             .read()
-            .contains(Control::ENABLE)
+            .contains(NDMAControl::ENABLE)
         {}
     }
     pub fn set_fixed_arbitration(&self) {
@@ -128,11 +128,11 @@ impl NDMA {
         channel.block_size.write(total_word_count as u32 >> 2);
         channel.timing.write(0);
         channel.control.write(
-            Control::DST_MODE_INCREMENT
-                | Control::SRC_MODE_INCREMENT
-                | Control::START_IMMEDIATE
-                | Control::BLOCK_SIZE_1
-                | Control::ENABLE,
+            NDMAControl::DST_MODE_INCREMENT
+                | NDMAControl::SRC_MODE_INCREMENT
+                | NDMAControl::START_IMMEDIATE
+                | NDMAControl::BLOCK_SIZE_1
+                | NDMAControl::ENABLE,
         );
     }
     pub fn copy_mem(&self, channel: usize, src: &[u32], dst: &mut [u32]) {
