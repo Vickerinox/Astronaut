@@ -645,9 +645,8 @@ pub struct Context {
 
 }
 pub unsafe fn nwifi_init_complete() {
-    return;
     STATUS.write_volatile(0);
-     
+    return; 
     crate::ndma::NDMA_HARDWARE.channels[3].control.write(NDMAControl::empty());
     crate::ndma::NDMA_HARDWARE.global_control.write(GlobalControl::empty());
     dsio_hw_init();

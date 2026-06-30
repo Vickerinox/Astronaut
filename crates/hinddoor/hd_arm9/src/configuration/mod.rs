@@ -31,7 +31,7 @@ impl Config {
             let str = String::from_utf8(path_buf).ok()?;
             let ini = ini::Ini::new(&str);
             
-            let current_combo = alloc::format!("{:04x}h",held_buttons.bits());
+            let current_combo = alloc::format!("h{:04x}",held_buttons.bits());
 
             let autoboot = ini
                 .get("[boot]")

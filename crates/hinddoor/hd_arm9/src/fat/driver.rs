@@ -25,7 +25,7 @@ impl SDMMCDriver {
     }
 
     unsafe fn try_mount_sd(&mut self) -> Option<BasicSDMMCCursor<'static>> {
-        let sd_buffer = core::slice::from_raw_parts_mut(0x2F00000 as *mut StorageSector, 4);
+        let sd_buffer = core::slice::from_raw_parts_mut(0x2FC0000 as *mut StorageSector, 4);
         read_sd_card(sd_buffer, 0).ok()?;
         let mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
         if !mbr.has_valid_signature() {
@@ -33,7 +33,7 @@ impl SDMMCDriver {
         }
         let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
         let sd_buffer =
-            core::slice::from_raw_parts_mut(0x2F00000 as *mut reboot_lib::StorageSector, 64);
+            core::slice::from_raw_parts_mut(0x2FC0000 as *mut reboot_lib::StorageSector, 64);
         match BasicSDMMCCursor::new(sd_buffer, twl_lba, false) {
             Ok(succ) => Some(succ),
             Err(code) => {
@@ -44,7 +44,7 @@ impl SDMMCDriver {
     }
 
     unsafe fn try_mount_nand(&mut self) -> Option<BasicSDMMCCursor<'static>> {
-        let nand_buffer = core::slice::from_raw_parts_mut(0x2F10000 as *mut StorageSector, 4);
+        let nand_buffer = core::slice::from_raw_parts_mut(0x2FD0000 as *mut StorageSector, 4);
         read_encrypted_nand(nand_buffer, 0).ok()?;
         let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
         if !mbr.has_valid_signature() {
@@ -55,7 +55,7 @@ impl SDMMCDriver {
         let _twl_size =
             core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
         let nand_buffer =
-            core::slice::from_raw_parts_mut(0x2F10000 as *mut reboot_lib::StorageSector, 64);
+            core::slice::from_raw_parts_mut(0x2FD0000 as *mut reboot_lib::StorageSector, 64);
         match BasicSDMMCCursor::new(nand_buffer, twl_lba, true) {
             Ok(succ) => Some(succ),
             Err(code) => {

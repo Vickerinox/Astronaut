@@ -479,8 +479,7 @@ unsafe fn main() {
         (&raw mut (*ptr).config).write(configuration::Config::load(buttons));
 
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
-        STATUS.write(buttons.bits() as u32);
-
+        
         INTERRUPT_TABLE[0] = fade_out as *mut _;
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {

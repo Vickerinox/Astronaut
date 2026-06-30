@@ -285,15 +285,35 @@ pub unsafe fn boot_app(
         return BootError::FileReadError;
     }
     reboot_lib::nocash_write("> Loaded Header");
+    
+    if header.is_dsi_mode() {
+        if header.arm9i_size != 0 {
+            let arm9_range = (header.arm9i_load)..(header.arm9i_load + header.arm9i_size);
+            if (!(0x200_0000..0x2FC_0000).contains(&arm9_range.start))
+                || (!(0x200_0000..0x2FC_0000).contains(&arm9_range.end))
+            {
+                return BootError::BadBinaryLocation(arm9_range);
+            }
+        }
+        if header.arm7i_size != 0 {
+            let arm7_range = (header.arm7i_load)..(header.arm7i_load + header.arm7i_size);
+            if (!(0x200_0000..0x2FC_0000).contains(&arm7_range.start))
+                || (!(0x200_0000..0x2FC_0000).contains(&arm7_range.end))
+            {
+                return BootError::BadBinaryLocation(arm7_range);
+            }
+        }
+    }
+
     let arm9_range = (header.head.arm9_load)..(header.head.arm9_load + header.head.arm9_size);
     let arm7_range = (header.head.arm7_load)..(header.head.arm7_load + header.head.arm7_size);
-    if (!(0x200_0000..0x2FE_0000).contains(&arm9_range.start))
-        || (!(0x200_0000..0x2FE_0000).contains(&arm9_range.end))
+    if (!(0x200_0000..0x2FC_0000).contains(&arm9_range.start))
+        || (!(0x200_0000..0x2FC_0000).contains(&arm9_range.end))
     {
         return BootError::BadBinaryLocation(arm9_range);
     }
-    if (!(0x200_0000..0x2FE_0000).contains(&arm7_range.start))
-        || (!(0x200_0000..0x2FE_0000).contains(&arm7_range.end))
+    if (!(0x200_0000..0x2FC_0000).contains(&arm7_range.start))
+        || (!(0x200_0000..0x2FC_0000).contains(&arm7_range.end))
     {
         return BootError::BadBinaryLocation(arm7_range);
     }
