@@ -1,5 +1,7 @@
 use alloc::string::{String, ToString};
 use fatfs_embedded::fatfs::FileOptions;
+use micro_imgui_ds::read_controller;
+use reboot_lib::Buttons;
 
 pub struct Config {
     pub patch_flag: bool,
@@ -16,7 +18,7 @@ impl Config {
             music: String::new(),
         }
     }
-    pub fn load() -> Self {
+    pub fn load(held_buttons: Buttons) -> Self {
         fatfs_embedded::open(
             &mut "sdmc:/_nds/vlaunch/settings.ini".to_string(),
             FileOptions::Read,
@@ -28,10 +30,12 @@ impl Config {
             crate::boot::read_all(&mut path_buf, &mut file).ok()?;
             let str = String::from_utf8(path_buf).ok()?;
             let ini = ini::Ini::new(&str);
+            
+            let current_combo = alloc::format!("{:04x}h",held_buttons.bits());
 
             let autoboot = ini
                 .get("[boot]")
-                .and_then(|i| i.get("default"))
+                .and_then(|i| i.get(&current_combo).or(i.get("default")))
                 .unwrap_or("")
                 .to_string();
             let (patch_flag, music) = if let Some(i) = ini.get("[options]") {

@@ -21,6 +21,8 @@ reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
+use micro_imgui_ds::read_controller;
+use reboot_lib::twl_wifi::STATUS;
 use core::arch::asm;
 use core::str;
 use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
@@ -158,20 +160,20 @@ pub unsafe fn unlaunch_breakpoint() {
 unsafe fn init_font() {
     const FONT_FILE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));
     for (i, w) in FONT_FILE.iter().enumerate() {
-        core::ptr::write_volatile((0x2002000 as *mut u8).add(i), *w);
+        core::ptr::write_volatile((0x2FF2000 as *mut u8).add(i), *w);
     }
 
     core::arch::asm!(
         "SWI 0x110000",
-        in("r0") 0x2002000,
-        in("r1") 0x2001000,
+        in("r0") 0x2FF2000,
+        in("r1") 0x2FF1000,
         lateout("r0") _,
         lateout("r1") _,
         out("r2") _,
         out("r3") _,
     );
     for i in 0..0x200 {
-        let reg = core::ptr::read_volatile((0x200_1000 as *const u32).add(i));
+        let reg = core::ptr::read_volatile((0x2FF_1000 as *const u32).add(i));
         core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
     }
 }
@@ -314,7 +316,6 @@ fn populate_fs_vec(
 pub use micro_imgui_ds::SCREEN_RECT;
 
 unsafe fn arm7_crash() -> ! {
-    let mut video_context = reboot_lib::VideoHardwareHandle::new();
 
     //write to "color palette 0"
     core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
@@ -337,7 +338,7 @@ unsafe fn arm7_crash() -> ! {
             );
             text_pass.next_line();
             text_pass.next_line();
-            text_pass.layout_str("For support, reach to the DSi hacking server on Discord", 8);
+            text_pass.layout_str("For support, reach to the DSi hacking server on Discord or the dsi.cfw.guide website.", 8);
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(
@@ -349,7 +350,17 @@ unsafe fn arm7_crash() -> ! {
     video_context.next_frame();
     loop {}
 }
-
+unsafe fn init_graphics() -> VideoHardwareHandle {
+    //write to "color palette 0"
+    core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
+    core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
+    core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
+    core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
+    let mut video_context = reboot_lib::VideoHardwareHandle::new();
+    init_3d_hardware(&mut video_context);
+    video_context.next_frame();
+    video_context
+}
 unsafe fn fade_out() {
     let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
     let read = area.current.read();
@@ -463,19 +474,12 @@ unsafe fn main() {
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
-        (&raw mut (*ptr).config).write(configuration::Config::load());
+        
+        let (buttons, _, _) = read_controller();
+        (&raw mut (*ptr).config).write(configuration::Config::load(buttons));
 
-        let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
-
-        let force_menu = !(0x4000130 as *const u16).read_volatile() & 3 == 3;
-
-        //write to "color palette 0"
-        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-        let mut video_context = reboot_lib::VideoHardwareHandle::new();
-        init_3d_hardware(&mut video_context);
+        let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
+        STATUS.write(buttons.bits() as u32);
 
         INTERRUPT_TABLE[0] = fade_out as *mut _;
         if !force_menu {
@@ -492,6 +496,15 @@ unsafe fn main() {
                 app_data.autoboot();
             }
         }
+
+        //write to "color palette 0"
+        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
+        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
+        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
+        
+        init_3d_hardware(&mut video_context);
+        let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
 
         app_data.play_startup_music();
         app_area.fader.target.write(0);

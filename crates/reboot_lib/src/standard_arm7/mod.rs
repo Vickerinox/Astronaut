@@ -165,8 +165,12 @@ pub fn main_arm7() {
                         continue;
                     };
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    let controls = !core::ptr::read_volatile(0x4000130 as *const u16);
-                    let mut controls = crate::Buttons::from_bits_retain(controls);
+                    let mut controls = (!core::ptr::read_volatile(0x4000130 as *const u16)) & 0x3FF;
+                    let controls_2 = (!core::ptr::read_volatile(0x4000136 as *const u16));
+                    controls |= (controls_2 & 3) << 10;
+                    
+                    let mut controls = crate::Buttons::from_bits_truncate(controls);
+                    
                     /*
                     if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
                         controls ^= crate::Buttons::PEN_DOWN;
@@ -200,7 +204,7 @@ pub fn main_arm7() {
                         last_pen = false;
                     }
 
-                    if !pen_down {
+                    if pen_down {
                         controls ^= crate::Buttons::PEN_DOWN;
                     };
 
