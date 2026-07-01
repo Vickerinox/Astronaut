@@ -101,6 +101,7 @@ pub fn main_arm7() {
         crate::enable_interrupt(crate::ARM7Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
 
+
         let mut location = [0u8; 2];
         SPI_HARDWARE.read_firmware(&mut location, 0x20);
         let settings_offset = (u16::from_le_bytes(location) as u32) * 8;
@@ -129,6 +130,7 @@ pub fn main_arm7() {
         SPI_HARDWARE.read_firmware(user, offset);
         SPI_HARDWARE.read_firmware(mac, 0x36);
         boot_info.wifi_channels = [0x41, 0x10];
+    
 
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
@@ -152,9 +154,9 @@ pub fn main_arm7() {
         let mut pen_down = false;
         let mut last_pen = false;
 
-        crate::twl_wifi::nwifi_init_complete();
+        
         //crate::spi::touchscreen::enable_tsc();
-
+        crate::twl_wifi::STATUS.write_volatile(0xDEADBEEF);
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
@@ -225,15 +227,7 @@ pub fn main_arm7() {
                         Err(e) => 0x8000_0000 | e.bits(),
                     };
                 }
-                11 => {
-                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    response = match arg {
-                        1 => Status::EMPTY.bits(), //check_sdmmc(crate::DeviceSelect::SDCardSlot).bits(),
-                        2 => Status::EMPTY.bits(), //check_sdmmc(crate::DeviceSelect::EMMC).bits(),
-                        _ => 1,
-                    }
-                }
+                
                 5 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
@@ -243,14 +237,7 @@ pub fn main_arm7() {
                         Err(e) => e.bits(),
                     }
                 }
-                10 => {
-                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    response = match write_sd_sectors(arg, buffer) {
-                        Ok(_) => 0,
-                        Err(e) => e.bits(),
-                    }
-                }
+
 
                 6 => {
                     let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
@@ -307,6 +294,24 @@ pub fn main_arm7() {
                         _ => response = 0x8000_0000,
                     }
                 }
+                10 => {
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+                    response = match write_sd_sectors(arg, buffer) {
+                        Ok(_) => 0,
+                        Err(e) => e.bits(),
+                    }
+                }
+                11 => {
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+                    response = match arg {
+                        1 => Status::EMPTY.bits(), //check_sdmmc(crate::DeviceSelect::SDCardSlot).bits(),
+                        2 => Status::EMPTY.bits(), //check_sdmmc(crate::DeviceSelect::EMMC).bits(),
+                        _ => 1,
+                    }
+                }
+                
                 12 => {
                     let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
@@ -353,6 +358,14 @@ pub fn main_arm7() {
                             decrypt_module_ndma(mem, key);
                         }
                     }
+                }
+                13 => {
+                    let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+                    let firmware = core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize);
+                    let status = crate::twl_wifi::nwifi_init_complete(wifi_ver, firmware);
+                    crate::twl_wifi::STATUS.write_volatile(status);
                 }
                 _ => response = 0x8000_0000,
             }

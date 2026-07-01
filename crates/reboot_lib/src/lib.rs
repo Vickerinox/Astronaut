@@ -189,6 +189,11 @@ pub unsafe fn arm9_init_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
 pub unsafe fn arm9_check_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
     com_arm9(11, &[drive as u32])
 }
+pub unsafe fn arm9_init_nwifi(firmware_file: &mut [u8]) -> Result<(), NonZeroU32> {
+    let ptr = firmware_file.as_mut_ptr();
+    let len = firmware_file.len();
+    com_arm9(13, &[ptr as u32, len as u32])
+}
 
 pub struct StorageSector([u32; 128]);
 impl StorageSector {

@@ -19,6 +19,7 @@ pub struct Fader {
 }
 reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 
+use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
 use micro_imgui_ds::read_controller;
@@ -39,6 +40,7 @@ use reboot_lib::{
     Viewport, VIDEO_HARDWARE,
 };
 
+use crate::boot::read_all;
 use crate::fat::driver::SDMMCDriver;
 use crate::gui::{AppData, CurrentUI};
 use crate::nand::BasicSDMMCCursor;
@@ -361,6 +363,30 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
     video_context.next_frame();
     video_context
 }
+
+unsafe fn find_wifi_firmware() -> Option<String> {
+    const CONTENT_FOLDER: &str = "nand:/title/0003000F/484E4341/content/";
+    let app_version = {
+        let mut firmware_tmd = fatfs_embedded::open(&mut alloc::format!("{CONTENT_FOLDER}title.tmd"), FileOptions::Read).ok()?;
+        let mut app_version = [0u8; 4];
+        fatfs_embedded::seek(&mut firmware_tmd, 0x1E4).ok()?;
+        read_all(&mut app_version, &mut firmware_tmd).ok()?;
+        u32::from_be_bytes(app_version)
+    };
+    Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
+}
+unsafe fn load_wifi_firmware() {
+    let Some(mut firmware_path) = find_wifi_firmware() else { return };
+    let Ok(mut firmware) = fatfs_embedded::open(&mut firmware_path, FileOptions::Read) else { return };
+    let size = fatfs_embedded::size(&mut firmware);
+    let layout = core::alloc::Layout::from_size_align_unchecked(size as usize, 4);
+    let firmware_ptr = alloc::alloc::alloc(layout);
+    let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, size as usize);
+    if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
+        reboot_lib::arm9_init_nwifi(firmware_buffer);
+    }
+    alloc::alloc::dealloc(firmware_ptr, layout);
+}
 unsafe fn fade_out() {
     let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
     let read = area.current.read();
@@ -479,7 +505,7 @@ unsafe fn main() {
         (&raw mut (*ptr).config).write(configuration::Config::load(buttons));
 
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
-        
+        load_wifi_firmware();
         INTERRUPT_TABLE[0] = fade_out as *mut _;
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {

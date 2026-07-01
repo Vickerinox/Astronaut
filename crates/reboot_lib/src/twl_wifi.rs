@@ -294,6 +294,9 @@ pub unsafe fn nwifi_init_bmi() -> u32 {
     }
     {
         wifi_base_init();
+        if CTX.status & 4 > 0 {
+            return 0xDEADBEEF;
+        }
     }
     
     let cmd3 = 3 | 0x400;
@@ -383,12 +386,6 @@ pub unsafe fn nwifi_init_bmi() -> u32 {
         return 0x15;
     }
 
-    if is_fw_uploaded == 0 {
-        0xFF
-    } else {
-        0xFE
-    };
-
     if nwifi_write_intern_word(0x4000, 0x100) {
         return 0x16;
     }
@@ -400,6 +397,7 @@ pub unsafe fn nwifi_init_bmi() -> u32 {
     if reset_cause != 2 {
         return 0x17;
     }
+    return 0;
 
     let bmi_ver = nwifi_get_bmi_version();
 
@@ -475,9 +473,9 @@ unsafe fn wifi_base_init() {
     loop {
         loop {
             wifi_card_send_command(cmd5, ocr);
-            //if CTX.status & 4 > 0 {
-            //    return;
-            //}
+            if CTX.status & 4 > 0 {
+                return;
+            }
             if CTX.status & 1 > 0 {
                 break
             }
@@ -541,7 +539,14 @@ unsafe fn wifi_card_send_command(command: u16, arg: u32) {
     }
     let timeout = 256*1024;
     let mut timer = 0;
-    while SDIO_CONTROLLER.status.read().contains(Status::CMD_BUSY) {}
+    while SDIO_CONTROLLER.status.read().contains(Status::CMD_BUSY) {
+        timer += 1;
+        if timer > timeout {
+            CTX.status |= 4;
+            CTX.errors = SDIO_CONTROLLER.error_info.read();
+            return;
+        }
+    }
     SDIO_CONTROLLER.status.write(Status::empty());
     SDIO_CONTROLLER.param.write(arg);
 
@@ -574,7 +579,7 @@ unsafe fn wifi_card_send_command(command: u16, arg: u32) {
 
     timer = 0;
     loop {
-        //timer += 1;
+        timer += 1;
         if timer > timeout {
             CTX.status |= 4;
             CTX.errors = SDIO_CONTROLLER.error_info.read();
@@ -644,37 +649,17 @@ pub struct Context {
     response: [u32; 4],
 
 }
-pub unsafe fn nwifi_init_complete() {
-    STATUS.write_volatile(0);
-    return; 
+pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 {
+    
+    
     crate::ndma::NDMA_HARDWARE.channels[3].control.write(NDMAControl::empty());
     crate::ndma::NDMA_HARDWARE.global_control.write(GlobalControl::empty());
     dsio_hw_init();
-    STATUS.write_volatile(nwifi_init_bmi());
-    
-    
-    /* 
-    let port = &mut PORT;
-    (*(0x4004C04 as *mut RW<u16>)).modify(|i| i & !0x100);
-    crate::swi_delay(5 * 134056);
-
-    RTC_HARDWARE.transact(&[0x72u8, 0x80], &mut []);
-    RTC_HARDWARE.transact(&[0x74u8, 0x00], &mut []);
-    I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 0x13);
-    (*(0x4004020 as *mut RW<u16>)).write(1); //SCFG: wifi on?
-
-    port.set_bus_width(4);
-    SDIO_CONTROLLER.set_port(port);
-    crate::swi_delay(0xF000);
-
-    match nwifi_read_func_byte(0, 0) {
-        Ok(rev) => (),
-        Err(res) =>  {
-            STATUS.write_volatile(1 | res.bits());
-            return;
-        }
+    let init = nwifi_init_bmi();
+    if init > 0 {
+        return init;
     }
-    */
+    0
 }
 unsafe fn nwifi_read_func_byte(func: u32, addr: u32) -> u8 {
     let arg = (func << 28) | ((addr & 0x1FFFF) << 9);
