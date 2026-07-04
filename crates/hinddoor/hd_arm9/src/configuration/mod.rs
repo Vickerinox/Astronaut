@@ -4,18 +4,40 @@ use micro_imgui_ds::read_controller;
 use reboot_lib::Buttons;
 
 pub struct Config {
-    pub patch_flag: bool,
+    pub style: Style,
+    pub options: Options,
     pub autoboot: String,
-    pub music: String,
     pub ini: String,
+}
+pub struct Style {
+    pub music: String,
+}
+pub struct Options {
+    pub patch_flag: bool,
+    pub wifi_firmware_upload: bool,
+}
+impl Options {
+    pub const fn default() -> Self {
+        Self {
+            patch_flag: true,
+            wifi_firmware_upload: true,
+        }
+    }
+}
+impl Style {
+    pub const fn default() -> Self {
+        Self {
+            music: String::new(),
+        }   
+    }
 }
 impl Config {
     pub const fn default() -> Self {
         Self {
-            patch_flag: true,
+            options: Options::default(),
             autoboot: String::new(),
             ini: String::new(),
-            music: String::new(),
+            style: Style::default(),
         }
     }
     pub fn load(held_buttons: Buttons) -> Self {
@@ -38,17 +60,22 @@ impl Config {
                 .and_then(|i| i.get(&current_combo).or(i.get("default")))
                 .unwrap_or("")
                 .to_string();
-            let (patch_flag, music) = if let Some(i) = ini.get("[options]") {
-                (i.get("patching").map(|i| i == "on"), i.get("music"))
+            let (options, style) = if let Some(i) = ini.get("[options]") {
+                let options = Options {
+                    patch_flag: i.get("patching").map(|i| i == "on").unwrap_or(true),
+                    wifi_firmware_upload: i.get("wifi_upload").map(|i| i == "on").unwrap_or(true),
+                };
+                let style = Style {
+                    music: i.get("music").unwrap_or("").to_string()
+                };
+                (options, style)
             } else {
-                (None, None)
+                (Options::default(), Style::default())
             };
-            let music = music.unwrap_or("").to_string();
-            let patch_flag = patch_flag.unwrap_or(true);
             Some(Config {
-                patch_flag,
+                style,
+                options,
                 autoboot,
-                music,
                 ini: str,
             })
         })

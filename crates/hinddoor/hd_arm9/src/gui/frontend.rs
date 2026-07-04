@@ -92,7 +92,7 @@ impl AppData {
         crate::boot::boot_app(&mut file, &path, self);
     }
     pub fn play_startup_music(&mut self) {
-        match fatfs_embedded::open(&mut self.config.music, FileOptions::Read) {
+        match fatfs_embedded::open(&mut self.config.style.music, FileOptions::Read) {
             Ok(file) => {
                 stop_mod_file();
                 self.loading_mod_file = Some(MODAsyncLoader::new(file));
@@ -165,7 +165,7 @@ impl AppData {
                         }
                     }
                     ui.add(Checkbox::new(
-                        &mut self.config.patch_flag,
+                        &mut self.config.options.patch_flag,
                         "Enable patching",
                     ));
                     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {

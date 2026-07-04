@@ -390,6 +390,10 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
 
     let is_fw_uploaded = nwifi_read_intern_word(interest_addr + 0x58);
 
+
+    if is_fw_uploaded == Some(1) {
+        return Ok(0xFFFFFFFF)
+    }
     if CTX.status & 4 > 0 {
         return Err(0x16);
     }
@@ -415,6 +419,7 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     */
 }
 unsafe fn nwifi_get_bmi_version() ->  Option<u32> {
+    wifi_wait_count4();
     if nwifi_write_mbox_u32(8, true) {
         return None;
     }
@@ -436,10 +441,12 @@ unsafe fn nwifi_get_bmi_version() ->  Option<u32> {
     }
 }
 unsafe fn nwifi_read_mbox_word_timeout(mut timeout: u32) -> Option<u32> {
+    /* 
     while (nwifi_read_func_byte(1, 0x405) & 1 == 0) && timeout != 0 { timeout -= 1};
     if (nwifi_read_func_byte(1, 0x405) & 1 == 0) {
         return None;
     }
+    */
     let mut val = 0;
     for i in 0..4 {
         val |= (nwifi_read_func_byte(1, 0xFF) as u32) << (i*8);
@@ -448,19 +455,19 @@ unsafe fn nwifi_read_mbox_word_timeout(mut timeout: u32) -> Option<u32> {
     
 }
 unsafe fn nwifi_read_mbox_word() -> u32 {
-    while (nwifi_read_func_byte(1, 0x405) & 1 == 0) {}
+    //while (nwifi_read_func_byte(1, 0x405) & 1 == 0) {}
     let mut val = 0;
     for i in 0..4 {
-        val |= (nwifi_read_func_byte(1, 0xFF) as u32) << (i*8);
+        val |= (nwifi_read_func_byte(1, 0xFC+i) as u32) << (i*8);
     }
     val    
 }
 
 
-unsafe fn nwifi_write_mbox_u32(mut val: u32, send_ird: bool) -> bool {
+unsafe fn nwifi_write_mbox_u32(mut val: u32, send_irq: bool) -> bool {
     let mut res = false;
     for i in 0..4 {
-        let addr = if i == 3 && send_ird { 0xFF } else { 0 };
+        let addr = if i == 3 && send_irq { 0xFF } else { 0 };
         res |= nwifi_write_func_byte(1, addr, val as u8);
         val >>= 8;
     }
@@ -669,7 +676,17 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
         Err(err) => return err,
     };
 
-    upload_wifi_firmware(wifi_version, firmware, interest)
+    if interest != 0xFFFFFFFF {
+        let firmware_upload = upload_wifi_firmware(wifi_version, firmware, interest);
+        
+        if firmware_upload > 0 {
+            return firmware_upload;
+        }
+    }
+    launch_firmware()
+}
+unsafe fn launch_firmware() -> u32 {
+    0
 }
 fn find_firmware_for_card(version: u8, firmware: &[u8]) -> &[u8] {
     let Some(included_firmwares) = firmware.get(0xa2).copied() else { return &[] };
@@ -691,11 +708,21 @@ unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &mut [u8], interest_a
         return 0x106
     }
 
+    let Some(bmi_ver) = nwifi_get_bmi_version() else {return 0x106};
+    if bmi_ver == 0xFFFFFFFF {
+        return 0x106;
+    }
 
     let Ok((part_c, dest)) = get_wifi_part(firmware, FirmwarePart::PartC) else { return 0x107 };
     if wifi_card_upload_binary(dest, part_c) {
         return 0x108
     }
+
+    let Some(bmi_ver) = nwifi_get_bmi_version() else {return 0x108};
+    if bmi_ver == 0xFFFFFFFF {
+        return 0x108;
+    }
+
 
     if wifi_card_execute(dest + 0x400000, dest).is_none() {
         return 0x109
@@ -720,7 +747,26 @@ unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &mut [u8], interest_a
     if wifi_card_write_memory(interest_area+0x18, &dest.to_le_bytes()) {
         return 0x116
     }
+
+    if wifi_card_write_memory(interest_area+0x6C, &0x80u32.to_le_bytes()) {
+        return 0x117
+    }
+    if wifi_card_write_memory(interest_area+0x74, &0x63u32.to_le_bytes()) {
+        return 0x118
+    }
+    if nwifi_start_firmware() {
+        return 0x119
+    }
+    loop {
+        if nwifi_read_intern_word(interest_area+0x58) == Some(1) { break;}
+        else {crate::swi::swi_delay(0x100)};
+    }
+
     0
+}
+unsafe fn nwifi_start_firmware() -> bool {
+    wifi_wait_count4();
+    nwifi_write_mbox_u32(1, true)
 }
 #[repr(u8)]
 enum FirmwarePart {

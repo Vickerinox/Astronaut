@@ -106,7 +106,7 @@ fn test_wifi_wirmware() {
         match get_wifi_part(firm, part) {
             Ok((off, len)) => {
                 
-                println!(" {:02x?} {:02x?}", len, off);
+                println!(" {:02x?} {:02x?}", len, &off[..48]);
            
             },
             Err(_) => {

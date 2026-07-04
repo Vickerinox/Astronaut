@@ -505,8 +505,12 @@ unsafe fn main() {
         (&raw mut (*ptr).config).write(configuration::Config::load(buttons));
 
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
-        load_wifi_firmware();
+        
+        crate::load_wifi_firmware();
+    
         INTERRUPT_TABLE[0] = fade_out as *mut _;
+
+        
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
