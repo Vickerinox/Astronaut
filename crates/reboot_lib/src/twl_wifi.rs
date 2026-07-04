@@ -10,9 +10,6 @@ pub struct SDIOPort {
     bus_width: u16,
     size: u32,
     response: [u32; 4],
-    status: u32,
-    errors: u32,
-    block_size: u16,
     buffer: *mut [StorageSector],
 }
 const TEMP_BUF: *mut u8 = 0x2FF_B100 as *mut u8;
@@ -24,35 +21,29 @@ unsafe fn mask16(reg: &mut RW<u16>, clear: u16, set: u16) {
 }
 pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     CTX.clk_cnt = 0;
-    CTX.block_size = 128;
+    PORT.block_len = 128;
 
     CTX.bus_width = 4;
-    switch_device();
 
     while SDIO_CONTROLLER.status.read().contains(Status::CMD_BUSY) {}
     crate::swi_delay(0xF000);
 
-    nwifi_read_func_byte(0, 0);
+    
 
-    if CTX.status & 4 > 0 {
+    if nwifi_read_func_byte(0, 0) == 0xFF {
         CTX.bus_width = 1;
-        switch_device();
     }
     {
         wifi_base_init();
-        if CTX.status & 4 > 0 {
-            return Err(0xDEADBEEF);
-        }
     }
     
-    wifi_card_send_command(crate::mmc::Command::SetSendRelativeAddr, 0);
-    if CTX.status & 4 > 0 {
+    if !wifi_card_send_command(crate::mmc::Command::SetSendRelativeAddr, 0).successful() {
         return Err(1);
+    
     }
-    CTX.address = CTX.response[0] >> 16;
+    let address = PORT.response[0] >> 16;
 
-    wifi_card_send_command(crate::mmc::Command::SelectCard, CTX.address << 16);
-    if CTX.status & 4 > 0 {
+    if !wifi_card_send_command(crate::mmc::Command::SelectCard, address << 16).successful() {
         return Err(2);
     }
 
@@ -66,7 +57,7 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     crate::swi_delay(0xF000);
 
     let mut interface_cnt = nwifi_read_func_byte(0, 7);
-    if CTX.status & 4 > 0 {
+    if interface_cnt == 0xFF {
         return Err(5)
     }
     interface_cnt |= 0x82;
@@ -77,30 +68,28 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     
     CTX.bus_width = 4;
 
-    switch_device();
-
 
     if nwifi_write_func_byte(0, 0x12, 0x2) {
         return Err(7);
     }
 
-    if nwifi_write_func_byte(0, 0x110, CTX.block_size as u8) {
+    if nwifi_write_func_byte(0, 0x110, PORT.block_len as u8) {
         return Err(8);
     }
-    if nwifi_write_func_byte(0, 0x111, (CTX.block_size >> 8) as u8) {
+    if nwifi_write_func_byte(0, 0x111, (PORT.block_len >> 8) as u8) {
         return Err(9);
     }
 
-    if nwifi_write_func_byte(0, 0x10, CTX.block_size as u8) {
+    if nwifi_write_func_byte(0, 0x10, PORT.block_len as u8) {
         return Err(0x10);
     }
-    if nwifi_write_func_byte(0, 0x11, (CTX.block_size >> 8) as u8) {
+    if nwifi_write_func_byte(0, 0x11, (PORT.block_len >> 8) as u8) {
         return Err(0x11);
     }
     crate::swi_delay(0xF000);
 
     let revision = nwifi_read_func_byte(0, 0);
-    if CTX.status & 4 > 0 {
+    if revision == 0xFF {
         return Err(0x12);
     }
     nwifi_write_func_byte(0, 2, 2);
@@ -109,14 +98,11 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
         if read == 2 { break };
     }
     let manufacturer = nwifi_read_func_word(0, 0x1007);
-    if CTX.status & 4 > 0 {
+    if manufacturer == 0xFFFFFFFF {
         return Err(0x13);
     }
     let Some(chip_id) = nwifi_read_intern_word(0x000040ec) else {return Err(0x14)};
 
-    if CTX.status & 4 > 0 {
-        return Err(0x15);
-    }
     let interest_addr = if chip_id == 0x02000001 {
         //AR6002
         0x00500400
@@ -132,14 +118,11 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     }
 
 
-    let is_fw_uploaded = nwifi_read_intern_word(interest_addr + 0x58);
+    let Some(is_fw_uploaded) = nwifi_read_intern_word(interest_addr + 0x58) else { return Err(0x16);};
 
 
-    if is_fw_uploaded == Some(1) {
+    if is_fw_uploaded == 1 {
         return Ok(0xFFFFFFFF)
-    }
-    if CTX.status & 4 > 0 {
-        return Err(0x16);
     }
 
     if nwifi_write_intern_word(0x4000, 0x100) {
@@ -214,51 +197,21 @@ unsafe fn wifi_base_init() {
     SDIO_CONTROLLER.stop_action.write(0x100);
     let mut ocr = 0;
     loop {
-        loop {
-            wifi_card_send_command(crate::mmc::Command::SDIOOpCond, ocr);
-            if CTX.status & 4 > 0 {
-                return;
-            }
-            if CTX.status & 1 > 0 {
-                break
-            }
-        }
-        ocr = CTX.response[0] & 0xFFFFFF;
+        while !wifi_card_send_command(crate::mmc::Command::SDIOOpCond, ocr).successful() {}
+        ocr = PORT.response[0] & 0xFFFFFF;
 
-        if CTX.response[0] & 0x80000000 > 0 {
+        if PORT.response[0] & 0x80000000 > 0 {
             break;
         }
     }
 }
 static mut PORT: TMIOPort = TMIOPort::dsio();
-unsafe fn switch_device() {
-    SDIO_CONTROLLER.port_select.modify(|i| (i & !3) | CTX.port);
-    
-    SDIO_CONTROLLER.clock_control.modify(|i| i & !ClockCnt::ENABLE);
-    SDIO_CONTROLLER.clock_control.modify(|i| (i & !ClockCnt::from_bits_retain(0x2FF)) | ClockCnt::from_bits_retain(0x2FF & CTX.clk_cnt)  );
-    SDIO_CONTROLLER.clock_control.modify(|i| i | ClockCnt::ENABLE);
-
-    if CTX.bus_width == 4 {
-        SDIO_CONTROLLER.options.modify(|i| i & !0x8000);
-    } else {
-        SDIO_CONTROLLER.options.modify(|i| i | 0x8000);
-    }
-}
 
 static mut CTX: Context = Context {
     clk_cnt: 0,
     bus_width: 0,
-    port: 0,
-    address: 0,
-    block_size: 0,
-    status: 0,
-    buffer: core::ptr::null_mut(),
-    size: 0,
-    stat: Status::empty(),
-    errors: 0,
-    response: [0; 4],
 };
-unsafe fn wifi_card_send_command(command: crate::mmc::Command, arg: u32) {
+unsafe fn wifi_card_send_command(command: crate::mmc::Command, arg: u32) -> Status {
     
     let c = if CTX.bus_width == 4 {
         SDIO_CONTROLLER.options.read() & !0x8000
@@ -266,9 +219,9 @@ unsafe fn wifi_card_send_command(command: crate::mmc::Command, arg: u32) {
         SDIO_CONTROLLER.options.read() | 0x8000
     };
     PORT = TMIOPort { 
-        port_num: CTX.port, 
+        port_num: PORT.port_num, 
         clock: ClockCnt::from_bits_retain(CTX.clk_cnt) | ClockCnt::ENABLE, 
-        block_len: CTX.block_size, 
+        block_len: PORT.block_len, 
         option: c, 
         buffer: &mut [], response: [0; 4] 
     };
@@ -277,16 +230,8 @@ unsafe fn wifi_card_send_command(command: crate::mmc::Command, arg: u32) {
     CTX = Context { 
         clk_cnt: CTX.clk_cnt, 
         bus_width: CTX.bus_width, 
-        port: CTX.port, 
-        address: CTX.address, 
-        block_size: CTX.block_size, 
-        status: if res.successful() { 1 } else { 4 }, 
-        buffer: CTX.buffer, 
-        size: CTX.size, 
-        stat: SDIO_CONTROLLER.status.read(), 
-        errors: SDIO_CONTROLLER.error_info.read(), 
-        response: PORT.response.clone(), 
     };
+    res
 }
 unsafe fn wifi_ndma_read(buffer: *mut u8, size: u32) {
 
@@ -298,16 +243,6 @@ unsafe fn wifi_ndma_write(buffer: *mut u8, size: u32) {
 pub struct Context {
     clk_cnt: u16,
     bus_width: u16,
-    port: u16,
-    address: u32,
-    block_size: u16,
-    status: u16,
-    buffer: *mut u8,
-    size: u32,
-    stat: Status,
-    errors: u32,
-    response: [u32; 4],
-
 }
 pub unsafe fn dsio_hw_init() {
     (*(0x4004008 as *mut RW<u32>)).modify(|i| i | (1<<19) | (1<<23));
@@ -569,12 +504,11 @@ unsafe fn wifi_card_execute(addr: u32, arg: u32) -> Option<u32> {
 }
 unsafe fn nwifi_read_func_byte(func: u32, addr: u32) -> u8 {
     let arg = (func << 28) | ((addr & 0x1FFFF) << 9);
-    wifi_card_send_command(crate::mmc::Command::SDIORegRW, arg);
-
-    if CTX.status & 4 > 0 {
-        return 0xFF;
+    if wifi_card_send_command(crate::mmc::Command::SDIORegRW, arg).successful() {
+        PORT.response[0] as u8
+    } else {
+        0xFF
     }
-    CTX.response[0] as u8
 }
 unsafe fn nwifi_read_func_halfword(func: u32, addr: u32) -> u16 {
     nwifi_read_func_byte(func, addr) as u16 | ((nwifi_read_func_byte(func, addr+1) as u16) << 8)
@@ -584,12 +518,7 @@ unsafe fn nwifi_read_func_word(func: u32, addr: u32) -> u32 {
 }
 unsafe fn nwifi_write_func_byte(func: u32, addr: u32, value: u8) -> bool {
     let arg = (func << 28) | ((addr & 0x1FFFF) << 9) | (1<<31) | (value as u32);
-    wifi_card_send_command(crate::mmc::Command::SDIORegRW, arg);
-
-    if CTX.status & 4 > 0 {
-        return true;
-    }
-    false
+    !wifi_card_send_command(crate::mmc::Command::SDIORegRW, arg).successful()
 }
 unsafe fn nwifi_write_func_halfword(func: u32, addr: u32, value: u16) -> bool {
     nwifi_write_func_byte(func, addr+1, (value >> 8) as u8)
