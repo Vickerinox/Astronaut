@@ -96,3 +96,50 @@ pub fn crc16(mut value: u16, buffer: &[u8]) -> u16 {
     }
     value
 }
+
+
+#[test]
+fn test_wifi_wirmware() {
+    let fil = include_bytes!("/home/vik/Documents/NO$GBA/SLOT/wifi_firmware");
+    let firm = find_firmware_for_card(1, fil);
+    for part in [FirmwarePart::PartA, FirmwarePart::PartB, FirmwarePart::PartC, FirmwarePart::PartD] {
+        match get_wifi_part(firm, part) {
+            Ok((off, len)) => {
+                
+                println!(" {:02x?} {:02x?}", len, off);
+           
+            },
+            Err(_) => {
+                println!("ERRORR");
+            },
+        }
+    }}
+fn find_firmware_for_card(version: u8, firmware: &[u8]) -> &[u8] {
+    let Some(included_firmwares) = firmware.get(0xa2).copied() else { return &[] };
+    let Some(firmware_index) = (0..included_firmwares as usize).into_iter().filter(|i| firmware.get(0xa4+8+(*i*32)).copied() == Some(version)).next() else { return &[]};
+    let offset = 0xa4+(firmware_index*32);
+    let Some(offset) = firmware.get(offset..).and_then(|i| i.first_chunk::<4>()) else {return &[]};
+    let offset = u32::from_le_bytes(offset.clone()) as usize;
+    let Some(firmware) = firmware.get(offset..) else { return &[]};
+    firmware
+}
+#[repr(u8)]
+enum FirmwarePart {
+    PartA = 0,
+    PartB = 1,
+    PartC = 2,
+    PartD = 3,
+}
+fn get_wifi_part<'a>(firmware: &'a [u8], part: FirmwarePart) -> Result<(&'a [u8], u32), u32> {
+    let parts = &firmware[4..][part as u8 as usize * 16..];
+    let Some((offset, rem)) = parts.split_first_chunk::<4>() else { return Err(0x201)};
+   
+    let offset = u32::from_le_bytes(offset.clone()) as usize;
+    println!("{offset:X?}");
+    let Some((len, rem)) = rem.split_first_chunk::<4>() else { return Err(0x202)};
+    let len = u32::from_le_bytes(len.clone()) as usize;
+    let Some((flags, rem)) = rem.split_first_chunk::<4>() else { return Err(0x203)};
+    let Some((destination, rem)) = rem.split_first_chunk::<4>() else { return Err(0x204)};
+    let destination = u32::from_le_bytes(destination.clone());
+    Ok((&firmware[offset..offset+len], destination))
+} 

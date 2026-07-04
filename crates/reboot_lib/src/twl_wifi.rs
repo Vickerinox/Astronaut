@@ -273,7 +273,7 @@ pub unsafe fn dsio_hw_init() {
 unsafe fn mask16(reg: &mut RW<u16>, clear: u16, set: u16) {
     reg.modify(|i| (i & !clear) | set);
 }
-pub unsafe fn nwifi_init_bmi() -> u32 {
+pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     CTX.clk_cnt = 0;
     CTX.bus_width = 1;
     CTX.block_size = 128;
@@ -295,40 +295,40 @@ pub unsafe fn nwifi_init_bmi() -> u32 {
     {
         wifi_base_init();
         if CTX.status & 4 > 0 {
-            return 0xDEADBEEF;
+            return Err(0xDEADBEEF);
         }
     }
     
     let cmd3 = 3 | 0x400;
     wifi_card_send_command(cmd3, 0);
     if CTX.status & 4 > 0 {
-        return 1;
+        return Err(1);
     }
     CTX.address = CTX.response[0] >> 16;
 
     let cmd7 = 7 | 0x500;
     wifi_card_send_command(cmd7, CTX.address << 16);
     if CTX.status & 4 > 0 {
-        return 2;
+        return Err(2);
     }
 
     if nwifi_write_func_byte(0, 2, 0) {
-        return 3;
+        return Err(3);
     }
 
     if nwifi_write_func_byte(0, 2, 2) {
-        return 4;
+        return Err(4);
     }
     crate::swi_delay(0xF000);
 
     let mut interface_cnt = nwifi_read_func_byte(0, 7);
     if CTX.status & 4 > 0 {
-        return 5
+        return Err(5)
     }
     interface_cnt |= 0x82;
 
     if nwifi_write_func_byte(0, 7, interface_cnt) {
-        return 6;
+        return Err(6);
     }
     
     CTX.bus_width = 4;
@@ -337,27 +337,27 @@ pub unsafe fn nwifi_init_bmi() -> u32 {
 
 
     if nwifi_write_func_byte(0, 0x12, 0x2) {
-        return 7;
+        return Err(7);
     }
 
     if nwifi_write_func_byte(0, 0x110, CTX.block_size as u8) {
-        return 8;
+        return Err(8);
     }
     if nwifi_write_func_byte(0, 0x111, (CTX.block_size >> 8) as u8) {
-        return 9;
+        return Err(9);
     }
 
     if nwifi_write_func_byte(0, 0x10, CTX.block_size as u8) {
-        return 0x10;
+        return Err(0x10);
     }
     if nwifi_write_func_byte(0, 0x11, (CTX.block_size >> 8) as u8) {
-        return 0x11;
+        return Err(0x11);
     }
     crate::swi_delay(0xF000);
 
     let revision = nwifi_read_func_byte(0, 0);
     if CTX.status & 4 > 0 {
-        return 0x12;
+        return Err(0x12);
     }
     nwifi_write_func_byte(0, 2, 2);
     loop {
@@ -366,12 +366,12 @@ pub unsafe fn nwifi_init_bmi() -> u32 {
     }
     let manufacturer = nwifi_read_func_word(0, 0x1007);
     if CTX.status & 4 > 0 {
-        return 0x13;
+        return Err(0x13);
     }
-    let chip_id = nwifi_read_intern_word(0x000040ec);
+    let Some(chip_id) = nwifi_read_intern_word(0x000040ec) else {return Err(0x14)};
 
     if CTX.status & 4 > 0 {
-        return 0x14;
+        return Err(0x15);
     }
     let interest_addr = if chip_id == 0x02000001 {
         //AR6002
@@ -380,38 +380,46 @@ pub unsafe fn nwifi_init_bmi() -> u32 {
         //AR601x
         0x00520000
     };
+
+    let Some(bmi_ver) = nwifi_get_bmi_version() else {return Err(0x20)};
+
+    if bmi_ver == 0xFFFFFFFF {
+        return Err(0x21);
+    }
+
+
     let is_fw_uploaded = nwifi_read_intern_word(interest_addr + 0x58);
 
     if CTX.status & 4 > 0 {
-        return 0x15;
+        return Err(0x16);
     }
 
     if nwifi_write_intern_word(0x4000, 0x100) {
-        return 0x16;
+        return Err(0x17);
     }
 
     crate::swi_delay(0x10000);
 
-    let reset_cause = nwifi_read_intern_word(0x40C0);
+    let Some(reset_cause) = nwifi_read_intern_word(0x40C0) else { return Err(0x18)};
 
     if reset_cause != 2 {
-        return 0x17;
+        return Err(0x19);
     }
-    return 0;
+    Ok(interest_addr)
 
-    let bmi_ver = nwifi_get_bmi_version();
-
-    if bmi_ver == 0xFFFFFFFF {
-        return 0x18;
-    }
+    /* 
+    
 
 
     bmi_ver
+    */
 }
-unsafe fn nwifi_get_bmi_version() ->  u32 {
-    nwifi_write_mbox_u32(8, true);
+unsafe fn nwifi_get_bmi_version() ->  Option<u32> {
+    if nwifi_write_mbox_u32(8, true) {
+        return None;
+    }
 
-    let Some(version) = nwifi_read_mbox_word_timeout(10) else { return 0xFFFFFFFF};
+    let Some(version) = nwifi_read_mbox_word_timeout(10) else { return None };
     if version == 0xFFFFFFFF  {
         let len = nwifi_read_mbox_word();
         if len != 0xFFFFFFFF {
@@ -419,12 +427,12 @@ unsafe fn nwifi_get_bmi_version() ->  u32 {
             for _ in 0..((len/4)-2) {
                 nwifi_read_mbox_word();
             }
-            ver
+            Some(ver)
         } else {
-            version
+            Some(version)
         }
     } else {
-        version
+        Some(version)
     }
 }
 unsafe fn nwifi_read_mbox_word_timeout(mut timeout: u32) -> Option<u32> {
@@ -449,16 +457,17 @@ unsafe fn nwifi_read_mbox_word() -> u32 {
 }
 
 
-unsafe fn nwifi_write_mbox_u32(mut val: u32, send_ird: bool) {
+unsafe fn nwifi_write_mbox_u32(mut val: u32, send_ird: bool) -> bool {
+    let mut res = false;
     for i in 0..4 {
         let addr = if i == 3 && send_ird { 0xFF } else { 0 };
-        nwifi_write_func_byte(1, addr, val as u8);
+        res |= nwifi_write_func_byte(1, addr, val as u8);
         val >>= 8;
     }
+    res
 }
-unsafe fn nwifi_read_intern_word(addr: u32) -> u32 {
-    nwifi_write_func_word(1, 0x47C, addr);
-    nwifi_read_func_word(1, 0x474)
+unsafe fn nwifi_read_intern_word(addr: u32) -> Option<u32> {
+    (!nwifi_write_func_word(1, 0x47C, addr)).then_some(nwifi_read_func_word(1, 0x474))
 }
 unsafe fn nwifi_write_intern_word(addr: u32, value: u32) -> bool {
     nwifi_write_func_word(1, 0x474, value) |
@@ -655,25 +664,62 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     crate::ndma::NDMA_HARDWARE.channels[3].control.write(NDMAControl::empty());
     crate::ndma::NDMA_HARDWARE.global_control.write(GlobalControl::empty());
     dsio_hw_init();
-    let init = nwifi_init_bmi();
-    if init > 0 {
-        return init;
+    let interest = match nwifi_init_bmi() {
+        Ok(area) => area,
+        Err(err) => return err,
+    };
+
+    upload_wifi_firmware(wifi_version, firmware, interest)
+}
+fn find_firmware_for_card(version: u8, firmware: &[u8]) -> &[u8] {
+    let Some(included_firmwares) = firmware.get(0xa2).copied() else { return &[] };
+    let Some(firmware_index) = (0..included_firmwares as usize).into_iter().filter(|i| firmware.get(0xa4+8+(*i*32)).copied() == Some(version)).next() else { return &[]};
+    let offset = 0xa4+(firmware_index*32);
+    let Some(offset) = firmware.get(offset..).and_then(|i| i.first_chunk::<4>()) else {return &[]};
+    let offset = u32::from_le_bytes(offset.clone()) as usize;
+    let Some(firmware) = firmware.get(offset..) else { return &[]};
+    firmware
+}
+unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &mut [u8], interest_area: u32) -> u32 {
+    let firmware = find_firmware_for_card(wifi_version, firmware);
+    if firmware.is_empty() {
+        return 0x104;
     }
 
-    upload_wifi_firmware(wifi_version, firmware)
-}
-
-unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &mut [u8]) -> u32 {
-    let Some(included_firmwares) = firmware.get(0xa2).copied() else { return 0x101 };
-    let Some(firmware_index) = (0..included_firmwares as usize).into_iter().filter(|i| firmware.get(0xa4+8+(*i*32)).copied() == Some(wifi_version)).next() else { return 0x102};
-    let offset = 0xa4+(firmware_index*32);
-    let Some(offset) = firmware.get(offset..).and_then(|i| i.first_chunk::<4>()) else {return 0x103};
-    let offset = u32::from_le_bytes(offset.clone()) as usize;
-    let Some(firmware) = firmware.get(offset..) else { return 0x104 };
+    let Ok((part_d, dest)) = get_wifi_part(firmware, FirmwarePart::PartD) else { return 0x105 };
+    if wifi_card_upload_binary(dest, part_d) {
+        return 0x106
+    }
 
 
+    let Ok((part_c, dest)) = get_wifi_part(firmware, FirmwarePart::PartC) else { return 0x107 };
+    if wifi_card_upload_binary(dest, part_c) {
+        return 0x108
+    }
+
+    if wifi_card_execute(dest + 0x400000, dest).is_none() {
+        return 0x109
+    }
+
+    let Ok((part_a, dest)) = get_wifi_part(firmware, FirmwarePart::PartA) else { return 0x110 };
+    if wifi_card_upload_binary_lz(dest, part_a) {
+        return 0x111
+    }
+
+    let Ok((part_d, dest)) = get_wifi_part(firmware, FirmwarePart::PartD) else { return 0x112 };
+    if wifi_card_upload_binary(dest, part_d) {
+        return 0x113
+    }
 
 
+    let Ok((part_b, dest)) = get_wifi_part(firmware, FirmwarePart::PartB) else { return 0x114 };
+    if wifi_card_upload_binary(dest, part_b) {
+        return 0x115
+    }
+
+    if wifi_card_write_memory(interest_area+0x18, &dest.to_le_bytes()) {
+        return 0x116
+    }
     0
 }
 #[repr(u8)]
@@ -694,64 +740,99 @@ fn get_wifi_part<'a>(firmware: &'a [u8], part: FirmwarePart) -> Result<(&'a [u8]
     let destination = u32::from_le_bytes(destination.clone());
     Ok((&firmware[offset..offset+len], destination))
 } 
-unsafe fn wifi_card_upload_binary(addr: u32, binary: &[u8]) {
+unsafe fn wifi_card_upload_binary(addr: u32, binary: &[u8]) -> bool {
     const CHUNK_SIZE: usize = 0x1F0;
     for (i, chunk) in binary.chunks(CHUNK_SIZE).enumerate() {
-        wifi_card_write_memory(addr + (i*CHUNK_SIZE) as u32, chunk);
+        if wifi_card_write_memory(addr + (i*CHUNK_SIZE) as u32, chunk) {
+            return true
+        }
     }
+    false
 }
-unsafe fn wifi_card_upload_binary_lz(addr: u32, binary: &[u8]) {
-    wifi_card_start_lz(addr);
+unsafe fn wifi_card_upload_binary_lz(addr: u32, binary: &[u8]) -> bool {
+    if wifi_card_start_lz(addr) {
+        return true
+    }
     //while [0,0xFF].contains(&nwifi_read_func_byte(1, 0x450)) {}
     for chunk in binary.chunks(0x1F8) {
-        wifi_card_upload_lz(chunk);
+        if wifi_card_upload_lz(chunk) {
+            return true;
+        }
     }
+    false
 }
 
-unsafe fn wifi_card_start_lz(addr: u32) {
-    nwifi_write_mbox_u32(0xD, false);
-    nwifi_write_mbox_u32(addr, true);
+unsafe fn wifi_card_start_lz(addr: u32) -> bool {
+    wifi_wait_count4();
+    nwifi_write_mbox_u32(0xD, false) |
+    nwifi_write_mbox_u32(addr, true)
 }
-unsafe fn wifi_card_upload_lz(data: &[u8]) {
+unsafe fn wifi_card_upload_lz(data: &[u8]) -> bool {
 
-    if data.is_empty() {return}
+    if data.is_empty() {return false}
     let len = (data.len() as u32 + 3) & !3;
     let mut iter = data.iter();
 
-    nwifi_write_mbox_u32(0xE, false);
-    nwifi_write_mbox_u32(len as u32, false);
+    wifi_wait_count4();
+    if nwifi_write_mbox_u32(0xE, false) {
+        return true
+    }
+    if nwifi_write_mbox_u32(len as u32, false) {
+        return true
+    }
 
     for _ in 0..(len-1) {
         let byte = iter.next().copied().unwrap_or(0);
-        nwifi_write_func_byte(1, 0, byte);
+        if nwifi_write_func_byte(1, 0, byte) {
+            return true
+        }
     }
     let byte = iter.next().copied().unwrap_or(0);
-    nwifi_write_func_byte(1, 0xFF, byte);
+    if nwifi_write_func_byte(1, 0xFF, byte) {
+        return true
+    }
 
+    false
 }
-unsafe fn wifi_card_write_memory(addr: u32, data: &[u8]) {
-    if data.is_empty() {return}
+unsafe fn wifi_wait_count4() {
+    while [0xff, 0].contains(&nwifi_read_func_byte(1, 0x450)) {
+        crate::swi::swi_delay(0x100);
+    }
+}
+unsafe fn wifi_card_write_memory(addr: u32, data: &[u8]) -> bool {
+    if data.is_empty() {return false}
     let len = (data.len() as u32 + 3) & !3;
     let mut iter = data.iter();
-
-    nwifi_write_mbox_u32(3, false);
-    nwifi_write_mbox_u32(addr, false);
-    nwifi_write_mbox_u32(len, false);
+    wifi_wait_count4();
+    if nwifi_write_mbox_u32(3, false) {
+        return true
+    }
+    if nwifi_write_mbox_u32(addr, false) {
+        return true
+    }
+    if nwifi_write_mbox_u32(len, false) {
+        return true
+    }
 
     for _ in 0..(len-1) {
         let byte = iter.next().copied().unwrap_or(0);
-        nwifi_write_func_byte(1, 0, byte);
+        if nwifi_write_func_byte(1, 0, byte) {
+            return true
+        }
     }
     let byte = iter.next().copied().unwrap_or(0);
-    nwifi_write_func_byte(1, 0xFF, byte);
-
+    if nwifi_write_func_byte(1, 0xFF, byte) {
+        return true
+    }
+    false
 }
 unsafe fn wifi_card_execute(addr: u32, arg: u32) -> Option<u32> {
+    wifi_wait_count4();
     nwifi_write_mbox_u32(4, false);
     nwifi_write_mbox_u32(addr, false);
     nwifi_write_mbox_u32(arg, true);
 
-    nwifi_read_mbox_word_timeout(200)
+    nwifi_read_mbox_word_timeout(2000)
 }
 unsafe fn nwifi_read_func_byte(func: u32, addr: u32) -> u8 {
     let arg = (func << 28) | ((addr & 0x1FFFF) << 9);
