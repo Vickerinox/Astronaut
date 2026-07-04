@@ -4,14 +4,6 @@ use crate::{
     ClockCnt, Control, DataControl32, SDIO_CONTROLLER, Status, StorageSector, TMIOPort, i2c::{I2C_HARDWARE, PowerRegister}, ndma::{GlobalControl, NDMAControl}, rtc::RTC_HARDWARE,
 };
 
-pub struct SDIOPort {
-    address: u16,
-    clk_cnt: u32,
-    bus_width: u16,
-    size: u32,
-    response: [u32; 4],
-    buffer: *mut [StorageSector],
-}
 const TEMP_BUF: *mut u8 = 0x2FF_B100 as *mut u8;
 const TEMP_BUF_M14: *mut u8 = TEMP_BUF.wrapping_sub(14);
 const TEMP_BUF_M16: *mut u8 = TEMP_BUF.wrapping_sub(16);
@@ -20,18 +12,17 @@ unsafe fn mask16(reg: &mut RW<u16>, clear: u16, set: u16) {
     reg.modify(|i| (i & !clear) | set);
 }
 pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
-    CTX.clk_cnt = 0;
-    PORT.block_len = 128;
-
-    CTX.bus_width = 4;
 
     while SDIO_CONTROLLER.status.read().contains(Status::CMD_BUSY) {}
+    PORT.option = SDIO_CONTROLLER.options.read() & !0x8000;
+
+    
     crate::swi_delay(0xF000);
 
     
 
     if nwifi_read_func_byte(0, 0) == 0xFF {
-        CTX.bus_width = 1;
+        PORT.option = SDIO_CONTROLLER.options.read() | 0x8000;
     }
     {
         wifi_base_init();
@@ -66,7 +57,7 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
         return Err(6);
     }
     
-    CTX.bus_width = 4;
+    PORT.option = SDIO_CONTROLLER.options.read() & !0x8000;
 
 
     if nwifi_write_func_byte(0, 0x12, 0x2) {
@@ -207,42 +198,8 @@ unsafe fn wifi_base_init() {
 }
 static mut PORT: TMIOPort = TMIOPort::dsio();
 
-static mut CTX: Context = Context {
-    clk_cnt: 0,
-    bus_width: 0,
-};
 unsafe fn wifi_card_send_command(command: crate::mmc::Command, arg: u32) -> Status {
-    
-    let c = if CTX.bus_width == 4 {
-        SDIO_CONTROLLER.options.read() & !0x8000
-    } else {
-        SDIO_CONTROLLER.options.read() | 0x8000
-    };
-    PORT = TMIOPort { 
-        port_num: PORT.port_num, 
-        clock: ClockCnt::from_bits_retain(CTX.clk_cnt) | ClockCnt::ENABLE, 
-        block_len: PORT.block_len, 
-        option: c, 
-        buffer: &mut [], response: [0; 4] 
-    };
-    let res = SDIO_CONTROLLER.send_command(&mut PORT, command, arg);
-
-    CTX = Context { 
-        clk_cnt: CTX.clk_cnt, 
-        bus_width: CTX.bus_width, 
-    };
-    res
-}
-unsafe fn wifi_ndma_read(buffer: *mut u8, size: u32) {
-
-}
-unsafe fn wifi_ndma_write(buffer: *mut u8, size: u32) {
-
-}
-
-pub struct Context {
-    clk_cnt: u16,
-    bus_width: u16,
+    SDIO_CONTROLLER.send_command(&mut PORT, command, arg)
 }
 pub unsafe fn dsio_hw_init() {
     (*(0x4004008 as *mut RW<u32>)).modify(|i| i | (1<<19) | (1<<23));

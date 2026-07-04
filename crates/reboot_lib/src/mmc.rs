@@ -529,7 +529,7 @@ impl TMIOPort {
     pub const fn dsio() -> Self {
         Self {
             port_num: 0,
-            clock: ClockCnt::FREQ_16M,
+            clock: ClockCnt::ENABLE,
             block_len: 128,
             option: (1 << 15),
             buffer: &mut [],
