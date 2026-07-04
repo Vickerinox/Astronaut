@@ -21,7 +21,7 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
 
     
 
-    if nwifi_read_func_byte(0, 0) == 0xFF {
+    if nwifi_read_func_byte(0, 0).is_none() {
         PORT.option = SDIO_CONTROLLER.options.read() | 0x8000;
     }
     {
@@ -47,10 +47,9 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     }
     crate::swi_delay(0xF000);
 
-    let mut interface_cnt = nwifi_read_func_byte(0, 7);
-    if interface_cnt == 0xFF {
+    let Some(mut interface_cnt) = nwifi_read_func_byte(0, 7) else {
         return Err(5)
-    }
+    };
     interface_cnt |= 0x82;
 
     if nwifi_write_func_byte(0, 7, interface_cnt) {
@@ -79,15 +78,11 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     }
     crate::swi_delay(0xF000);
 
-    let revision = nwifi_read_func_byte(0, 0);
-    if revision == 0xFF {
+    let Some(revision) = nwifi_read_func_byte(0, 0) else {
         return Err(0x12);
-    }
+    };
     nwifi_write_func_byte(0, 2, 2);
-    loop {
-        let read = nwifi_read_func_byte(0, 3);
-        if read == 2 { break };
-    }
+    while nwifi_read_func_byte(0, 3) != Some(2) {}
     let manufacturer = nwifi_read_func_word(0, 0x1007);
     if manufacturer == 0xFFFFFFFF {
         return Err(0x13);
@@ -154,7 +149,7 @@ unsafe fn nwifi_get_bmi_version() ->  Option<u32> {
 unsafe fn nwifi_read_mbox_word_timeout(mut timeout: u32) -> Option<u32> {
     let mut val = 0;
     for i in 0..4 {
-        val |= (nwifi_read_func_byte(1, 0xFF) as u32) << (i*8);
+        val |= (nwifi_read_func_byte(1, 0xFF).unwrap_or(0xFF) as u32) << (i*8);
     }
     Some(val)
     
@@ -162,7 +157,7 @@ unsafe fn nwifi_read_mbox_word_timeout(mut timeout: u32) -> Option<u32> {
 unsafe fn nwifi_read_mbox_word() -> u32 {
     let mut val = 0;
     for i in 0..4 {
-        val |= (nwifi_read_func_byte(1, 0xFC+i) as u32) << (i*8);
+        val |= (nwifi_read_func_byte(1, 0xFC+i).unwrap_or(0xFF) as u32) << (i*8);
     }
     val    
 }
@@ -420,7 +415,7 @@ unsafe fn wifi_card_upload_lz(data: &[u8]) -> bool {
     false
 }
 unsafe fn wifi_wait_count4() {
-    while [0xff, 0].contains(&nwifi_read_func_byte(1, 0x450)) {
+    while nwifi_read_func_byte(1, 0x450).map(|i| i == 0).unwrap_or(true) {
         crate::swi::swi_delay(0x100);
     }
 }
@@ -459,16 +454,12 @@ unsafe fn wifi_card_execute(addr: u32, arg: u32) -> Option<u32> {
 
     nwifi_read_mbox_word_timeout(2000)
 }
-unsafe fn nwifi_read_func_byte(func: u32, addr: u32) -> u8 {
+unsafe fn nwifi_read_func_byte(func: u32, addr: u32) -> Option<u8> {
     let arg = (func << 28) | ((addr & 0x1FFFF) << 9);
-    if wifi_card_send_command(crate::mmc::Command::SDIORegRW, arg).successful() {
-        PORT.response[0] as u8
-    } else {
-        0xFF
-    }
+    wifi_card_send_command(crate::mmc::Command::SDIORegRW, arg).successful().then_some(PORT.response[0] as u8)
 }
 unsafe fn nwifi_read_func_halfword(func: u32, addr: u32) -> u16 {
-    nwifi_read_func_byte(func, addr) as u16 | ((nwifi_read_func_byte(func, addr+1) as u16) << 8)
+    nwifi_read_func_byte(func, addr).unwrap_or(0xFF) as u16 | ((nwifi_read_func_byte(func, addr+1).unwrap_or(0xFF) as u16) << 8)
 }
 unsafe fn nwifi_read_func_word(func: u32, addr: u32) -> u32 {
     nwifi_read_func_halfword(func, addr) as u32 | ((nwifi_read_func_halfword(func, addr+2) as u32) << 16)
