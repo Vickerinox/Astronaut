@@ -517,7 +517,7 @@ unsafe fn main() {
 
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
 
-        crate::load_wifi_firmware();
+        //crate::load_wifi_firmware();
 
         INTERRUPT_TABLE[0] = fade_out as *mut _;
 
