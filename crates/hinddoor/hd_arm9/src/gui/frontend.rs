@@ -1,10 +1,7 @@
-use core::ops::{Add, Sub};
+use core::{alloc::Layout, ops::{Add, Sub}};
 
 use crate::{
-    boot,
-    gui::{self, Input},
-    populate_fs_vec, send_mod_file, stop_mod_file, AppArea, APP_AREA_START, BACKGROUND_COLOR,
-    COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT,
+    APP_AREA_START, AppArea, BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT, boot::{self, read_all}, get_extension, gui::{self, Input}, populate_fs_vec, send_mod_file, stop_mod_file,
 };
 use alloc::{
     boxed::Box,
@@ -17,9 +14,7 @@ use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
 use micro_imgui_ds::micro_imgui::{self, widgets::checkbox::Checkbox};
 use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
-    autoboot_info::{UnlaunchParams, BOOT_INFO},
-    music_modules::mods::MODAsyncLoader,
-    Buttons, VIDEO_HARDWARE,
+    Buttons, VIDEO_HARDWARE, autoboot_info::{BOOT_INFO, UnlaunchParams}, music_modules::mods::MODAsyncLoader, timers::TimerControl,
 };
 pub enum CurrentUI {
     None,
@@ -44,10 +39,71 @@ pub struct AppData {
     pub current_ui: CurrentUI,
     pub blowfish: BFCTX,
     pub loading_mod_file: Option<MODAsyncLoader>,
+    pub streaming_wav: Option<StreamingWav>,
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
     pub config: crate::configuration::Config,
     pub sdio_status: u32,
+}
+pub struct StreamingWav {
+    file: fatfs_embedded::fatfs::File,
+    data_start: usize,
+    data_len: usize,
+    player_head: usize,
+    channels: u8,
+    bits_per_sample: u8,
+    scratch_buffer: *mut [u8],
+    frequency: u32,
+}
+const WAV_BUFFER_LEN: usize = 1024*128;
+impl StreamingWav {
+    pub fn new(mut file: fatfs_embedded::fatfs::File) -> Option<Self> {
+        let mut data_start = 0;
+        let mut data_len = 0;
+        let len = WAV_BUFFER_LEN;
+        let a = Layout::from_size_align(len, 4).ok()?;
+        let buffer = unsafe { alloc::alloc::alloc(a) };
+        let slice = unsafe { core::slice::from_raw_parts_mut(buffer, len) };
+        let mut main_chunk = [0u8; 0x2C];
+        read_all(&mut main_chunk, &mut file).ok()?;
+        if &main_chunk[..4] != b"RIFF" {
+            return None;
+        }
+        if &main_chunk[8..12] != b"WAVE"{
+            return None;
+        }
+        if &main_chunk[12..16] != b"fmt "{
+            return None;
+        }
+        if &main_chunk[36..40] != b"data"{
+            return None;
+        }
+        data_len = u32::from_le_bytes(main_chunk[40..].first_chunk()?.clone()) as usize;
+        data_start = 0x2C;
+        let frequency = u32::from_le_bytes(main_chunk[24..].first_chunk()?.clone());
+        let bits_per_sample = u16::from_le_bytes(main_chunk[34..].first_chunk()?.clone()) as u8;
+        let channels = u16::from_le_bytes(main_chunk[22..].first_chunk()?.clone()) as u8;
+        
+
+        Some(Self { file, data_start, data_len, player_head: 0, scratch_buffer: slice, channels, bits_per_sample, frequency })
+    }
+    pub unsafe fn fetch_new(&mut self, mut count: usize) {
+        while count > 0 {
+            let break_point = self.player_head % WAV_BUFFER_LEN;
+            let slice = &mut (&mut *self.scratch_buffer)[break_point..];
+            let cut = slice.len().min(count);
+            let final_slice = &mut slice[..cut];
+            if read_all(final_slice, &mut self.file).is_ok() {
+                self.player_head += final_slice.len();
+                count -= final_slice.len();
+                for val in final_slice {
+                    *val = val.wrapping_add(0x80);
+                }
+            } else {
+                return;
+            }
+        }
+    }
 }
 
 pub struct FileEntry {
@@ -114,10 +170,17 @@ impl AppData {
                     outline_size: 0,
                 });
             }
+            if let Some(wav_stream) = &mut self.streaming_wav {
+                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 9;
+                let bytes_to_read = pos as usize - wav_stream.player_head;
+                unsafe { wav_stream.fetch_new(bytes_to_read); };
+                unsafe {
 
-            unsafe {
-                let sdio = self.sdio_status;
-                ui.label(&format!("SDIO: {:08x?}", sdio));
+                    reboot_lib::flush_mmc();
+                    reboot_lib::flush_mmc();
+                
+                }
+                ui.request_repaint();
             }
             if let Some(loading_mod) = self.loading_mod_file.take() {
                 let (progress, max) = loading_mod.progress();
@@ -135,7 +198,8 @@ impl AppData {
                     Err(cont) => self.loading_mod_file = Some(cont),
                 }
             } else {
-                ui.label(" ");
+                let a = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() };
+                ui.label(&format!("{a:08x?}"));
             }
 
             let new_state_fn: Option<Box<dyn FnOnce(CurrentUI) -> CurrentUI>> = match &mut self
@@ -206,15 +270,14 @@ impl AppData {
                 } => {
                     const ITEM_SPACING: i32 = 14;
 
+                    let max_scroll = ((immediate_files.len()) as i32 * ITEM_SPACING)
+                                    - (ITEM_SPACING * 11);
                     if let Some(drag) = ui.drag() {
                         let new_drag = drag.y - *drag_start;
                         *drag_start += new_drag;
                         *offset -= new_drag as i32;
                         *offset = (*offset)
-                            .min(
-                                ((immediate_files.len()) as i32 * ITEM_SPACING)
-                                    - (ITEM_SPACING * 10),
-                            )
+                            .min(max_scroll)
                             .max(0);
                     } else {
                         *drag_start = 0;
@@ -222,7 +285,7 @@ impl AppData {
 
                     let mut focus_on = None;
                     if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
-                        focus_on = Some(9);
+                        focus_on = Some(10);
                     }
                     if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) {
                         focus_on = Some(0);
@@ -273,14 +336,14 @@ impl AppData {
                         ui.clip_rect().top_right() + Vec2::new(0, ITEM_SPACING as _),
                     );
                     let rect2 = micro_imgui::Rect::from_two_pos(
-                        SCREEN_RECT.bottom_left() - Vec2::new(0, 8 as _),
+                        SCREEN_RECT.bottom_left() - Vec2::new(0, 5 as _),
                         SCREEN_RECT.bottom_right(),
                     );
 
                     let color = BACKGROUND_COLOR;
 
                     ui.add_space((ITEM_SPACING - in_step) as i16);
-                    let items = if in_step == 0 { 10 } else { 11 };
+                    let items = if in_step == 0 { 11 } else { 12 };
                     let mut focus = None;
                     for (i, item) in shown_items.iter().take(items).enumerate() {
                         let response = ui.add(Button::new(
@@ -316,15 +379,51 @@ impl AppData {
                                         Err(_) => (),
                                     }
                                 } else if item.3 == COLOR_MUSIC {
-                                    current_path.push_str(&item.1);
-                                    match fatfs_embedded::open(current_path, FileOptions::Read) {
-                                        Ok(module) => {
-                                            self.loading_mod_file =
-                                                Some(MODAsyncLoader::new(module));
+                                    match get_extension(item.1.as_bytes()) {
+                                        Some(b".mod") => {                                        
+                                            current_path.push_str(&item.1);
+                                            match fatfs_embedded::open(current_path, FileOptions::Read) {
+                                                Ok(module) => {
+                                                    self.loading_mod_file =
+                                                        Some(MODAsyncLoader::new(module));
+                                                }
+                                                Err(_abort) => (),
+                                            }
+                                            pop_dir_entry(current_path);
                                         }
-                                        Err(_abort) => (),
+                                        Some(b".wav") => {
+                                            let _ = stop_mod_file();
+                                            current_path.push_str(&item.1);
+                                            match fatfs_embedded::open(current_path, FileOptions::Read) {
+                                                Ok(module) => {
+                                                    if let Some(mut wav) = StreamingWav::new(module) {
+                                                        
+                                                        unsafe {
+                                                            let timer = 0xFFFF - ((33513982 / 2) / wav.frequency) as u16;
+                                                            wav.fetch_new(WAV_BUFFER_LEN);
+                                                            reboot_lib::flush_mmc();
+                                                            reboot_lib::flush_mmc();
+                                                            wav.player_head = 0;
+                                                            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
+                                                            (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
+                                                            reboot_lib::arm9_start_wav_stream(&mut *wav.scratch_buffer, 0, timer);
+                                                            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(timer, TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START));
+
+                                                        }
+                                                        self.streaming_wav = Some(wav);
+                                                        ui.request_repaint();
+
+                                                    }
+                                                    
+                                                }
+                                                Err(_abort) => (),
+                                            }
+                                            pop_dir_entry(current_path);
+                                            
+
+                                        }
+                                        _ => (),
                                     }
-                                    pop_dir_entry(current_path);
                                 }
                             }
                         }
@@ -348,13 +447,10 @@ impl AppData {
                         if focus_on == Some(0) {
                             *offset = (*offset).sub(ITEM_SPACING * 10).max(0);
                         }
-                        if focus_on == Some(9) {
+                        if focus_on == Some(10) {
                             *offset = (*offset)
                                 .add(ITEM_SPACING * 10)
-                                .min(
-                                    ((immediate_files.len()) as i32 * ITEM_SPACING)
-                                        - (ITEM_SPACING * 10),
-                                )
+                                .min(max_scroll)
                                 .max(0);
                         }
                     }
@@ -366,7 +462,7 @@ impl AppData {
 
                         *offset -= in_step;
                     } else if control_dir == -1 {
-                        if focus == Some(9) && shown_items.len() >= 11 {
+                        if focus == Some(10) && shown_items.len() >= 12 {
                             *offset = offset.saturating_add(ITEM_SPACING);
                             ui.cancel_refocus();
                         }

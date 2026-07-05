@@ -253,28 +253,16 @@ impl MMC {
             }
         }
     }
-
-    pub unsafe fn send_command(
+    pub unsafe fn send_command_inner(
         &self,
         port: &mut TMIOPort,
         command: Command,
         argument: u32,
     ) -> Status {
-        crate::nocash_write_bytes(&[command as u8]);
-        //return self.new_send_command(port, command, argument);
-        while self.status.read().contains(Status::CMD_BUSY) {}
-        self.tmio_set_port(port);
+
+        self.status.write(Status::empty());
         self.block_count.write(port.buffer.len() as u16);
         self.block_count_32.write(port.buffer.len() as u16);
-
-        self.irmask.write(Status::all());
-        self.status.write(Status::empty());
-        self.stop_action.write(1 << 8);
-
-        self.data_control.write(Control::USE_DATA32);
-        self.data_control_32
-            .write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
-
         let mut timeout = 0;
 
         self.param.write(argument);
@@ -353,14 +341,41 @@ impl MMC {
             */
         }
 
+        /* 
         while self.status.read().contains(Status::CMD_BUSY) {
             timeout += 1;
             if timeout > 0x10_0000 {
                 return !Status::INSERTED;
             }
         }
+        */
 
         value.intersection(Status::ALL_ERRORS)
+    
+    }
+    pub unsafe fn send_command(
+        &self,
+        port: &mut TMIOPort,
+        command: Command,
+        argument: u32,
+    ) -> Status {
+        //return self.new_send_command(port, command, argument);
+        self.wait_busy();
+        self.prepare_port(port);
+        self.send_command_inner(port, command, argument)
+    }
+    pub unsafe fn wait_busy(&self) {
+        while self.status.read().contains(Status::CMD_BUSY) {}
+    }
+    pub unsafe fn prepare_port(&self,
+        port: &mut TMIOPort) {
+            self.tmio_set_port(port);
+        
+        self.stop_action.write(1 << 8);
+        self.data_control.write(Control::USE_DATA32);
+        self.data_control_32
+            .write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);
+        self.irmask.write(Status::all());
     }
 }
 const fn none(command_number: u16) -> u16 {
@@ -410,8 +425,8 @@ const fn acmd_r1_r(command_number: u16) -> u16 {
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
     Test = 3,
-    SDIOOpCond = 0x705,
-    SDIORegRW = 0x434,
+    SDIOOpCond = r3(5),
+    SDIORegRW = r1(52),
     //basic commands (class 0)
     GoIdleState = none(0),
     AllSendCID = r2(2),

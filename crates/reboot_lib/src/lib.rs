@@ -194,6 +194,13 @@ pub unsafe fn arm9_init_nwifi(firmware_file: &mut [u8]) -> Result<(), NonZeroU32
     let len = firmware_file.len();
     com_arm9(13, &[ptr as u32, len as u32])
 }
+pub unsafe fn arm9_start_wav_stream(buffer: &mut [u8], channel: u8, timer: u16) -> Result<(), NonZeroU32> {
+    let ptr = buffer.as_mut_ptr();
+    let len = buffer.len();
+    let timer = timer as u32;
+    let flags = (channel as u32) << 1;
+    com_arm9(14, &[ptr as u32, len as u32, timer, flags])
+}
 
 pub struct StorageSector([u32; 128]);
 impl StorageSector {

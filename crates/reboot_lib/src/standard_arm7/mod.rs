@@ -3,14 +3,7 @@ mod mmc_new;
 mod swi;
 
 use crate::{
-    check_sdmmc,
-    i2c::I2CRegister,
-    ndma::NDMA_HARDWARE,
-    sound::SOUND_HARDWARE,
-    spi::{touchscreen::read_tsc_pos_cdc, Control, PowerRegiser, SPI_HARDWARE},
-    timers::TIMERS,
-    write_sd_sectors, AESCnt, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
-    MMC_CONTROLLER, SDIO_CONTROLLER,
+    AES_HARDWARE, AESCnt, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, sound::{SOUND_HARDWARE, SoundControl}, spi::{Control, PowerRegiser, SPI_HARDWARE, touchscreen::read_tsc_pos_cdc}, timers::TIMERS, write_sd_sectors,
 };
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
@@ -359,6 +352,20 @@ pub fn main_arm7() {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     let firmware = core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize);
                     response = crate::twl_wifi::nwifi_init_complete(wifi_ver, firmware);
+                }
+                14 => {
+                    let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let timer = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    let flags = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    SOUND_HARDWARE.init();
+                    let channel = &SOUND_HARDWARE.channels[(flags >> 1) as usize];
+                    channel.length.write(len>>2);
+                    channel.loop_start.write(0);
+                    channel.source.write(ptr);
+                    channel.timer.write(timer as u16);
+                    channel.control.write(SoundControl::START.with_panning(0x40).with_repeat_mode(crate::sound::RepeatMode::Infinite).with_sound_format(crate::sound::SoundFormat::PCM8).with_volume(40));
+                    response = 0; 
                 }
                 _ => response = 0x8000_0000,
             }

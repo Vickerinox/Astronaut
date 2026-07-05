@@ -11,6 +11,7 @@ pub struct AppArea {
     sdmmc_driver: core::mem::MaybeUninit<SDMMCDriver>,
     app_data: core::mem::MaybeUninit<AppData>,
     fader: Fader,
+    wav_counter: reboot_lib::volatile_register::RW<u32>,
     path_buffer: [u8; 256],
 }
 pub struct Fader {
@@ -22,6 +23,7 @@ reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
+use reboot_lib::timers::{Timer, TimerControl};
 use core::arch::asm;
 use core::str;
 use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
@@ -415,6 +417,10 @@ unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
 }
 const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
+
+unsafe fn uptick_wav() {
+    (*(APP_AREA_START as *mut AppArea)).wav_counter.modify(|i| i+1);
+}
 unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
@@ -491,6 +497,7 @@ unsafe fn main() {
 
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
 
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
 
@@ -520,7 +527,9 @@ unsafe fn main() {
         //crate::load_wifi_firmware();
 
         INTERRUPT_TABLE[0] = fade_out as *mut _;
-
+        INTERRUPT_TABLE[3] = uptick_wav as *mut _;
+        //reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(65185, TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START));
+        
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
@@ -560,18 +569,20 @@ pub unsafe fn set_background(color: u16) {
 }
 
 pub fn is_bootable(str: &[u8]) -> bool {
-    let len = str.len() - 4;
-    let Some(extension) = str.get(len..) else {
+    let Some(extension) = get_extension(str) else {
         return false;
     };
-    extension == b".APP" || extension == b".NDS" || extension == b".DSI"
+    [b".APP".as_slice(), b".NDS".as_slice(), b".DSI".as_slice()].contains(&extension)
+}
+pub fn get_extension(str: &[u8]) -> Option<&[u8]> {
+    let len = str.len().checked_sub(4)?;
+    str.get(len..)
 }
 pub fn is_music_module(str: &[u8]) -> bool {
-    let len = str.len() - 4;
-    let Some(extension_range) = str.get(len..) else {
+    let Some(extension) = get_extension(str) else {
         return false;
     };
-    extension_range == b".MOD"
+    [b".MOD".as_slice(), b".WAV".as_slice()].contains(&extension)
 }
 
 const DSI_WRAM_START: usize = 0x037C0000;
