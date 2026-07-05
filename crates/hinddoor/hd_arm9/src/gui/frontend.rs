@@ -47,6 +47,7 @@ pub struct AppData {
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
     pub config: crate::configuration::Config,
+    pub sdio_status: u32,
 }
 
 pub struct FileEntry {
@@ -115,7 +116,7 @@ impl AppData {
             }
 
             unsafe {
-                let sdio = reboot_lib::twl_wifi::STATUS.read_volatile();
+                let sdio = self.sdio_status;
                 ui.label(&format!("SDIO: {:08x?}", sdio));
             }
             if let Some(loading_mod) = self.loading_mod_file.take() {

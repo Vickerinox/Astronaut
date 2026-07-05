@@ -154,9 +154,6 @@ pub fn main_arm7() {
         let mut pen_down = false;
         let mut last_pen = false;
 
-        
-        //crate::spi::touchscreen::enable_tsc();
-        crate::twl_wifi::STATUS.write_volatile(0xDEADBEEF);
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
@@ -364,8 +361,7 @@ pub fn main_arm7() {
                     let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     let firmware = core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize);
-                    let status = crate::twl_wifi::nwifi_init_complete(wifi_ver, firmware);
-                    crate::twl_wifi::STATUS.write_volatile(status);
+                    response = crate::twl_wifi::nwifi_init_complete(wifi_ver, firmware);
                 }
                 _ => response = 0x8000_0000,
             }

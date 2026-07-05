@@ -23,7 +23,6 @@ use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
 use micro_imgui_ds::read_controller;
-use reboot_lib::twl_wifi::STATUS;
 use core::arch::asm;
 use core::str;
 use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
@@ -375,17 +374,22 @@ unsafe fn find_wifi_firmware() -> Option<String> {
     };
     Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
 }
-unsafe fn load_wifi_firmware() {
-    let Some(mut firmware_path) = find_wifi_firmware() else { return };
-    let Ok(mut firmware) = fatfs_embedded::open(&mut firmware_path, FileOptions::Read) else { return };
+unsafe fn load_wifi_firmware() -> u32 {
+    let mut ret = 0xDEADBEEF;
+    let Some(mut firmware_path) = find_wifi_firmware() else { return ret };
+    let Ok(mut firmware) = fatfs_embedded::open(&mut firmware_path, FileOptions::Read) else { return ret };
     let size = fatfs_embedded::size(&mut firmware);
     let layout = core::alloc::Layout::from_size_align_unchecked(size as usize, 4);
     let firmware_ptr = alloc::alloc::alloc(layout);
     let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, size as usize);
     if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
-        reboot_lib::arm9_init_nwifi(firmware_buffer);
+        let ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
+            Ok(_) => 0,
+            Err(e) => e.get(),
+        };
     }
     alloc::alloc::dealloc(firmware_ptr, layout);
+    ret
 }
 unsafe fn fade_out() {
     let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
@@ -491,6 +495,7 @@ unsafe fn main() {
         (&raw mut (*ptr).autoboot).write(None);
         (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
         (&raw mut (*ptr).loading_mod_file).write(None);
+        (&raw mut (*ptr).sdio_status).write(0xDEADB00F);
 
         let app_data = app_area.app_data.assume_init_mut();
         let _ = app_data
@@ -760,11 +765,6 @@ unsafe fn print_msg(
     use core::fmt::Write;
     let _ = write!(&mut buf, "{}", info.message());
 
-    let _ = write!(
-        &mut buf,
-        " STATUS: {:x?}",
-        reboot_lib::twl_wifi::STATUS.read()
-    );
     text_pass.layout_str(buf.as_str(), 8);
     if let Some(loc) = info.location() {
         use core::fmt::Write;

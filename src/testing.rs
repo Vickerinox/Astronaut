@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 const NTR_BLOWFISH_TABLE: &[u8] = &[];
 #[test]
 pub fn test_blowfish() {
@@ -102,6 +104,7 @@ pub fn crc16(mut value: u16, buffer: &[u8]) -> u16 {
 fn test_wifi_wirmware() {
     let fil = include_bytes!("/home/vik/Documents/NO$GBA/SLOT/wifi_firmware");
     let firm = find_firmware_for_card(1, fil);
+    println!("{:08x?}", find_interest_addr(firm));
     for part in [FirmwarePart::PartA, FirmwarePart::PartB, FirmwarePart::PartC, FirmwarePart::PartD] {
         match get_wifi_part(firm, part) {
             Ok((off, len)) => {
@@ -113,7 +116,17 @@ fn test_wifi_wirmware() {
                 println!("ERRORR");
             },
         }
-    }}
+    }
+}
+fn find_interest_addr(firmware: &[u8]) -> Option<NonZeroU32> {
+    let first = firmware.first_chunk::<4>()?.clone();
+    let id_count = first[1];
+    let offset = u16::from_le_bytes([first[2], first[3]]);
+    let offset = offset as usize + 4 + (id_count as usize * 8);
+    let chunk = firmware.get(offset..).map(|i| i.first_chunk::<4>()).flatten()?;
+    NonZeroU32::new(u32::from_le_bytes(chunk.clone()))
+}
+
 fn find_firmware_for_card(version: u8, firmware: &[u8]) -> &[u8] {
     let Some(included_firmwares) = firmware.get(0xa2).copied() else { return &[] };
     let Some(firmware_index) = (0..included_firmwares as usize).into_iter().filter(|i| firmware.get(0xa4+8+(*i*32)).copied() == Some(version)).next() else { return &[]};

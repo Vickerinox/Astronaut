@@ -1,20 +1,16 @@
+use core::num::NonZeroU32;
+
 use volatile_register::RW;
 
 use crate::{
     ClockCnt, Control, DataControl32, SDIO_CONTROLLER, Status, StorageSector, TMIOPort, i2c::{I2C_HARDWARE, PowerRegister}, ndma::{GlobalControl, NDMAControl}, rtc::RTC_HARDWARE,
 };
 
-const TEMP_BUF: *mut u8 = 0x2FF_B100 as *mut u8;
-const TEMP_BUF_M14: *mut u8 = TEMP_BUF.wrapping_sub(14);
-const TEMP_BUF_M16: *mut u8 = TEMP_BUF.wrapping_sub(16);
-pub const STATUS: *mut u32 = TEMP_BUF.wrapping_sub(20) as *mut u32;
-unsafe fn mask16(reg: &mut RW<u16>, clear: u16, set: u16) {
-    reg.modify(|i| (i & !clear) | set);
-}
+
 pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
 
     while SDIO_CONTROLLER.status.read().contains(Status::CMD_BUSY) {}
-    PORT.option = SDIO_CONTROLLER.options.read() & !0x8000;
+    PORT.option = 0x40EE;
 
     
     crate::swi_delay(0xF000);
@@ -22,7 +18,7 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     
 
     if sdio_read_func_byte(SDIOFunction::Zero, 0).is_none() {
-        PORT.option = SDIO_CONTROLLER.options.read() | 0x8000;
+        PORT.option = 0xC0EE;
     }
     {
         let mut ocr = 0;
@@ -38,11 +34,10 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
     
     if !wifi_card_send_command(crate::mmc::Command::SetSendRelativeAddr, 0).successful() {
         return Err(1);
-    
     }
-    let address = PORT.response[0] >> 16;
+    let address = PORT.response[0] & 0xFFFF0000;
 
-    if !wifi_card_send_command(crate::mmc::Command::SelectCard, address << 16).successful() {
+    if !wifi_card_send_command(crate::mmc::Command::SelectCard, address).successful() {
         return Err(2);
     }
 
@@ -64,7 +59,7 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
         return Err(6);
     }
     
-    PORT.option = SDIO_CONTROLLER.options.read() & !0x8000;
+    PORT.option = 0x40EE;
 
 
     if sdio_write_func_byte(SDIOFunction::Zero, 0x12, 0x2) {
@@ -113,7 +108,6 @@ pub unsafe fn nwifi_init_bmi() -> Result<u32, u32> {
 
 
     let Some(is_fw_uploaded) = nwifi_read_intern_word(interest_addr + 0x58) else { return Err(0x16);};
-
 
     if is_fw_uploaded == 1 {
         return Ok(0xFFFFFFFF)
@@ -183,6 +177,7 @@ unsafe fn nwifi_write_intern_word(addr: u32, value: u32) -> bool {
 
 static mut PORT: TMIOPort = TMIOPort::dsio();
 
+#[inline(always)]
 unsafe fn wifi_card_send_command(command: crate::mmc::Command, arg: u32) -> Status {
     SDIO_CONTROLLER.send_command(&mut PORT, command, arg)
 }
@@ -192,39 +187,28 @@ pub unsafe fn dsio_hw_init() {
     (*(0x4004C04 as *mut RW<u16>)).write(0);
     crate::swi_delay(5 * 134056);
 
-    RTC_HARDWARE.transact(&[0x72u8, 0x80], &mut []);
-    RTC_HARDWARE.transact(&[0x74u8, 0x00], &mut []);
     I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 0x13);
     (*(0x4004020 as *mut RW<u16>)).write(1); //SCFG: wifi on?
 
     SDIO_CONTROLLER.port_select.write(0);
-
     SDIO_CONTROLLER.data_control_32.write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32);
     SDIO_CONTROLLER.data_control.write(Control::USE_DATA32);
-
-    SDIO_CONTROLLER.soft_reset.modify(|i| i & !3);
-    SDIO_CONTROLLER.soft_reset.modify(|i| i | 3);
-
+    SDIO_CONTROLLER.soft_reset.write(0);
+    SDIO_CONTROLLER.soft_reset.write(1);
     SDIO_CONTROLLER.irmask.write(Status::all());
-
-    SDIO_CONTROLLER.ext_card_detect_mask.modify(|i| i | 0xDB);
-    SDIO_CONTROLLER.ext_card_detect_dat3_mask.modify(|i| i | 0xDB);
-    SDIO_CONTROLLER.clock_control.write(ClockCnt::FREQ_262K);
+    SDIO_CONTROLLER.ext_card_detect_mask.write(0xDB);
+    SDIO_CONTROLLER.ext_card_detect_dat3_mask.write(0xDB);
     SDIO_CONTROLLER.options.write(0x40EE);    
-
-    SDIO_CONTROLLER.stop_action.write(0x100);
 }
 pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 {
-    
-    
-    crate::ndma::NDMA_HARDWARE.channels[3].control.write(NDMAControl::empty());
-    crate::ndma::NDMA_HARDWARE.global_control.write(GlobalControl::empty());
     dsio_hw_init();
-    let interest = match nwifi_init_bmi() {
+    match nwifi_init_bmi() {
         Ok(area) => area,
         Err(err) => return err,
     };
-
+    let firmware = find_firmware_for_card(wifi_version, firmware);
+    let Some(interest) = find_interest_addr(firmware) else { return 10};
+    let interest = interest.get(); 
     if interest != 0xFFFFFFFF {
         let firmware_upload = upload_wifi_firmware(wifi_version, firmware, interest);
         
@@ -232,9 +216,16 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
             return firmware_upload;
         }
     }
-    launch_firmware()
+    launch_firmware(interest)
 }
-unsafe fn launch_firmware() -> u32 {
+unsafe fn launch_firmware(interest_area: u32) -> u32 {
+    if nwifi_start_firmware() {
+        return 0x119
+    }
+    loop {
+        if nwifi_read_intern_word(interest_area+0x58) == Some(1) { break;}
+        else {crate::swi::swi_delay(0x100)};
+    }
     0
 }
 fn find_firmware_for_card(version: u8, firmware: &[u8]) -> &[u8] {
@@ -246,8 +237,16 @@ fn find_firmware_for_card(version: u8, firmware: &[u8]) -> &[u8] {
     let Some(firmware) = firmware.get(offset..) else { return &[]};
     firmware
 }
-unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &mut [u8], interest_area: u32) -> u32 {
-    let firmware = find_firmware_for_card(wifi_version, firmware);
+fn find_interest_addr(firmware: &[u8]) -> Option<NonZeroU32> {
+    let first = firmware.first_chunk::<4>()?.clone();
+    let id_count = first[1];
+    let offset = u16::from_le_bytes([first[2], first[3]]);
+    let offset = offset as usize + 4 + (id_count as usize * 8);
+    let chunk = firmware.get(offset..).map(|i| i.first_chunk::<4>()).flatten()?;
+    NonZeroU32::new(u32::from_le_bytes(chunk.clone()))
+}
+unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &[u8], interest_area: u32) -> u32 {
+    
     if firmware.is_empty() {
         return 0x104;
     }
@@ -303,14 +302,6 @@ unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &mut [u8], interest_a
     if wifi_card_write_memory(interest_area+0x74, &0x63u32.to_le_bytes()) {
         return 0x118
     }
-    if nwifi_start_firmware() {
-        return 0x119
-    }
-    loop {
-        if nwifi_read_intern_word(interest_area+0x58) == Some(1) { break;}
-        else {crate::swi::swi_delay(0x100)};
-    }
-
     0
 }
 unsafe fn nwifi_start_firmware() -> bool {

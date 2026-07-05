@@ -664,11 +664,6 @@ unsafe fn print_msg(info: &core::panic::PanicInfo, text_pass: &mut TextLayoutHan
     use core::fmt::Write;
     let _ = write!(&mut buf, "{}", info.message());
 
-    let _ = write!(
-        &mut buf,
-        " STATUS: {:x?}",
-        reboot_lib::twl_wifi::STATUS.read()
-    );
     text_pass.layout_str(buf.as_str(), 8);
     if let Some(loc) = info.location() {
         use core::fmt::Write;
