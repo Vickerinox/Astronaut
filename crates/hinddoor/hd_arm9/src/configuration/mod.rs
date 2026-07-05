@@ -28,7 +28,7 @@ impl Style {
     pub const fn default() -> Self {
         Self {
             music: String::new(),
-        }   
+        }
     }
 }
 impl Config {
@@ -52,8 +52,8 @@ impl Config {
             crate::boot::read_all(&mut path_buf, &mut file).ok()?;
             let str = String::from_utf8(path_buf).ok()?;
             let ini = ini::Ini::new(&str);
-            
-            let current_combo = alloc::format!("h{:04x}",held_buttons.bits());
+
+            let current_combo = alloc::format!("h{:04x}", held_buttons.bits());
 
             let autoboot = ini
                 .get("[boot]")
@@ -66,7 +66,7 @@ impl Config {
                     wifi_firmware_upload: i.get("wifi_upload").map(|i| i == "on").unwrap_or(true),
                 };
                 let style = Style {
-                    music: i.get("music").unwrap_or("").to_string()
+                    music: i.get("music").unwrap_or("").to_string(),
                 };
                 (options, style)
             } else {

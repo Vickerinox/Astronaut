@@ -94,7 +94,7 @@ unsafe fn boot_unreturnable(
 ) -> ! {
     crate::stop_mod_file();
     let boot_info = header;
-    /* 
+    /*
     if app_data.config.options.wifi_firmware_upload {
         //Launcher and hiyaCFW
         if ![0x00030017_484E4100, 0x00030004_49485941].contains(&boot_info.twl_header.title_id) {
@@ -102,7 +102,7 @@ unsafe fn boot_unreturnable(
         }
     }
     */
-    
+
     {
         let mut prv_path = String::with_capacity(file_path.len());
         let mut pub_path = String::with_capacity(file_path.len());
@@ -223,7 +223,7 @@ unsafe fn boot_unreturnable(
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
-    
+
     if app_data.config.options.patch_flag {
         common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
@@ -295,7 +295,7 @@ pub unsafe fn boot_app(
         return BootError::FileReadError;
     }
     reboot_lib::nocash_write("> Loaded Header");
-    
+
     if header.is_dsi_mode() {
         if header.arm9i_size != 0 {
             let arm9_range = (header.arm9i_load)..(header.arm9i_load + header.arm9i_size);

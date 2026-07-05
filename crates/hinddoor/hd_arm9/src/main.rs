@@ -22,10 +22,10 @@ reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
-use micro_imgui_ds::read_controller;
 use core::arch::asm;
 use core::str;
 use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
+use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 
 use micro_imgui_ds::micro_imgui::{Color, Vec2};
@@ -317,7 +317,6 @@ fn populate_fs_vec(
 pub use micro_imgui_ds::SCREEN_RECT;
 
 unsafe fn arm7_crash() -> ! {
-
     //write to "color palette 0"
     core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
     core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
@@ -366,7 +365,11 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
 unsafe fn find_wifi_firmware() -> Option<String> {
     const CONTENT_FOLDER: &str = "nand:/title/0003000F/484E4341/content/";
     let app_version = {
-        let mut firmware_tmd = fatfs_embedded::open(&mut alloc::format!("{CONTENT_FOLDER}title.tmd"), FileOptions::Read).ok()?;
+        let mut firmware_tmd = fatfs_embedded::open(
+            &mut alloc::format!("{CONTENT_FOLDER}title.tmd"),
+            FileOptions::Read,
+        )
+        .ok()?;
         let mut app_version = [0u8; 4];
         fatfs_embedded::seek(&mut firmware_tmd, 0x1E4).ok()?;
         read_all(&mut app_version, &mut firmware_tmd).ok()?;
@@ -376,8 +379,12 @@ unsafe fn find_wifi_firmware() -> Option<String> {
 }
 unsafe fn load_wifi_firmware() -> u32 {
     let mut ret = 0xDEADBEEF;
-    let Some(mut firmware_path) = find_wifi_firmware() else { return ret };
-    let Ok(mut firmware) = fatfs_embedded::open(&mut firmware_path, FileOptions::Read) else { return ret };
+    let Some(mut firmware_path) = find_wifi_firmware() else {
+        return ret;
+    };
+    let Ok(mut firmware) = fatfs_embedded::open(&mut firmware_path, FileOptions::Read) else {
+        return ret;
+    };
     let size = fatfs_embedded::size(&mut firmware);
     let layout = core::alloc::Layout::from_size_align_unchecked(size as usize, 4);
     let firmware_ptr = alloc::alloc::alloc(layout);
@@ -505,17 +512,15 @@ unsafe fn main() {
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
-        
         let (buttons, _, _) = read_controller();
         (&raw mut (*ptr).config).write(configuration::Config::load(buttons));
 
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
-        
+
         crate::load_wifi_firmware();
-    
+
         INTERRUPT_TABLE[0] = fade_out as *mut _;
 
-        
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
@@ -536,7 +541,7 @@ unsafe fn main() {
         core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
         core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-        
+
         init_3d_hardware(&mut video_context);
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
 

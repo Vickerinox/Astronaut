@@ -101,7 +101,6 @@ pub fn main_arm7() {
         crate::enable_interrupt(crate::ARM7Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
 
-
         let mut location = [0u8; 2];
         SPI_HARDWARE.read_firmware(&mut location, 0x20);
         let settings_offset = (u16::from_le_bytes(location) as u32) * 8;
@@ -130,7 +129,6 @@ pub fn main_arm7() {
         SPI_HARDWARE.read_firmware(user, offset);
         SPI_HARDWARE.read_firmware(mac, 0x36);
         boot_info.wifi_channels = [0x41, 0x10];
-    
 
         let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
         let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
@@ -167,9 +165,9 @@ pub fn main_arm7() {
                     let mut controls = (!core::ptr::read_volatile(0x4000130 as *const u16)) & 0x3FF;
                     let controls_2 = (!core::ptr::read_volatile(0x4000136 as *const u16));
                     controls |= (controls_2 & 3) << 10;
-                    
+
                     let mut controls = crate::Buttons::from_bits_truncate(controls);
-                    
+
                     /*
                     if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
                         controls ^= crate::Buttons::PEN_DOWN;
@@ -224,7 +222,7 @@ pub fn main_arm7() {
                         Err(e) => 0x8000_0000 | e.bits(),
                     };
                 }
-                
+
                 5 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
@@ -234,7 +232,6 @@ pub fn main_arm7() {
                         Err(e) => e.bits(),
                     }
                 }
-
 
                 6 => {
                     let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
@@ -308,7 +305,7 @@ pub fn main_arm7() {
                         _ => 1,
                     }
                 }
-                
+
                 12 => {
                     let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());

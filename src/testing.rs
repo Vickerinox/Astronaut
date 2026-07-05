@@ -99,22 +99,24 @@ pub fn crc16(mut value: u16, buffer: &[u8]) -> u16 {
     value
 }
 
-
 #[test]
 fn test_wifi_wirmware() {
     let fil = include_bytes!("/home/vik/Documents/NO$GBA/SLOT/wifi_firmware");
     let firm = find_firmware_for_card(1, fil);
     println!("{:08x?}", find_interest_addr(firm));
-    for part in [FirmwarePart::PartA, FirmwarePart::PartB, FirmwarePart::PartC, FirmwarePart::PartD] {
+    for part in [
+        FirmwarePart::PartA,
+        FirmwarePart::PartB,
+        FirmwarePart::PartC,
+        FirmwarePart::PartD,
+    ] {
         match get_wifi_part(firm, part) {
             Ok((off, len)) => {
-                
                 println!(" {:02x?} {:02x?}", len, &off[..48]);
-           
-            },
+            }
             Err(_) => {
                 println!("ERRORR");
-            },
+            }
         }
     }
 }
@@ -123,17 +125,32 @@ fn find_interest_addr(firmware: &[u8]) -> Option<NonZeroU32> {
     let id_count = first[1];
     let offset = u16::from_le_bytes([first[2], first[3]]);
     let offset = offset as usize + 4 + (id_count as usize * 8);
-    let chunk = firmware.get(offset..).map(|i| i.first_chunk::<4>()).flatten()?;
+    let chunk = firmware
+        .get(offset..)
+        .map(|i| i.first_chunk::<4>())
+        .flatten()?;
     NonZeroU32::new(u32::from_le_bytes(chunk.clone()))
 }
 
 fn find_firmware_for_card(version: u8, firmware: &[u8]) -> &[u8] {
-    let Some(included_firmwares) = firmware.get(0xa2).copied() else { return &[] };
-    let Some(firmware_index) = (0..included_firmwares as usize).into_iter().filter(|i| firmware.get(0xa4+8+(*i*32)).copied() == Some(version)).next() else { return &[]};
-    let offset = 0xa4+(firmware_index*32);
-    let Some(offset) = firmware.get(offset..).and_then(|i| i.first_chunk::<4>()) else {return &[]};
+    let Some(included_firmwares) = firmware.get(0xa2).copied() else {
+        return &[];
+    };
+    let Some(firmware_index) = (0..included_firmwares as usize)
+        .into_iter()
+        .filter(|i| firmware.get(0xa4 + 8 + (*i * 32)).copied() == Some(version))
+        .next()
+    else {
+        return &[];
+    };
+    let offset = 0xa4 + (firmware_index * 32);
+    let Some(offset) = firmware.get(offset..).and_then(|i| i.first_chunk::<4>()) else {
+        return &[];
+    };
     let offset = u32::from_le_bytes(offset.clone()) as usize;
-    let Some(firmware) = firmware.get(offset..) else { return &[]};
+    let Some(firmware) = firmware.get(offset..) else {
+        return &[];
+    };
     firmware
 }
 #[repr(u8)]
@@ -145,14 +162,22 @@ enum FirmwarePart {
 }
 fn get_wifi_part<'a>(firmware: &'a [u8], part: FirmwarePart) -> Result<(&'a [u8], u32), u32> {
     let parts = &firmware[4..][part as u8 as usize * 16..];
-    let Some((offset, rem)) = parts.split_first_chunk::<4>() else { return Err(0x201)};
-   
+    let Some((offset, rem)) = parts.split_first_chunk::<4>() else {
+        return Err(0x201);
+    };
+
     let offset = u32::from_le_bytes(offset.clone()) as usize;
     println!("{offset:X?}");
-    let Some((len, rem)) = rem.split_first_chunk::<4>() else { return Err(0x202)};
+    let Some((len, rem)) = rem.split_first_chunk::<4>() else {
+        return Err(0x202);
+    };
     let len = u32::from_le_bytes(len.clone()) as usize;
-    let Some((flags, rem)) = rem.split_first_chunk::<4>() else { return Err(0x203)};
-    let Some((destination, rem)) = rem.split_first_chunk::<4>() else { return Err(0x204)};
+    let Some((flags, rem)) = rem.split_first_chunk::<4>() else {
+        return Err(0x203);
+    };
+    let Some((destination, rem)) = rem.split_first_chunk::<4>() else {
+        return Err(0x204);
+    };
     let destination = u32::from_le_bytes(destination.clone());
-    Ok((&firmware[offset..offset+len], destination))
-} 
+    Ok((&firmware[offset..offset + len], destination))
+}
