@@ -671,7 +671,7 @@ impl AppData {
                         "nocash",
                         "Team LNH",
                         "f3l1x_10m",
-                        "coderkei",
+                        "Kai (coderkei)",
                         "rmc",
                         "PoroCYon",
                         "AntonioND",
