@@ -281,6 +281,7 @@ impl StreamingWav {
                     },
                 }
             } else {
+                self.stop();
                 return;
             }
         }
