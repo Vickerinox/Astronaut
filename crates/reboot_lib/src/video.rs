@@ -287,7 +287,9 @@ pub struct VideoHardware {
     _0x698: [u8; 0x968],
     pub disp_b_control: RW<DisplayControl>,
     _0x1004: u32,
-    pub gba_registers: [u8; 0x50],
+    pub disp_b_bgctrl: [RW<u16>; 4],
+    pub disp_b_bgscrl: [RW<u16>; 8],
+    pub gba_registers: [u8; 0x38],
     _0x1058: [u8; 0x14],
     pub disp_b_master_bright: RW<u16>,
 }

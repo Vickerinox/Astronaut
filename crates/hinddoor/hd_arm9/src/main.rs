@@ -451,10 +451,22 @@ unsafe fn main() {
         VIDEO_HARDWARE
             .vram_control_bank_e
             .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+        VIDEO_HARDWARE.vram_control_bank_c.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+        for i in 0..0xFFFF {
+            (0x06840000 as *mut u16).add(i).write(0);
+        }
+        VIDEO_HARDWARE.vram_control_bank_c.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
+        
         //enable the 2D engine A, with no backgrounds on.
         VIDEO_HARDWARE
             .engine_a_ctrl
             .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
+
+        VIDEO_HARDWARE.disp_b_bgctrl[3].write(((1 << 14) | (1<<7) | (1<<2)));
+        VIDEO_HARDWARE.disp_b_bgscrl[6].write(0);
+        VIDEO_HARDWARE.disp_b_bgscrl[7].write(0);
+        VIDEO_HARDWARE.disp_b_control.write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
 
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
         video_context.next_frame();
@@ -465,9 +477,10 @@ unsafe fn main() {
         );
         core::ptr::write_volatile(
             0x4001000 as *mut u32,
-            0b00000000000000001_0000_0000_0000_0_000,
+            0b00000000000000001_0000_1000_0000_0_101,
         );
 
+        
         //copy font to vram
         init_font();
         steal_main_mem();
@@ -559,8 +572,10 @@ unsafe fn main() {
         app_data.play_startup_music();
         app_area.fader.target.write(0);
 
-        micro_imgui_ds::micro_imgui::run(backend, (), |mut f, _| {
+        micro_imgui_ds::micro_imgui::run(backend, app_data, |mut f, app_data| {
             app_data.update(&mut f);
+        }, |app_data| {
+            app_data.do_background_tasks();
         });
     }
 }

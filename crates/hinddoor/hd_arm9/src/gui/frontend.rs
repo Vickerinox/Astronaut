@@ -376,6 +376,28 @@ impl AppData {
             Err(_abort) => {}
         }
     }
+    pub fn do_background_tasks(&mut self) {
+        let mut music = MusicPlaying::None;
+        core::mem::swap(&mut music, &mut self.loading_mod_file);
+        match music {
+            MusicPlaying::None => (),
+            MusicPlaying::Wav(mut wav_stream) => {
+                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 11;
+                let bytes_to_read = pos as usize - wav_stream.player_head;
+                unsafe { wav_stream.fetch_new(bytes_to_read); };
+                self.loading_mod_file = MusicPlaying::Wav(wav_stream);
+            },
+            MusicPlaying::Mod(loading_mod) => {
+                match loading_mod.process() {
+                    Ok(Some(ret)) => {
+                        send_mod_file(ret);
+                    }
+                    Ok(None) => (),
+                    Err(cont) => self.loading_mod_file = MusicPlaying::Mod(cont),
+                }
+            }
+        }
+    }
     pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>) {
         let _mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {
@@ -389,23 +411,9 @@ impl AppData {
                     outline_size: 0,
                 });
             }
-            let mut music = MusicPlaying::None;
-            core::mem::swap(&mut music, &mut self.loading_mod_file);
-            match music {
-                MusicPlaying::None =>  {
-                    ui.label(" ");
-                },
-                MusicPlaying::Wav(mut wav_stream) => {
-                    let a = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() };
-                    ui.label(&format!("{a:08x?}"));
-                    let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 11;
-                    let bytes_to_read = pos as usize - wav_stream.player_head;
-                    unsafe { wav_stream.fetch_new(bytes_to_read); };
-                    ui.request_repaint();
-                    self.loading_mod_file = MusicPlaying::Wav(wav_stream);
-                },
+            
+            match &self.loading_mod_file {
                 MusicPlaying::Mod(loading_mod) => {
-
                     let (progress, max) = loading_mod.progress();
                     let progress_bar = progress * 30 / max;
                     let bar = (0..30)
@@ -413,16 +421,9 @@ impl AppData {
                         .collect::<String>();
                     ui.label(&format!("Loading [{bar}]"));
                     ui.request_repaint();
-                    match loading_mod.process() {
-                        Ok(Some(ret)) => {
-                            send_mod_file(ret);
-                        }
-                        Ok(None) => (),
-                        Err(cont) => self.loading_mod_file = MusicPlaying::Mod(cont),
-                    }
-                }
-            }
-                
+                },
+                _ => {ui.label(" ");}
+            }    
             
 
             let new_state_fn: Option<Box<dyn FnOnce(CurrentUI) -> CurrentUI>> = match &mut self

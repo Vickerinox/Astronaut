@@ -13,11 +13,18 @@ pub mod widgets;
 pub use primitives::*;
 pub use response::*;
 
-pub fn run<B: Backend, T>(backend: B, mut start: T, mut fun: impl FnMut(Frame<B>, &mut T)) {
+
+pub trait Application<B: Backend> {
+
+}
+pub fn run<B: Backend, T>(backend: B, mut start: T, mut fun: impl FnMut(Frame<B>, &mut T), mut background: impl FnMut(&mut T)) {
     let mut context = Ctx::new(backend);
     loop {
         context.process_frame(&mut fun, &mut start);
-        while !(context.backend.gather_inputs() || context.wants_repaint) {}
+        loop {
+            background(&mut start);
+            if context.backend.gather_inputs() || context.wants_repaint { break }
+        }
         context.wants_repaint = false;
     }
 }

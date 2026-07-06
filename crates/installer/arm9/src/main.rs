@@ -454,7 +454,7 @@ unsafe fn main() {
             f.central_panel(|ui| {
                 ui.label("Holy balls it works!");
             });
-        });
+        }, |_| {});
     }
 }
 

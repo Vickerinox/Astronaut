@@ -96,7 +96,7 @@ unsafe fn boot_unreturnable(
     let boot_info = header;
 
     if app_data.config.options.wifi_firmware_upload {
-        //Launcher and hiyaCFW
+        //Launcher and hiyaCFW can skip wifi firmware load since they do it themselves
         if ![0x00030017_484E4100, 0x00030004_49485900]
             .contains(&(boot_info.twl_header.title_id & !0xFF))
         {
