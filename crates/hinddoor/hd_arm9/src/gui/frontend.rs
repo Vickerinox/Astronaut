@@ -49,12 +49,16 @@ pub struct AppData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
     pub current_ui: CurrentUI,
     pub blowfish: BFCTX,
-    pub loading_mod_file: Option<MODAsyncLoader>,
-    pub streaming_wav: Option<StreamingWav>,
+    pub loading_mod_file: MusicPlaying,
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
     pub config: crate::configuration::Config,
     pub sdio_status: u32,
+}
+pub enum MusicPlaying {
+    None,
+    Mod(MODAsyncLoader),
+    Wav(StreamingWav),
 }
 pub struct StreamingWav {
     file: fatfs_embedded::fatfs::File,
@@ -106,7 +110,6 @@ impl StreamingWav {
     pub fn new(mut file: fatfs_embedded::fatfs::File) -> Option<Self> {
         let mut data_start = 0;
         let mut data_len = 0;
-        let len = WAV_BUFFER_LEN;
 
         let mut main_chunk = [0u8; 0x2C];
         read_all(&mut main_chunk, &mut file).ok()?;
@@ -227,13 +230,11 @@ impl StreamingWav {
                 reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
             
             },
-            StreamType::StereoU8 { audio } => {
-                let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
+            StreamType::StereoU8 { .. } => {
                 reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
                 reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
             },
-            StreamType::StereoI16 { audio } => {
-                let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
+            StreamType::StereoI16 { .. } => {
                 reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
                 reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
             },
@@ -351,10 +352,26 @@ impl AppData {
         crate::boot::boot_app(&mut file, &path, self);
     }
     pub fn play_startup_music(&mut self) {
+
         match fatfs_embedded::open(&mut self.config.style.music, FileOptions::Read) {
             Ok(file) => {
                 stop_mod_file();
-                self.loading_mod_file = Some(MODAsyncLoader::new(file));
+                self.loading_mod_file = MusicPlaying::None;
+                let Some(extension) = get_extension(self.config.style.music.as_bytes()) else { return };
+                self.loading_mod_file = match extension {
+                    b".mod" | b".MOD" => MusicPlaying::Mod(MODAsyncLoader::new(file)),
+                    b".wav" | b".WAV" => {
+                        if let Some(mut stream) = StreamingWav::new(file) {
+                            unsafe { stream.play(); }
+                            MusicPlaying::Wav(stream)
+                        } else {
+                            MusicPlaying::None
+                        }
+                        
+                    },
+                    _ => MusicPlaying::None,
+                };
+                
             }
             Err(_abort) => {}
         }
@@ -372,38 +389,41 @@ impl AppData {
                     outline_size: 0,
                 });
             }
-            if let Some(wav_stream) = &mut self.streaming_wav {
-                
-                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 11;
-                let bytes_to_read = pos as usize - wav_stream.player_head;
-                unsafe { wav_stream.fetch_new(bytes_to_read); };
-                unsafe {
+            let mut music = MusicPlaying::None;
+            core::mem::swap(&mut music, &mut self.loading_mod_file);
+            match music {
+                MusicPlaying::None =>  {
+                    ui.label(" ");
+                },
+                MusicPlaying::Wav(mut wav_stream) => {
+                    let a = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() };
+                    ui.label(&format!("{a:08x?}"));
+                    let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 11;
+                    let bytes_to_read = pos as usize - wav_stream.player_head;
+                    unsafe { wav_stream.fetch_new(bytes_to_read); };
+                    ui.request_repaint();
+                    self.loading_mod_file = MusicPlaying::Wav(wav_stream);
+                },
+                MusicPlaying::Mod(loading_mod) => {
 
-                    reboot_lib::flush_mmc();
-                    reboot_lib::flush_mmc();
-                
-                }
-                ui.request_repaint();
-            }
-            if let Some(loading_mod) = self.loading_mod_file.take() {
-                let (progress, max) = loading_mod.progress();
-                let progress_bar = progress * 30 / max;
-                let bar = (0..30)
-                    .map(|i| if i < progress_bar { '=' } else { '.' })
-                    .collect::<String>();
-                ui.label(&format!("Loading [{bar}]"));
-                ui.request_repaint();
-                match loading_mod.process() {
-                    Ok(Some(ret)) => {
-                        send_mod_file(ret);
+                    let (progress, max) = loading_mod.progress();
+                    let progress_bar = progress * 30 / max;
+                    let bar = (0..30)
+                        .map(|i| if i < progress_bar { '=' } else { '.' })
+                        .collect::<String>();
+                    ui.label(&format!("Loading [{bar}]"));
+                    ui.request_repaint();
+                    match loading_mod.process() {
+                        Ok(Some(ret)) => {
+                            send_mod_file(ret);
+                        }
+                        Ok(None) => (),
+                        Err(cont) => self.loading_mod_file = MusicPlaying::Mod(cont),
                     }
-                    Ok(None) => (),
-                    Err(cont) => self.loading_mod_file = Some(cont),
                 }
-            } else {
-                let a = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() };
-                ui.label(&format!("{a:08x?}"));
             }
+                
+            
 
             let new_state_fn: Option<Box<dyn FnOnce(CurrentUI) -> CurrentUI>> = match &mut self
                 .current_ui
@@ -587,9 +607,8 @@ impl AppData {
                                             current_path.push_str(&item.1);
                                             match fatfs_embedded::open(current_path, FileOptions::Read) {
                                                 Ok(module) => {
-                                                    self.streaming_wav.take();
-                                                    self.loading_mod_file =
-                                                        Some(MODAsyncLoader::new(module));
+                                                    self.loading_mod_file = MusicPlaying::None;
+                                                    self.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(module));
                                                 }
                                                 Err(_abort) => (),
                                             }
@@ -601,9 +620,9 @@ impl AppData {
                                             match fatfs_embedded::open(current_path, FileOptions::Read) {
                                                 Ok(module) => {
                                                     if let Some(mut wav) = StreamingWav::new(module) {
-                                                        self.streaming_wav.take();
+                                                        self.loading_mod_file = MusicPlaying::None;
                                                         unsafe { wav.play() };
-                                                        self.streaming_wav = Some(wav);
+                                                        self.loading_mod_file = MusicPlaying::Wav(wav);
                                                         ui.request_repaint();
 
                                                     }

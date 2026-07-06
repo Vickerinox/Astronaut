@@ -510,7 +510,7 @@ unsafe fn main() {
         let ptr = app_area.app_data.as_mut_ptr();
         (&raw mut (*ptr).autoboot).write(None);
         (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
-        (&raw mut (*ptr).loading_mod_file).write(None);
+        (&raw mut (*ptr).loading_mod_file).write(gui::MusicPlaying::None);
         (&raw mut (*ptr).sdio_status).write(0xDEADB00F);
 
         let app_data = app_area.app_data.assume_init_mut();
