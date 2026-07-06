@@ -240,12 +240,32 @@ impl StreamingWav {
         }
     }
     pub unsafe fn fetch_new(&mut self, mut count: usize) {
+        pub fn read_all(
+            mut buffer: &mut [u8],
+            file: &mut fatfs_embedded::fatfs::File,
+            start_point: u32,
+        ) -> Result<(), fatfs_embedded::fatfs::Error> {
+            while !buffer.is_empty() {
+                let bytes = fatfs_embedded::read(file, buffer)?;
+                if bytes == 0 {
+                    let size = fatfs_embedded::size(file);
+                    if size == file.fptr {
+                        fatfs_embedded::seek(file, start_point)?;
+                    }
+                }
+                let Some(remaining) = buffer.get_mut((bytes as usize)..) else {
+                    return Err(fatfs_embedded::fatfs::Error::InternalLogicError);
+                };
+                buffer = remaining;
+            }
+            Ok(())
+        }
         while count > 0 {
             let break_point = self.player_head % WAV_BUFFER_LEN;
             let slice = &mut (&mut *self.scratch_buffer)[break_point..];
             let cut = slice.len().min(count);
             let final_slice = &mut slice[..cut];
-            if read_all(final_slice, &mut self.file).is_ok() {
+            if read_all(final_slice, &mut self.file, self.data_start as u32).is_ok() {
                 self.player_head += final_slice.len();
                 count -= final_slice.len();
                 match &mut self.stream_type {
