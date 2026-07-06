@@ -259,7 +259,6 @@ impl MMC {
         command: Command,
         argument: u32,
     ) -> Status {
-
         self.status.write(Status::empty());
         self.block_count.write(port.buffer.len() as u16);
         self.block_count_32.write(port.buffer.len() as u16);
@@ -341,7 +340,7 @@ impl MMC {
             */
         }
 
-        /* 
+        /*
         while self.status.read().contains(Status::CMD_BUSY) {
             timeout += 1;
             if timeout > 0x10_0000 {
@@ -351,7 +350,6 @@ impl MMC {
         */
 
         value.intersection(Status::ALL_ERRORS)
-    
     }
     pub unsafe fn send_command(
         &self,
@@ -367,10 +365,9 @@ impl MMC {
     pub unsafe fn wait_busy(&self) {
         while self.status.read().contains(Status::CMD_BUSY) {}
     }
-    pub unsafe fn prepare_port(&self,
-        port: &mut TMIOPort) {
-            self.tmio_set_port(port);
-        
+    pub unsafe fn prepare_port(&self, port: &mut TMIOPort) {
+        self.tmio_set_port(port);
+
         self.stop_action.write(1 << 8);
         self.data_control.write(Control::USE_DATA32);
         self.data_control_32

@@ -1,7 +1,14 @@
-use core::{alloc::Layout, ops::{Add, Sub}};
+use core::{
+    alloc::Layout,
+    ops::{Add, Sub},
+};
 
 use crate::{
-    APP_AREA_START, AppArea, BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT, boot::{self, read_all}, get_extension, gui::{self, Input}, populate_fs_vec, send_mod_file, stop_mod_file,
+    boot::{self, read_all},
+    get_extension,
+    gui::{self, Input},
+    populate_fs_vec, send_mod_file, stop_mod_file, AppArea, APP_AREA_START, BACKGROUND_COLOR,
+    COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT,
 };
 use alloc::{
     boxed::Box,
@@ -14,7 +21,11 @@ use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
 use micro_imgui_ds::micro_imgui::{self, widgets::checkbox::Checkbox};
 use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
 use reboot_lib::{
-    Buttons, VIDEO_HARDWARE, autoboot_info::{BOOT_INFO, UnlaunchParams}, music_modules::mods::MODAsyncLoader, timers::TimerControl,
+    autoboot_info::{UnlaunchParams, BOOT_INFO},
+    music_modules::mods::MODAsyncLoader,
+    sound::SoundControl,
+    timers::TimerControl,
+    Buttons, VIDEO_HARDWARE,
 };
 pub enum CurrentUI {
     None,
@@ -50,32 +61,65 @@ pub struct StreamingWav {
     data_start: usize,
     data_len: usize,
     player_head: usize,
-    channels: u8,
-    bits_per_sample: u8,
-    scratch_buffer: *mut [u8],
+    scratch_buffer: &'static mut [u8],
+    stream_type: StreamType,
     frequency: u32,
 }
-const WAV_BUFFER_LEN: usize = 1024*128;
+enum StreamType {
+    MonoU8,
+    MonoI16,
+    StereoU8 { audio: &'static mut [u8] },
+    StereoI16 { audio: &'static mut [u8] },
+}
+
+const WAV_BUFFER_LEN: usize = 1024 * 64;
+const WAV_BUFFER_LAYOUT: Layout = unsafe { Layout::from_size_align_unchecked(WAV_BUFFER_LEN, 4) };
+impl Drop for StreamingWav {
+    fn drop(&mut self) {
+        unsafe { 
+            self.stop();
+            alloc::alloc::dealloc(self.scratch_buffer.as_mut_ptr(), WAV_BUFFER_LAYOUT) 
+        };
+    }
+}
+impl Drop for StreamType {
+    fn drop(&mut self) {
+        unsafe {
+            match self {
+                StreamType::MonoU8 => (),
+                StreamType::MonoI16 => (),
+                StreamType::StereoU8 { audio } => {
+                    alloc::alloc::dealloc(audio.as_mut_ptr(), WAV_BUFFER_LAYOUT);
+                },
+                StreamType::StereoI16 { audio } => {
+                    alloc::alloc::dealloc(audio.as_mut_ptr(), WAV_BUFFER_LAYOUT);
+                },
+            }
+        };
+    }
+}
+fn alloc_wav_buf() -> &'static mut [u8] {
+    let buffer = unsafe { alloc::alloc::alloc(WAV_BUFFER_LAYOUT) };
+    unsafe { core::slice::from_raw_parts_mut(buffer, WAV_BUFFER_LEN) }
+}
 impl StreamingWav {
     pub fn new(mut file: fatfs_embedded::fatfs::File) -> Option<Self> {
         let mut data_start = 0;
         let mut data_len = 0;
         let len = WAV_BUFFER_LEN;
-        let a = Layout::from_size_align(len, 4).ok()?;
-        let buffer = unsafe { alloc::alloc::alloc(a) };
-        let slice = unsafe { core::slice::from_raw_parts_mut(buffer, len) };
+
         let mut main_chunk = [0u8; 0x2C];
         read_all(&mut main_chunk, &mut file).ok()?;
         if &main_chunk[..4] != b"RIFF" {
             return None;
         }
-        if &main_chunk[8..12] != b"WAVE"{
+        if &main_chunk[8..12] != b"WAVE" {
             return None;
         }
-        if &main_chunk[12..16] != b"fmt "{
+        if &main_chunk[12..16] != b"fmt " {
             return None;
         }
-        if &main_chunk[36..40] != b"data"{
+        if &main_chunk[36..40] != b"data" {
             return None;
         }
         data_len = u32::from_le_bytes(main_chunk[40..].first_chunk()?.clone()) as usize;
@@ -83,9 +127,117 @@ impl StreamingWav {
         let frequency = u32::from_le_bytes(main_chunk[24..].first_chunk()?.clone());
         let bits_per_sample = u16::from_le_bytes(main_chunk[34..].first_chunk()?.clone()) as u8;
         let channels = u16::from_le_bytes(main_chunk[22..].first_chunk()?.clone()) as u8;
-        
+        if frequency > 48000 {
+            return None;
+        }
+        let stream = match (channels, bits_per_sample) {
+            (1, 8) => StreamType::MonoU8,
+            (1, 16) => StreamType::MonoI16,
+            (2, 8) => StreamType::StereoU8 {
+                audio: alloc_wav_buf(),
+            },
+            (2, 16) => StreamType::StereoI16 { audio: alloc_wav_buf() },
+            _ => return None,
+        };
+        Some(Self {
+            file,
+            data_start,
+            data_len,
+            player_head: 0,
+            scratch_buffer: alloc_wav_buf(),
+            stream_type: stream,
+            frequency,
+        })
+    }
+    pub unsafe fn play(&mut self) {
+        let wav = self;
+        unsafe {
+            let timer = ((33513982 / 2) / wav.frequency) as u16;
+            let snd_timer = 0u16.wrapping_sub(timer);
+            let (format, timer_timer) = match wav.stream_type {
+                StreamType::MonoU8 => (
+                    SoundControl::START
+                        .with_sound_format(reboot_lib::sound::SoundFormat::PCM8)
+                        .with_volume(127)
+                        .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
+                    0u16.wrapping_sub(timer*4)
+                ),
+                StreamType::MonoI16 => (
+                    SoundControl::START
+                        .with_sound_format(reboot_lib::sound::SoundFormat::PCM16)
+                        .with_volume(127)
+                        .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
+                    0u16.wrapping_sub(timer*2)
+                    
+                ),
+                StreamType::StereoU8 { .. } => (
+                    SoundControl::START
+                        .with_sound_format(reboot_lib::sound::SoundFormat::PCM8)
+                        .with_volume(127)
+                        .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
+                    0u16.wrapping_sub(timer*2)
+                ),
+                StreamType::StereoI16 { .. } => (
+                    SoundControl::START
+                        .with_sound_format(reboot_lib::sound::SoundFormat::PCM16)
+                        .with_volume(127)
+                        .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
+                    0u16.wrapping_sub(timer)
+                ),                                       
+                    
+            };
+            wav.fetch_new(WAV_BUFFER_LEN);
+            wav.player_head = 0;
+            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
+            (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
+            match &mut wav.stream_type {
+                StreamType::MonoU8 => {
+                    reboot_lib::arm9_manual_sound_write(wav.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
+                },
+                StreamType::MonoI16 => {
+                    reboot_lib::arm9_manual_sound_write(wav.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
+                
+                },
+                StreamType::StereoU8 { audio } => {
+                    let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
+                    reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
+                    reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
+                },
+                StreamType::StereoI16 { audio } => {
+                    let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
+                    reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
+                    reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
+                },
+            }
+            
+            
+            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(timer_timer, TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START));
 
-        Some(Self { file, data_start, data_len, player_head: 0, scratch_buffer: slice, channels, bits_per_sample, frequency })
+        }
+    }
+    pub unsafe fn stop(&mut self) {
+        reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
+        (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
+        let format = SoundControl::empty();
+        match &mut self.stream_type {
+            StreamType::MonoU8 => {
+                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+            },
+            StreamType::MonoI16 => {
+                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+            
+            },
+            StreamType::StereoU8 { audio } => {
+                let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
+                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+                reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
+            },
+            StreamType::StereoI16 { audio } => {
+                let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
+                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+                reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
+            },
+        }
     }
     pub unsafe fn fetch_new(&mut self, mut count: usize) {
         while count > 0 {
@@ -96,8 +248,37 @@ impl StreamingWav {
             if read_all(final_slice, &mut self.file).is_ok() {
                 self.player_head += final_slice.len();
                 count -= final_slice.len();
-                for val in final_slice {
-                    *val = val.wrapping_add(0x80);
+                match &mut self.stream_type {
+                    StreamType::MonoU8 => {
+                        for val in final_slice {
+                            *val = val.wrapping_add(0x80);
+                        }
+                    }
+                    StreamType::MonoI16 => (),
+                    StreamType::StereoU8 { audio } => {
+                        let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
+                        for (i, val) in final_slice.iter().enumerate() {
+                            if i & 1 == 0 {
+                                left[(break_point + i) / 2] = val.wrapping_add(0x80);
+                            } else {
+                                right[(break_point + i) / 2] = val.wrapping_add(0x80)
+                            }
+                        }
+                    }
+                    StreamType::StereoI16 { audio } => {
+                        let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
+                        let break_point = break_point/2;
+                        for (i, val) in final_slice.chunks_exact(2).enumerate() {
+                            if i & 1 == 0 {
+                                left[break_point+i] = val[0];
+                                left[break_point+i+1] = val[1];
+                                
+                            } else {
+                                right[break_point+i-1] = val[0];
+                                right[break_point+i] = val[1];
+                            }
+                        }
+                    },
                 }
             } else {
                 return;
@@ -171,7 +352,8 @@ impl AppData {
                 });
             }
             if let Some(wav_stream) = &mut self.streaming_wav {
-                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 9;
+                
+                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 11;
                 let bytes_to_read = pos as usize - wav_stream.player_head;
                 unsafe { wav_stream.fetch_new(bytes_to_read); };
                 unsafe {
@@ -384,6 +566,7 @@ impl AppData {
                                             current_path.push_str(&item.1);
                                             match fatfs_embedded::open(current_path, FileOptions::Read) {
                                                 Ok(module) => {
+                                                    self.streaming_wav.take();
                                                     self.loading_mod_file =
                                                         Some(MODAsyncLoader::new(module));
                                                 }
@@ -397,19 +580,8 @@ impl AppData {
                                             match fatfs_embedded::open(current_path, FileOptions::Read) {
                                                 Ok(module) => {
                                                     if let Some(mut wav) = StreamingWav::new(module) {
-                                                        
-                                                        unsafe {
-                                                            let timer = 0xFFFF - ((33513982 / 2) / wav.frequency) as u16;
-                                                            wav.fetch_new(WAV_BUFFER_LEN);
-                                                            reboot_lib::flush_mmc();
-                                                            reboot_lib::flush_mmc();
-                                                            wav.player_head = 0;
-                                                            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
-                                                            (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
-                                                            reboot_lib::arm9_start_wav_stream(&mut *wav.scratch_buffer, 0, timer);
-                                                            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(timer, TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START));
-
-                                                        }
+                                                        self.streaming_wav.take();
+                                                        unsafe { wav.play() };
                                                         self.streaming_wav = Some(wav);
                                                         ui.request_repaint();
 

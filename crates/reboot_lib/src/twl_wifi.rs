@@ -19,8 +19,9 @@ unsafe fn nwifi_restart_card() -> bool {
     {
         let mut ocr = 0;
         loop {
-            while !wifi_card_send_command(crate::mmc::Command::SDIOOpCond, ocr, true).successful() {}
-            ocr = PORT.response[0] & (1<<20);
+            while !wifi_card_send_command(crate::mmc::Command::SDIOOpCond, ocr, true).successful() {
+            }
+            ocr = PORT.response[0] & (1 << 20);
 
             if PORT.response[0] & 0x80000000 > 0 {
                 break;
@@ -61,7 +62,6 @@ unsafe fn nwifi_restart_card() -> bool {
     false
 }
 unsafe fn nwifi_init_func0() -> bool {
-
     if sdio_write_func_byte(SDIOFunc::Zero, 0x12, 0x2) {
         return true;
     }
@@ -85,7 +85,6 @@ unsafe fn nwifi_init_func0() -> bool {
     false
 }
 unsafe fn nwifi_init_func1() -> bool {
-
     /*
     let Some(is_fw_uploaded) = nwifi_read_intern_word(interest_addr + 0x58) else {
         return Err(0x16);
@@ -124,7 +123,7 @@ unsafe fn nwifi_write_mbox_u32(mut val: u32, send_irq: bool) -> bool {
     let val = val.to_le_bytes();
     let addr = if send_irq { 0xFC } else { 0 };
     for i in 0..4 {
-        res |= sdio_write_func_byte(SDIOFunc::One, addr+i, val[i as usize]);
+        res |= sdio_write_func_byte(SDIOFunc::One, addr + i, val[i as usize]);
     }
     res
 }
@@ -140,7 +139,11 @@ unsafe fn nwifi_write_intern_word(addr: u32, value: u32) -> bool {
 static mut PORT: TMIOPort = TMIOPort::dsio();
 
 #[inline(always)]
-unsafe fn wifi_card_send_command(command: crate::mmc::Command, arg: u32, switch_port: bool) -> Status {
+unsafe fn wifi_card_send_command(
+    command: crate::mmc::Command,
+    arg: u32,
+    switch_port: bool,
+) -> Status {
     SDIO_CONTROLLER.wait_busy();
     if switch_port {
         SDIO_CONTROLLER.prepare_port(&mut PORT);
@@ -278,7 +281,6 @@ fn find_interest_addr(firmware: &[u8]) -> Option<NonZeroU32> {
     NonZeroU32::new(u32::from_le_bytes(chunk.clone()))
 }
 unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &[u8], interest_area: u32) -> u32 {
-    
     0
 }
 unsafe fn nwifi_start_firmware() -> bool {

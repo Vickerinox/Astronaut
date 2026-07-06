@@ -63,7 +63,10 @@ impl Config {
             let (options, style) = if let Some(i) = ini.get("[options]") {
                 let options = Options {
                     patch_flag: i.get("patching").map(|i| i == "on").unwrap_or(true),
-                    wifi_firmware_upload: i.get("wifi_firm_upload").map(|i| i == "on").unwrap_or(true),
+                    wifi_firmware_upload: i
+                        .get("wifi_firm_upload")
+                        .map(|i| i == "on")
+                        .unwrap_or(true),
                 };
                 let style = Style {
                     music: i.get("music").unwrap_or("").to_string(),

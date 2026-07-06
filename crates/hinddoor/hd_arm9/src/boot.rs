@@ -94,14 +94,15 @@ unsafe fn boot_unreturnable(
 ) -> ! {
     crate::stop_mod_file();
     let boot_info = header;
-    
+
     if app_data.config.options.wifi_firmware_upload {
         //Launcher and hiyaCFW
-        if ![0x00030017_484E4100, 0x00030004_49485900].contains(&(boot_info.twl_header.title_id & !0xFF)) {
+        if ![0x00030017_484E4100, 0x00030004_49485900]
+            .contains(&(boot_info.twl_header.title_id & !0xFF))
+        {
             crate::load_wifi_firmware();
         }
     }
-    
 
     {
         let mut prv_path = String::with_capacity(file_path.len());

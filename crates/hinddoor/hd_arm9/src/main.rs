@@ -23,12 +23,12 @@ reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
-use reboot_lib::timers::{Timer, TimerControl};
 use core::arch::asm;
 use core::str;
 use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
 use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
+use reboot_lib::timers::{Timer, TimerControl};
 
 use micro_imgui_ds::micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
@@ -419,7 +419,9 @@ unsafe fn set_bright(factor: u16) {
 const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 
 unsafe fn uptick_wav() {
-    (*(APP_AREA_START as *mut AppArea)).wav_counter.modify(|i| i+1);
+    (*(APP_AREA_START as *mut AppArea))
+        .wav_counter
+        .modify(|i| i + 1);
 }
 unsafe fn main() {
     unsafe {
@@ -494,7 +496,7 @@ unsafe fn main() {
         irq_init();
 
         IPC_FIFO_HARDWARE.enable_recv_irq();
-
+        reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
         reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
@@ -529,7 +531,7 @@ unsafe fn main() {
         INTERRUPT_TABLE[0] = fade_out as *mut _;
         INTERRUPT_TABLE[3] = uptick_wav as *mut _;
         //reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(65185, TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START));
-        
+
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {

@@ -3,7 +3,14 @@ mod mmc_new;
 mod swi;
 
 use crate::{
-    AES_HARDWARE, AESCnt, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, sound::{SOUND_HARDWARE, SoundControl}, spi::{Control, PowerRegiser, SPI_HARDWARE, touchscreen::read_tsc_pos_cdc}, timers::TIMERS, write_sd_sectors,
+    check_sdmmc,
+    i2c::I2CRegister,
+    ndma::NDMA_HARDWARE,
+    sound::{SoundControl, SoundFormat, SOUND_HARDWARE},
+    spi::{touchscreen::read_tsc_pos_cdc, Control, PowerRegiser, SPI_HARDWARE},
+    timers::TIMERS,
+    write_sd_sectors, AESCnt, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
+    MMC_CONTROLLER, SDIO_CONTROLLER,
 };
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
@@ -358,14 +365,18 @@ pub fn main_arm7() {
                     let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let timer = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let flags = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-                    SOUND_HARDWARE.init();
-                    let channel = &SOUND_HARDWARE.channels[(flags >> 1) as usize];
-                    channel.length.write(len>>2);
-                    channel.loop_start.write(0);
-                    channel.source.write(ptr);
-                    channel.timer.write(timer as u16);
-                    channel.control.write(SoundControl::START.with_panning(0x40).with_repeat_mode(crate::sound::RepeatMode::Infinite).with_sound_format(crate::sound::SoundFormat::PCM8).with_volume(40));
-                    response = 0; 
+                    let flags = SoundControl::from_bits_retain(flags);
+                    let channel = &SOUND_HARDWARE.channels[(len & 0xF) as usize];
+                    if flags.contains(SoundControl::START) {
+                        channel.length.write(len >> 6);
+                        channel.loop_start.write((timer >> 16) as u16);
+                        channel.source.write(ptr);
+                        channel.timer.write(timer as u16);
+                        channel.control.write(flags);
+                    } else {
+                        channel.control.write(flags);
+                    }
+                    response = 0;
                 }
                 _ => response = 0x8000_0000,
             }

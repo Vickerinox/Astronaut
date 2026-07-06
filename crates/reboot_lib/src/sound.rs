@@ -102,7 +102,7 @@ pub const fn timer_from_freq(freq: u32) -> u16 {
     0xFFFF - ((33513982 / 2) / freq) as u16
 }
 pub const fn timer_to_freq(timer: u16) -> u32 {
-    ((33513982 / 2) / (65535 - timer as u32))  
+    ((33513982 / 2) / (65535 - timer as u32))
 }
 bitflags! {
     #[derive(Clone, Copy, Default)]

@@ -9,7 +9,7 @@ pub enum SampleType {
 }
 
 pub struct WavPlay {
-    header:  WavHeader,
+    header: WavHeader,
     scratch_buffer: *mut (),
     len: usize,
 }
