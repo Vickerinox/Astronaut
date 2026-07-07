@@ -376,6 +376,10 @@ impl AppData {
             Err(_abort) => {}
         }
     }
+    pub fn load_wallpaper(&mut self) -> Option<crate::bmp::DecodedBMP> {
+        let file = fatfs_embedded::open(&mut self.config.style.top_wallpaper, FileOptions::Read).ok()?;
+        crate::bmp::DecodedBMP::from_reader(file)
+    }
     pub fn do_background_tasks(&mut self) {
         let mut music = MusicPlaying::None;
         core::mem::swap(&mut music, &mut self.loading_mod_file);

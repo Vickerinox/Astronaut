@@ -289,7 +289,11 @@ pub struct VideoHardware {
     _0x1004: u32,
     pub disp_b_bgctrl: [RW<u16>; 4],
     pub disp_b_bgscrl: [RW<u16>; 8],
-    pub gba_registers: [u8; 0x38],
+    pub disp_b_bg2_scale: [RW<u16>; 4],
+    pub disp_b_bg2_ref: [RW<u32>; 2],
+    pub disp_b_bg3_scale: [RW<u16>; 4],
+    pub disp_b_bg3_ref: [RW<u32>; 2],
+    pub gba_registers: [u8; 0x18],
     _0x1058: [u8; 0x14],
     pub disp_b_master_bright: RW<u16>,
 }

@@ -1,6 +1,5 @@
 use alloc::string::{String, ToString};
 use fatfs_embedded::fatfs::FileOptions;
-use micro_imgui_ds::read_controller;
 use reboot_lib::Buttons;
 
 pub struct Config {
@@ -11,6 +10,7 @@ pub struct Config {
 }
 pub struct Style {
     pub music: String,
+    pub top_wallpaper: String,
 }
 pub struct Options {
     pub patch_flag: bool,
@@ -28,6 +28,7 @@ impl Style {
     pub const fn default() -> Self {
         Self {
             music: String::new(),
+            top_wallpaper: String::new(),
         }
     }
 }
@@ -70,6 +71,7 @@ impl Config {
                 };
                 let style = Style {
                     music: i.get("music").unwrap_or("").to_string(),
+                    top_wallpaper: i.get("wallpaper").unwrap_or("").to_string(),
                 };
                 (options, style)
             } else {
