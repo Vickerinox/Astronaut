@@ -718,6 +718,8 @@ impl AppData {
                         "f3l1x_10m",
                         "Kai (coderkei)",
                         "rmc",
+                        "folf20",
+                        "beta215",
                         "PoroCYon",
                         "AntonioND",
                         "and you!",
