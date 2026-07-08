@@ -49,7 +49,6 @@ pub struct Device {
     kind: Option<DeviceType>,
     protection: Protection,
     rca: u32,
-    command_class_support: u16,
     sectors: Option<NonZeroU32>,
     status: u32,
     cid: [u32; 4],
@@ -65,11 +64,10 @@ pub enum DeviceSelect {
 impl Device {
     const fn sd_card() -> Self {
         Self {
-            port: TMIOPort::init(0),
+            port: TMIOPort::sdmmc::<0>(),
             kind: None,
             protection: Protection::empty(),
             rca: 0,
-            command_class_support: 0,
             sectors: None,
             status: 0,
             cid: [0; 4],
@@ -77,11 +75,10 @@ impl Device {
     }
     const fn nand() -> Self {
         Self {
-            port: TMIOPort::init(1),
-            kind: Some(DeviceType::EMMC),
+            port: TMIOPort::sdmmc::<1>(),
+            kind: None,
             protection: Protection::empty(),
             rca: 0,
-            command_class_support: 0,
             sectors: None,
             status: 0,
             cid: [0; 4],
@@ -289,47 +286,6 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
     Ok(())
 }
 
-unsafe fn parse_csd(device: &mut Device, kind: DeviceType) -> u8 {
-    return 0;
-    let Device {
-        port,
-        command_class_support,
-        sectors,
-        protection,
-        ..
-    } = device;
-    let resp = &port.response;
-    let structure = extract_bits(resp, 126, 2) as u8;
-    let spec = extract_bits(resp, 122, 4) as u8;
-    *command_class_support = extract_bits(resp, 84, 12) as u16;
-    let sector_count = if structure == 0 || kind == DeviceType::EMMC {
-        let bl_len = extract_bits(resp, 80, 4);
-        let c_size = extract_bits(resp, 62, 12);
-        let c_size_mult = extract_bits(resp, 47, 3);
-        let count = (c_size + 1) << (c_size_mult + 2 + bl_len - 9);
-        Some(NonZeroU32::new_unchecked(count))
-    } else if kind != DeviceType::HCEMMC {
-        let c_size = extract_bits(resp, 48, 28);
-        let count = (c_size + 1) << 10;
-        Some(NonZeroU32::new_unchecked(count))
-    } else {
-        None
-    };
-    let bits = (resp[0] >> 11) & 0b110;
-    *protection = Protection::from_bits_retain(bits as u8);
-    *sectors = sector_count;
-    spec
-}
-fn extract_bits(resp: &[u32; 4], start: usize, size: usize) -> u32 {
-    let mask: u32 = if size < 32 { 1 << size as u32 } else { 0u32 }.wrapping_sub(1);
-    let off = 3 - (start >> 5);
-    let shift = start & 0x31;
-    let mut res = resp[off] >> shift;
-    if size + shift > 32 {
-        res |= resp[off - 1] << ((32 - shift) & 0x31);
-    }
-    res & mask
-}
 #[cfg(feature = "arm7i")]
 unsafe fn send_app_command(
     port: &mut TMIOPort,

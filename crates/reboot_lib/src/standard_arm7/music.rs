@@ -242,7 +242,7 @@ pub fn play_mod() {
             target_pitch,
             last_sample_index,
             last_portamento_index,
-        } = &mut MODULE;
+        } = &mut * (&raw mut MODULE);
         let Some(borrow) = current_song.as_mut() else {
             return;
         };

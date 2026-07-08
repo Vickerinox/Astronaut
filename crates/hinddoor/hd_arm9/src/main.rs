@@ -33,7 +33,7 @@ use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 use reboot_lib::timers::{ TimerControl};
 
-use micro_imgui_ds::micro_imgui::{Color, Vec2};
+use micro_imgui_ds::micro_imgui::{Color};
 use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
     ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, Interrupt, VRAMCtrl, VideoHardwareHandle, flush_mmc,
@@ -338,7 +338,7 @@ unsafe fn load_wifi_firmware() -> u32 {
     let firmware_ptr = alloc::alloc::alloc(layout);
     let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, size as usize);
     if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
-        let ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
+        ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
             Ok(_) => 0,
             Err(e) => e.get(),
         };
@@ -570,6 +570,7 @@ const DSI_WRAM_START: usize = 0x037C0000;
 const BINARY_START: usize = 0x037DF27C;
 const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
 const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
+
 #[no_mangle]
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
@@ -605,9 +606,10 @@ pub unsafe extern "C" fn _start() {
         options(noreturn) // No return possible from this function
     );
 }
+#[no_mangle]
 #[cfg(not(target_arch = "arm"))]
 pub unsafe extern "C" fn _start() {
-    loop {}
+    main();
 }
 
 fn send_mod_file(module: Box<MODHeader>) -> Option<Box<MODHeader>> {
@@ -671,6 +673,7 @@ fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
 fn panic(info: &core::panic::PanicInfo) -> ! {
     use micro_imgui_ds::gui;
     use micro_imgui_ds::micro_imgui;
+    use micro_imgui_ds::micro_imgui::Vec2;
     unsafe {
         core::arch::asm!("mov r11, r11");
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b0111110100000000);

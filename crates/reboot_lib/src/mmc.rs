@@ -511,9 +511,10 @@ pub struct TMIOPort {
     pub response: [u32; 4],
 }
 impl TMIOPort {
-    pub const fn init(port_num: u16) -> Self {
+    pub const fn sdmmc<const N: u16>() -> Self {
+        assert!(N <= 1, "Port number must be either 0 for SDMC, or 1 for NAND");
         Self {
-            port_num,
+            port_num: N,
             clock: ClockCnt::FREQ_262K,
             block_len: 512,
             option: (1 << 15) | (1 << 14) | ((11 << 4) | 8),
