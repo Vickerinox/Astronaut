@@ -30,13 +30,12 @@ pub struct GlobalData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
     pub blowfish: BFCTX,
     pub loading_mod_file: MusicPlaying,
-    pub nand_fs: RawFileSystem,
-    pub sdmc_fs: RawFileSystem,
     pub config: crate::configuration::Config,
-    pub sdio_status: u32,
 }
+
 pub struct AppData {
     pub global_data: GlobalData,
+    
     pub current_ui: Box<dyn UiPage>,
 }
 pub enum MusicPlaying {
@@ -95,7 +94,7 @@ impl StreamingWav {
         let mut data_start = 0;
         let mut data_len = 0;
 
-        let mut main_chunk = [0u8; 0x2C];
+        let mut main_chunk = [0u8; 0x24];
         read_all(&mut main_chunk, &mut file).ok()?;
         if &main_chunk[..4] != b"RIFF" {
             return None;
@@ -106,42 +105,49 @@ impl StreamingWav {
         if &main_chunk[12..16] != b"fmt " {
             return None;
         }
-        if &main_chunk[36..40] != b"data" {
-            return None;
-        }
-        data_len = u32::from_le_bytes(main_chunk[40..].first_chunk()?.clone()) as usize;
-        data_start = 0x2C;
+        
         let frequency = u32::from_le_bytes(main_chunk[24..].first_chunk()?.clone());
         let bits_per_sample = u16::from_le_bytes(main_chunk[34..].first_chunk()?.clone()) as u8;
         let channels = u16::from_le_bytes(main_chunk[22..].first_chunk()?.clone()) as u8;
         if frequency > 48000 {
             return None;
         }
-        let stream = match (channels, bits_per_sample) {
+
+        let mut chunk_buffer = [0u8; 8];
+        loop {
+            read_all(&mut chunk_buffer, &mut file).ok()?;
+            data_len = u32::from_le_bytes(chunk_buffer[4..].try_into().ok()?);
+            if chunk_buffer.first_chunk() == Some(b"data") {
+                data_start = file.fptr;
+                break;
+            } else {
+                let seek = file.fptr+data_len;
+                fatfs_embedded::seek(&mut file, seek).ok()?;
+            }
+        }
+        
+        let stream_type = match (channels, bits_per_sample) {
             (1, 8) => StreamType::MonoU8,
             (1, 16) => StreamType::MonoI16,
-            (2, 8) => StreamType::StereoU8 {
-                audio: alloc_wav_buf(),
-            },
+            (2, 8) => StreamType::StereoU8 { audio: alloc_wav_buf() },
             (2, 16) => StreamType::StereoI16 { audio: alloc_wav_buf() },
             _ => return None,
         };
         Some(Self {
             file,
-            data_start,
-            data_len,
+            data_start: data_start as usize,
+            data_len: data_len as usize,
             player_head: 0,
             scratch_buffer: alloc_wav_buf(),
-            stream_type: stream,
+            stream_type,
             frequency,
         })
     }
     pub unsafe fn play(&mut self) {
-        let wav = self;
         unsafe {
-            let timer = ((33513982 / 2) / wav.frequency) as u16;
+            let timer = ((33513982 / 2) / self.frequency) as u16;
             let snd_timer = 0u16.wrapping_sub(timer);
-            let (format, timer_timer) = match wav.stream_type {
+            let (format, timer_timer) = match self.stream_type {
                 StreamType::MonoU8 => (
                     SoundControl::START
                         .with_sound_format(reboot_lib::sound::SoundFormat::PCM8)
@@ -173,16 +179,16 @@ impl StreamingWav {
                 ),                                       
                     
             };
-            wav.fetch_new(WAV_BUFFER_LEN);
-            wav.player_head = 0;
+            self.fetch_new(WAV_BUFFER_LEN);
+            self.player_head = 0;
             reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
             (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
-            match &mut wav.stream_type {
+            match &mut self.stream_type {
                 StreamType::MonoU8 => {
-                    reboot_lib::arm9_manual_sound_write(wav.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
+                    reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
                 },
                 StreamType::MonoI16 => {
-                    reboot_lib::arm9_manual_sound_write(wav.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
+                    reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
                 
                 },
                 StreamType::StereoU8 { audio } => {

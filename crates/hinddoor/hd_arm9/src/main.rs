@@ -7,9 +7,14 @@
 
 const BOOTSTRAP_BINARY: &[u8] = include_bytes!("./bootstrap.bin");
 pub mod bmp;
+pub struct FileSystems {
+    pub nand_fs: RawFileSystem,
+    pub sdmc_fs: RawFileSystem,
+}
 pub struct AppArea {
     sdmmc_driver: core::mem::MaybeUninit<SDMMCDriver>,
     app_data: core::mem::MaybeUninit<AppData>,
+    filesystems: FileSystems,
     fader: Fader,
     wav_counter: reboot_lib::volatile_register::RW<u32>,
     path_buffer: [u8; 256],
@@ -529,23 +534,19 @@ unsafe fn main() {
         let sdmmc_driver = app_area.sdmmc_driver.assume_init_mut();
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
 
+        let _ = app_area.filesystems.nand_fs
+            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
+        let _ = app_area.filesystems.sdmc_fs
+            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
+
         let ptr = app_area.app_data.as_mut_ptr();
         (&raw mut (*ptr).global_data.autoboot).write(None);
         (&raw mut (*ptr).current_ui).write(Box::new(gui::MainMenu));
         (&raw mut (*ptr).global_data.loading_mod_file).write(gui::MusicPlaying::None);
-        (&raw mut (*ptr).global_data.sdio_status).write(0xDEADB00F);
-
-        let app_data = app_area.app_data.assume_init_mut();
-        let _ = app_data.global_data
-            .nand_fs
-            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
-        let _ = app_data.global_data
-            .sdmc_fs
-            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
-
         let (buttons, _, _) = read_controller();
         (&raw mut (*ptr).global_data.config).write(configuration::Config::load(buttons));
 
+        let app_data = app_area.app_data.assume_init_mut();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
 
         //crate::load_wifi_firmware();
