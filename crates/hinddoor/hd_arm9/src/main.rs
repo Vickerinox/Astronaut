@@ -428,7 +428,7 @@ unsafe fn main() {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
-        (&raw mut (*app_area.app_data.as_mut_ptr()).blowfish)
+        (&raw mut (*app_area.app_data.as_mut_ptr()).global_data.blowfish)
             .write((*(0x1FFC894 as *const BFCTX)).clone());
         VIDEO_HARDWARE
             .power_control
@@ -530,21 +530,21 @@ unsafe fn main() {
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
 
         let ptr = app_area.app_data.as_mut_ptr();
-        (&raw mut (*ptr).autoboot).write(None);
-        (&raw mut (*ptr).current_ui).write(gui::CurrentUI::None);
-        (&raw mut (*ptr).loading_mod_file).write(gui::MusicPlaying::None);
-        (&raw mut (*ptr).sdio_status).write(0xDEADB00F);
+        (&raw mut (*ptr).global_data.autoboot).write(None);
+        (&raw mut (*ptr).current_ui).write(Box::new(gui::MainMenu));
+        (&raw mut (*ptr).global_data.loading_mod_file).write(gui::MusicPlaying::None);
+        (&raw mut (*ptr).global_data.sdio_status).write(0xDEADB00F);
 
         let app_data = app_area.app_data.assume_init_mut();
-        let _ = app_data
+        let _ = app_data.global_data
             .nand_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
-        let _ = app_data
+        let _ = app_data.global_data
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
         let (buttons, _, _) = read_controller();
-        (&raw mut (*ptr).config).write(configuration::Config::load(buttons));
+        (&raw mut (*ptr).global_data.config).write(configuration::Config::load(buttons));
 
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
 
@@ -558,10 +558,10 @@ unsafe fn main() {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
                     let mut file_path = params.parse_path();
-                    (&raw mut app_data.autoboot).write(Some((file_path.clone(), params)));
+                    (&raw mut app_data.global_data.autoboot).write(Some((file_path.clone(), params)));
                     if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
                         //app_data.current_ui = CurrentUI::LoadingApp { file, file_path };
-                        boot::boot_app(&mut file, &mut file_path, app_data);
+                        boot::boot_app(&mut file, &mut file_path, &mut app_data.global_data);
                     }
                 }
             } else {

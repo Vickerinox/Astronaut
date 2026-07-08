@@ -2,6 +2,7 @@
 #![feature(nonzero_ops)]
 
 pub use context::{Ctx, Frame};
+pub use ui::Ui;
 extern crate alloc;
 
 mod context;

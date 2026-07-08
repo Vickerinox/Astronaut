@@ -29,7 +29,7 @@ impl Debug for BootError {
     }
 }
 use crate::{
-    gui::AppData, set_background, AppArea, APP_AREA_START, BOOTSTRAP_BINARY, INTERRUPT_TABLE,
+    APP_AREA_START, AppArea, BOOTSTRAP_BINARY, INTERRUPT_TABLE, gui::{AppData, GlobalData}, set_background,
 };
 
 pub fn read_all(
@@ -90,7 +90,7 @@ unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
     header: &mut BootInfoTWL,
-    app_data: &mut AppData,
+    app_data: &mut crate::gui::GlobalData,
 ) -> ! {
     crate::stop_mod_file();
     let boot_info = header;
@@ -278,7 +278,7 @@ unsafe fn boot_unreturnable(
 pub unsafe fn boot_app(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
-    app_data: &mut AppData,
+    app_data: &mut GlobalData,
 ) -> BootError {
     reboot_lib::nocash_write("> booting ");
     reboot_lib::nocash_write(file_path);

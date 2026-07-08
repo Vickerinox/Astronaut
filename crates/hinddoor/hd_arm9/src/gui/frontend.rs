@@ -4,11 +4,7 @@ use core::{
 };
 
 use crate::{
-    boot::{self, read_all},
-    get_extension,
-    gui::{self, Input},
-    populate_fs_vec, send_mod_file, stop_mod_file, AppArea, APP_AREA_START, BACKGROUND_COLOR,
-    COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT,
+    APP_AREA_START, AppArea, BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT, boot::{self, read_all}, get_extension, gui::{self, Input, main_menu::MainMenu}, populate_fs_vec, send_mod_file, stop_mod_file,
 };
 use alloc::{
     boxed::Box,
@@ -29,31 +25,19 @@ use reboot_lib::{
 };
 pub enum CurrentUI {
     None,
-    Error {
-        error_string: String,
-    },
-    Browsing {
-        immediate_files: Vec<(String, String, bool, Color)>,
-        file_path: String,
-        offset: i32,
-        drag_start: i16,
-        hold_timer: i16,
-    },
-    LoadingApp {
-        file: fatfs_embedded::fatfs::File,
-        file_path: String,
-    },
-    SpecialThanks,
 }
-pub struct AppData {
+pub struct GlobalData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
-    pub current_ui: CurrentUI,
     pub blowfish: BFCTX,
     pub loading_mod_file: MusicPlaying,
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
     pub config: crate::configuration::Config,
     pub sdio_status: u32,
+}
+pub struct AppData {
+    pub global_data: GlobalData,
+    pub current_ui: Box<dyn UiPage>,
 }
 pub enum MusicPlaying {
     None,
@@ -314,51 +298,57 @@ pub struct FileEntry {
     truncated_name: String,
     file_type: FileType,
 }
+pub struct AppBooter {
+    pub path: String,
+}
+impl UiPage for AppBooter {
+    fn ui(&mut self, ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
+        let Ok(mut file) = fatfs_embedded::open(&mut self.path, FileOptions::Read) else { 
+            return Some(Box::new(super::error::Error { error_string: format!("File doesn't exist.")}));
+                         
+        };
+        ui.request_repaint();
+        let error = unsafe {
+            (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
+            boot::boot_app(&mut file, &self.path, data)
+        };
+        unsafe { (*(APP_AREA_START as *mut AppArea)).fader.target.write(0) };
+        let error_string = alloc::format!("Failed to boot file: {error:?}");
+        Some(Box::new(super::error::Error { error_string }))
+    }
+}
+pub trait UiPage {
+    fn ui(&mut self, ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, data: &mut GlobalData) -> Option<Box<dyn UiPage>>;
+}
+pub enum CurrentFrontend {
+    Ui(Box<dyn UiPage>),
+    BootingApp { file_path: String },
+}
+impl Default for CurrentFrontend {
+    fn default() -> Self {
+        Self::Ui(Box::new(MainMenu))
+    }
+}
 pub enum FileType {}
 impl AppData {
-    pub fn open_sd() -> Option<CurrentUI> {
-        let mut file_path = String::from("sdmc:/");
-        fatfs_embedded::opendir(&mut file_path).ok().map(|mut i| {
-            let immediate_files = populate_fs_vec(&mut i);
-            CurrentUI::Browsing {
-                immediate_files,
-                file_path,
-                offset: 0,
-                drag_start: 0,
-                hold_timer: 0,
-            }
-        })
-    }
-    pub fn open_nand() -> Option<CurrentUI> {
-        let mut file_path = String::from("nand:/");
-        fatfs_embedded::opendir(&mut file_path).ok().map(|mut i| {
-            let immediate_files = populate_fs_vec(&mut i);
-            CurrentUI::Browsing {
-                immediate_files,
-                file_path,
-                offset: 0,
-                drag_start: 0,
-                hold_timer: 0,
-            }
-        })
-    }
+    
     pub unsafe fn autoboot(&mut self) {
-        let mut path = core::mem::take(&mut self.config.autoboot);
+        let mut path = core::mem::take(&mut self.global_data.config.autoboot);
         let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {
             return;
         };
         (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
         //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
-        crate::boot::boot_app(&mut file, &path, self);
+        crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
     pub fn play_startup_music(&mut self) {
 
-        match fatfs_embedded::open(&mut self.config.style.music, FileOptions::Read) {
+        match fatfs_embedded::open(&mut self.global_data.config.style.music, FileOptions::Read) {
             Ok(file) => {
                 stop_mod_file();
-                self.loading_mod_file = MusicPlaying::None;
-                let Some(extension) = get_extension(self.config.style.music.as_bytes()) else { return };
-                self.loading_mod_file = match extension {
+                self.global_data.loading_mod_file = MusicPlaying::None;
+                let Some(extension) = get_extension(self.global_data.config.style.music.as_bytes()) else { return };
+                self.global_data.loading_mod_file = match extension {
                     b".mod" | b".MOD" => MusicPlaying::Mod(MODAsyncLoader::new(file)),
                     b".wav" | b".WAV" => {
                         if let Some(mut stream) = StreamingWav::new(file) {
@@ -377,19 +367,19 @@ impl AppData {
         }
     }
     pub fn load_wallpaper(&mut self) -> Option<crate::bmp::DecodedBMP> {
-        let file = fatfs_embedded::open(&mut self.config.style.top_wallpaper, FileOptions::Read).ok()?;
+        let file = fatfs_embedded::open(&mut self.global_data.config.style.top_wallpaper, FileOptions::Read).ok()?;
         crate::bmp::DecodedBMP::from_reader(file)
     }
     pub fn do_background_tasks(&mut self) {
         let mut music = MusicPlaying::None;
-        core::mem::swap(&mut music, &mut self.loading_mod_file);
+        core::mem::swap(&mut music, &mut self.global_data.loading_mod_file);
         match music {
             MusicPlaying::None => (),
             MusicPlaying::Wav(mut wav_stream) => {
                 let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 11;
                 let bytes_to_read = pos as usize - wav_stream.player_head;
                 unsafe { wav_stream.fetch_new(bytes_to_read); };
-                self.loading_mod_file = MusicPlaying::Wav(wav_stream);
+                self.global_data.loading_mod_file = MusicPlaying::Wav(wav_stream);
             },
             MusicPlaying::Mod(loading_mod) => {
                 match loading_mod.process() {
@@ -397,7 +387,7 @@ impl AppData {
                         send_mod_file(ret);
                     }
                     Ok(None) => (),
-                    Err(cont) => self.loading_mod_file = MusicPlaying::Mod(cont),
+                    Err(cont) => self.global_data.loading_mod_file = MusicPlaying::Mod(cont),
                 }
             }
         }
@@ -416,7 +406,7 @@ impl AppData {
                 });
             }
             
-            match &self.loading_mod_file {
+            match &self.global_data.loading_mod_file {
                 MusicPlaying::Mod(loading_mod) => {
                     let (progress, max) = loading_mod.progress();
                     let progress_bar = progress * 30 / max;
@@ -428,322 +418,13 @@ impl AppData {
                 },
                 _ => {ui.label(" ");}
             }    
-            
-
-            let new_state_fn: Option<Box<dyn FnOnce(CurrentUI) -> CurrentUI>> = match &mut self
-                .current_ui
-            {
-                CurrentUI::Error { error_string } => {
-                    ui.header("ERROR:");
-                    ui.label(error_string);
-                    if ui.button("okay").clicked() {
-                        Some(Box::new(|_| CurrentUI::None))
-                    } else {
-                        None
-                    }
-                }
-                CurrentUI::None => {
-                    ui.header("Welcome!");
-                    ui.label("Made by Vikrinox, 2026");
-                    ui.header(" ");
-                    let mut res: Option<Box<dyn FnOnce(CurrentUI) -> CurrentUI>> = None;
-                    if ui.button("Browse Files on SD").clicked() {
-                        if let Some(sd) = Self::open_sd() {
-                            res = Some(Box::new(move |_| sd))
-                        }
-                    }
-                    if ui.button("Browse Files on NAND").clicked() {
-                        if let Some(sd) = Self::open_nand() {
-                            res = Some(Box::new(move |_| sd))
-                        }
-                    }
-                    ui.add(Checkbox::new(
-                        &mut self.config.options.patch_flag,
-                        "Enable patching",
-                    ));
-                    if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
-                        res = Some(Box::new(|_| CurrentUI::SpecialThanks));
-                    }
-                    ui.add_space(82);
-                    ui.label(concat!("build commit: ", env!("GIT_HASH")));
-                    res
-                }
-                CurrentUI::LoadingApp { file, file_path } => {
-                    ui.request_repaint();
-
-                    let mut swap = CurrentUI::None;
-                    core::mem::swap(&mut self.current_ui, &mut swap);
-                    if let CurrentUI::LoadingApp {
-                        mut file,
-                        file_path,
-                    } = swap
-                    {
-                        let error = unsafe {
-                            (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
-                            boot::boot_app(&mut file, &file_path, self)
-                        };
-                        unsafe { (*(APP_AREA_START as *mut AppArea)).fader.target.write(0) };
-                        let error_string = alloc::format!("Failed to boot file: {error:?}");
-                        self.current_ui = CurrentUI::Error { error_string };
-                    }
-
-                    None
-                }
-                CurrentUI::Browsing {
-                    immediate_files,
-                    file_path: current_path,
-                    offset,
-                    drag_start,
-                    hold_timer,
-                } => {
-                    const ITEM_SPACING: i32 = 14;
-
-                    let max_scroll = ((immediate_files.len()) as i32 * ITEM_SPACING)
-                                    - (ITEM_SPACING * 11);
-                    if let Some(drag) = ui.drag() {
-                        let new_drag = drag.y - *drag_start;
-                        *drag_start += new_drag;
-                        *offset -= new_drag as i32;
-                        *offset = (*offset)
-                            .min(max_scroll)
-                            .max(0);
-                    } else {
-                        *drag_start = 0;
-                    }
-
-                    let mut focus_on = None;
-                    if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
-                        focus_on = Some(10);
-                    }
-                    if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) {
-                        focus_on = Some(0);
-                    }
-
-                    let shown_items = immediate_files
-                        .get(((*offset / ITEM_SPACING) as usize)..)
-                        .unwrap_or(&[]);
-
-                    let in_step = *offset % ITEM_SPACING;
-
-                    let mut control_dir = 0;
-                    if ui.input_pressed(Input(Buttons::DIRECTION_UP)) {
-                        control_dir = 1;
-                    }
-
-                    if ui.input_pressed(Input(Buttons::DIRECTION_DOWN)) {
-                        control_dir = -1;
-                    }
-                    if ui.input_down(Input(Buttons::DIRECTION_UP)) && ui.has_focus_anywhere() {
-                        *hold_timer += 1;
-                        ui.request_repaint();
-                    } else if ui.input_down(Input(Buttons::DIRECTION_DOWN))
-                        && ui.has_focus_anywhere()
-                    {
-                        *hold_timer -= 1;
-                        ui.request_repaint();
-                    } else {
-                        *hold_timer = 0;
-                    }
-                    if hold_timer.abs() > 30 && (*hold_timer & 1 == 0) {
-                        if hold_timer.is_negative() {
-                            ui.focus_next();
-                            control_dir = -1;
-                        } else {
-                            ui.focus_prev();
-                            control_dir = 1
-                        }
-                    }
-
-                    let mut new_state: Option<
-                        alloc::boxed::Box<dyn FnOnce(CurrentUI) -> CurrentUI>,
-                    > = None;
-                    let mut new_folder = None;
-                    ui.label(current_path);
-                    let rect = micro_imgui::Rect::from_two_pos(
-                        ui.clip_rect().top_left(),
-                        ui.clip_rect().top_right() + Vec2::new(0, ITEM_SPACING as _),
-                    );
-                    let rect2 = micro_imgui::Rect::from_two_pos(
-                        SCREEN_RECT.bottom_left() - Vec2::new(0, 5 as _),
-                        SCREEN_RECT.bottom_right(),
-                    );
-
-                    let color = BACKGROUND_COLOR;
-
-                    ui.add_space((ITEM_SPACING - in_step) as i16);
-                    let items = if in_step == 0 { 11 } else { 12 };
-                    let mut focus = None;
-                    for (i, item) in shown_items.iter().take(items).enumerate() {
-                        let response = ui.add(Button::new(
-                            &item.0,
-                            Sizing::Padded(Vec2::new(248, 8)),
-                            item.3,
-                        ));
-                        if response.focused() {
-                            focus = Some(i);
-                        }
-                        if Some(i) == focus_on {
-                            ui.set_focus(&response);
-                            ui.request_repaint();
-                        }
-                        if response.clicked() {
-                            if item.2 {
-                                current_path.push_str(&item.1);
-                                current_path.push('/');
-                                if let Ok(f) = fatfs_embedded::opendir(current_path) {
-                                    new_folder = Some(f);
-                                }
-                            } else {
-                                if item.3 == COLOR_BOOTABLE {
-                                    current_path.push_str(&item.1);
-                                    match fatfs_embedded::open(current_path, FileOptions::Read) {
-                                        Ok(file) => {
-                                            let bajs = current_path.clone();
-                                            new_state = Some(Box::new(|_| CurrentUI::LoadingApp {
-                                                file,
-                                                file_path: bajs,
-                                            }));
-                                        }
-                                        Err(_) => (),
-                                    }
-                                } else if item.3 == COLOR_MUSIC {
-                                    match get_extension(item.1.as_bytes()) {
-                                        Some(b".mod") => {                                        
-                                            current_path.push_str(&item.1);
-                                            match fatfs_embedded::open(current_path, FileOptions::Read) {
-                                                Ok(module) => {
-                                                    self.loading_mod_file = MusicPlaying::None;
-                                                    self.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(module));
-                                                }
-                                                Err(_abort) => (),
-                                            }
-                                            pop_dir_entry(current_path);
-                                        }
-                                        Some(b".wav") => {
-                                            let _ = stop_mod_file();
-                                            current_path.push_str(&item.1);
-                                            match fatfs_embedded::open(current_path, FileOptions::Read) {
-                                                Ok(module) => {
-                                                    if let Some(mut wav) = StreamingWav::new(module) {
-                                                        self.loading_mod_file = MusicPlaying::None;
-                                                        unsafe { wav.play() };
-                                                        self.loading_mod_file = MusicPlaying::Wav(wav);
-                                                        ui.request_repaint();
-
-                                                    }
-                                                    
-                                                }
-                                                Err(_abort) => (),
-                                            }
-                                            pop_dir_entry(current_path);
-                                            
-
-                                        }
-                                        _ => (),
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    ui.paint_shape(micro_imgui::Shape::Rectangle {
-                        area: rect,
-                        fill: Color(color),
-                        rounding: 0,
-                        outline_color: Color(color),
-                        outline_size: 0,
-                    });
-                    ui.paint_shape(micro_imgui::Shape::Rectangle {
-                        area: rect2,
-                        fill: Color(color),
-                        rounding: 0,
-                        outline_color: Color(color),
-                        outline_size: 0,
-                    });
-
-                    if focus == focus_on {
-                        if focus_on == Some(0) {
-                            *offset = (*offset).sub(ITEM_SPACING * 10).max(0);
-                        }
-                        if focus_on == Some(10) {
-                            *offset = (*offset)
-                                .add(ITEM_SPACING * 10)
-                                .min(max_scroll)
-                                .max(0);
-                        }
-                    }
-                    if control_dir == 1 {
-                        if focus == Some(0) && *offset > 0 {
-                            *offset = offset.wrapping_sub(ITEM_SPACING).max(0);
-                            ui.cancel_refocus();
-                        }
-
-                        *offset -= in_step;
-                    } else if control_dir == -1 {
-                        if focus == Some(10) && shown_items.len() >= 12 {
-                            *offset = offset.saturating_add(ITEM_SPACING);
-                            ui.cancel_refocus();
-                        }
-
-                        *offset -= in_step;
-                    }
-                    if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) && new_folder.is_none() {
-                        if ["nand:/", "sdmc:/"].contains(&current_path.as_str()) {
-                            new_state = Some(Box::new(|_| CurrentUI::None));
-                        } else {
-                            pop_dir_entry(current_path);
-                            match fatfs_embedded::opendir(current_path) {
-                                Ok(f) => {
-                                    new_folder = Some(f);
-                                }
-                                Err(_err) => {
-                                    new_state = Some(Box::new(|_| CurrentUI::Error {
-                                        error_string: format!("Filesystem error!"),
-                                    }));
-                                }
-                            }
-                        }
-                    }
-                    if let Some(mut new_folder) = new_folder {
-                        *immediate_files = populate_fs_vec(&mut new_folder);
-                        *offset = 0;
-                    }
-                    new_state
-                }
-                CurrentUI::SpecialThanks => {
-                    ui.header("Special thanks");
-                    let names = &[
-                        "edo9300",
-                        "nocash",
-                        "Team LNH",
-                        "f3l1x_10m",
-                        "Kai (coderkei)",
-                        "rmc",
-                        "folf20",
-                        "beta215",
-                        "PoroCYon",
-                        "AntonioND",
-                        "and you!",
-                    ];
-                    for name in names {
-                        ui.label(name);
-                    }
-
-                    if ui.input_pressed(gui::Input(Buttons::BUTTON_B)) {
-                        Some(Box::new(|_| CurrentUI::None))
-                    } else {
-                        None
-                    }
-                }
-            };
-            if let Some(new_state) = new_state_fn {
-                let mut current_ui = CurrentUI::None;
-                core::mem::swap(&mut current_ui, &mut self.current_ui);
-                self.current_ui = new_state(current_ui);
+            if let Some(new_ui) = self.current_ui.ui(ui, &mut self.global_data) {
+                self.current_ui = new_ui;
             }
         });
     }
 }
-fn pop_dir_entry(current_path: &mut String) {
+pub fn pop_dir_entry(current_path: &mut String) {
     current_path.pop();
     while current_path.pop() != Some('/') {}
     current_path.push('/');
