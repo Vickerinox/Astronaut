@@ -1,9 +1,8 @@
 use fatfs_embedded::fatfs::{
     diskio::{DiskResult, FatFsDriver, IoctlCommand},
-    RawFileSystem,
 };
 use reboot_lib::{
-    arm9_check_sdmmc, arm9_init_sdmmc, StorageSector, ENGINE_A_PALETTES, ENGINE_B_PALETTES,
+    arm9_check_sdmmc, arm9_init_sdmmc, StorageSector,
 };
 
 use crate::{mbr, nand::BasicSDMMCCursor, read_encrypted_nand, read_sd_card, transmute_slice};
@@ -100,7 +99,8 @@ impl FatFsDriver for SDMMCDriver {
         match data {
             IoctlCommand::CtrlSync(_) => {
                 if let Some(flusha) = &mut self.sdmc_controller {
-                    flusha.flush();
+                    //just do your best flusha, no need to succeed
+                    let _ = flusha.flush();
                 }
                 DiskResult::Ok
             }

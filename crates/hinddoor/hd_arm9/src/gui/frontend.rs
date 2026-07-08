@@ -1,31 +1,25 @@
 use core::{
     alloc::Layout,
-    ops::{Add, Sub},
 };
 
 use crate::{
-    APP_AREA_START, AppArea, BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, SCREEN_RECT, boot::{self, read_all}, get_extension, gui::{self, Input, main_menu::MainMenu}, populate_fs_vec, send_mod_file, stop_mod_file,
+    APP_AREA_START, AppArea, BACKGROUND_COLOR, SCREEN_RECT, boot::{self, read_all}, get_extension,  send_mod_file, stop_mod_file,
 };
 use alloc::{
     boxed::Box,
     format,
-    string::{String, ToString},
-    vec::Vec,
+    string::String,
 };
-use common::{blowfish::BFCTX, bootstrap::BOOTINFO_MEM};
-use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
-use micro_imgui_ds::micro_imgui::{self, widgets::checkbox::Checkbox};
-use micro_imgui_ds::micro_imgui::{widgets::button::Button, Backend, Color, Sizing, Vec2};
+use common::{blowfish::BFCTX};
+use fatfs_embedded::fatfs::{FileOptions};
+use micro_imgui_ds::micro_imgui;
+use micro_imgui_ds::micro_imgui::{Backend, Color, Vec2};
 use reboot_lib::{
-    autoboot_info::{UnlaunchParams, BOOT_INFO},
+    autoboot_info::{UnlaunchParams},
     music_modules::mods::MODAsyncLoader,
     sound::SoundControl,
     timers::TimerControl,
-    Buttons, VIDEO_HARDWARE,
 };
-pub enum CurrentUI {
-    None,
-}
 pub struct GlobalData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
     pub blowfish: BFCTX,
@@ -46,7 +40,7 @@ pub enum MusicPlaying {
 pub struct StreamingWav {
     file: fatfs_embedded::fatfs::File,
     data_start: usize,
-    data_len: usize,
+    _data_len: usize,
     player_head: usize,
     scratch_buffer: &'static mut [u8],
     stream_type: StreamType,
@@ -91,8 +85,8 @@ fn alloc_wav_buf() -> &'static mut [u8] {
 }
 impl StreamingWav {
     pub fn new(mut file: fatfs_embedded::fatfs::File) -> Option<Self> {
-        let mut data_start = 0;
-        let mut data_len = 0;
+        let data_start;
+        let mut data_len;
 
         let mut main_chunk = [0u8; 0x24];
         read_all(&mut main_chunk, &mut file).ok()?;
@@ -136,7 +130,7 @@ impl StreamingWav {
         Some(Self {
             file,
             data_start: data_start as usize,
-            data_len: data_len as usize,
+            _data_len: data_len as usize,
             player_head: 0,
             scratch_buffer: alloc_wav_buf(),
             stream_type,
@@ -185,21 +179,21 @@ impl StreamingWav {
             (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
             match &mut self.stream_type {
                 StreamType::MonoU8 => {
-                    reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
+                    let _ = reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
                 },
                 StreamType::MonoI16 => {
-                    reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
+                    let _ = reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
                 
                 },
                 StreamType::StereoU8 { audio } => {
                     let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
-                    reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
-                    reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
+                    let _ = reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
+                    let _ = reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
                 },
                 StreamType::StereoI16 { audio } => {
                     let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
-                    reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
-                    reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
+                    let _ = reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
+                    let _ = reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
                 },
             }
             
@@ -214,19 +208,19 @@ impl StreamingWav {
         let format = SoundControl::empty();
         match &mut self.stream_type {
             StreamType::MonoU8 => {
-                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+                let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
             },
             StreamType::MonoI16 => {
-                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+                let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
             
             },
             StreamType::StereoU8 { .. } => {
-                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
-                reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
+                let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+                let _ = reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
             },
             StreamType::StereoI16 { .. } => {
-                reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
-                reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
+                let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
+                let _ = reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
             },
         }
     }
@@ -299,11 +293,6 @@ impl StreamingWav {
     }
 }
 
-pub struct FileEntry {
-    filename: String,
-    truncated_name: String,
-    file_type: FileType,
-}
 pub struct AppBooter {
     pub path: String,
 }
@@ -326,16 +315,6 @@ impl UiPage for AppBooter {
 pub trait UiPage {
     fn ui(&mut self, ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, data: &mut GlobalData) -> Option<Box<dyn UiPage>>;
 }
-pub enum CurrentFrontend {
-    Ui(Box<dyn UiPage>),
-    BootingApp { file_path: String },
-}
-impl Default for CurrentFrontend {
-    fn default() -> Self {
-        Self::Ui(Box::new(MainMenu))
-    }
-}
-pub enum FileType {}
 impl AppData {
     
     pub unsafe fn autoboot(&mut self) {

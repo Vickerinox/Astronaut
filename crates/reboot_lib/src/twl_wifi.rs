@@ -12,6 +12,7 @@ use crate::{
 unsafe fn nwifi_restart_card() -> bool {
     PORT.option = 0x40EE;
     SDIO_CONTROLLER.wait_busy();
+    #[allow(static_mut_refs)]
     SDIO_CONTROLLER.prepare_port(&mut PORT);
     if sdio_read_func_byte(SDIOFunc::Zero, 0).is_none() {
         PORT.option = 0xC0EE;
@@ -58,6 +59,7 @@ unsafe fn nwifi_restart_card() -> bool {
 
     PORT.option = 0x40EE;
     SDIO_CONTROLLER.wait_busy();
+    #[allow(static_mut_refs)]
     SDIO_CONTROLLER.prepare_port(&mut PORT);
     false
 }
@@ -139,6 +141,7 @@ unsafe fn nwifi_write_intern_word(addr: u32, value: u32) -> bool {
 static mut PORT: TMIOPort = TMIOPort::dsio();
 
 #[inline(always)]
+#[allow(static_mut_refs)]
 unsafe fn wifi_card_send_command(
     command: crate::mmc::Command,
     arg: u32,

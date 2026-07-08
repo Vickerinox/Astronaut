@@ -1,3 +1,4 @@
+/* 
 #[repr(u8)]
 enum PartitionTypes {
     Empty = 0,
@@ -18,6 +19,7 @@ pub enum MBRError {
     BadPartitions,
     BadSignature,
 }
+*/
 
 #[repr(C)]
 pub struct MBR {

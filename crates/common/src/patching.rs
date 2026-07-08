@@ -1,4 +1,4 @@
-use crate::bootstrap::{TWLHeader, BOOTINFO_MEM};
+use crate::bootstrap::{TWLHeader};
 
 const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
     blocks: &[

@@ -1,4 +1,4 @@
-use core::ptr::write_volatile as w;
+
 
 use crate::device_list::DeviceList;
 
@@ -10,6 +10,12 @@ pub unsafe fn boot_arm9() -> ! {
 pub unsafe fn boot_arm7() -> ! {
     loop {}
 }
+#[cfg(target_arch = "arm")]
+use core::ptr::write_volatile as w;
+#[cfg(target_arch = "arm")]
+const HEADER_MEM: *const TWLHeader = 0x2FFE000 as *const TWLHeader;
+#[cfg(target_arch = "arm")]
+const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
@@ -114,13 +120,11 @@ pub unsafe fn boot_arm7() -> ! {
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
-const HEADER_MEM: *const TWLHeader = 0x2FFE000 as *const TWLHeader;
-
 pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
-const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
+
 
 #[repr(C)]
 #[derive(Debug, Clone)]

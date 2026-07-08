@@ -47,7 +47,7 @@ impl<'a> Ini<'a> {
         segments.push((segment_name, core::mem::take(&mut segment)));
         Self { segments }
     }
-    pub fn get(&self, key: &str) -> Option<&Segment> {
+    pub fn get(&self, key: &str) -> Option<&Segment<'_>> {
         self.segments.iter().find(|i| i.0 == key).map(|i| &i.1)
     }
 }

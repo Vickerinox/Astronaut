@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+
 use reboot_lib::StorageSector;
 
 pub struct BasicSDMMCCursor<'a> {
@@ -10,14 +10,6 @@ pub struct BasicSDMMCCursor<'a> {
     dirty: bool,
 }
 
-pub struct AsyncReadHandle(Box<core::cell::UnsafeCell<AsyncSDMMCReadStatus>>);
-pub enum AsyncSDMMCReadStatus {
-    Pending,
-    Error,
-    FatalError,
-    MediaMissing,
-    Finished,
-}
 impl<'a> BasicSDMMCCursor<'a> {
     pub fn new(
         buffer: &'a mut [StorageSector],

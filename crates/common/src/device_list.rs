@@ -1,10 +1,9 @@
 use core::ops::BitOr;
 
-use crate::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
+use crate::bootstrap::{BootInfoTWL};
 pub struct DeviceListBuilder<'a> {
     list: &'a mut DeviceList,
     drive_count: usize,
-    app_path: &'a str,
 }
 impl<'a> DeviceListBuilder<'a> {
     pub fn new(list: &'a mut DeviceList, app_path: &'a str) -> Self {
@@ -13,7 +12,6 @@ impl<'a> DeviceListBuilder<'a> {
         Self {
             list,
             drive_count: 0,
-            app_path,
         }
     }
     pub fn add_drive(&mut self, drive: DeviceEntry) -> &mut Self {

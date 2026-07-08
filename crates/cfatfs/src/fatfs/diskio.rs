@@ -48,6 +48,7 @@ static mut DRIVER: Option<&'static mut dyn FatFsDriver> = None;
 /// The driver must implement the `FatFsDriver` trait.
 /// The driver is placed on the heap using `Box` so that it lives for the lifetime of
 /// the program.
+#[allow(static_mut_refs)]
 pub unsafe fn install(driver: &'static mut (dyn FatFsDriver + 'static)) {
     //let boxed_driver = Box::new(driver);
     DRIVER.replace(driver);

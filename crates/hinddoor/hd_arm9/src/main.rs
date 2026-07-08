@@ -49,7 +49,6 @@ use crate::gui::AppData;
 
 extern crate alloc;
 
-mod autoboot;
 mod boot;
 pub mod configuration;
 pub mod fat;
@@ -170,9 +169,7 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
 }
 
-pub struct RebootState {
-    current_path: String,
-}
+
 const COLOR_BOOTABLE: Color = Color::new(100, 200, 100);
 const COLOR_MUSIC: Color = Color::new(100, 100, 200);
 fn populate_fs_vec(
@@ -214,7 +211,7 @@ fn populate_fs_vec(
                     while !name.is_char_boundary(boundary) {
                         boundary += 1;
                     }
-                    name.split_off(boundary);
+                    name.truncate(boundary);
                     name.push_str("...");
                 }
                 vec.push((name, fname, is_dir, color))
@@ -660,12 +657,6 @@ fn write_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) ->
         flush_mmc();
     }
     Ok(())
-}
-fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
-    unsafe {
-        reboot_lib::arm9_set_buffer(buffer);
-        reboot_lib::arm9_read_firmware(start_offset);
-    }
 }
 
 #[cfg(target_arch = "arm")]

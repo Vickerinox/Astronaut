@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use micro_imgui_ds::{gui, micro_imgui::widgets::checkbox::Checkbox};
 use reboot_lib::Buttons;
 
-use crate::gui::{AppData, CurrentFrontend, frontend::UiPage, special_thanks::SpecialThanks};
+use crate::gui::{AppData, frontend::UiPage, special_thanks::SpecialThanks};
 
 pub struct MainMenu;
 

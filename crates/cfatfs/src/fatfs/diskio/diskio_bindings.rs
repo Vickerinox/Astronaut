@@ -22,6 +22,7 @@ const GET_BLOCK_SIZE: BYTE = 3; /* Get erase block size (needed at FF_USE_MKFS =
 const CTRL_TRIM: BYTE = 4; /* Inform device that the data on the block of sectors is no longer used (needed at FF_USE_TRIM == 1) */
 
 #[no_mangle]
+#[allow(static_mut_refs)]
 pub unsafe extern "C" fn disk_status(pdrv: BYTE) -> DSTATUS {
     if let Some(driver) = &mut DRIVER {
         driver.disk_status(pdrv)
@@ -31,6 +32,7 @@ pub unsafe extern "C" fn disk_status(pdrv: BYTE) -> DSTATUS {
 }
 
 #[no_mangle]
+#[allow(static_mut_refs)]
 pub unsafe extern "C" fn disk_initialize(pdrv: BYTE) -> DSTATUS {
     if let Some(driver) = &mut DRIVER {
         driver.disk_initialize(pdrv)
@@ -40,6 +42,7 @@ pub unsafe extern "C" fn disk_initialize(pdrv: BYTE) -> DSTATUS {
 }
 
 #[no_mangle]
+#[allow(static_mut_refs)]
 pub unsafe extern "C" fn disk_read(
     pdrv: BYTE,
     buff: *mut BYTE,
@@ -55,6 +58,7 @@ pub unsafe extern "C" fn disk_read(
 }
 
 #[no_mangle]
+#[allow(static_mut_refs)]
 pub unsafe extern "C" fn disk_write(
     pdrv: BYTE,
     buff: *const BYTE,
@@ -70,6 +74,7 @@ pub unsafe extern "C" fn disk_write(
 }
 
 #[no_mangle]
+#[allow(static_mut_refs)]
 pub unsafe extern "C" fn disk_ioctl(_lun: BYTE, cmd: BYTE, buff: *mut cty::c_void) -> DRESULT {
     if let Some(driver) = &mut DRIVER {
         let mut data = match cmd {

@@ -11,15 +11,15 @@ impl<'a> VideoTextPass<'a> {
     }
     pub unsafe fn text_pass<R, F: FnOnce(&mut TextLayoutHandle) -> R>(self, closure: F) -> R {
         let Self(host, available_space) = self;
-        host.create_vertex_list(VertexListType::IndividualQuads, |h| {
+        unsafe { host.create_vertex_list(VertexListType::IndividualQuads, |h| {
             let mut host = TextLayoutHandle {
                 available_space,
                 cursor: available_space.min,
-                host: unsafe { h.to_owned() },
+                host: h.to_owned() ,
                 used_space: Rect::from_two_pos(available_space.min, available_space.min),
             };
             closure(&mut host)
-        })
+        }) }
     }
 }
 pub struct TextLayoutHandle<'a> {

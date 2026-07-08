@@ -4,7 +4,7 @@ use std::process::Command;
 
 use std::{
     error::Error,
-    io::{Read, Seek, Write},
+    io::{Read, Seek},
 };
 
 
@@ -18,7 +18,7 @@ fn read_bytebuffer<const N: usize>(mut reader: impl Read) -> Result<[u8; N], Box
     reader.read_exact(&mut buffer)?;
     Ok(buffer)
 }
-fn read_u8<R: Read>(reader: R) -> Result<u8, Box<dyn Error>> {
+fn _read_u8<R: Read>(reader: R) -> Result<u8, Box<dyn Error>> {
     read_bytebuffer::<1>(reader).map(|v| v[0])
 }
 fn read_u16<R: Read>(reader: R) -> Result<u16, Box<dyn Error>> {
@@ -226,7 +226,7 @@ fn matching_len(data: &[u8], mut offset: usize, mut pos: usize) -> usize {
     return len;
 }
 
-fn decomp_parse(data: &[u8]) -> Vec<Block> {
+fn _decomp_parse(data: &[u8]) -> Vec<Block> {
     let mut output = Vec::new();
     let mut iter = data.into_iter();
 
@@ -258,11 +258,11 @@ fn decomp_parse(data: &[u8]) -> Vec<Block> {
     }
     output
 }
-fn decompress(data: &[u8]) -> Vec<u8> {
+fn _decompress(data: &[u8]) -> Vec<u8> {
     let signature = data[0];
     let size = u32::from_le_bytes([data[1], data[2], data[3], 0]) as usize;
     assert!(signature == 16);
-    let decomp = decomp_parse(&data[4..]);
+    let decomp = _decomp_parse(&data[4..]);
 
     let mut output = Vec::new();
     for block in decomp {

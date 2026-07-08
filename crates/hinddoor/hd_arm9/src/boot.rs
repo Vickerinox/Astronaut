@@ -10,9 +10,7 @@ pub enum BootError {
     BadEntrypoint(u32),
 
     FileReadError,
-    FileSeekError,
 
-    BadRomType,
 }
 impl Debug for BootError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -20,8 +18,6 @@ impl Debug for BootError {
             Self::BadBinaryLocation(arg0) => write!(f, "BadBinaryLocation {arg0:#10X?}"),
             Self::BadEntrypoint(arg0) => write!(f, "BadEntrypoint {arg0:#10X}"),
             Self::FileReadError => write!(f, "FileReadErr"),
-            Self::FileSeekError => write!(f, "FileSeekErr"),
-            BootError::BadRomType => write!(f, "BadROM"),
         }
     }
 }
@@ -263,7 +259,6 @@ unsafe fn boot_unreturnable(
 
         crate::set_bright(0);
     }
-    const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
     reboot_lib::flush_mmc();
     reboot_lib::flush_mmc();
     let _boot_func =

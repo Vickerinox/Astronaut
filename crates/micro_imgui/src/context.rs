@@ -1,5 +1,3 @@
-use core::ops::Sub;
-
 use crate::{
     primitives::{Backend, Id, InputEvent, Rect, Vec2},
     response::{Response, Sense},

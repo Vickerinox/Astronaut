@@ -7,7 +7,7 @@ use crate::gui::{frontend::UiPage, main_menu::MainMenu};
 pub struct SpecialThanks;
 
 impl UiPage for SpecialThanks {
-    fn ui(&mut self, ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, data: &mut super::GlobalData) -> Option<Box<dyn UiPage>> {
+    fn ui(&mut self, ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, _data: &mut super::GlobalData) -> Option<Box<dyn UiPage>> {
         ui.header("Special thanks");
                     let names = &[
                         "edo9300",

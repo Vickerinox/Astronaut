@@ -1,5 +1,4 @@
 use crate::{
-    primitives::Sizing,
     ui::{AutoAdd, Ui},
     Backend, Color, Rect, Response, Sense, Shape, Vec2,
 };

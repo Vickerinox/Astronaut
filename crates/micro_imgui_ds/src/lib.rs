@@ -223,7 +223,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                     })
                 }
             }
-            micro_imgui::Shape::Image { bounds, image } => bounds,
+            micro_imgui::Shape::Image { bounds, image: _ } => bounds,
         };
 
         if translation != 0 {

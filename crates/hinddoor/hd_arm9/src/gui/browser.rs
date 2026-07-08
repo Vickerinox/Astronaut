@@ -5,7 +5,7 @@ use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{Input, SCREEN_RECT, micro_imgui::{self, Color, Sizing, Vec2, widgets::button::Button}};
 use reboot_lib::{Buttons, music_modules::mods::MODAsyncLoader};
 
-use crate::{BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, get_extension, gui::{AppData, CurrentFrontend, MusicPlaying, frontend::{AppBooter, StreamingWav, UiPage, pop_dir_entry}, main_menu::MainMenu}, populate_fs_vec, stop_mod_file};
+use crate::{BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, get_extension, gui::{AppData, MusicPlaying, frontend::{AppBooter, StreamingWav, UiPage, pop_dir_entry}, main_menu::MainMenu}, populate_fs_vec, stop_mod_file};
 impl AppData {
     pub fn open_sd() -> Option<Browser> {
         let mut file_path = String::from("sdmc:/");
@@ -149,13 +149,8 @@ impl UiPage for Browser {
                             } else {
                                 if item.3 == COLOR_BOOTABLE {
                                     current_path.push_str(&item.1);
-                                    match fatfs_embedded::open(current_path, FileOptions::Read) {
-                                        Ok(file) => {
-                                            let bajs = current_path.clone();
-                                            new_state = Some(Box::new(AppBooter { path: bajs}));
-                                        }
-                                        Err(_) => (),
-                                    }
+                                    let path = current_path.clone();
+                                    new_state = Some(Box::new(AppBooter { path }));
                                 } else if item.3 == COLOR_MUSIC {
                                     match get_extension(item.1.as_bytes()) {
                                         Some(b".mod") => {                                        
