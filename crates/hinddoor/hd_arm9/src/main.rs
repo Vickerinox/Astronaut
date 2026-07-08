@@ -167,10 +167,9 @@ pub unsafe fn unlaunch_breakpoint() {
 #[cfg(target_arch = "arm")]
 unsafe fn init_font() {
     const FONT_FILE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));
-    for (i, w) in FONT_FILE.iter().enumerate() {
-        core::ptr::write_volatile((0x2FF2000 as *mut u8).add(i), *w);
+    for i in 0..FONT_FILE.len() {
+        core::ptr::write_volatile((0x2FF2000 as *mut u8).add(i), FONT_FILE[i]);
     }
-
     core::arch::asm!(
         "SWI 0x110000",
         in("r0") 0x2FF2000,
@@ -184,6 +183,9 @@ unsafe fn init_font() {
         let reg = core::ptr::read_volatile((0x2FF_1000 as *const u32).add(i));
         core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
     }
+
+    core::ptr::write_volatile(0x06880000 as *mut u32, core::ptr::read_volatile(0x2FF_1800 as *const u32));
+    core::ptr::write_volatile(0x06880004 as *mut u32, core::ptr::read_volatile(0x2FF_1804 as *const u32));
 }
 #[cfg(not(target_arch = "arm"))]
 unsafe fn init_font() {
@@ -324,11 +326,6 @@ fn populate_fs_vec(
 pub use micro_imgui_ds::SCREEN_RECT;
 
 unsafe fn arm7_crash() -> ! {
-    //write to "color palette 0"
-    core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-    core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-    core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-    core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     init_3d_hardware(&mut video_context);
     video_context.next_frame();
@@ -358,11 +355,6 @@ unsafe fn arm7_crash() -> ! {
     loop {}
 }
 unsafe fn init_graphics() -> VideoHardwareHandle {
-    //write to "color palette 0"
-    core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-    core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-    core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-    core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     init_3d_hardware(&mut video_context);
     video_context.next_frame();
@@ -483,17 +475,6 @@ unsafe fn main() {
         let mut video_context = reboot_lib::VideoHardwareHandle::new();
         video_context.next_frame();
 
-        /* 
-        core::ptr::write_volatile(
-            0x4000000 as *mut u32,
-            0b00000000000000001_0000_0001_0000_0_000,
-        );
-        core::ptr::write_volatile(
-            0x4001000 as *mut u32,
-            0b00000000000000001_0000_1000_0000_0_101,
-        );
-        */
-
         
         //copy font to vram
         init_font();
@@ -571,11 +552,12 @@ unsafe fn main() {
         }
 
         //write to "color palette 0"
+        /* 
         core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
         core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-
+        */
         if let Some(wallpaper) = app_data.load_wallpaper() {
             show_wallpaper(wallpaper);
         }

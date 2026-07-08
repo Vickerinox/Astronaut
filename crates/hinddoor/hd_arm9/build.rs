@@ -1,6 +1,145 @@
 // build.rs
 use std::process::Command;
 
+
+use std::{
+    error::Error,
+    io::{Read, Seek, Write},
+};
+
+
+fn read_bytevec(mut reader: impl Read, len: usize) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut buffer = vec![0u8; len];
+    reader.read_exact(&mut buffer)?;
+    Ok(buffer)
+}
+fn read_bytebuffer<const N: usize>(mut reader: impl Read) -> Result<[u8; N], Box<dyn Error>> {
+    let mut buffer = [0u8; N];
+    reader.read_exact(&mut buffer)?;
+    Ok(buffer)
+}
+fn read_u8<R: Read>(reader: R) -> Result<u8, Box<dyn Error>> {
+    read_bytebuffer::<1>(reader).map(|v| v[0])
+}
+fn read_u16<R: Read>(reader: R) -> Result<u16, Box<dyn Error>> {
+    read_bytebuffer::<2>(reader).map(|v| u16::from_le_bytes(v))
+}
+fn read_u32<R: Read>(reader: R) -> Result<u32, Box<dyn Error>> {
+    read_bytebuffer::<4>(reader).map(|v| u32::from_le_bytes(v))
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct BMPHeader {
+    pub identity: u16,
+    pub size: u32,
+    pub reserved: u32,
+    pub start_offset: u32,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct DIBHeader40Bytes {
+    pub size: u32,
+    pub width: i32,
+    pub height: i32,
+    pub planes: u16,
+    pub bits_per_pixel: u16,
+    pub compression: u32,
+    pub bitmap_size: u32,
+    pub resolution_x: u32,
+    pub resolution_y: u32,
+    pub color_count: u32,
+    pub important_colors: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct DecodedBMP {
+    pub header: BMPHeader,
+    pub dib: DIBHeader40Bytes,
+    pub colors: Vec<[u8; 4]>,
+    pub bitmap: Vec<u8>,
+}
+impl DecodedBMP {
+    pub fn bitmap(&self) -> &[u8] {
+        &self.bitmap
+    }
+    pub fn palette_table(&self) -> &[[u8; 4]] {
+        &self.colors
+    }
+    pub fn width(&self) -> usize {
+        self.dib.width as usize
+    }
+    pub fn height(&self) -> usize {
+        self.dib.height as usize
+    }
+}
+impl BMPHeader {
+    pub fn from_reader<R: Read>(mut reader: R) -> Result<Self, Box<dyn Error>> {
+        let identity = read_u16(&mut reader)?;
+        let size = read_u32(&mut reader)?;
+        let reserved = read_u32(&mut reader)?;
+        let start_offset = read_u32(&mut reader)?;
+        Ok(BMPHeader {
+            identity,
+            size,
+            reserved,
+            start_offset,
+        })
+    }
+}
+impl DIBHeader40Bytes {
+    pub fn from_reader<R: Read>(mut reader: R) -> Result<Self, Box<dyn Error>> {
+        let size = read_u32(&mut reader)?;
+        let width = read_u32(&mut reader)? as i32;
+        let height = read_u32(&mut reader)? as i32;
+        let planes = read_u16(&mut reader)?;
+        let bits_per_pixel = read_u16(&mut reader)?;
+        let compression = read_u32(&mut reader)?;
+        let bitmap_size = read_u32(&mut reader)?;
+        let resolution_x = read_u32(&mut reader)?;
+        let resolution_y = read_u32(&mut reader)?;
+        let color_count = read_u32(&mut reader)?;
+        let important_colors = read_u32(&mut reader)?;
+        Ok(DIBHeader40Bytes {
+            size,
+            width,
+            height,
+            planes,
+            bits_per_pixel,
+            compression,
+            bitmap_size,
+            resolution_x,
+            resolution_y,
+            color_count,
+            important_colors,
+        })
+    }
+}
+
+impl DecodedBMP {
+    pub fn from_reader<R: Read + Seek>(mut reader: R) -> Result<DecodedBMP, Box<dyn Error>> {
+        let header = BMPHeader::from_reader(&mut reader)?;
+        let dib = DIBHeader40Bytes::from_reader(&mut reader)?;
+        let palette_len = dib.color_count.min(1 << dib.bits_per_pixel as u32) as usize;
+        let mut colors = Vec::with_capacity(palette_len);
+        
+        reader.seek(std::io::SeekFrom::Start(14 + dib.size as u64))?;
+        for _ in 0..palette_len {
+            colors.push(read_bytebuffer(&mut reader)?);
+        }
+        reader.seek(std::io::SeekFrom::Start(header.start_offset as u64))?;
+        let bitmap_size = dib.bitmap_size as usize;
+        let bitmap = read_bytevec(&mut reader, bitmap_size)?;
+        Ok(DecodedBMP {
+            header,
+            dib,
+            colors,
+            bitmap,
+        })
+    }
+}
+
+
 #[derive(Debug)]
 pub enum Block {
     Uncompressed(u8),
@@ -152,6 +291,35 @@ fn main() {
     // add font to build
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("font_compressed.bin");
-    let compressed_font = compress(include_bytes!("./resources/font.bin"));
+    let font = DecodedBMP::from_reader(std::io::Cursor::new(include_bytes!("./resources/font.bmp"))).expect("INVALID FONT BMP!!!");
+    assert!(font.colors.len() <= 4);
+    assert!(font.colors.len() > 2);
+    assert!(font.width() == 1024);
+    assert!(font.height() == 8);
+    assert!(font.dib.compression == 0);
+    //assert!(font.dib.size == 40, "{}", &font.dib.size);
+    
+    let bitmap: Vec<u8> = match font.dib.bits_per_pixel {
+        4 => font.bitmap().chunks_exact(2).map(|i| {
+            let Some([e,f]) = i.first_chunk().cloned() else {unreachable!()};
+            let a = ((e & 0x03) >> 0) << 2;
+            let b = ((e & 0x30) >> 4) << 0;
+            let c = ((f & 0x03) >> 0) << 6;
+            let d = ((f & 0x30) >> 4) << 4;
+            a | b | c | d
+        }).collect(),
+        count => panic!("unsupported bits per pixel count for font bmp, {count}, (use 4-bit bmp's)")
+    };
+    let mut bitmap: Vec<u8> = bitmap.chunks_exact(256).rev().flatten().cloned().collect();
+    let colors = font.colors.iter().map(|i| {
+        let [b,g,r,_] = i.clone();
+        let r = ((r >> 3) as u16) << 0;
+        let g = ((g >> 3) as u16) << 5;
+        let b = ((b >> 3) as u16) << 10;
+        (r|g|b).to_le_bytes()
+        //0xffffu16.to_le_bytes()
+    }).flatten();
+    bitmap.extend(colors);
+    let compressed_font = compress(&bitmap);
     std::fs::write(&dest_path, &compressed_font).unwrap();
 }
