@@ -20,4 +20,4 @@ test = false
 bench = false
 
 [dependencies]
-reboot_lib = {path = "../../reboot_lib"}
+reboot_lib = {path = "../../reboot_lib", features = ["arm7i"]}

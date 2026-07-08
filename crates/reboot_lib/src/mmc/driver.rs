@@ -97,9 +97,10 @@ pub enum DeviceInitializationError {
     IdentificationFail,
 }
 fn sdmmc_ignore() {}
+#[cfg(feature = "arm7i")]
 unsafe fn init_sdmmc_general() {
-    crate::set_interrupt_function(crate::ARM7Interrupt::SDMMC, sdmmc_ignore as _);
-    crate::enable_interrupt(crate::ARM7Interrupt::SDMMC);
+    crate::set_interrupt_function(crate::Interrupt::SDMMC, sdmmc_ignore as _);
+    crate::enable_interrupt(crate::Interrupt::SDMMC);
 }
 static mut DEVICES: [Device; 2] = [Device::sd_card(), Device::nand()];
 pub unsafe fn check_sdmmc(device_number: DeviceSelect) -> Status {
@@ -138,6 +139,7 @@ pub enum InitSDMMCError {
     BusWidthSD = 21,
     StatusVerify = 22,
 }
+#[cfg(feature = "arm7i")]
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCError> {
     if device_number == DeviceSelect::SDCardSlot {}
     let dev = &mut DEVICES[device_number as u8 as usize];
@@ -328,6 +330,7 @@ fn extract_bits(resp: &[u32; 4], start: usize, size: usize) -> u32 {
     }
     res & mask
 }
+#[cfg(feature = "arm7i")]
 unsafe fn send_app_command(
     port: &mut TMIOPort,
     cmd: Command,
@@ -338,11 +341,16 @@ unsafe fn send_app_command(
         Status::EMPTY => Ok(MMC_CONTROLLER.send_command(port, cmd, arg)),
         a => Err(a),
     }
+
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn device_response(device: DeviceSelect) -> [u32; 4] {
     let device = &mut DEVICES[device as u8 as usize];
     device.port.response.clone()
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn read_sectors(
     device: DeviceSelect,
     sector: u32,

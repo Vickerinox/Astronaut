@@ -97,8 +97,8 @@ pub fn main_arm7() {
 
         crate::MMC_CONTROLLER.tmio_init();
 
-        crate::enable_interrupt(crate::ARM7Interrupt::IPCNonEmpty);
-        crate::enable_interrupt(crate::ARM7Interrupt::VBlank);
+        crate::enable_interrupt(crate::Interrupt::IPCNonEmpty);
+        crate::enable_interrupt(crate::Interrupt::VBlank);
         IPC_FIFO_HARDWARE.enable_recv_irq();
 
         let mut location = [0u8; 2];

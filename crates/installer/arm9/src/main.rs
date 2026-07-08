@@ -429,8 +429,8 @@ unsafe fn main() {
 
         IPC_FIFO_HARDWARE.enable_recv_irq();
 
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
+        reboot_lib::enable_interrupt(reboot_lib::Interrupt::IPCNonEmpty);
+        reboot_lib::enable_interrupt(reboot_lib::Interrupt::VBlank);
 
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
 

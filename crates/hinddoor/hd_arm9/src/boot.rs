@@ -1,12 +1,9 @@
 use core::fmt::Debug;
 
 use alloc::string::{String, ToString};
-use common::{
-    blowfish::BFCTX,
-    bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM},
-};
+use common::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
 use fatfs_embedded::fatfs::FileOptions;
-use reboot_lib::{swi_crc16, DisplayControl, VideoPowerControl, Viewport, VIDEO_HARDWARE};
+use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
@@ -29,7 +26,7 @@ impl Debug for BootError {
     }
 }
 use crate::{
-    APP_AREA_START, AppArea, BOOTSTRAP_BINARY, INTERRUPT_TABLE, gui::{AppData, GlobalData}, set_background,
+    APP_AREA_START, AppArea, BOOTSTRAP_BINARY, gui::{ GlobalData}, set_background,
 };
 
 pub fn read_all(

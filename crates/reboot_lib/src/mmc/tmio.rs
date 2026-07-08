@@ -1,14 +1,15 @@
 use crate::{
     disable_interrupt, enable_interrupt, interupts, mmc::Command, set_interrupt_function,
-    swi_delay, swi_halt, ARM7Interrupt, ClockCnt, StorageSector, TMIOPort, MMC, MMC_CONTROLLER,
+    swi_delay, swi_halt, Interrupt, ClockCnt, StorageSector, TMIOPort, MMC, MMC_CONTROLLER,
 };
 
 use super::{Control, DataControl32, Status};
 
+#[cfg(feature = "arm7i")]
 impl MMC {
     pub unsafe fn initialize_sdmmc(&self) {
-        disable_interrupt(ARM7Interrupt::SDMMC);
-        set_interrupt_function(ARM7Interrupt::SDMMC, sdmmc_irq);
+        disable_interrupt(Interrupt::SDMMC);
+        set_interrupt_function(Interrupt::SDMMC, sdmmc_irq);
 
         self.data_control_32
             .write(DataControl32::CLEAR_FIFO_32 | DataControl32::USE_DATA32);

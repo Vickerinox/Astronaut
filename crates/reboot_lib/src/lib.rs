@@ -27,6 +27,7 @@ pub mod ndma;
 pub mod scfg;
 pub mod sound;
 pub mod spi;
+#[cfg(feature = "arm7i")]
 pub mod standard_arm7;
 mod swi;
 pub mod timers;
@@ -61,14 +62,11 @@ impl<T> core::ops::DerefMut for MemoryWrapper<T> {
     }
 }
 
-//master interrupt enable register.
-const REG_IME: *mut u32 = 0x4000208 as *mut u32;
 pub unsafe fn critical_function<F: FnOnce()>(closure: F) {
-    let mut ime = REG_IME.read_volatile();
-    REG_IME.write_volatile(0);
-
+    let mut ime = INTERUPT_HARDWARE.master.read();
+    INTERUPT_HARDWARE.master.write(0);
     closure();
-    REG_IME.write_volatile(ime);
+    INTERUPT_HARDWARE.master.write(ime);
 }
 pub unsafe fn nocash_write(str: &str) {
     nocash_write_bytes(str.as_bytes());
@@ -83,20 +81,7 @@ pub unsafe fn nocash_write_bytes(str: &[u8]) {
     }
 }
 
-#[repr(u8)]
-pub enum Command {
-    ReadRegister = 0,
-    ReadSDSector = 1,
-    WriteSDSector = 2,
-    ReadNANDSector = 3,
-    WriteNANDSector = 4,
-}
-#[repr(u8)]
-pub enum Response {
-    Ready = 0,
-    Ok = 1,
-    Error = 2,
-}
+
 bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq)]
     pub struct Buttons: u16 {

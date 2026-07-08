@@ -472,7 +472,7 @@ pub fn play_mod() {
 }
 pub fn set_mod(module: *mut MODHeader) {
     unsafe {
-        crate::disable_interrupt(crate::ARM7Interrupt::Timer0);
+        crate::disable_interrupt(crate::Interrupt::Timer0);
         SOUND_HARDWARE.init();
         MODULE = MODPlayData {
             current_song: module,
@@ -484,21 +484,21 @@ pub fn set_mod(module: *mut MODHeader) {
             0xFFFF - 10473,
             TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ,
         ));
-        crate::set_interrupt_function(crate::ARM7Interrupt::Timer0, play_mod);
-        crate::enable_interrupt(crate::ARM7Interrupt::Timer0);
+        crate::set_interrupt_function(crate::Interrupt::Timer0, play_mod);
+        crate::enable_interrupt(crate::Interrupt::Timer0);
     }
 }
 pub fn set_procedural() {
     unsafe {
-        crate::disable_interrupt(crate::ARM7Interrupt::Timer0);
+        crate::disable_interrupt(crate::Interrupt::Timer0);
         SOUND_HARDWARE.init();
         TIMERS[0].write(Timer::RESET);
         TIMERS[0].write(Timer::new(
             0xFFFF - 8800,
             TimerControl::START | TimerControl::PRESCALE_64 | TimerControl::ENABLE_IRQ,
         ));
-        crate::set_interrupt_function(crate::ARM7Interrupt::Timer0, music_routine);
-        crate::enable_interrupt(crate::ARM7Interrupt::Timer0);
+        crate::set_interrupt_function(crate::Interrupt::Timer0, music_routine);
+        crate::enable_interrupt(crate::Interrupt::Timer0);
     }
 }
 pub static mut FRAME_COUNTER: u32 = 0;

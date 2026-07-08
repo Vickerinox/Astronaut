@@ -1,4 +1,5 @@
 /// A interrupt handler appropriate for the ds, courtesy of libnds
+#[cfg(feature = "arm7i")]
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
 unsafe fn interrupt_handler_arm7() {
@@ -139,9 +140,8 @@ unsafe fn interrupt_handler_arm7() {
     panic!()
 }
 
-static mut INTERRUPT_TABLE: [*mut fn(); 32] = [core::ptr::null_mut(); 32];
-static mut INTERRUPT_TABLE_AUX: [*mut fn(); 15] = [core::ptr::null_mut(); 15];
 
+#[cfg(feature = "arm7")]
 pub unsafe fn init_interrupts() {
     use crate::INTERUPT_HARDWARE;
     INTERUPT_HARDWARE.master.write(0);
@@ -152,84 +152,58 @@ pub unsafe fn init_interrupts() {
     (0x0380_FFFC as *mut unsafe fn()).write(interrupt_handler_arm7);
     INTERUPT_HARDWARE.master.write(1);
 }
+use crate::Interrupt;
+use crate::interupts::INTERRUPT_TABLE;
+use crate::interupts::INTERRUPT_INDEX_MASK;
 
-const AUX_INTERRUPT: u8 = 32;
-const INTERRUPT_INDEX_MASK: u8 = (AUX_INTERRUPT - 1);
+#[cfg(feature = "arm7i")]
+use crate::interupts::INTERRUPT_TABLE_AUX;
 
-#[repr(u8)]
-pub enum ARM7Interrupt {
-    VBlank = 0,
-    HBlank = 1,
-    VCounterMatch = 2,
-    Timer0 = 3,
-    Timer1 = 4,
-    Timer2 = 5,
-    Timer3 = 6,
-    RTC = 7,
-    DMA0 = 8,
-    DMA1 = 9,
-    DMA2 = 10,
-    DMA3 = 11,
-    Keypad = 12,
-    Slot2 = 13,
-    IPCSync = 16,
-    IPCEmpty = 17,
-    IPCNonEmpty = 18,
-    Slot1TransferComplete = 19,
-    Slot1IREQMC = 20,
-
-    HingeOpen = 22,
-    SPI = 23,
-    Wifi = 24,
-
-    NDMA0 = 28,
-    NDMA1 = 29,
-    NDMA2 = 30,
-    NDMA3 = 31,
-
-    GPIO180 = 0 + AUX_INTERRUPT,
-    GPIO181 = 1 + AUX_INTERRUPT,
-    GPIO182 = 2 + AUX_INTERRUPT,
-
-    HeadphoneConnect = 5 + AUX_INTERRUPT,
-    Powerbutton = 6 + AUX_INTERRUPT,
-    SoundEnableOutput = 7 + AUX_INTERRUPT,
-    SDMMC = 8 + AUX_INTERRUPT,
-    SDMMCData1 = 9 + AUX_INTERRUPT,
-    SDIO = 10 + AUX_INTERRUPT,
-    SDIOData1 = 11 + AUX_INTERRUPT,
-    AES = 12 + AUX_INTERRUPT,
-    I2C = 13 + AUX_INTERRUPT,
-    MicrophoneExt = 14 + AUX_INTERRUPT,
-}
-pub unsafe fn set_interrupt_function(interrupt: ARM7Interrupt, function: unsafe fn()) {
+pub unsafe fn set_interrupt_function(interrupt: Interrupt, function: unsafe fn()) {
     crate::critical_function(|| {
         let interrupt = interrupt as u8;
-        let index = interrupt & INTERRUPT_INDEX_MASK;
-        if interrupt > INTERRUPT_INDEX_MASK {
-            INTERRUPT_TABLE_AUX[index as usize] = function as *mut _;
-        } else {
-            INTERRUPT_TABLE[index as usize] = function as *mut _;
+        #[cfg(feature = "arm7i")]
+        {
+            
+            let index = interrupt & INTERRUPT_INDEX_MASK;
+            if interrupt > INTERRUPT_INDEX_MASK {
+                INTERRUPT_TABLE_AUX[index as usize] = function as *mut _;
+            } else {
+
+                INTERRUPT_TABLE[index as usize] = function as *mut _;
+            }
         }
+        #[cfg(not(feature = "arm7i"))]
+        {
+            INTERRUPT_TABLE[interrupt as usize] = function as *mut _;
+        }    
     });
 }
-pub unsafe fn enable_interrupt(interrupt: ARM7Interrupt) {
+pub unsafe fn enable_interrupt(interrupt: Interrupt) {
     let interrupt = interrupt as u8;
-    let index = interrupt & INTERRUPT_INDEX_MASK;
-    let fun = if interrupt > INTERRUPT_INDEX_MASK {
-        crate::critical_function(|| {
-            super::INTERUPT_HARDWARE
-                .enable2
-                .modify(|i| i | (1 << index))
-        });
-    } else {
-        crate::critical_function(|| super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << index)));
-    };
+    #[cfg(feature = "arm7i")]
+    {
+            
+        let index = interrupt & INTERRUPT_INDEX_MASK;
+        let fun = if interrupt > INTERRUPT_INDEX_MASK {
+            crate::critical_function(|| {
+                super::INTERUPT_HARDWARE
+                    .enable2
+                    .modify(|i| i | (1 << index))
+            });
+        } else {
+            crate::critical_function(|| super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << index)));
+        };
+    }
+    #[cfg(not(feature = "arm7i"))]
+    {
+        crate::critical_function(|| super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << interrupt)));    
+    }  
 }
 pub unsafe fn disable_all_interrupts() {
     (0x400_0208 as *mut u32).write_volatile(0);
 }
-pub unsafe fn disable_interrupt(interrupt: ARM7Interrupt) {
+pub unsafe fn disable_interrupt(interrupt: Interrupt) {
     let interrupt = interrupt as u8;
     let index = interrupt & INTERRUPT_INDEX_MASK;
     if interrupt > INTERRUPT_INDEX_MASK {

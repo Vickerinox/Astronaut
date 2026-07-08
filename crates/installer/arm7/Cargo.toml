@@ -11,4 +11,4 @@ panic = 'abort'                             # Abort on panic
 strip = true                                # Strip symbols from binary*
 
 [dependencies]
-reboot_lib = {path = "../../reboot_lib"}
+reboot_lib = {path = "../../reboot_lib", features=["arm7i"]}

@@ -25,31 +25,27 @@ pub struct Fader {
 }
 reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 
-use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
-use core::arch::asm;
 use core::str;
-use fatfs_embedded::fatfs::{File, FileOptions, RawFileSystem};
+use fatfs_embedded::fatfs::{ FileOptions, RawFileSystem};
 use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
-use reboot_lib::timers::{Timer, TimerControl};
+use reboot_lib::timers::{ TimerControl};
 
 use micro_imgui_ds::micro_imgui::{Color, Vec2};
 use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
-    arm9_check_sdmmc, arm9_init_sdmmc, flush_mmc, MemoryWrapper, VRAMCtrl, VideoHardwareHandle,
-    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
+    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, Interrupt, VRAMCtrl, VideoHardwareHandle, flush_mmc,
 };
 use reboot_lib::{
-    Buttons, DisplayControl, MatrixMode, PolygonAttributes, StorageSector, VideoPowerControl,
+    Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl,
     Viewport, VIDEO_HARDWARE,
 };
 
 use crate::boot::read_all;
 use crate::fat::driver::SDMMCDriver;
-use crate::gui::{AppData, CurrentUI};
-use crate::nand::BasicSDMMCCursor;
+use crate::gui::AppData;
 
 extern crate alloc;
 
@@ -78,81 +74,6 @@ impl NandAutobootEntry {
         _reserved: 0,
     };
 }
-
-/// A interrupt handler appropriate for the ds, courtesy of libnds
-#[cfg(target_arch = "arm")]
-#[instruction_set(arm::a32)]
-unsafe fn interrupt_handler() {
-    // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
-    core::arch::asm!(
-        // According to libnds, r0-r3, as well as r12 and lr are saved by the BIOS handler. (2025-12-04: This is true)
-        "mov r12, {i_base}",
-        "ldr r1, [r12, {i_e}]",
-        "ldr r2, [r12, {i_f}]",
-        "ands r1, r1, r2", //the interrupt bits to be serviced! (i.e IE & IF)
-        "moveq pc, lr", // EARLY RETURN: no interrupts to service
-
-        // Get the bit index for the "highest priority" IRQ
-        "clz r0, r1",
-        "rsb r0, r0, #31",  //find the higest non-zero bit by counting zeros
-        "mov r1, #1",
-        "mov r1, r1, lsl r0", //create a "bitmask" of the IRQ
-
-        // Clear the interrupt on the hardware side
-        "str r1, [r12, {i_f}]",
-
-        // Clear the interrupt on the bios side
-        "ldr r2, ={bios_f}",
-        "ldr r3, [r2]",
-        "orr r3, r3, r1",
-        "str r3, [r2]",
-
-        // load irq table and jump to funciton pointer
-        "ldr r3, ={irq_table}",
-        "add r3, r0, lsl #2",
-        "ldr r3, [r3]",
-        "cmp r3, #0",
-        "beq 2f", //EARLY RETURN: no interrupt handler installed
-            //set IME = 0
-            "ldr r1, [r12, {ime}]",
-            "str r12, [r12, {ime}]", //HACK: IME only cares about bit 0, so this sets IME = 0
-
-            //get into system mode
-            "mrs r0, spsr",
-            "push {{r0,r1,r12,lr}}", // {spsr, ime, i_base, irq_lr}
-            "mrs r0, cpsr",
-            "bic r1, r0, {user_clear}",
-            "orr r1, r1, {user_set}",
-            "msr cpsr, r1",
-
-            //run the interrupt handler
-            "push {{r0, lr}}", // NOTE: we push LR *again* since system mode has it's own lr.
-            "blx r3",         //execute interrupt handler (the moment we've been waiting for!!!)
-            "pop {{r0, lr}}",
-
-            //Hop out of system mode
-            "msr cpsr, r0",
-            "pop {{r0,r1,r12,lr}}", // {spsr, ime, i_base, irq_lr}
-            "msr spsr, r0",
-
-            //Restore IME
-            "str r1, [r12, {ime}]",
-        //return
-        "2:",
-
-        i_base = const 0x0400_0000, //register base
-        i_e = const 0x210,  //interrupt enable register
-        i_f = const 0x214,  //interrupt request register
-        bios_f = const 0x2fe3ff8,   //interrupt request regiser (BIOS)
-        irq_table = sym INTERRUPT_TABLE,
-        ime = const 0x208,  //master interrupt enable
-        user_clear = const 0x80 | 0x40 | 0x1F, //disable IRQ/FIQ masking, clear mode bits
-        user_set = const 0x1F,  //Set mode to "System"
-    );
-}
-#[cfg(not(target_arch = "arm"))]
-unsafe fn interrupt_handler() {}
-static mut INTERRUPT_TABLE: [*mut unsafe fn(); 32] = [core::ptr::null_mut(); 32];
 
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
@@ -326,9 +247,8 @@ fn populate_fs_vec(
 pub use micro_imgui_ds::SCREEN_RECT;
 
 unsafe fn arm7_crash() -> ! {
-    let mut video_context = reboot_lib::VideoHardwareHandle::new();
-    init_3d_hardware(&mut video_context);
-    video_context.next_frame();
+    set_bright(0 | (1 << 14));
+    let mut video_context = init_graphics();
     micro_imgui_ds::gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(
         |text_pass| {
             text_pass.set_color(0x7FFF);
@@ -342,7 +262,7 @@ unsafe fn arm7_crash() -> ! {
             );
             text_pass.next_line();
             text_pass.next_line();
-            text_pass.layout_str("For support, reach to the DSi hacking server on Discord or the dsi.cfw.guide website.", 8);
+            text_pass.layout_str("For support, go to the DSi hacking server on Discord or the dsi.cfw.guide website.", 8);
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(
@@ -355,6 +275,35 @@ unsafe fn arm7_crash() -> ! {
     loop {}
 }
 unsafe fn init_graphics() -> VideoHardwareHandle {
+    //enable VRAM bank A
+    VIDEO_HARDWARE
+        .vram_control_bank_a
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+    VIDEO_HARDWARE
+        .vram_control_bank_e
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+    
+    //enable the 2D engine A, with no backgrounds on.
+    VIDEO_HARDWARE
+        .engine_a_ctrl
+        .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
+
+    // Set background 3 on the sub engine to cover the whole screen and be flipped vertically to prepare for wallpaper
+    // (Note: this is done since BMP bitmaps are "vertically flipped", starting from the bottom left and ending on the top right)
+    VIDEO_HARDWARE.disp_b_bgctrl[3].write((1 << 14) | (1<<7) | (1<<2));
+    VIDEO_HARDWARE.disp_b_bgscrl[6].write(0);
+    VIDEO_HARDWARE.disp_b_bgscrl[7].write(0);
+    VIDEO_HARDWARE.disp_b_bg3_ref[0].write(0);
+    VIDEO_HARDWARE.disp_b_bg3_ref[1].write((191)<<8);
+
+    VIDEO_HARDWARE.disp_b_bg3_scale[0].write(256);
+    VIDEO_HARDWARE.disp_b_bg3_scale[1].write(0);
+    VIDEO_HARDWARE.disp_b_bg3_scale[2].write(0);
+    VIDEO_HARDWARE.disp_b_bg3_scale[3].write(0xFF00);
+    VIDEO_HARDWARE.disp_b_control.write(DisplayControl::BG_MODE_5);
+
+    //copy font to vram
+    init_font();
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     init_3d_hardware(&mut video_context);
     video_context.next_frame();
@@ -441,43 +390,6 @@ unsafe fn main() {
 
         new_takeover::takeover_arm7();
 
-        //enable VRAM bank A
-        VIDEO_HARDWARE
-            .vram_control_bank_a
-            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-        VIDEO_HARDWARE
-            .vram_control_bank_e
-            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-
-        VIDEO_HARDWARE.vram_control_bank_c.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-        for i in 0..0xFFFF {
-            (0x06840000 as *mut u16).add(i).write(0);
-        }
-        VIDEO_HARDWARE.vram_control_bank_c.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
-        
-        //enable the 2D engine A, with no backgrounds on.
-        VIDEO_HARDWARE
-            .engine_a_ctrl
-            .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
-
-        VIDEO_HARDWARE.disp_b_bgctrl[3].write((1 << 14) | (1<<7) | (1<<2));
-        VIDEO_HARDWARE.disp_b_bgscrl[6].write(0);
-        VIDEO_HARDWARE.disp_b_bgscrl[7].write(0);
-        VIDEO_HARDWARE.disp_b_bg3_ref[0].write(0);
-        VIDEO_HARDWARE.disp_b_bg3_ref[1].write((191)<<8);
-
-        VIDEO_HARDWARE.disp_b_bg3_scale[0].write(256);
-        VIDEO_HARDWARE.disp_b_bg3_scale[1].write(0);
-        VIDEO_HARDWARE.disp_b_bg3_scale[2].write(0);
-        VIDEO_HARDWARE.disp_b_bg3_scale[3].write(0xFF00);
-        VIDEO_HARDWARE.disp_b_control.write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
-
-        let mut video_context = reboot_lib::VideoHardwareHandle::new();
-        video_context.next_frame();
-
-        
-        //copy font to vram
-        init_font();
         steal_main_mem();
 
         // Check in with the ARM7 to make sure it's alive
@@ -497,17 +409,20 @@ unsafe fn main() {
         }
         // ARM7 is alive! make sure to let it know.
         IPC_FIFO_HARDWARE.set_status(0);
+        let video_context = init_graphics();
         app_area.fader.target.write(16);
         app_area.fader.current.write(16);
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
-        irq_init();
+        reboot_lib::interupts::init_interrupts();
 
         IPC_FIFO_HARDWARE.enable_recv_irq();
         reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::IPCNonEmpty);
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::VBlank);
-        reboot_lib::enable_interrupt(reboot_lib::ARM7Interrupt::Timer0);
+        reboot_lib::set_interrupt_function(Interrupt::VBlank, fade_out);
+        reboot_lib::set_interrupt_function(Interrupt::Timer0, uptick_wav);
+        reboot_lib::enable_interrupt(Interrupt::IPCNonEmpty);
+        reboot_lib::enable_interrupt(Interrupt::VBlank);
+        reboot_lib::enable_interrupt(Interrupt::Timer0);
 
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
 
@@ -530,11 +445,8 @@ unsafe fn main() {
         let app_data = app_area.app_data.assume_init_mut();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
 
-        //crate::load_wifi_firmware();
 
-        INTERRUPT_TABLE[0] = fade_out as *mut _;
-        INTERRUPT_TABLE[3] = uptick_wav as *mut _;
-        //reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(65185, TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START));
+
 
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
@@ -561,7 +473,6 @@ unsafe fn main() {
         if let Some(wallpaper) = app_data.load_wallpaper() {
             show_wallpaper(wallpaper);
         }
-        init_3d_hardware(&mut video_context);
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
 
         app_data.play_startup_music();
@@ -627,6 +538,9 @@ fn show_wallpaper(bmp: crate::bmp::DecodedBMP) {
             (0x06840000 as *mut u16).add(i).write(pixel);
         }
         VIDEO_HARDWARE.vram_control_bank_c.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
+
+
+        VIDEO_HARDWARE.disp_b_control.write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
     }
 }
 
@@ -660,7 +574,7 @@ const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
 pub unsafe extern "C" fn _start() {
-    asm!(
+    core::arch::asm!(
         //turn of interrupts via the IME register
         "mov r0, #0x04000000",
         "str r0, [r0, #0x208]",
@@ -865,26 +779,4 @@ unsafe fn print_msg(
 unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
     slice as *mut T as *mut () as *mut U
 }
-#[cfg(target_arch = "arm")]
-#[instruction_set(arm::a32)]
-unsafe fn irq_init() {
-    INTERUPT_HARDWARE.master.write(0);
-    INTERUPT_HARDWARE.enable.write(0);
-    INTERUPT_HARDWARE.request.write(!0);
-    use reboot_lib::INTERUPT_HARDWARE;
-    let dtcm: u32;
-    {
-        // Read location of DTCM
-        core::arch::asm!(
-            "mrc p15, 0, {0}, c9, c1, 0",
-            out(reg) dtcm,
-        );
-    }
-    //mask out the address and location
-    (((dtcm & !0xFFF) + 0x3FFC) as *mut unsafe fn()).write(interrupt_handler);
-    INTERUPT_HARDWARE.master.write(1);
-}
-#[cfg(not(target_arch = "arm"))]
-unsafe fn irq_init() {
-    panic!()
-}
+
