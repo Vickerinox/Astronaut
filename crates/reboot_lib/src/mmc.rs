@@ -7,8 +7,6 @@ use crate::{swi_delay, MemoryWrapper};
 use volatile_register::*;
 
 pub mod driver;
-pub mod new_driver;
-pub mod newer_driver;
 pub mod tmio;
 
 pub const MMC_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004800 as *mut MMC);
@@ -330,24 +328,9 @@ impl MMC {
                     value |= self.status.read();
                 }
             }
-            /*
-            while !self.status.read().contains(Status::DATA_END) {
-                timeout += 1;
-                if timeout > 0x10_0000 {
-                    return !Status::INSERTED;
-                }
-            }
-            */
+            
         }
 
-        /*
-        while self.status.read().contains(Status::CMD_BUSY) {
-            timeout += 1;
-            if timeout > 0x10_0000 {
-                return !Status::INSERTED;
-            }
-        }
-        */
 
         value.intersection(Status::ALL_ERRORS)
     }

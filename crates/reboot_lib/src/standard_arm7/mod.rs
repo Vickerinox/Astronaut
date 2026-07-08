@@ -1,5 +1,3 @@
-mod mmc;
-mod mmc_new;
 mod swi;
 
 use crate::{
