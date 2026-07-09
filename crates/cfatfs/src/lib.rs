@@ -827,3 +827,47 @@ impl Drop for Directory {
         let _ = crate::closedir(self);
     }
 }
+
+
+const REPLACEMENT_CHAR: u32 = 0x3F; // '?'
+
+/// FatFS expects this to convert a Unicode point to your OEM code page (e.g., 437).
+#[no_mangle]
+pub unsafe extern "C" fn ff_uni2oem(uni: u32, _cp: u16) -> u32 {
+    // Standard ASCII maps 1:1 in almost every OEM code page
+    if uni < 0x80 {
+        return uni;
+    }
+
+    // Instead of a 10KB array, use a tiny procedural match statement 
+    // only for characters your device actually needs to support.
+    match uni {
+        0x00A0..=0x00FF => uni, // Map basic extended characters if desired
+        _ => REPLACEMENT_CHAR,   // Throw away the rest to save space
+    }
+}
+
+/// FatFS expects this to convert your OEM code page byte back to Unicode.
+#[no_mangle]
+pub unsafe extern "C" fn ff_oem2uni(oem: u32, _cp: u16) -> u32 {
+    if oem < 0x80 {
+        return oem;
+    }
+
+    match oem {
+        0x80..=0xFF => oem,
+        _ => REPLACEMENT_CHAR,
+    }
+}
+
+/// FatFS also needs a case conversion function when LFN is enabled.
+/// Usually found in ffunicode.c, you can write a tiny one here.
+#[no_mangle]
+pub unsafe extern "C" fn ff_wtoupper(uni: u32) -> u32 {
+    // Standard ASCII uppercase conversion
+    if uni >= 0x0061 && uni <= 0x007A {
+        uni - 0x20
+    } else {
+        uni
+    }
+}

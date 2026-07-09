@@ -5,8 +5,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = cc::Build::new();
     let _builder = builder
         .file("fatfs/source/ff.c")
-        .file("fatfs/source/ffunicode.c")
-        .target("armv5te-none-eabi")
+        //.file("fatfs/source/ffunicode.c")
+        .target("thumbv5te-none-eabi")
         .compiler("arm-none-eabi-gcc")
         .flag("-Oz")
         .compile("fatfs");
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let bindings = bindgen::Builder::default()
         .header("fatfs/source/ff.h")
-        .clang_arg(format!("--target=armv5te-none-eabi"))
+        .clang_arg(format!("--target=thumbv5te-none-eabi"))
         .use_core()
         .ctypes_prefix("cty")
         .derive_copy(false)

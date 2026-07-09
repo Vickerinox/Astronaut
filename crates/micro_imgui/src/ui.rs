@@ -58,17 +58,15 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         let rect_min = match direction {
             Direction::TopDown => self.clip_rect.min,
             Direction::LeftRight => self.clip_rect.min,
-            Direction::BottomUp => self.clip_rect.bottom_left() - Vec2::y(size.y),
-            Direction::RightLeft => self.clip_rect.top_right() - Vec2::x(size.x),
         };
         let response = self.ctx.id_statistics(unsafe { self.id.current() });
         (Rect::from_two_pos(rect_min, rect_min + size), response)
     }
 
-    pub fn horizontal<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {
+    pub fn vertical_centered<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {
         let old_clip_rect = self.clip_rect();
         let old_layout = self.layout.clone();
-        self.layout = Layout(Direction::LeftRight, Align::Min);
+        self.layout = Layout(Direction::TopDown, Align::Middle);
         let ret = closure(self);
         self.layout = old_layout;
         self.clip_rect = old_clip_rect;
@@ -81,8 +79,6 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         let (rsd_min, rsd_max) = match direction {
             Direction::TopDown => (Vec2::y(size.y), Vec2::ZERO),
             Direction::LeftRight => (Vec2::x(size.x), Vec2::ZERO),
-            Direction::BottomUp => (Vec2::ZERO, -Vec2::y(size.y)),
-            Direction::RightLeft => (Vec2::ZERO, -Vec2::x(size.x)),
         };
         let remaining_space = Rect {
             min: self.clip_rect.min + rsd_min,
@@ -92,27 +88,25 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         let rect_min = match direction {
             Direction::TopDown => self.clip_rect.min,
             Direction::LeftRight => self.clip_rect.min,
-            Direction::BottomUp => self.clip_rect.bottom_left() - Vec2::y(size.y),
-            Direction::RightLeft => self.clip_rect.top_right() - Vec2::x(size.x),
         };
         let rect = Rect::from_two_pos(rect_min, rect_min + size);
         let rect = match (direction, align) {
-            (Direction::TopDown, Align::Middle) | (Direction::BottomUp, Align::Middle) => {
+            (Direction::TopDown, Align::Middle) => {
                 rect.translate(Vec2::x((self.clip_rect.width() - size.x) >> 1))
             }
-            (Direction::TopDown, Align::Max) | (Direction::BottomUp, Align::Max) => {
+            (Direction::TopDown, Align::Max) => {
                 rect.translate(Vec2::x(self.clip_rect.width() - size.x))
             }
-            (Direction::LeftRight, Align::Middle) | (Direction::RightLeft, Align::Middle) => {
+            (Direction::LeftRight, Align::Middle)  => {
                 rect.translate(Vec2::y((self.clip_rect.height() - size.y) >> 1))
             }
-            (Direction::LeftRight, Align::Max) | (Direction::RightLeft, Align::Max) => {
+            (Direction::LeftRight, Align::Max)  => {
                 rect.translate(Vec2::y(self.clip_rect.height() - size.y))
             }
-            (Direction::TopDown, Align::Justified) | (Direction::BottomUp, Align::Justified) => {
+            (Direction::TopDown, Align::Justified)  => {
                 rect.set_width(self.clip_rect.width())
             }
-            (Direction::RightLeft, Align::Justified) | (Direction::LeftRight, Align::Justified) => {
+            (Direction::LeftRight, Align::Justified) => {
                 rect.set_height(self.clip_rect.height())
             }
             _ => rect,
@@ -123,16 +117,15 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         return response;
     }
 
+    #[inline]
     pub fn add(&mut self, widget: impl AutoAdd) -> Response {
         widget.ui(self)
     }
 
     pub fn add_space(&mut self, ammount: i16) {
         match self.layout.0 {
-            Direction::RightLeft => self.clip_rect.max.x -= ammount,
             Direction::TopDown => self.clip_rect.min.y += ammount,
             Direction::LeftRight => self.clip_rect.min.x += ammount,
-            Direction::BottomUp => self.clip_rect.max.y -= ammount,
         }
     }
 
@@ -167,8 +160,6 @@ pub enum Direction {
     #[default]
     TopDown,
     LeftRight,
-    BottomUp,
-    RightLeft,
 }
 #[allow(unused)]
 #[derive(Default, Clone, Copy)]
