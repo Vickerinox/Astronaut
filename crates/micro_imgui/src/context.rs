@@ -9,6 +9,8 @@ enum TouchDown {
     Touch(Vec2),
     Drag(Vec2),
 }
+#[derive(Clone)]
+#[repr(C)]
 pub struct Style {
     pub default: ColorSet,
     pub focused: ColorSet,
@@ -16,28 +18,31 @@ pub struct Style {
     pub background_color: Color,
 }
 #[derive(Clone)]
+#[repr(C)]
 pub struct ColorSet {
     pub frame_fill: Color,
     pub frame_outline: Color,
 }
-
+impl Style {
+    pub const DEFAULT: Self = Self {
+        default: ColorSet {
+            frame_fill: Color::new(100, 100, 100),
+            frame_outline: Color::new(20, 20, 20),
+        },
+        focused: ColorSet {
+            frame_fill: Color::new(100, 100, 100),
+            frame_outline: Color::new(200, 200, 200),
+        },
+        pressed: ColorSet {
+            frame_fill: Color::new(32, 32, 32),
+            frame_outline: Color::new(10, 10, 10),
+        },
+        background_color: Color::new(32, 32, 32),
+    };
+}
 impl Default for Style {
     fn default() -> Self {
-        Self {
-            default: ColorSet {
-                frame_fill: Color::new(100, 100, 100),
-                frame_outline: Color::new(20, 20, 20),
-            },
-            focused: ColorSet {
-                frame_fill: Color::new(100, 100, 100),
-                frame_outline: Color::new(200, 200, 200),
-            },
-            pressed: ColorSet {
-                frame_fill: Color::new(32, 32, 32),
-                frame_outline: Color::new(10, 10, 10),
-            },
-            background_color: Color::new(32, 32, 32),
-        }
+        Self::DEFAULT
     }
 }
 pub struct Ctx<B> {

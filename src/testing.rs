@@ -120,6 +120,10 @@ fn test_wifi_wirmware() {
         }
     }
 }
+#[test]
+fn test_parse() {
+    println!("{:?}", u32::from_str_radix("0000FF", 16));
+}
 fn find_interest_addr(firmware: &[u8]) -> Option<NonZeroU32> {
     let first = firmware.first_chunk::<4>()?.clone();
     let id_count = first[1];

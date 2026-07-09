@@ -11,7 +11,7 @@ pub enum Entry<'a> {
 }
 
 impl<'a> Ini<'a> {
-    pub fn new(from: &'a str) -> Self {
+    pub fn new(from: &'a str, mut key_fn: Option<&mut dyn FnMut(&'a str, &'a str, &'a str)>) -> Self {
         let mut segment_name = "";
         let mut segment = Segment(Vec::new());
         let mut segments = Vec::new();
@@ -35,12 +35,17 @@ impl<'a> Ini<'a> {
                     let mut split = values.split(['='].as_slice());
                     let Some(key) = split.next() else { continue };
                     let Some(value) = split.next() else { continue };
+                    let key = key.trim();
+                    let value = value.trim();
                     if split.next().is_some() {
                         continue;
                     };
+                    if let Some(func) = &mut key_fn {
+                        func(&segment_name, key, value)
+                    }
                     segment
                         .0
-                        .push(Entry::Value(key.trim(), value.trim(), comment.trim()));
+                        .push(Entry::Value(key, value, comment.trim()));
                 }
             }
         }

@@ -45,7 +45,7 @@ use reboot_lib::{
 };
 
 use crate::boot::read_all;
-use crate::configuration::Style;
+use crate::configuration::Pretties;
 use crate::fat::driver::SDMMCDriver;
 use crate::gui::AppData;
 
@@ -489,7 +489,7 @@ unsafe fn main() {
 
         micro_imgui_ds::micro_imgui::run(
             backend,
-            micro_imgui_ds::micro_imgui::Style::default(),
+            app_data.global_data.config.style.colors.clone(),
             app_data,
             |mut f, app_data| {
                 app_data.update(&mut f);
