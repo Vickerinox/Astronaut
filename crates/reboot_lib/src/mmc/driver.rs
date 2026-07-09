@@ -297,7 +297,6 @@ unsafe fn send_app_command(
         Status::EMPTY => Ok(MMC_CONTROLLER.send_command(port, cmd, arg)),
         a => Err(a),
     }
-
 }
 
 #[cfg(feature = "arm7i")]

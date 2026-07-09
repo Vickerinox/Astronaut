@@ -237,7 +237,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
         space
     }
 
-    fn input_active(&self, pattern: Self::InputQuery) -> bool {
+    fn input_down(&self, pattern: Self::InputQuery) -> bool {
         self.input.keys_down(pattern.0)
     }
 

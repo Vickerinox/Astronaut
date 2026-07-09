@@ -2,11 +2,43 @@ use crate::{
     primitives::{Backend, Id, InputEvent, Rect, Vec2},
     response::{Response, Sense},
     ui::Ui,
+    Color,
 };
 enum TouchDown {
     None,
     Touch(Vec2),
     Drag(Vec2),
+}
+pub struct Style {
+    pub default: ColorSet,
+    pub focused: ColorSet,
+    pub pressed: ColorSet,
+    pub background_color: Color,
+}
+#[derive(Clone)]
+pub struct ColorSet {
+    pub frame_fill: Color,
+    pub frame_outline: Color,
+}
+
+impl Default for Style {
+    fn default() -> Self {
+        Self {
+            default: ColorSet {
+                frame_fill: Color::new(100, 100, 100),
+                frame_outline: Color::new(20, 20, 20),
+            },
+            focused: ColorSet {
+                frame_fill: Color::new(100, 100, 100),
+                frame_outline: Color::new(200, 200, 200),
+            },
+            pressed: ColorSet {
+                frame_fill: Color::new(32, 32, 32),
+                frame_outline: Color::new(10, 10, 10),
+            },
+            background_color: Color::new(32, 32, 32),
+        }
+    }
 }
 pub struct Ctx<B> {
     pub(crate) backend: B,
@@ -15,6 +47,7 @@ pub struct Ctx<B> {
     hovered_response: Option<Id>,
     focused_response: Option<Id>,
     released_response: Option<Id>,
+    style: Style,
     pub(crate) wants_repaint: bool,
 }
 pub struct Frame<'a, B: Backend> {
@@ -29,25 +62,53 @@ pub struct Frame<'a, B: Backend> {
     next_focus: Option<Id>,
     focus_dir: i8,
 }
-
-impl<'a, B: Backend> core::ops::Deref for Frame<'a, B> {
+impl<B> Ctx<B> {
+    pub fn style_for(&self, resp: &Response) -> &ColorSet {
+        if resp.stats.intersects(Sense::PRESSED) {
+            &self.style.pressed
+        } else if resp.stats.intersects(Sense::FOCUSED | Sense::HOVERED) {
+            &self.style.focused
+        } else {
+            &self.style.default
+        }
+    }
+    pub fn style(&self) -> &Style {
+        &self.style
+    }
+}
+impl<B> core::ops::Deref for Ctx<B> {
     type Target = B;
+    fn deref(&self) -> &Self::Target {
+        &self.backend
+    }
+}
+impl<B> core::ops::DerefMut for Ctx<B> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.backend
+    }
+}
+impl<'a, B: Backend> core::ops::Deref for Frame<'a, B> {
+    type Target = Ctx<B>;
 
     fn deref(&self) -> &Self::Target {
-        &self.ctx.backend
+        &self.ctx
     }
 }
 impl<'a, B: Backend> core::ops::DerefMut for Frame<'a, B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.ctx.backend
+        &mut self.ctx
     }
 }
 
 impl<'a, B: Backend> Frame<'a, B> {
+
+    pub fn style(&self) -> &Style {
+        &self.ctx.style
+    }
     pub fn paint_shape(&mut self, shape: crate::primitives::Shape<B::Image>) {
         self.ctx.backend.draw_shape(shape, None);
     }
-    pub(crate) fn drag(&mut self) -> Option<Vec2> {
+    pub fn drag(&mut self) -> Option<Vec2> {
         if let TouchDown::Drag(vec) = &self.ctx.touchdown_pos {
             Some(self.last_known_pointer_location() - *vec)
         } else {
@@ -108,10 +169,10 @@ impl<'a, B: Backend> Frame<'a, B> {
         } else {
             false
         };
-        let hovered = contains && ctx.backend.input_active(B::InputQuery::POINTER_DOWN);
+        let hovered = contains && ctx.backend.input_down(B::InputQuery::POINTER_DOWN);
 
-        let pressed = (focused && ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS))
-            || (hovered && ctx.backend.input_active(B::InputQuery::POINTER_PRESS));
+        let pressed = (focused && ctx.backend.input_down(B::InputQuery::FOCUSED_PRESS))
+            || (hovered && ctx.backend.input_down(B::InputQuery::POINTER_PRESS));
 
         let released = (focused && ctx.backend.input_released(B::InputQuery::FOCUSED_PRESS))
             || (ctx.pressed_response == Some(id)
@@ -177,8 +238,9 @@ impl<'a, B: Backend> Frame<'a, B> {
     }
 }
 impl<B> Ctx<B> {
-    pub fn new(backend: B) -> Self {
+    pub fn new(backend: B, style: Style) -> Self {
         Self {
+            style,
             backend,
             pressed_response: None,
             hovered_response: None,
@@ -250,7 +312,7 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
             next_focus,
             ..
         } = self;
-        if !ctx.backend.input_active(B::InputQuery::FOCUSED_PRESS) {
+        if !ctx.backend.input_down(B::InputQuery::FOCUSED_PRESS) {
             match self.focus_dir.cmp(&0) {
                 core::cmp::Ordering::Less => focused_response = *prev_focus,
                 core::cmp::Ordering::Equal => (),

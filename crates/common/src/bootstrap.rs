@@ -1,5 +1,3 @@
-
-
 use crate::device_list::DeviceList;
 
 #[cfg(not(target_arch = "arm"))]
@@ -124,7 +122,6 @@ pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
-
 
 #[repr(C)]
 #[derive(Debug, Clone)]

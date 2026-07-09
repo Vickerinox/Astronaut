@@ -330,8 +330,7 @@ pub struct GeometryCommands {
     pub matrix_mult_3x3: WO<u32>,
     pub matrix_mult_scale: WO<u32>,
     pub matrix_mult_trans: WO<u32>,
-
-    _free_bus: [u32; 3],
+    _0x74: [u32; 3],
 
     //VERTEX OPERATIONS 0x400_0480
     pub vertex_set_color: WO<u32>,
@@ -348,7 +347,7 @@ pub struct GeometryCommands {
     pub material_polygon_attributes: WO<PolygonAttributes>,
     pub material_texture_attributes: WO<u32>,
     pub material_color_palette: WO<u32>,
-    _free_bus_2: [u8; 0x10],
+    _0xb0: [u8; 0x10],
     pub material_diffused_reflection: WO<u32>,
     pub material_specular_reflection: WO<u32>,
 
@@ -356,16 +355,16 @@ pub struct GeometryCommands {
     pub shaders_light_vector: WO<u32>,
     pub shaders_light_color: WO<u32>,
     pub shaders_shiny_table: [WO<u8>; 0x20],
-    _free_bus_3: [u8; 0x10],
+    _0xf0: [u8; 0x10],
 
     //PIPELINE OPERATIONS 0x400_0500
     pub pipeline_begin_vertex_list: WO<VertexListType>,
     pub pipeline_end_vertex_list: WO<u32>,
-    _free_bus4: [u8; 0x38],
+    _0x108: [u8; 0x38],
     pub pipeline_swap_buffers: WO<u32>,
-    _free_bus5: [u8; 0x3C],
+    _0x144: [u8; 0x3C],
     pub pipeline_set_viewport: WO<Viewport>,
-    _free_bus6: [u8; 0x3C],
+    _0x184: [u8; 0x3C],
 
     //TESTING OPERATIONS 0x400_05C0
     pub testing_box_test: WO<u32>,

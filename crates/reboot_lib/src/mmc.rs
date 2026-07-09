@@ -328,9 +328,7 @@ impl MMC {
                     value |= self.status.read();
                 }
             }
-            
         }
-
 
         value.intersection(Status::ALL_ERRORS)
     }
@@ -512,7 +510,10 @@ pub struct TMIOPort {
 }
 impl TMIOPort {
     pub const fn sdmmc<const N: u16>() -> Self {
-        assert!(N <= 1, "Port number must be either 0 for SDMC, or 1 for NAND");
+        assert!(
+            N <= 1,
+            "Port number must be either 0 for SDMC, or 1 for NAND"
+        );
         Self {
             port_num: N,
             clock: ClockCnt::FREQ_262K,

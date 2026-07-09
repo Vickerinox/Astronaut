@@ -1,4 +1,3 @@
-
 use reboot_lib::StorageSector;
 
 pub struct BasicSDMMCCursor<'a> {

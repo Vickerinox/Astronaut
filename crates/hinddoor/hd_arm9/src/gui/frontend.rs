@@ -1,23 +1,17 @@
-use core::{
-    alloc::Layout,
-};
+use core::alloc::Layout;
 
 use crate::{
-    APP_AREA_START, AppArea, BACKGROUND_COLOR, SCREEN_RECT, boot::{self, read_all}, get_extension,  send_mod_file, stop_mod_file,
+    boot::{self, read_all},
+    get_extension, send_mod_file, stop_mod_file, AppArea, APP_AREA_START, BACKGROUND_COLOR,
+    SCREEN_RECT,
 };
-use alloc::{
-    boxed::Box,
-    format,
-    string::String,
-};
-use common::{blowfish::BFCTX};
-use fatfs_embedded::fatfs::{FileOptions};
+use alloc::{boxed::Box, format, string::String};
+use common::blowfish::BFCTX;
+use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::{Backend, Color, Vec2};
 use reboot_lib::{
-    autoboot_info::{UnlaunchParams},
-    music_modules::mods::MODAsyncLoader,
-    sound::SoundControl,
+    autoboot_info::UnlaunchParams, music_modules::mods::MODAsyncLoader, sound::SoundControl,
     timers::TimerControl,
 };
 pub struct GlobalData {
@@ -29,7 +23,7 @@ pub struct GlobalData {
 
 pub struct AppData {
     pub global_data: GlobalData,
-    
+
     pub current_ui: Box<dyn UiPage>,
 }
 pub enum MusicPlaying {
@@ -57,9 +51,9 @@ const WAV_BUFFER_LEN: usize = 1024 * 64;
 const WAV_BUFFER_LAYOUT: Layout = unsafe { Layout::from_size_align_unchecked(WAV_BUFFER_LEN, 4) };
 impl Drop for StreamingWav {
     fn drop(&mut self) {
-        unsafe { 
+        unsafe {
             self.stop();
-            alloc::alloc::dealloc(self.scratch_buffer.as_mut_ptr(), WAV_BUFFER_LAYOUT) 
+            alloc::alloc::dealloc(self.scratch_buffer.as_mut_ptr(), WAV_BUFFER_LAYOUT)
         };
     }
 }
@@ -71,10 +65,10 @@ impl Drop for StreamType {
                 StreamType::MonoI16 => (),
                 StreamType::StereoU8 { audio } => {
                     alloc::alloc::dealloc(audio.as_mut_ptr(), WAV_BUFFER_LAYOUT);
-                },
+                }
                 StreamType::StereoI16 { audio } => {
                     alloc::alloc::dealloc(audio.as_mut_ptr(), WAV_BUFFER_LAYOUT);
-                },
+                }
             }
         };
     }
@@ -99,7 +93,7 @@ impl StreamingWav {
         if &main_chunk[12..16] != b"fmt " {
             return None;
         }
-        
+
         let frequency = u32::from_le_bytes(main_chunk[24..].first_chunk()?.clone());
         let bits_per_sample = u16::from_le_bytes(main_chunk[34..].first_chunk()?.clone()) as u8;
         let channels = u16::from_le_bytes(main_chunk[22..].first_chunk()?.clone()) as u8;
@@ -115,16 +109,20 @@ impl StreamingWav {
                 data_start = file.fptr;
                 break;
             } else {
-                let seek = file.fptr+data_len;
+                let seek = file.fptr + data_len;
                 fatfs_embedded::seek(&mut file, seek).ok()?;
             }
         }
-        
+
         let stream_type = match (channels, bits_per_sample) {
             (1, 8) => StreamType::MonoU8,
             (1, 16) => StreamType::MonoI16,
-            (2, 8) => StreamType::StereoU8 { audio: alloc_wav_buf() },
-            (2, 16) => StreamType::StereoI16 { audio: alloc_wav_buf() },
+            (2, 8) => StreamType::StereoU8 {
+                audio: alloc_wav_buf(),
+            },
+            (2, 16) => StreamType::StereoI16 {
+                audio: alloc_wav_buf(),
+            },
             _ => return None,
         };
         Some(Self {
@@ -147,81 +145,116 @@ impl StreamingWav {
                         .with_sound_format(reboot_lib::sound::SoundFormat::PCM8)
                         .with_volume(127)
                         .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
-                    0u16.wrapping_sub(timer*4)
+                    0u16.wrapping_sub(timer * 4),
                 ),
                 StreamType::MonoI16 => (
                     SoundControl::START
                         .with_sound_format(reboot_lib::sound::SoundFormat::PCM16)
                         .with_volume(127)
                         .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
-                    0u16.wrapping_sub(timer*2)
-                    
+                    0u16.wrapping_sub(timer * 2),
                 ),
                 StreamType::StereoU8 { .. } => (
                     SoundControl::START
                         .with_sound_format(reboot_lib::sound::SoundFormat::PCM8)
                         .with_volume(127)
                         .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
-                    0u16.wrapping_sub(timer*2)
+                    0u16.wrapping_sub(timer * 2),
                 ),
                 StreamType::StereoI16 { .. } => (
                     SoundControl::START
                         .with_sound_format(reboot_lib::sound::SoundFormat::PCM16)
                         .with_volume(127)
                         .with_repeat_mode(reboot_lib::sound::RepeatMode::Infinite),
-                    0u16.wrapping_sub(timer)
-                ),                                       
-                    
+                    0u16.wrapping_sub(timer),
+                ),
             };
             self.fetch_new(WAV_BUFFER_LEN);
             self.player_head = 0;
-            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
+            reboot_lib::timers::TIMERS[0]
+                .write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
             (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
             match &mut self.stream_type {
                 StreamType::MonoU8 => {
-                    let _ = reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
-                },
+                    let _ = reboot_lib::arm9_manual_sound_write(
+                        self.scratch_buffer,
+                        0,
+                        snd_timer,
+                        format.with_panning(0x40),
+                        0,
+                    );
+                }
                 StreamType::MonoI16 => {
-                    let _ = reboot_lib::arm9_manual_sound_write(self.scratch_buffer, 0, snd_timer, format.with_panning(0x40), 0);
-                
-                },
+                    let _ = reboot_lib::arm9_manual_sound_write(
+                        self.scratch_buffer,
+                        0,
+                        snd_timer,
+                        format.with_panning(0x40),
+                        0,
+                    );
+                }
                 StreamType::StereoU8 { audio } => {
-                    let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
-                    let _ = reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
-                    let _ = reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
-                },
+                    let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
+                    let _ = reboot_lib::arm9_manual_sound_write(
+                        left,
+                        0,
+                        snd_timer,
+                        format.with_panning(0x0),
+                        0,
+                    );
+                    let _ = reboot_lib::arm9_manual_sound_write(
+                        right,
+                        1,
+                        snd_timer,
+                        format.with_panning(0x7F),
+                        0,
+                    );
+                }
                 StreamType::StereoI16 { audio } => {
-                    let (left,right) = audio.split_at_mut(WAV_BUFFER_LEN/2);
-                    let _ = reboot_lib::arm9_manual_sound_write(left, 0, snd_timer, format.with_panning(0x0), 0);
-                    let _ = reboot_lib::arm9_manual_sound_write(right, 1, snd_timer, format.with_panning(0x7F), 0);
-                },
+                    let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
+                    let _ = reboot_lib::arm9_manual_sound_write(
+                        left,
+                        0,
+                        snd_timer,
+                        format.with_panning(0x0),
+                        0,
+                    );
+                    let _ = reboot_lib::arm9_manual_sound_write(
+                        right,
+                        1,
+                        snd_timer,
+                        format.with_panning(0x7F),
+                        0,
+                    );
+                }
             }
-            
-            
-            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(timer_timer, TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START));
 
+            reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(
+                timer_timer,
+                TimerControl::ENABLE_IRQ | TimerControl::PRESCALE_1024 | TimerControl::START,
+            ));
         }
     }
     pub unsafe fn stop(&mut self) {
-        reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
+        reboot_lib::timers::TIMERS[0]
+            .write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
         (*(APP_AREA_START as *mut AppArea)).wav_counter.write(0);
         let format = SoundControl::empty();
         match &mut self.stream_type {
             StreamType::MonoU8 => {
                 let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
-            },
+            }
             StreamType::MonoI16 => {
                 let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
-            
-            },
+            }
             StreamType::StereoU8 { .. } => {
                 let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
                 let _ = reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
-            },
+            }
             StreamType::StereoI16 { .. } => {
                 let _ = reboot_lib::arm9_manual_sound_write(&mut [], 0, 0, format, 0);
                 let _ = reboot_lib::arm9_manual_sound_write(&mut [], 1, 0, format, 0);
-            },
+            }
         }
     }
     pub unsafe fn fetch_new(&mut self, mut count: usize) {
@@ -272,18 +305,17 @@ impl StreamingWav {
                     }
                     StreamType::StereoI16 { audio } => {
                         let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
-                        let break_point = break_point/2;
+                        let break_point = break_point / 2;
                         for (i, val) in final_slice.chunks_exact(2).enumerate() {
                             if i & 1 == 0 {
-                                left[break_point+i] = val[0];
-                                left[break_point+i+1] = val[1];
-                                
+                                left[break_point + i] = val[0];
+                                left[break_point + i + 1] = val[1];
                             } else {
-                                right[break_point+i-1] = val[0];
-                                right[break_point+i] = val[1];
+                                right[break_point + i - 1] = val[0];
+                                right[break_point + i] = val[1];
                             }
                         }
-                    },
+                    }
                 }
             } else {
                 self.stop();
@@ -297,10 +329,15 @@ pub struct AppBooter {
     pub path: String,
 }
 impl UiPage for AppBooter {
-    fn ui(&mut self, ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
-        let Ok(mut file) = fatfs_embedded::open(&mut self.path, FileOptions::Read) else { 
-            return Some(Box::new(super::error::Error { error_string: format!("File doesn't exist.")}));
-                         
+    fn ui(
+        &mut self,
+        ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+        data: &mut GlobalData,
+    ) -> Option<Box<dyn UiPage>> {
+        let Ok(mut file) = fatfs_embedded::open(&mut self.path, FileOptions::Read) else {
+            return Some(Box::new(super::error::Error {
+                error_string: format!("File doesn't exist."),
+            }));
         };
         ui.request_repaint();
         let error = unsafe {
@@ -313,10 +350,13 @@ impl UiPage for AppBooter {
     }
 }
 pub trait UiPage {
-    fn ui(&mut self, ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, data: &mut GlobalData) -> Option<Box<dyn UiPage>>;
+    fn ui(
+        &mut self,
+        ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+        data: &mut GlobalData,
+    ) -> Option<Box<dyn UiPage>>;
 }
 impl AppData {
-    
     pub unsafe fn autoboot(&mut self) {
         let mut path = core::mem::take(&mut self.global_data.config.autoboot);
         let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {
@@ -327,32 +367,38 @@ impl AppData {
         crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
     pub fn play_startup_music(&mut self) {
-
         match fatfs_embedded::open(&mut self.global_data.config.style.music, FileOptions::Read) {
             Ok(file) => {
                 stop_mod_file();
                 self.global_data.loading_mod_file = MusicPlaying::None;
-                let Some(extension) = get_extension(self.global_data.config.style.music.as_bytes()) else { return };
+                let Some(extension) = get_extension(self.global_data.config.style.music.as_bytes())
+                else {
+                    return;
+                };
                 self.global_data.loading_mod_file = match extension {
                     b".mod" | b".MOD" => MusicPlaying::Mod(MODAsyncLoader::new(file)),
                     b".wav" | b".WAV" => {
                         if let Some(mut stream) = StreamingWav::new(file) {
-                            unsafe { stream.play(); }
+                            unsafe {
+                                stream.play();
+                            }
                             MusicPlaying::Wav(stream)
                         } else {
                             MusicPlaying::None
                         }
-                        
-                    },
+                    }
                     _ => MusicPlaying::None,
                 };
-                
             }
             Err(_abort) => {}
         }
     }
     pub fn load_wallpaper(&mut self) -> Option<crate::bmp::DecodedBMP> {
-        let file = fatfs_embedded::open(&mut self.global_data.config.style.top_wallpaper, FileOptions::Read).ok()?;
+        let file = fatfs_embedded::open(
+            &mut self.global_data.config.style.top_wallpaper,
+            FileOptions::Read,
+        )
+        .ok()?;
         crate::bmp::DecodedBMP::from_reader(file)
     }
     pub fn do_background_tasks(&mut self) {
@@ -361,36 +407,36 @@ impl AppData {
         match music {
             MusicPlaying::None => (),
             MusicPlaying::Wav(mut wav_stream) => {
-                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read()} << 11;
+                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() } << 11;
                 let bytes_to_read = pos as usize - wav_stream.player_head;
-                unsafe { wav_stream.fetch_new(bytes_to_read); };
+                unsafe {
+                    wav_stream.fetch_new(bytes_to_read);
+                };
                 self.global_data.loading_mod_file = MusicPlaying::Wav(wav_stream);
-            },
-            MusicPlaying::Mod(loading_mod) => {
-                match loading_mod.process() {
-                    Ok(Some(ret)) => {
-                        send_mod_file(ret);
-                    }
-                    Ok(None) => (),
-                    Err(cont) => self.global_data.loading_mod_file = MusicPlaying::Mod(cont),
-                }
             }
+            MusicPlaying::Mod(loading_mod) => match loading_mod.process() {
+                Ok(Some(ret)) => {
+                    send_mod_file(ret);
+                }
+                Ok(None) => (),
+                Err(cont) => self.global_data.loading_mod_file = MusicPlaying::Mod(cont),
+            },
         }
     }
     pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>) {
         let _mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {
             {
-                let color = BACKGROUND_COLOR;
+                let color = ui.style().background_color;
                 ui.paint_shape(micro_imgui::Shape::Rectangle {
-                    area: SCREEN_RECT.include_point(Vec2::new(256, 256)),
-                    fill: Color(color),
+                    area: SCREEN_RECT,
+                    fill: color,
                     rounding: 0,
-                    outline_color: Color(color),
+                    outline_color: color,
                     outline_size: 0,
                 });
             }
-            
+
             match &self.global_data.loading_mod_file {
                 MusicPlaying::Mod(loading_mod) => {
                     let (progress, max) = loading_mod.progress();
@@ -400,9 +446,11 @@ impl AppData {
                         .collect::<String>();
                     ui.label(&format!("Loading [{bar}]"));
                     ui.request_repaint();
-                },
-                _ => {ui.label(" ");}
-            }    
+                }
+                _ => {
+                    ui.label(" ");
+                }
+            }
             if let Some(new_ui) = self.current_ui.ui(ui, &mut self.global_data) {
                 self.current_ui = new_ui;
             }

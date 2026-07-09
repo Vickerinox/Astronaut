@@ -140,7 +140,6 @@ unsafe fn interrupt_handler_arm7() {
     panic!()
 }
 
-
 #[cfg(feature = "arm7")]
 pub unsafe fn init_interrupts() {
     use crate::INTERUPT_HARDWARE;
@@ -152,9 +151,9 @@ pub unsafe fn init_interrupts() {
     (0x0380_FFFC as *mut unsafe fn()).write(interrupt_handler_arm7);
     INTERUPT_HARDWARE.master.write(1);
 }
-use crate::Interrupt;
-use crate::interupts::INTERRUPT_TABLE;
 use crate::interupts::INTERRUPT_INDEX_MASK;
+use crate::interupts::INTERRUPT_TABLE;
+use crate::Interrupt;
 
 #[cfg(feature = "arm7i")]
 use crate::interupts::INTERRUPT_TABLE_AUX;
@@ -164,26 +163,23 @@ pub unsafe fn set_interrupt_function(interrupt: Interrupt, function: unsafe fn()
         let interrupt = interrupt as u8;
         #[cfg(feature = "arm7i")]
         {
-            
             let index = interrupt & INTERRUPT_INDEX_MASK;
             if interrupt > INTERRUPT_INDEX_MASK {
                 INTERRUPT_TABLE_AUX[index as usize] = function as *mut _;
             } else {
-
                 INTERRUPT_TABLE[index as usize] = function as *mut _;
             }
         }
         #[cfg(not(feature = "arm7i"))]
         {
             INTERRUPT_TABLE[interrupt as usize] = function as *mut _;
-        }    
+        }
     });
 }
 pub unsafe fn enable_interrupt(interrupt: Interrupt) {
     let interrupt = interrupt as u8;
     #[cfg(feature = "arm7i")]
     {
-            
         let index = interrupt & INTERRUPT_INDEX_MASK;
         let fun = if interrupt > INTERRUPT_INDEX_MASK {
             crate::critical_function(|| {
@@ -192,13 +188,19 @@ pub unsafe fn enable_interrupt(interrupt: Interrupt) {
                     .modify(|i| i | (1 << index))
             });
         } else {
-            crate::critical_function(|| super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << index)));
+            crate::critical_function(|| {
+                super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << index))
+            });
         };
     }
     #[cfg(not(feature = "arm7i"))]
     {
-        crate::critical_function(|| super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << interrupt)));    
-    }  
+        crate::critical_function(|| {
+            super::INTERUPT_HARDWARE
+                .enable
+                .modify(|i| i | (1 << interrupt))
+        });
+    }
 }
 pub unsafe fn disable_all_interrupts() {
     (0x400_0208 as *mut u32).write_volatile(0);

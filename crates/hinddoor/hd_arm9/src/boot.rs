@@ -10,7 +10,6 @@ pub enum BootError {
     BadEntrypoint(u32),
 
     FileReadError,
-
 }
 impl Debug for BootError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -21,9 +20,7 @@ impl Debug for BootError {
         }
     }
 }
-use crate::{
-    APP_AREA_START, AppArea, BOOTSTRAP_BINARY, gui::{ GlobalData}, set_background,
-};
+use crate::{gui::GlobalData, set_background, AppArea, APP_AREA_START, BOOTSTRAP_BINARY};
 
 pub fn read_all(
     mut buffer: &mut [u8],

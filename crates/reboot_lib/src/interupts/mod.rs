@@ -16,7 +16,6 @@ pub struct InteruptRegisters {
     pub request2: RW<u32>,
 }
 
-
 static mut INTERRUPT_TABLE: [*mut fn(); 32] = [core::ptr::null_mut(); 32];
 #[cfg(feature = "arm7")]
 static mut INTERRUPT_TABLE_AUX: [*mut fn(); 15] = [core::ptr::null_mut(); 15];
@@ -33,7 +32,7 @@ pub enum Interrupt {
     Timer1 = 4,
     Timer2 = 5,
     Timer3 = 6,
-    
+
     #[cfg(feature = "arm7")]
     RTC = 7,
 
@@ -68,16 +67,15 @@ pub enum Interrupt {
     #[cfg(feature = "arm7i")]
     GPIO182 = 2 + AUX_INTERRUPT,
 
-
     #[cfg(feature = "arm7i")]
     HeadphoneConnect = 5 + AUX_INTERRUPT,
-    
+
     #[cfg(feature = "arm7i")]
     Powerbutton = 6 + AUX_INTERRUPT,
-    
+
     #[cfg(feature = "arm7i")]
     SoundEnableOutput = 7 + AUX_INTERRUPT,
-    
+
     #[cfg(feature = "arm7i")]
     SDMMC = 8 + AUX_INTERRUPT,
 

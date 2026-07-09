@@ -1,4 +1,4 @@
-/* 
+/*
 #[repr(u8)]
 enum PartitionTypes {
     Empty = 0,

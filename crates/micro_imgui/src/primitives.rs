@@ -208,7 +208,7 @@ pub trait Backend {
     fn reserve_layer(&mut self) -> LayerId;
 
     /// See if an input is currently held (keyboard key is down, button is pressed, etc.)
-    fn input_active(&self, pattern: Self::InputQuery) -> bool;
+    fn input_down(&self, pattern: Self::InputQuery) -> bool;
 
     /// See if an input begun being held this frame
     fn input_pressed(&self, pattern: Self::InputQuery) -> bool;

@@ -1,9 +1,5 @@
-use fatfs_embedded::fatfs::{
-    diskio::{DiskResult, FatFsDriver, IoctlCommand},
-};
-use reboot_lib::{
-    arm9_check_sdmmc, arm9_init_sdmmc, StorageSector,
-};
+use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
+use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc, StorageSector};
 
 use crate::{mbr, nand::BasicSDMMCCursor, read_encrypted_nand, read_sd_card, transmute_slice};
 

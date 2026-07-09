@@ -28,22 +28,24 @@ reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
 use core::str;
-use fatfs_embedded::fatfs::{ FileOptions, RawFileSystem};
+use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
 use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
-use reboot_lib::timers::{ TimerControl};
+use reboot_lib::timers::TimerControl;
 
-use micro_imgui_ds::micro_imgui::{Color};
+use micro_imgui_ds::micro_imgui::Color;
 use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
-    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, Interrupt, VRAMCtrl, VideoHardwareHandle, flush_mmc,
+    flush_mmc, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES, ENGINE_B_PALETTES,
+    IPC_FIFO_HARDWARE,
 };
 use reboot_lib::{
-    Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl,
-    Viewport, VIDEO_HARDWARE,
+    Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl, Viewport,
+    VIDEO_HARDWARE,
 };
 
 use crate::boot::read_all;
+use crate::configuration::Style;
 use crate::fat::driver::SDMMCDriver;
 use crate::gui::AppData;
 
@@ -101,11 +103,17 @@ unsafe fn init_font() {
     );
     for i in 0..0x200 {
         let reg = core::ptr::read_volatile((0x2FF_1000 as *const u32).add(i));
-        core::ptr::write_volatile((0x6800000 as *mut u32).add(i), reg);
+        core::ptr::write_volatile((0x6818000 as *mut u32).add(i), reg);
     }
 
-    core::ptr::write_volatile(0x06880000 as *mut u32, core::ptr::read_volatile(0x2FF_1800 as *const u32));
-    core::ptr::write_volatile(0x06880004 as *mut u32, core::ptr::read_volatile(0x2FF_1804 as *const u32));
+    core::ptr::write_volatile(
+        0x06880000 as *mut u32,
+        core::ptr::read_volatile(0x2FF_1800 as *const u32),
+    );
+    core::ptr::write_volatile(
+        0x06880004 as *mut u32,
+        core::ptr::read_volatile(0x2FF_1804 as *const u32),
+    );
 }
 #[cfg(not(target_arch = "arm"))]
 unsafe fn init_font() {
@@ -153,7 +161,7 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     VIDEO_HARDWARE
         .geometry_commands
         .material_texture_attributes
-        .write((7 << 20) | (2 << 26) | (1 << 29)); //bind font texture
+        .write((7 << 20) | (2 << 26) | (1 << 29) | 0x3000); //bind font texture
     VIDEO_HARDWARE
         .geometry_commands
         .material_color_palette
@@ -168,7 +176,6 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
         );
     VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
 }
-
 
 const COLOR_BOOTABLE: Color = Color::new(100, 200, 100);
 const COLOR_MUSIC: Color = Color::new(100, 100, 200);
@@ -279,7 +286,7 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
     VIDEO_HARDWARE
         .vram_control_bank_e
         .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-    
+
     //enable the 2D engine A, with no backgrounds on.
     VIDEO_HARDWARE
         .engine_a_ctrl
@@ -287,17 +294,19 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
 
     // Set background 3 on the sub engine to cover the whole screen and be flipped vertically to prepare for wallpaper
     // (Note: this is done since BMP bitmaps are "vertically flipped", starting from the bottom left and ending on the top right)
-    VIDEO_HARDWARE.disp_b_bgctrl[3].write((1 << 14) | (1<<7) | (1<<2));
+    VIDEO_HARDWARE.disp_b_bgctrl[3].write((1 << 14) | (1 << 7) | (1 << 2));
     VIDEO_HARDWARE.disp_b_bgscrl[6].write(0);
     VIDEO_HARDWARE.disp_b_bgscrl[7].write(0);
     VIDEO_HARDWARE.disp_b_bg3_ref[0].write(0);
-    VIDEO_HARDWARE.disp_b_bg3_ref[1].write((191)<<8);
+    VIDEO_HARDWARE.disp_b_bg3_ref[1].write((191) << 8);
 
     VIDEO_HARDWARE.disp_b_bg3_scale[0].write(256);
     VIDEO_HARDWARE.disp_b_bg3_scale[1].write(0);
     VIDEO_HARDWARE.disp_b_bg3_scale[2].write(0);
     VIDEO_HARDWARE.disp_b_bg3_scale[3].write(0xFF00);
-    VIDEO_HARDWARE.disp_b_control.write(DisplayControl::BG_MODE_5);
+    VIDEO_HARDWARE
+        .disp_b_control
+        .write(DisplayControl::BG_MODE_5);
 
     //copy font to vram
     init_font();
@@ -414,7 +423,8 @@ unsafe fn main() {
         reboot_lib::interupts::init_interrupts();
 
         IPC_FIFO_HARDWARE.enable_recv_irq();
-        reboot_lib::timers::TIMERS[0].write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
+        reboot_lib::timers::TIMERS[0]
+            .write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
         reboot_lib::set_interrupt_function(Interrupt::VBlank, fade_out);
         reboot_lib::set_interrupt_function(Interrupt::Timer0, uptick_wav);
         reboot_lib::enable_interrupt(Interrupt::IPCNonEmpty);
@@ -427,9 +437,13 @@ unsafe fn main() {
         let sdmmc_driver = app_area.sdmmc_driver.assume_init_mut();
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
 
-        let _ = app_area.filesystems.nand_fs
+        let _ = app_area
+            .filesystems
+            .nand_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
-        let _ = app_area.filesystems.sdmc_fs
+        let _ = app_area
+            .filesystems
+            .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
         let ptr = app_area.app_data.as_mut_ptr();
@@ -442,14 +456,12 @@ unsafe fn main() {
         let app_data = app_area.app_data.assume_init_mut();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
 
-
-
-
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
                     let mut file_path = params.parse_path();
-                    (&raw mut app_data.global_data.autoboot).write(Some((file_path.clone(), params)));
+                    (&raw mut app_data.global_data.autoboot)
+                        .write(Some((file_path.clone(), params)));
                     if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
                         //app_data.current_ui = CurrentUI::LoadingApp { file, file_path };
                         boot::boot_app(&mut file, &mut file_path, &mut app_data.global_data);
@@ -461,7 +473,7 @@ unsafe fn main() {
         }
 
         //write to "color palette 0"
-        /* 
+        /*
         core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
         core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
@@ -475,69 +487,85 @@ unsafe fn main() {
         app_data.play_startup_music();
         app_area.fader.target.write(0);
 
-        micro_imgui_ds::micro_imgui::run(backend, app_data, |mut f, app_data| {
-            app_data.update(&mut f);
-        }, |app_data| {
-            app_data.do_background_tasks();
-        });
+        micro_imgui_ds::micro_imgui::run(
+            backend,
+            micro_imgui_ds::micro_imgui::Style::default(),
+            app_data,
+            |mut f, app_data| {
+                app_data.update(&mut f);
+            },
+            |app_data| {
+                app_data.do_background_tasks();
+            },
+        );
     }
 }
 fn show_wallpaper(bmp: crate::bmp::DecodedBMP) {
     if bmp.height() != 192 {
-        return
+        return;
     }
     if bmp.width() != 256 {
-        return
+        return;
     }
     let paletter = bmp.palette_table();
-    let a = |chunk: &[u8]|{
+    let a = |chunk: &[u8]| {
         let red = paletter[((chunk[0] as usize) << 2) + 0] >> 3;
         let green = paletter[((chunk[0] as usize) << 2) + 1] >> 3;
         let blue = paletter[((chunk[0] as usize) << 2) + 2] >> 3;
-        0x8000 | ((red as u16) << 10) | ((green as u16) << 5) | ((blue as u16))
+        0x8000 | ((red as u16) << 10) | ((green as u16) << 5) | (blue as u16)
     };
     let b = |chunk: &[u8]| {
-                let red = chunk[0] >> 3;
-                let green = chunk[1] >> 3;
-                let blue = chunk[2] >> 3;
-                0x8000 | ((red as u16) << 10) | ((green as u16) << 5) | ((blue as u16))
-            };
-    let pixel_iter: core::iter::Map<core::slice::ChunksExact<'_, u8>, &dyn Fn(&[u8]) -> u16> = match (bmp.dib.bits_per_pixel, bmp.dib.compression) {
-        (16, 3) => {
-            if bmp.palette_table() != &[00,0x7C,0x00,0x00,0xE0,0x03,0x00,0x00,0x1F,0x00,0x00,0x00] {
-                return;
-            }
-            bmp.bitmap.chunks_exact(2).map(&|chunk| {
-                let pixel = u16::from_le_bytes([chunk[0], chunk[1]]);
-                let red = pixel & 0x1F;
-                let green = (pixel & (0x1F << 5)) >> 5;
-                let blue = (pixel & (0x1F << 10)) >> 10;
-                0x8000 | (red << 10) | (green << 5) | (blue)
-            })
-        },
-        (8, 0) => {
-            bmp.bitmap.chunks_exact(1).map(&a)
-        },
-        (32, 3) => {
-            if bmp.palette_table() != &[00,0x00,0xFF,0x00,0x00,0xFF,0x00,0x00,0xFF,0x00,0x00, 0x00] {
-                return;
-            }
-            bmp.bitmap.chunks_exact(4).map(&b)
-        }
-        (24, 0) => {
-            bmp.bitmap.chunks_exact(3).map(&b)
-        }
-        _ => return
+        let red = chunk[0] >> 3;
+        let green = chunk[1] >> 3;
+        let blue = chunk[2] >> 3;
+        0x8000 | ((red as u16) << 10) | ((green as u16) << 5) | (blue as u16)
     };
+    let pixel_iter: core::iter::Map<core::slice::ChunksExact<'_, u8>, &dyn Fn(&[u8]) -> u16> =
+        match (bmp.dib.bits_per_pixel, bmp.dib.compression) {
+            (16, 3) => {
+                if bmp.palette_table()
+                    != &[
+                        00, 0x7C, 0x00, 0x00, 0xE0, 0x03, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00,
+                    ]
+                {
+                    return;
+                }
+                bmp.bitmap.chunks_exact(2).map(&|chunk| {
+                    let pixel = u16::from_le_bytes([chunk[0], chunk[1]]);
+                    let red = pixel & 0x1F;
+                    let green = (pixel & (0x1F << 5)) >> 5;
+                    let blue = (pixel & (0x1F << 10)) >> 10;
+                    0x8000 | (red << 10) | (green << 5) | (blue)
+                })
+            }
+            (8, 0) => bmp.bitmap.chunks_exact(1).map(&a),
+            (32, 3) => {
+                if bmp.palette_table()
+                    != &[
+                        00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
+                    ]
+                {
+                    return;
+                }
+                bmp.bitmap.chunks_exact(4).map(&b)
+            }
+            (24, 0) => bmp.bitmap.chunks_exact(3).map(&b),
+            _ => return,
+        };
     unsafe {
-        VIDEO_HARDWARE.vram_control_bank_c.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+        VIDEO_HARDWARE
+            .vram_control_bank_c
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
         for (i, pixel) in pixel_iter.enumerate() {
             (0x06840000 as *mut u16).add(i).write(pixel);
         }
-        VIDEO_HARDWARE.vram_control_bank_c.write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
+        VIDEO_HARDWARE
+            .vram_control_bank_c
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
 
-
-        VIDEO_HARDWARE.disp_b_control.write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
+        VIDEO_HARDWARE
+            .disp_b_control
+            .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
     }
 }
 
@@ -773,4 +801,3 @@ unsafe fn print_msg(
 unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
     slice as *mut T as *mut () as *mut U
 }
-

@@ -1,9 +1,5 @@
 use crate::{
-    context::Frame,
-    primitives::{Id, Rect, Vec2},
-    response::{self, Response, Sense},
-    widgets::{button::Button, label::Label},
-    Backend, Color, LayerId,
+    Backend, Color, LayerId, Style, context::{ColorSet, Frame}, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::{button::Button, label::Label},
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -12,7 +8,19 @@ pub struct Ui<'a, 'b: 'a, B: Backend> {
     id: Id,
     layout: Layout,
 }
+impl<'a, 'b: 'a, B: Backend> core::ops::Deref for Ui<'a,'b,B> {
+    type Target = Frame<'b, B>;
+    fn deref(&self) -> &Self::Target {
+        &self.ctx
+    }
+}
+impl<'a, 'b: 'a, B: Backend> core::ops::DerefMut for Ui<'a,'b,B> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ctx
+    }
+}
 impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
+
     pub fn new(ctx: &'a mut Frame<'b, B>, id: Id, clip_rect: Rect) -> Self {
         Self {
             ctx,
@@ -21,24 +29,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             layout: Layout::default(),
         }
     }
-    pub fn paint_shape(&mut self, shape: crate::primitives::Shape<B::Image>) {
-        self.ctx.paint_shape(shape)
-    }
-    pub fn drag(&mut self) -> Option<Vec2> {
-        self.ctx.drag()
-    }
-    pub fn cancel_refocus(&mut self) {
-        self.ctx.cancel_refocus();
-    }
-    pub fn has_focus_anywhere(&mut self) -> bool {
-        self.ctx.has_focus_anywhere()
-    }
-    pub fn focus_next(&mut self) {
-        self.ctx.focus_next();
-    }
-    pub fn focus_prev(&mut self) {
-        self.ctx.focus_prev();
-    }
+    
     pub fn set_focus(&mut self, response: &Response) {
         self.ctx.focus_on(response.id);
     }
@@ -54,9 +45,6 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
     pub fn header<'c>(&mut self, text: &str) -> response::Response {
         self.add(Label::new(text, 16))
-    }
-    pub fn request_repaint(&mut self) {
-        self.ctx.request_repaint();
     }
     /// This is the libraries big hack for issues where the coupling between systems clash
     ///
@@ -75,18 +63,6 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         };
         let response = self.ctx.id_statistics(unsafe { self.id.current() });
         (Rect::from_two_pos(rect_min, rect_min + size), response)
-    }
-
-    pub fn input_down(&self, input: B::InputQuery) -> bool {
-        self.ctx.input_active(input)
-    }
-
-    pub fn input_pressed(&self, input: B::InputQuery) -> bool {
-        self.ctx.input_pressed(input)
-    }
-
-    pub fn input_released(&self, input: B::InputQuery) -> bool {
-        self.ctx.input_released(input)
     }
 
     pub fn horizontal<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {

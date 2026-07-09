@@ -1,4 +1,4 @@
-use alloc::{vec::Vec};
+use alloc::vec::Vec;
 
 pub struct Ini<'a> {
     segments: Vec<(&'a str, Segment<'a>)>,

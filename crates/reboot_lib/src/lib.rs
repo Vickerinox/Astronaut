@@ -81,7 +81,6 @@ pub unsafe fn nocash_write_bytes(str: &[u8]) {
     }
 }
 
-
 bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq)]
     pub struct Buttons: u16 {

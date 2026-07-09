@@ -450,11 +450,17 @@ unsafe fn main() {
 
         INTERRUPT_TABLE[0] = fade_out as *mut _;
 
-        micro_imgui::run(backend, (), |mut f, _| {
-            f.central_panel(|ui| {
-                ui.label("Holy balls it works!");
-            });
-        }, |_| {});
+        micro_imgui::run(
+            backend,
+            micro_imgui::Style::default(),
+            (),
+            |mut f, _| {
+                f.central_panel(|ui| {
+                    ui.label("Holy balls it works!");
+                });
+            },
+            |_| {},
+        );
     }
 }
 

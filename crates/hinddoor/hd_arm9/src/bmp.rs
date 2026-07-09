@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 
 use crate::boot::read_all;
 
-
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct BMPHeader {

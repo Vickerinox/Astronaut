@@ -32,21 +32,16 @@ impl<'t> AutoAdd for Checkbox<'t> {
         let alloc_size = wanted_size + Vec2::new(11, 2);
         let resp = ui.allocate_size(alloc_size, Sense::clickable());
 
-        let (outline_color, fill) = if resp.stats.intersects(Sense::PRESSED) {
-            (Color::new(10, 10, 10), Color::new(32, 32, 32))
-        } else if resp.stats.intersects(Sense::FOCUSED | Sense::HOVERED) {
-            (Color::new(200, 200, 200), Color::new(100, 100, 100))
-        } else {
-            (Color::new(20, 20, 20), Color::new(100, 100, 100))
-        };
+        let colorset = ui.style_for(&resp).clone();
+
 
         let checkbox =
             Rect::from_min_size(resp.rect.top_left(), Vec2::unit(8)).translate(Vec2::unit(1));
         ui.draw(Shape::Rectangle {
             area: checkbox,
-            fill,
+            fill: colorset.frame_fill,
             rounding: 1,
-            outline_color,
+            outline_color: colorset.frame_outline,
             outline_size: 1,
         });
         if *option {
@@ -54,7 +49,7 @@ impl<'t> AutoAdd for Checkbox<'t> {
                 area: checkbox.scale_uniform(-2),
                 fill: Color::new(200, 200, 200),
                 rounding: 1,
-                outline_color,
+                outline_color: colorset.frame_outline,
                 outline_size: 1,
             });
         }

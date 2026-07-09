@@ -1,12 +1,10 @@
 // build.rs
 use std::process::Command;
 
-
 use std::{
     error::Error,
     io::{Read, Seek},
 };
-
 
 fn read_bytevec(mut reader: impl Read, len: usize) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut buffer = vec![0u8; len];
@@ -122,7 +120,7 @@ impl DecodedBMP {
         let dib = DIBHeader40Bytes::from_reader(&mut reader)?;
         let palette_len = dib.color_count.min(1 << dib.bits_per_pixel as u32) as usize;
         let mut colors = Vec::with_capacity(palette_len);
-        
+
         reader.seek(std::io::SeekFrom::Start(14 + dib.size as u64))?;
         for _ in 0..palette_len {
             colors.push(read_bytebuffer(&mut reader)?);
@@ -138,7 +136,6 @@ impl DecodedBMP {
         })
     }
 }
-
 
 #[derive(Debug)]
 pub enum Block {
@@ -291,34 +288,48 @@ fn main() {
     // add font to build
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("font_compressed.bin");
-    let font = DecodedBMP::from_reader(std::io::Cursor::new(include_bytes!("./resources/font.bmp"))).expect("INVALID FONT BMP!!!");
+    let font =
+        DecodedBMP::from_reader(std::io::Cursor::new(include_bytes!("./resources/font.bmp")))
+            .expect("INVALID FONT BMP!!!");
     assert!(font.colors.len() <= 4);
     assert!(font.colors.len() > 2);
     assert!(font.width() == 1024);
     assert!(font.height() == 8);
     assert!(font.dib.compression == 0);
     //assert!(font.dib.size == 40, "{}", &font.dib.size);
-    
+
     let bitmap: Vec<u8> = match font.dib.bits_per_pixel {
-        4 => font.bitmap().chunks_exact(2).map(|i| {
-            let Some([e,f]) = i.first_chunk().cloned() else {unreachable!()};
-            let a = ((e & 0x03) >> 0) << 2;
-            let b = ((e & 0x30) >> 4) << 0;
-            let c = ((f & 0x03) >> 0) << 6;
-            let d = ((f & 0x30) >> 4) << 4;
-            a | b | c | d
-        }).collect(),
-        count => panic!("unsupported bits per pixel count for font bmp, {count}, (use 4-bit bmp's)")
+        4 => font
+            .bitmap()
+            .chunks_exact(2)
+            .map(|i| {
+                let Some([e, f]) = i.first_chunk().cloned() else {
+                    unreachable!()
+                };
+                let a = ((e & 0x03) >> 0) << 2;
+                let b = ((e & 0x30) >> 4) << 0;
+                let c = ((f & 0x03) >> 0) << 6;
+                let d = ((f & 0x30) >> 4) << 4;
+                a | b | c | d
+            })
+            .collect(),
+        count => {
+            panic!("unsupported bits per pixel count for font bmp, {count}, (use 4-bit bmp's)")
+        }
     };
     let mut bitmap: Vec<u8> = bitmap.chunks_exact(256).rev().flatten().cloned().collect();
-    let colors = font.colors.iter().map(|i| {
-        let [b,g,r,_] = i.clone();
-        let r = ((r >> 3) as u16) << 0;
-        let g = ((g >> 3) as u16) << 5;
-        let b = ((b >> 3) as u16) << 10;
-        (r|g|b).to_le_bytes()
-        //0xffffu16.to_le_bytes()
-    }).flatten();
+    let colors = font
+        .colors
+        .iter()
+        .map(|i| {
+            let [b, g, r, _] = i.clone();
+            let r = ((r >> 3) as u16) << 0;
+            let g = ((g >> 3) as u16) << 5;
+            let b = ((b >> 3) as u16) << 10;
+            (r | g | b).to_le_bytes()
+            //0xffffu16.to_le_bytes()
+        })
+        .flatten();
     bitmap.extend(colors);
     let compressed_font = compress(&bitmap);
     std::fs::write(&dest_path, &compressed_font).unwrap();

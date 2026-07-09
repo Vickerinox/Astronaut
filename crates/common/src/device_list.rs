@@ -1,6 +1,6 @@
 use core::ops::BitOr;
 
-use crate::bootstrap::{BootInfoTWL};
+use crate::bootstrap::BootInfoTWL;
 pub struct DeviceListBuilder<'a> {
     list: &'a mut DeviceList,
     drive_count: usize,

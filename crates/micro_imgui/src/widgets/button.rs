@@ -51,20 +51,14 @@ impl<'t> AutoAdd for Button<'t> {
         };
         let resp = ui.allocate_size(alloc_size, Sense::clickable());
 
-        let (outline_color, fill) = if resp.stats.intersects(Sense::PRESSED) {
-            (Color::new(10, 10, 10), Color::new(32, 32, 32))
-        } else if resp.stats.intersects(Sense::FOCUSED | Sense::HOVERED) {
-            (Color::new(200, 200, 200), Color::new(100, 100, 100))
-        } else {
-            (Color::new(20, 20, 20), Color::new(100, 100, 100))
-        };
+        let colorset = ui.style_for(&resp);
 
         ui.draw_under(
             Shape::Rectangle {
                 area: resp.rect.scale_uniform(-1),
-                fill,
+                fill: colorset.frame_fill,
                 rounding: 1,
-                outline_color,
+                outline_color: colorset.frame_outline,
                 outline_size: 1,
             },
             box_shaper,
