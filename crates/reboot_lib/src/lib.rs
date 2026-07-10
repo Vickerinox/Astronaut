@@ -28,7 +28,7 @@ pub mod ndma;
 pub mod scfg;
 pub mod sound;
 pub mod spi;
-#[cfg(feature = "arm7i")]
+#[cfg(all(feature = "arm7i", feature = "standard_arm7"))]
 pub mod standard_arm7;
 mod swi;
 pub mod timers;
@@ -110,6 +110,7 @@ pub struct Controls {
     touch_x: u8,
     touch_y: u8,
 }
+#[cfg(feature = "standard_arm7")]
 unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
     IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
     for data in data_out.into_iter().copied() {
@@ -127,6 +128,8 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
         }
     }
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
     let value = com_arm9(1, &[])
         .map_err(|i| u32::from(i))
@@ -138,44 +141,67 @@ pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
         (value >> 24) as u8,
     )
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), NonZeroU32> {
     let (ptr, len) = slice.to_raw_parts();
     com_arm9(2, &[ptr as u32, len as u32])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_read_nand_sector_encrypted(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(3, &[start_sector])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_read_nand_sector_unencrypted(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(4, &[start_sector])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_read_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(5, &[start_sector])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_write_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(10, &[start_sector])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_arm7_boot() -> Result<(), NonZeroU32> {
     com_arm9(6, &[])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_decrypt_modcrypt() -> Result<(), NonZeroU32> {
     com_arm9(12, &[])
 }
 
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_arm7(user_type: u32, pointer: *mut ()) -> Result<(), NonZeroU32> {
     com_arm9(9, &[user_type, pointer as u32])
 }
 
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_init_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
     com_arm9(8, &[drive as u32])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_check_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
     com_arm9(11, &[drive as u32])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_init_nwifi(firmware_file: &mut [u8]) -> Result<(), NonZeroU32> {
     let ptr = firmware_file.as_mut_ptr();
     let len = firmware_file.len();
     com_arm9(13, &[ptr as u32, len as u32])
 }
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_manual_sound_write(
     buffer: &mut [u8],
     channel: u8,
