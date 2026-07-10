@@ -101,6 +101,9 @@ unsafe fn init_font() {
         out("r2") _,
         out("r3") _,
     );
+    transfer_font_to_vram();
+}
+unsafe fn transfer_font_to_vram() {
     for i in 0..0x200 {
         let reg = core::ptr::read_volatile((0x2FF_1000 as *const u32).add(i));
         core::ptr::write_volatile((0x6818000 as *mut u32).add(i), reg);
@@ -179,9 +182,28 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
 
 const COLOR_BOOTABLE: Color = Color::new(100, 200, 100);
 const COLOR_MUSIC: Color = Color::new(100, 100, 200);
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
+pub enum FileType {
+    Dir,
+    Rom,
+    Mod,
+    Wav,
+    Bmp,
+    Ini,
+    None,
+}
+const ASSOCIATION_LIST: &[(&[u8], FileType)] = &[
+    (b".WAV", FileType::Wav),
+    (b".MOD", FileType::Mod),
+    (b".INI", FileType::Ini),
+    (b".BMP", FileType::Bmp),
+    (b".NDS", FileType::Rom),
+    (b".DSI", FileType::Rom),
+    (b".APP", FileType::Rom),
+];
 fn populate_fs_vec(
     folder: &mut fatfs_embedded::fatfs::Directory,
-) -> Vec<(String, String, bool, Color)> {
+) -> Vec<(String, String, FileType)> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
         loop {
@@ -196,7 +218,7 @@ fn populate_fs_vec(
                 let is_dir =
                     file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
                 let color = if is_dir {
-                    Color::new(200, 100, 100)
+                    FileType::Dir
                 } else {
                     let s_name = core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_bytes();
                     let s_name = if s_name.is_empty() {
@@ -204,13 +226,7 @@ fn populate_fs_vec(
                     } else {
                         s_name
                     };
-                    if is_bootable(&s_name) {
-                        COLOR_BOOTABLE
-                    } else if is_music_module(&s_name) {
-                        COLOR_MUSIC
-                    } else {
-                        Color::new(180, 180, 180)
-                    }
+                    ASSOCIATION_LIST.iter().filter_map(|(t, i)| s_name.ends_with(t).then_some(i)).next().copied().unwrap_or(FileType::None)
                 };
                 let fname = name.clone();
                 if name.len() > 35 {
@@ -221,7 +237,7 @@ fn populate_fs_vec(
                     name.truncate(boundary);
                     name.push_str("...");
                 }
-                vec.push((name, fname, is_dir, color))
+                vec.push((name, fname, color))
             } else {
                 panic!("SD WAS EJECTED!");
             }
@@ -233,7 +249,7 @@ fn populate_fs_vec(
         let mut j = i;
         loop {
             let Some(under) = vec.get(j - 1) else { break };
-            if under.3 .0 > temp.3 .0 {
+            if under.2 > temp.2 {
                 let under = under.clone();
                 let Some(over) = vec.get_mut(j) else { break };
                 *over = under;
@@ -415,7 +431,7 @@ unsafe fn main() {
         }
         // ARM7 is alive! make sure to let it know.
         IPC_FIFO_HARDWARE.set_status(0);
-        let video_context = init_graphics();
+        
         app_area.fader.target.write(16);
         app_area.fader.current.write(16);
 
@@ -471,14 +487,8 @@ unsafe fn main() {
                 app_data.autoboot();
             }
         }
-
-        //write to "color palette 0"
-        /*
-        core::ptr::write_volatile(0x06880000 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880004 as *mut u16, 0b0_00000_00000_00000);
-        core::ptr::write_volatile(0x06880002 as *mut u16, 0b0_11111_11111_11111);
-        core::ptr::write_volatile(0x06880006 as *mut u16, 0b0_00000_00000_11111);
-        */
+        app_data.global_data.config.load_theme();
+        let video_context = init_graphics();
         if let Some(wallpaper) = app_data.load_wallpaper() {
             show_wallpaper(wallpaper);
         }

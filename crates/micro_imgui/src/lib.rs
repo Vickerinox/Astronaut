@@ -11,7 +11,7 @@ mod primitives;
 mod response;
 mod ui;
 pub mod widgets;
-pub use context::Style;
+pub use context::{Style, ColorSet};
 pub use primitives::*;
 pub use response::*;
 

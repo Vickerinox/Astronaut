@@ -1,7 +1,9 @@
 use crate::MemoryWrapper;
 use bitflags::bitflags;
 use volatile_register::RW;
+
 pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as *mut I2CInterface);
+
 
 pub unsafe fn init() {
     I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 1);

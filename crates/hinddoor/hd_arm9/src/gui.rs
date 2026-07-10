@@ -9,3 +9,4 @@ mod main_menu;
 mod special_thanks;
 pub use main_menu::MainMenu;
 mod settings;
+pub use frontend::pop_dir_entry;

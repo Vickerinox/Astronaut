@@ -237,7 +237,9 @@ impl Viewport {
 #[repr(C)]
 pub struct VideoHardware {
     pub engine_a_ctrl: RW<DisplayControl>,
-    _0x4: [u8; 0x5C],
+    _0x4: u16,
+    pub vcount: RO<u16>,
+    _0x8: [u8; 0x58],
     pub display_control_3d: RW<u16>,
     _0x62: u16,
     pub display_capture: RW<u32>,

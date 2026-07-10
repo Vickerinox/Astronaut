@@ -9,13 +9,9 @@ use micro_imgui_ds::{
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
 use crate::{
-    get_extension,
-    gui::{
-        frontend::{pop_dir_entry, AppBooter, StreamingWav, UiPage},
-        main_menu::MainMenu,
-        AppData, MusicPlaying,
-    },
-    populate_fs_vec, stop_mod_file, BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC,
+    BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, FileType, get_extension, gui::{
+        AppData, MusicPlaying, frontend::{AppBooter, StreamingWav, UiPage, pop_dir_entry}, main_menu::MainMenu,
+    }, populate_fs_vec, stop_mod_file,
 };
 impl AppData {
     pub fn open_sd() -> Option<Browser> {
@@ -46,7 +42,7 @@ impl AppData {
     }
 }
 pub struct Browser {
-    immediate_files: Vec<(String, String, bool, Color)>,
+    immediate_files: Vec<(String, String, FileType)>,
     file_path: String,
     offset: i32,
     drag_start: i16,
@@ -137,10 +133,22 @@ impl UiPage for Browser {
         let items = if in_step == 0 { 11 } else { 12 };
         let mut focus = None;
         for (i, item) in shown_items.iter().take(items).enumerate() {
+            let (name, path, kind) = item;
+            let color = 
+                
+                match kind {
+                    FileType::None => ui.style().text_color,
+                    FileType::Rom => data.config.style.bootable_color,
+                    FileType::Mod => data.config.style.asset_color,
+                    FileType::Wav => data.config.style.asset_color,
+                    FileType::Bmp => data.config.style.asset_color,
+                    FileType::Ini => data.config.style.asset_color,
+                    FileType::Dir => data.config.style.folder_color,
+                };
             let response = ui.add(Button::new(
-                &item.0,
+                name,
                 Sizing::Padded(Vec2::new(248, 8)),
-                item.3,
+                color,
             ));
             if response.focused() {
                 focus = Some(i);
@@ -150,50 +158,48 @@ impl UiPage for Browser {
                 ui.request_repaint();
             }
             if response.clicked() {
-                if item.2 {
-                    current_path.push_str(&item.1);
-                    current_path.push('/');
-                    if let Ok(f) = fatfs_embedded::opendir(current_path) {
-                        new_folder = Some(f);
-                    }
-                } else {
-                    if item.3 == COLOR_BOOTABLE {
+                match *kind {
+                    FileType::Dir => {
                         current_path.push_str(&item.1);
+                        current_path.push('/');
+                        if let Ok(f) = fatfs_embedded::opendir(current_path) {
+                            new_folder = Some(f);
+                        }
+                    },
+                    FileType::Rom => {
+                        current_path.push_str(path);
                         let path = current_path.clone();
                         new_state = Some(Box::new(AppBooter { path }));
-                    } else if item.3 == COLOR_MUSIC {
-                        match get_extension(item.1.as_bytes()) {
-                            Some(b".mod") => {
-                                current_path.push_str(&item.1);
-                                match fatfs_embedded::open(current_path, FileOptions::Read) {
-                                    Ok(module) => {
-                                        data.loading_mod_file = MusicPlaying::None;
-                                        data.loading_mod_file =
-                                            MusicPlaying::Mod(MODAsyncLoader::new(module));
-                                    }
-                                    Err(_abort) => (),
-                                }
-                                pop_dir_entry(current_path);
+                    },
+                    FileType::Mod => {
+                        current_path.push_str(path);
+                        match fatfs_embedded::open(current_path, FileOptions::Read) {
+                            Ok(module) => {
+                                data.loading_mod_file = MusicPlaying::None;
+                                data.loading_mod_file =
+                                    MusicPlaying::Mod(MODAsyncLoader::new(module));
                             }
-                            Some(b".wav") => {
-                                let _ = stop_mod_file();
-                                current_path.push_str(&item.1);
-                                match fatfs_embedded::open(current_path, FileOptions::Read) {
-                                    Ok(module) => {
-                                        if let Some(mut wav) = StreamingWav::new(module) {
-                                            data.loading_mod_file = MusicPlaying::None;
-                                            unsafe { wav.play() };
-                                            data.loading_mod_file = MusicPlaying::Wav(wav);
-                                            ui.request_repaint();
-                                        }
-                                    }
-                                    Err(_abort) => (),
-                                }
-                                pop_dir_entry(current_path);
-                            }
-                            _ => (),
+                            Err(_abort) => (),
                         }
+                        pop_dir_entry(current_path);
                     }
+                    FileType::Wav => {
+                        let _ = stop_mod_file();
+                        current_path.push_str(path);
+                        match fatfs_embedded::open(current_path, FileOptions::Read) {
+                            Ok(module) => {
+                                if let Some(mut wav) = StreamingWav::new(module) {
+                                    data.loading_mod_file = MusicPlaying::None;
+                                    unsafe { wav.play() };
+                                    data.loading_mod_file = MusicPlaying::Wav(wav);
+                                    ui.request_repaint();
+                                }
+                            }
+                            Err(_abort) => (),
+                        }
+                        pop_dir_entry(current_path);
+                    },
+                    _ => (),
                 }
             }
         }

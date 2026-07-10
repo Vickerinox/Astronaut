@@ -17,6 +17,7 @@ mod allocator;
 pub mod autoboot_info;
 pub mod dma;
 mod fs;
+
 pub mod i2c;
 pub mod interupts;
 mod ipc;

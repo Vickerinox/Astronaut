@@ -16,6 +16,7 @@ pub struct Style {
     pub focused: ColorSet,
     pub pressed: ColorSet,
     pub background_color: Color,
+    pub text_color: Color,
 }
 #[derive(Clone)]
 #[repr(C)]
@@ -38,6 +39,7 @@ impl Style {
             frame_outline: Color::new(10, 10, 10),
         },
         background_color: Color::new(32, 32, 32),
+        text_color: Color::new(200, 200, 200),
     };
 }
 impl Default for Style {
