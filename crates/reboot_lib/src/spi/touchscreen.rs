@@ -357,9 +357,7 @@ pub unsafe fn init_tsc_dsi() {
     //(0x04004C02 as *mut u16).write_volatile(0x4000);
 
     core::ptr::write_volatile(0x4004C00 as *mut u16, 0x8080);
-    write_powerman(crate::spi::PowerRegiser::Control(
-        Control::ENABLE_SOUND_AMP | Control::ENABLE_BACKLIGHTS,
-    ));
+
     cdc_write_reg(CdcReg::Control(CntReg::Reset), 1);
     crate::swi_delay(0x20BA); //Wait 1ms for reset (recommended by TSC2117 technical sheet, but never done by anyone else?)
 

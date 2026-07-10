@@ -10,6 +10,7 @@ macro_rules! const_assert {
         const _: () = assert!($($tt)*);
     }
 }
+pub use bytemuck;
 pub use volatile_register;
 mod aes;
 mod allocator;
@@ -127,7 +128,7 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
     }
 }
 pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
-    let value = com_arm9(1, &[0])
+    let value = com_arm9(1, &[])
         .map_err(|i| u32::from(i))
         .err()
         .unwrap_or(0);
@@ -153,14 +154,11 @@ pub unsafe fn arm9_read_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
 pub unsafe fn arm9_write_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
     com_arm9(10, &[start_sector])
 }
-pub unsafe fn arm9_send_arm7_jump(ptr: u32) -> Result<(), NonZeroU32> {
-    com_arm9(6, &[ptr])
+pub unsafe fn arm9_send_arm7_boot() -> Result<(), NonZeroU32> {
+    com_arm9(6, &[])
 }
-pub unsafe fn arm9_read_firmware(start_address: u32) -> Result<(), NonZeroU32> {
-    com_arm9(7, &[start_address])
-}
-pub unsafe fn arm9_decrypt_modcrypt(header: u32) -> Result<(), NonZeroU32> {
-    com_arm9(12, &[header])
+pub unsafe fn arm9_decrypt_modcrypt() -> Result<(), NonZeroU32> {
+    com_arm9(12, &[])
 }
 
 pub unsafe fn arm9_send_arm7(user_type: u32, pointer: *mut ()) -> Result<(), NonZeroU32> {

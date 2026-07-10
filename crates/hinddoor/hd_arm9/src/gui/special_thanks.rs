@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use micro_imgui_ds::{Input, micro_imgui::Backend};
+use micro_imgui_ds::{micro_imgui::Backend, Input};
 use reboot_lib::Buttons;
 
 use crate::gui::{frontend::UiPage, main_menu::MainMenu};

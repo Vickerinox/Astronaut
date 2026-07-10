@@ -48,7 +48,114 @@ unsafe fn power_button_interrupt() {
     }
 }
 pub mod init;
+pub struct Controller {
+    last_pen: bool,
+    pen_down: bool,
+    last_x: u8,
+    last_y: u8,
+    x_scale: i32,
+    x_offset: i32,
+    y_scale: i32,
+    y_offset: i32,
+}
+impl Controller {
+    unsafe fn next_fetch(&mut self) -> u32 {
+        let Self { last_pen, pen_down, last_x, last_y, x_scale, x_offset, y_scale, y_offset } = self;
+        let mut controls = (!core::ptr::read_volatile(0x4000130 as *const u16)) & 0x3FF;
+        let controls_2 = (!core::ptr::read_volatile(0x4000136 as *const u16));
+        controls |= (controls_2 & 3) << 10;
 
+        let mut controls = crate::Buttons::from_bits_truncate(controls);
+
+        /*
+        if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
+            controls ^= crate::Buttons::PEN_DOWN;
+        }
+        */
+        //if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
+
+        if crate::spi::touchscreen::is_pen_down() {
+            if let Some((x, y)) = read_tsc_pos_cdc() {
+                let scr_x = {
+                    let x = x as i32 * *x_scale - *x_offset + *x_scale / 2;
+                    (x >> 19).clamp(0, 255)
+                };
+                let scr_y = {
+                    let y = y as i32 * *y_scale - *y_offset + *y_scale / 2;
+                    (y >> 19).clamp(0, 191)
+                };
+                if *last_pen {
+                    *last_x = scr_x as u8;
+                    *last_y = scr_y as u8;
+                }
+            }
+            if *last_pen {
+                *pen_down = true;
+            }
+            *last_pen = true;
+        } else {
+            if !*last_pen {
+                *pen_down = false;
+            }
+            *last_pen = false;
+        }
+
+        if *pen_down {
+            controls ^= crate::Buttons::PEN_DOWN;
+        };
+
+        
+        controls.bits() as u32 | ((*last_x as u32) << 16) | ((*last_y as u32) << 24)
+    } 
+}
+struct ModCryptor {
+    console_id: [u32; 2]
+}
+impl ModCryptor {
+    unsafe fn dewit(&mut self) -> u32 {
+        let Self { console_id } = self;
+        let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
+
+
+        AES_HARDWARE.init_from_header(header, console_id.clone());
+
+        if header.arm9i_offset != header.modcrypt1_offset
+            && header.head.arm9_offset != header.modcrypt1_offset
+        {
+            return 1;
+        }
+        if header.modcrypt2_len != 0 {
+            if header.arm7i_offset != header.modcrypt2_offset {
+                return 2;
+            }
+        }
+        let ptr = if header.arm9i_offset == header.modcrypt1_offset {
+            header.arm9i_load
+        } else {
+            header.head.arm9_load
+        };
+
+        let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
+
+        let len = header.modcrypt1_len;
+
+        use crate::ndma::NDMAControl;
+
+        let mem =
+            core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
+
+        decrypt_module_ndma(mem, key);
+        if header.modcrypt2_len > 0 {
+            let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
+            let ptr = header.arm7i_load;
+            let len = header.modcrypt2_len;
+            let mem =
+                core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
+            decrypt_module_ndma(mem, key);
+        }
+        0
+    }
+}
 pub fn main_arm7() {
     unsafe {
         //start talking to the ARM9 ASAP
@@ -75,19 +182,23 @@ pub fn main_arm7() {
         swi::generate_cid_key(&mut key);
 
         let console_id: [u32; 2] = [
-            (0x4004D00 as *const u32).read_volatile(),
-            (0x4004D04 as *const u32).read_volatile(),
+            (0x4004D00 as *const u32).read(),
+            (0x4004D04 as *const u32).read(),
         ];
-        crate::load_nand_key_x(3, console_id);
-        crate::load_nand_key_y(3, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
-        crate::nand_crypt_init(3);
-
+        //in a lot of cases, this *will* already be initialized, (for example after bootstage 1 and 2 on DSi) however
+        //seing as there are cases where you most definetely want to initialize it *anyway*, its just made optional.
+        #[cfg(feature = "init_nand_aes")]
+        {
+            crate::load_nand_key_x(3, console_id);
+            crate::load_nand_key_y(3, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
+            crate::nand_crypt_init(3);
+        }
+        
         crate::spi::touchscreen::init_tsc_dsi();
 
         crate::init_interrupts();
 
-        let mut buffer: *mut [crate::StorageSector] =
-            core::slice::from_raw_parts_mut(0x2FF0000 as *mut crate::StorageSector, 1);
+        let mut buffer: *mut [crate::StorageSector] = &mut [];
 
         crate::IPC_FIFO_HARDWARE.set_status(1);
         while crate::IPC_FIFO_HARDWARE.read_status() != 1 {}
@@ -124,87 +235,41 @@ pub fn main_arm7() {
         let boot_info = &mut (*BOOTINFO_MEM).ntr;
         let user = &mut boot_info.firmware_data;
         let mac = &mut boot_info.mac_address;
-        SPI_HARDWARE.read_firmware(user, offset);
+        SPI_HARDWARE.read_firmware(&mut user.bytes, offset);
         SPI_HARDWARE.read_firmware(mac, 0x36);
         boot_info.wifi_channels = [0x41, 0x10];
+        let adcx1 = user.halfwords[0x58/2];
+        let adcy1 = user.halfwords[0x5A/2];
+        let scrx1 = user.bytes[0x5C];
+        let scry1 = user.bytes[0x5D];
 
-        let adcx1 = u16::from_le_bytes([user[0x58], user[0x59]]);
-        let adcy1 = u16::from_le_bytes([user[0x5A], user[0x5B]]);
-        let scrx1 = user[0x5C];
-        let scry1 = user[0x5D];
+        let adcx2 = user.halfwords[0x5E/2];
+        let adcy2 = user.halfwords[0x60/2];
+        let scrx2 = user.bytes[0x62];
+        let scry2 = user.bytes[0x63];
 
-        let adcx2 = u16::from_le_bytes([user[0x5E], user[0x5F]]);
-        let adcy2 = u16::from_le_bytes([user[0x60], user[0x61]]);
-        let scrx2 = user[0x62];
-        let scry2 = user[0x63];
+        let mut controller = {
+            let x_scale = ((scrx2 as i32 - scrx1 as i32) << 19) / (adcx2 as i32 - adcx1 as i32);
+            let y_scale = ((scry2 as i32 - scry1 as i32) << 19) / (adcy2 as i32 - adcy1 as i32);
+            let x_offset =
+                (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19)) / 2;
+            let y_offset =
+                (((adcy1 as i32 + adcy2 as i32) * y_scale) - ((scry1 as i32 + scry2 as i32) << 19)) / 2;
 
-        let x_scale = ((scrx2 as i32 - scrx1 as i32) << 19) / (adcx2 as i32 - adcx1 as i32);
-        let y_scale = ((scry2 as i32 - scry1 as i32) << 19) / (adcy2 as i32 - adcy1 as i32);
-        let x_offset =
-            (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19)) / 2;
-        let y_offset =
-            (((adcy1 as i32 + adcy2 as i32) * y_scale) - ((scry1 as i32 + scry2 as i32) << 19)) / 2;
-
-        let mut last_x = 0;
-        let mut last_y = 0;
-        let mut pen_down = false;
-        let mut last_pen = false;
-
+            let last_x = 0;
+            let last_y = 0;
+            let pen_down = false;
+            let last_pen = false;    
+            Controller { last_pen, pen_down, last_x, last_y, x_scale, x_offset, y_scale, y_offset }
+        };
+        let mut modcryptor = ModCryptor { console_id };
         loop {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
                 1 => {
-                    if IPC_FIFO_HARDWARE.recieve_raw_blocking() != 0 {
-                        //response = 0x8000_0000;
-                        continue;
-                    };
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    let mut controls = (!core::ptr::read_volatile(0x4000130 as *const u16)) & 0x3FF;
-                    let controls_2 = (!core::ptr::read_volatile(0x4000136 as *const u16));
-                    controls |= (controls_2 & 3) << 10;
-
-                    let mut controls = crate::Buttons::from_bits_truncate(controls);
-
-                    /*
-                    if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
-                        controls ^= crate::Buttons::PEN_DOWN;
-                    }
-                    */
-                    //if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
-
-                    if crate::spi::touchscreen::is_pen_down() {
-                        if let Some((x, y)) = read_tsc_pos_cdc() {
-                            let scr_x = {
-                                let x = x as i32 * x_scale - x_offset + x_scale / 2;
-                                (x >> 19).clamp(0, 255)
-                            };
-                            let scr_y = {
-                                let y = y as i32 * y_scale - y_offset + y_scale / 2;
-                                (y >> 19).clamp(0, 191)
-                            };
-                            if last_pen {
-                                last_x = scr_x as u8;
-                                last_y = scr_y as u8;
-                            }
-                        }
-                        if last_pen {
-                            pen_down = true;
-                        }
-                        last_pen = true;
-                    } else {
-                        if !last_pen {
-                            pen_down = false;
-                        }
-                        last_pen = false;
-                    }
-
-                    if pen_down {
-                        controls ^= crate::Buttons::PEN_DOWN;
-                    };
-
-                    response =
-                        controls.bits() as u32 | ((last_x as u32) << 16) | ((last_y as u32) << 24);
+                    response = controller.next_fetch();
                 }
                 2 => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
@@ -224,23 +289,19 @@ pub fn main_arm7() {
                 5 => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-
                     response = match sd_read_sectors(buffer, arg) {
                         Ok(_) => 0,
-                        Err(e) => e.bits(),
+                        Err(e) => 0x8000_0000 | e.bits(),
                     }
                 }
 
                 6 => {
-                    let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    IPC_FIFO_HARDWARE
-                        .send_raw_blocking(common::bootstrap::boot_arm9 as *const () as u32);
+                    IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     crate::disable_all_interrupts();
                     SOUND_HARDWARE.init();
                     AES_HARDWARE.init_from_header(
-                        &*(common::bootstrap::BOOTLOADER_MEM
-                            as *const common::bootstrap::TWLHeader),
+                        &(*(common::bootstrap::BOOTINFO_MEM)).twl_header,
                         console_id,
                     );
                     TIMERS.clear();
@@ -253,11 +314,6 @@ pub fn main_arm7() {
                         0,
                     );
                     bootstrap::boot_arm7();
-                }
-                7 => {
-                    let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-                    response = 0x80000000
-                    //firmware_read(buffer, arg);
                 }
 
                 8 => {
@@ -305,51 +361,8 @@ pub fn main_arm7() {
                 }
 
                 12 => {
-                    let _arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-
-                    let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
-
-                    response = 0;
-
-                    AES_HARDWARE.init_from_header(header, console_id);
-
-                    if header.arm9i_offset != header.modcrypt1_offset
-                        && header.head.arm9_offset != header.modcrypt1_offset
-                    {
-                        response = 1;
-                    }
-                    if header.modcrypt2_len != 0 {
-                        if header.arm7i_offset != header.modcrypt2_offset {
-                            response = 2;
-                        }
-                    }
-                    if response == 0 {
-                        let ptr = if header.arm9i_offset == header.modcrypt1_offset {
-                            header.arm9i_load
-                        } else {
-                            header.head.arm9_load
-                        };
-
-                        let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
-
-                        let len = header.modcrypt1_len;
-
-                        use crate::ndma::NDMAControl;
-
-                        let mem =
-                            core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
-
-                        decrypt_module_ndma(mem, key);
-                        if header.modcrypt2_len > 0 {
-                            let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
-                            let ptr = header.arm7i_load;
-                            let len = header.modcrypt2_len;
-                            let mem =
-                                core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
-                            decrypt_module_ndma(mem, key);
-                        }
-                    }
+                    response = modcryptor.dewit();
                 }
                 13 => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();

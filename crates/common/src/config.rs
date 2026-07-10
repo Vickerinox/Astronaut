@@ -99,7 +99,7 @@ impl Region {
 }
 pub unsafe fn init(header: &BootInfoTWL) {
     let gamecode = Region::from_gamecode(header.twl_header.head.tid);
-    let common = &header.ntr.firmware_data;
+    let common = &header.ntr.firmware_data.bytes;
     let config = &mut *(0x2000400 as *mut Config);
     config.config_flags = 0x0100000F;
     config.country = 0x4E;

@@ -9,6 +9,7 @@ bitflags = {version = "2.6.0", default-features = false}
 linked_list_allocator = {version = "0.10.5", default-features = false}
 common = {path = "../common"}
 fatfs-embedded ={path = "../cfatfs", default-features = false}
+bytemuck = {version = "1.25.0", features = ["must_cast"]}
 
 [features]
 default = []
@@ -16,3 +17,4 @@ arm7 = []
 arm9 = []
 arm7i = ["arm7"]
 arm9i = ["arm9"]
+init_nand_aes = []

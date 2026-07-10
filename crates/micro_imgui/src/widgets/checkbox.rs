@@ -34,7 +34,6 @@ impl<'t> AutoAdd for Checkbox<'t> {
 
         let colorset = ui.style_for(&resp).clone();
 
-
         let checkbox =
             Rect::from_min_size(resp.rect.top_left(), Vec2::unit(8)).translate(Vec2::unit(1));
         ui.draw(Shape::Rectangle {

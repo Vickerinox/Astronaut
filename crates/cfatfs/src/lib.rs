@@ -1,85 +1,18 @@
-//! FatFs is a generic FAT/exFAT filesystem module designed for small embedded systems.
-//! `fatfs-embedded` is a Rust wrapper of the popular FatFs library from
-//! [elm-chan.org](http://elm-chan.org/fsw/ff/00index_e.html).
-//! It is based on the R0.15 release.
-//!
-//! # Goals
-//! * Embedded use - This library is `no_std` by default, but is `std` compatible for
-//! testing purposes when targeting an OS.
-//! * Thread safe - The choice was made to have a dependency on the Embassy
-//! framework for concurrency support which is suitable for embedded systems. A global
-//! file system mutex is implemented in favor of the `FF_FS_REENTRANT` option, which is
-//! more suitable to a Rust implementation.
-//! * Portable - Implement the `FatFsDriver` trait to add support for any block device.
-//! To support this implementation, `alloc` support is unfortunately required due to the
-//! structure of FatFs. A simulated block storage driver implementation is included for
-//! test purposes that may be used for reference.
-//!
-//! ## Drop
-//! The decision was made not to implement the `Drop` trait for files or directories.
-//! This is because doing so would require acquiring a lock on the file system object,
-//! which can easily cause a lockup condition.
-//! Files and directories must be manually closed. (The file system object itself is
-//! implemented as a static singleton and thus is never dropped.)
-//!
-//! # FatFs Configuration
-//! Most features of FatFs are enabled with a few exceptions:
-//! * `FF_USE_FORWARD` is disabled to avoid using additional `unsafe` code.
-//! * `FF_CODE_PAGE` is set to 0 and thus must be set via a call to `setcp()`.
-//! * `FF_VOLUMES` is currently set to 1 limiting the number of volumes supported to 1.
-//! * `FF_MULTI_PARTITION` is not currently supported.
-//! * `FF_FS_LOCK` is configured to support 10 simultaneous open files.
-//! * An implementation of the `f_printf()` function is not provided.
-//!
-//! # Features
-//! * `chrono` (default) - Enables time support in the library. Access to an RTC may be
-//! provided via an implementation of the `FatFsDriver` trait.
-//!
-//! # Examples
-//! A brief example that formats and mounts a simulated drive, writes a string to a file,
-//! then reads the data back:
-//! ```
-//! #[path = "../tests/simulated_driver.rs"]
-//! mod simulated_driver;
-//!
-//! use fatfs_embedded::fatfs::{self, File, FileOptions, FormatOptions};
-//! use embassy_futures::block_on;
-//!
-//! const TEST_STRING: &[u8] = b"Hello world!";
-//!
-//! //Install a block device driver that implements `FatFsDriver`
-//! let driver = simulated_driver::RamBlockStorage::new();
-//! block_on(fatfs::diskio::install(driver));
-//!
-//! //Acquire a lock on the file system.
-//! let mut locked_fs = block_on(fatfs::FS.lock());
-//!
-//! //Format the drive.
-//! locked_fs.mkfs("", FormatOptions::FAT32, 0, 0, 0, 0);
-//!
-//! //Mount the drive.
-//! locked_fs.mount();
-//!
-//! //Create a new file.
-//! let mut test_file: File = locked_fs.open("test.txt",
-//!     FileOptions::CreateAlways |
-//!     FileOptions::Read |
-//!     FileOptions::Write).unwrap();
-//!
-//! //Write a string to the file.
-//! locked_fs.write(&mut test_file, TEST_STRING);
-//!
-//! //Seek back to the beginning of the file.
-//! locked_fs.seek(&mut test_file, 0);
-//!
-//! //Read the string back from the file.
-//! let mut read_back: [u8; TEST_STRING.len()] = [0; TEST_STRING.len()];
-//! locked_fs.read(&mut test_file, &mut read_back);
-//! assert_eq!(TEST_STRING, read_back);
-//!
-//! //Close the file when done.
-//! locked_fs.close(&mut test_file);
-//! ```
+/* 
+MIT License
+
+Copyright (c) 2024 Caleb Garrett
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+*/
 
 #![no_std]
 
@@ -828,45 +761,155 @@ impl Drop for Directory {
     }
 }
 
+const UC437: &[u16] = &[
+    /*  CP437(U.S.) to Unicode conversion table */
+    0x00C7, 0x00FC, 0x00E9, 0x00E2, 0x00E4, 0x00E0, 0x00E5, 0x00E7, 0x00EA, 0x00EB, 0x00E8, 0x00EF,
+    0x00EE, 0x00EC, 0x00C4, 0x00C5, 0x00C9, 0x00E6, 0x00C6, 0x00F4, 0x00F6, 0x00F2, 0x00FB, 0x00F9,
+    0x00FF, 0x00D6, 0x00DC, 0x00A2, 0x00A3, 0x00A5, 0x20A7, 0x0192, 0x00E1, 0x00ED, 0x00F3, 0x00FA,
+    0x00F1, 0x00D1, 0x00AA, 0x00BA, 0x00BF, 0x2310, 0x00AC, 0x00BD, 0x00BC, 0x00A1, 0x00AB, 0x00BB,
+    0x2591, 0x2592, 0x2593, 0x2502, 0x2524, 0x2561, 0x2562, 0x2556, 0x2555, 0x2563, 0x2551, 0x2557,
+    0x255D, 0x255C, 0x255B, 0x2510, 0x2514, 0x2534, 0x252C, 0x251C, 0x2500, 0x253C, 0x255E, 0x255F,
+    0x255A, 0x2554, 0x2569, 0x2566, 0x2560, 0x2550, 0x256C, 0x2567, 0x2568, 0x2564, 0x2565, 0x2559,
+    0x2558, 0x2552, 0x2553, 0x256B, 0x256A, 0x2518, 0x250C, 0x2588, 0x2584, 0x258C, 0x2590, 0x2580,
+    0x03B1, 0x00DF, 0x0393, 0x03C0, 0x03A3, 0x03C3, 0x00B5, 0x03C4, 0x03A6, 0x0398, 0x03A9, 0x03B4,
+    0x221E, 0x03C6, 0x03B5, 0x2229, 0x2261, 0x00B1, 0x2265, 0x2264, 0x2320, 0x2321, 0x00F7, 0x2248,
+    0x00B0, 0x2219, 0x00B7, 0x221A, 0x207F, 0x00B2, 0x25A0, 0x00A0,
+];
 
-const REPLACEMENT_CHAR: u32 = 0x3F; // '?'
-
-/// FatFS expects this to convert a Unicode point to your OEM code page (e.g., 437).
 #[no_mangle]
-pub unsafe extern "C" fn ff_uni2oem(uni: u32, _cp: u16) -> u32 {
-    // Standard ASCII maps 1:1 in almost every OEM code page
+pub unsafe extern "C" fn ff_uni2oem(uni: u32, cp: u16) -> u32 {
     if uni < 0x80 {
-        return uni;
-    }
-
-    // Instead of a 10KB array, use a tiny procedural match statement 
-    // only for characters your device actually needs to support.
-    match uni {
-        0x00A0..=0x00FF => uni, // Map basic extended characters if desired
-        _ => REPLACEMENT_CHAR,   // Throw away the rest to save space
+        /* ASCII? */
+        uni
+    } else {
+        /* Non-ASCII */
+        if uni < 0x10000 && cp == 437 {
+            /* Is it in BMP and valid code page? */
+            let mut c = 0;
+            while c < 0x80 && Some(uni as u16) != UC437.get(c as usize).copied() {
+                c = (c + 0x80) & 0xFF;
+                c += 1;
+            }
+            c
+        } else {
+            0
+        }
     }
 }
 
-/// FatFS expects this to convert your OEM code page byte back to Unicode.
 #[no_mangle]
-pub unsafe extern "C" fn ff_oem2uni(oem: u32, _cp: u16) -> u32 {
+pub unsafe extern "C" fn ff_oem2uni(oem: u32, cp: u16) -> u32 {
     if oem < 0x80 {
-        return oem;
-    }
-
-    match oem {
-        0x80..=0xFF => oem,
-        _ => REPLACEMENT_CHAR,
+        /* ASCII? */
+        oem
+    } else if cp == 437 {
+        /* Extended char */
+        /* Is it a valid code page? */
+        if oem < 0x100 {
+            UC437.get((oem - 0x80) as usize).copied().unwrap_or(0) as u32
+        } else {
+            0
+        } 
+    } else {
+        0
     }
 }
 
-/// FatFS also needs a case conversion function when LFN is enabled.
-/// Usually found in ffunicode.c, you can write a tiny one here.
 #[no_mangle]
-pub unsafe extern "C" fn ff_wtoupper(uni: u32) -> u32 {
-    // Standard ASCII uppercase conversion
-    if uni >= 0x0061 && uni <= 0x007A {
-        uni - 0x20
+pub unsafe extern "C" fn ff_wtoupper(mut uni: u32) -> u32 {
+    const CVT1: &[u16] = &[
+        /* Compressed up conversion table for U+0000 - U+0FFF */
+        /* Basic Latin */
+        0x0061, 0x031A, /* Latin-1 Supplement */
+        0x00E0, 0x0317, 0x00F8, 0x0307, 0x00FF, 0x0001, 0x0178, /* Latin Extended-A */
+        0x0100, 0x0130, 0x0132, 0x0106, 0x0139, 0x0110, 0x014A, 0x012E, 0x0179, 0x0106,
+        /* Latin Extended-B */
+        0x0180, 0x004D, 0x0243, 0x0181, 0x0182, 0x0182, 0x0184, 0x0184, 0x0186, 0x0187, 0x0187,
+        0x0189, 0x018A, 0x018B, 0x018B, 0x018D, 0x018E, 0x018F, 0x0190, 0x0191, 0x0191, 0x0193,
+        0x0194, 0x01F6, 0x0196, 0x0197, 0x0198, 0x0198, 0x023D, 0x019B, 0x019C, 0x019D, 0x0220,
+        0x019F, 0x01A0, 0x01A0, 0x01A2, 0x01A2, 0x01A4, 0x01A4, 0x01A6, 0x01A7, 0x01A7, 0x01A9,
+        0x01AA, 0x01AB, 0x01AC, 0x01AC, 0x01AE, 0x01AF, 0x01AF, 0x01B1, 0x01B2, 0x01B3, 0x01B3,
+        0x01B5, 0x01B5, 0x01B7, 0x01B8, 0x01B8, 0x01BA, 0x01BB, 0x01BC, 0x01BC, 0x01BE, 0x01F7,
+        0x01C0, 0x01C1, 0x01C2, 0x01C3, 0x01C4, 0x01C5, 0x01C4, 0x01C7, 0x01C8, 0x01C7, 0x01CA,
+        0x01CB, 0x01CA, 0x01CD, 0x0110, 0x01DD, 0x0001, 0x018E, 0x01DE, 0x0112, 0x01F3, 0x0003,
+        0x01F1, 0x01F4, 0x01F4, 0x01F8, 0x0128, 0x0222, 0x0112, 0x023A, 0x0009, 0x2C65, 0x023B,
+        0x023B, 0x023D, 0x2C66, 0x023F, 0x0240, 0x0241, 0x0241, 0x0246, 0x010A,
+        /* IPA Extensions */
+        0x0253, 0x0040, 0x0181, 0x0186, 0x0255, 0x0189, 0x018A, 0x0258, 0x018F, 0x025A, 0x0190,
+        0x025C, 0x025D, 0x025E, 0x025F, 0x0193, 0x0261, 0x0262, 0x0194, 0x0264, 0x0265, 0x0266,
+        0x0267, 0x0197, 0x0196, 0x026A, 0x2C62, 0x026C, 0x026D, 0x026E, 0x019C, 0x0270, 0x0271,
+        0x019D, 0x0273, 0x0274, 0x019F, 0x0276, 0x0277, 0x0278, 0x0279, 0x027A, 0x027B, 0x027C,
+        0x2C64, 0x027E, 0x027F, 0x01A6, 0x0281, 0x0282, 0x01A9, 0x0284, 0x0285, 0x0286, 0x0287,
+        0x01AE, 0x0244, 0x01B1, 0x01B2, 0x0245, 0x028D, 0x028E, 0x028F, 0x0290, 0x0291, 0x01B7,
+        /* Greek, Coptic */
+        0x037B, 0x0003, 0x03FD, 0x03FE, 0x03FF, 0x03AC, 0x0004, 0x0386, 0x0388, 0x0389, 0x038A,
+        0x03B1, 0x0311, 0x03C2, 0x0002, 0x03A3, 0x03A3, 0x03C4, 0x0308, 0x03CC, 0x0003, 0x038C,
+        0x038E, 0x038F, 0x03D8, 0x0118, 0x03F2, 0x000A, 0x03F9, 0x03F3, 0x03F4, 0x03F5, 0x03F6,
+        0x03F7, 0x03F7, 0x03F9, 0x03FA, 0x03FA, /* Cyrillic */
+        0x0430, 0x0320, 0x0450, 0x0710, 0x0460, 0x0122, 0x048A, 0x0136, 0x04C1, 0x010E, 0x04CF,
+        0x0001, 0x04C0, 0x04D0, 0x0144, /* Armenian */
+        0x0561, 0x0426,
+    ];
+    const CVT2: &[u16] = &[
+        /* Compressed up conversion table for U+1000 - U+FFFF */
+        /* Phonetic Extensions */
+        0x1D7D, 0x0001, 0x2C63, /* Latin Extended Additional */
+        0x1E00, 0x0196, 0x1EA0, 0x015A, /* Greek Extended */
+        0x1F00, 0x0608, 0x1F10, 0x0606, 0x1F20, 0x0608, 0x1F30, 0x0608, 0x1F40, 0x0606, 0x1F51,
+        0x0007, 0x1F59, 0x1F52, 0x1F5B, 0x1F54, 0x1F5D, 0x1F56, 0x1F5F, 0x1F60, 0x0608, 0x1F70,
+        0x000E, 0x1FBA, 0x1FBB, 0x1FC8, 0x1FC9, 0x1FCA, 0x1FCB, 0x1FDA, 0x1FDB, 0x1FF8, 0x1FF9,
+        0x1FEA, 0x1FEB, 0x1FFA, 0x1FFB, 0x1F80, 0x0608, 0x1F90, 0x0608, 0x1FA0, 0x0608, 0x1FB0,
+        0x0004, 0x1FB8, 0x1FB9, 0x1FB2, 0x1FBC, 0x1FCC, 0x0001, 0x1FC3, 0x1FD0, 0x0602, 0x1FE0,
+        0x0602, 0x1FE5, 0x0001, 0x1FEC, 0x1FF3, 0x0001, 0x1FFC,
+        /* Letterlike Symbols */
+        0x214E, 0x0001, 0x2132, /* Number forms */
+        0x2170, 0x0210, 0x2184, 0x0001, 0x2183, /* Enclosed Alphanumerics */
+        0x24D0, 0x051A, 0x2C30, 0x042F, /* Latin Extended-C */
+        0x2C60, 0x0102, 0x2C67, 0x0106, 0x2C75, 0x0102, /* Coptic */
+        0x2C80, 0x0164, /* Georgian Supplement */
+        0x2D00, 0x0826, /* Full-width */
+        0xFF41, 0x031A,
+    ];
+
+    if uni < 0x10000 {
+        /* Is it in BMP? */
+        let uc = uni as u16;
+        let mut p = if uc < 0x1000 { CVT1 } else { CVT2 };
+        loop {
+            let Some(([bc], rem)) = p.split_first_chunk() else {
+                break;
+            };
+            p = rem;
+            if uc < *bc {
+                break;
+            };
+            let Some(([nc], rem)) = p.split_first_chunk() else {
+                break;
+            };
+            p = rem;
+            let [nc, cmd] = nc.to_le_bytes();
+
+            if uc < bc + nc as u16 {
+                /* In the block? */
+                match cmd {
+                    0 => return (p[(uc - bc) as usize]) as u32,
+                    1 => return (uc - (uc - bc) & 1) as u32, /* Case pairs */
+                    2 => return uc as u32 - 16,              /* Shift -16 */
+                    3 => return uc as u32 - 32,              /* Shift -32 */
+                    4 => return uc as u32 - 48,              /* Shift -48 */
+                    5 => return uc as u32 - 26,              /* Shift -26 */
+                    6 => return uc as u32 + 8,               /* Shift +8 */
+                    7 => return uc as u32 - 80,              /* Shift -80 */
+                    8 => return uc as u32 - 0x1C60,          /* Shift -0x1C60 */
+                    _ => return uc as u32,
+                }
+            }
+            if cmd == 0 {
+                let Some(r) = p.get(nc as usize..) else { return uc as u32};
+                p = r;
+            } /* Skip table if needed */
+        }
+        uc as u32
     } else {
         uni
     }

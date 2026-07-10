@@ -106,7 +106,6 @@ impl<'a, B: Backend> core::ops::DerefMut for Frame<'a, B> {
 }
 
 impl<'a, B: Backend> Frame<'a, B> {
-
     pub fn style(&self) -> &Style {
         &self.ctx.style
     }

@@ -572,12 +572,6 @@ fn write_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) ->
 pub fn read_controller() -> (Buttons, u8, u8) {
     unsafe { reboot_lib::arm9_send_controller_read() }
 }
-fn _read_firmware(buffer: *mut [reboot_lib::StorageSector], start_offset: u32) {
-    unsafe {
-        reboot_lib::arm9_set_buffer(buffer);
-        reboot_lib::arm9_read_firmware(start_offset);
-    }
-}
 
 #[cfg(target_arch = "arm")]
 #[panic_handler]

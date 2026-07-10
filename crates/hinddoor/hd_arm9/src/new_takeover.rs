@@ -1,10 +1,11 @@
 use reboot_lib::{flush_mmc, VRAMCtrl, VIDEO_HARDWARE};
 
+
+// cheaty macro stolen right from the interwebz
 pub struct WordAligned<Bytes: ?Sized> {
     pub _align: [u32; 0],
     pub bytes: Bytes,
 }
-
 macro_rules! include_bytes_word_align {
     ($path:literal) => {{
         static ALIGNED: &WordAligned<[u8]> = &WordAligned {
@@ -69,5 +70,5 @@ pub unsafe fn takeover_arm7() {
         let r0 = ((0x4004050 as *const u32).read() & 0xFF00FF00) | 0x99;
         core::ptr::write_volatile(0x4004050 as *mut u32, r0);
     }
-    // What will happen after this is that the ARM7 enters the jump slide into VRAM, and begins executing the binary from there.
+    // What will happen after this is that the ARM7 enters the jump slide into VRAM, and begins executing it's binary from there.
 }

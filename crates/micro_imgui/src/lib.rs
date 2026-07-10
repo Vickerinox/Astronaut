@@ -11,10 +11,9 @@ mod primitives;
 mod response;
 mod ui;
 pub mod widgets;
+pub use context::Style;
 pub use primitives::*;
 pub use response::*;
-pub use context::Style;
-
 
 pub trait Application<B: Backend> {}
 pub fn run<B: Backend, T>(

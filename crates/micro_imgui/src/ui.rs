@@ -1,5 +1,9 @@
 use crate::{
-    Backend, Color, LayerId, Style, context::{ColorSet, Frame}, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::{button::Button, label::Label},
+    context::{ColorSet, Frame},
+    primitives::{Id, Rect, Vec2},
+    response::{self, Response, Sense},
+    widgets::{button::Button, label::Label},
+    Backend, Color, LayerId, Style,
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -8,19 +12,18 @@ pub struct Ui<'a, 'b: 'a, B: Backend> {
     id: Id,
     layout: Layout,
 }
-impl<'a, 'b: 'a, B: Backend> core::ops::Deref for Ui<'a,'b,B> {
+impl<'a, 'b: 'a, B: Backend> core::ops::Deref for Ui<'a, 'b, B> {
     type Target = Frame<'b, B>;
     fn deref(&self) -> &Self::Target {
         &self.ctx
     }
 }
-impl<'a, 'b: 'a, B: Backend> core::ops::DerefMut for Ui<'a,'b,B> {
+impl<'a, 'b: 'a, B: Backend> core::ops::DerefMut for Ui<'a, 'b, B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.ctx
     }
 }
 impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
-
     pub fn new(ctx: &'a mut Frame<'b, B>, id: Id, clip_rect: Rect) -> Self {
         Self {
             ctx,
@@ -29,7 +32,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             layout: Layout::default(),
         }
     }
-    
+
     pub fn set_focus(&mut self, response: &Response) {
         self.ctx.focus_on(response.id);
     }
@@ -97,18 +100,14 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             (Direction::TopDown, Align::Max) => {
                 rect.translate(Vec2::x(self.clip_rect.width() - size.x))
             }
-            (Direction::LeftRight, Align::Middle)  => {
+            (Direction::LeftRight, Align::Middle) => {
                 rect.translate(Vec2::y((self.clip_rect.height() - size.y) >> 1))
             }
-            (Direction::LeftRight, Align::Max)  => {
+            (Direction::LeftRight, Align::Max) => {
                 rect.translate(Vec2::y(self.clip_rect.height() - size.y))
             }
-            (Direction::TopDown, Align::Justified)  => {
-                rect.set_width(self.clip_rect.width())
-            }
-            (Direction::LeftRight, Align::Justified) => {
-                rect.set_height(self.clip_rect.height())
-            }
+            (Direction::TopDown, Align::Justified) => rect.set_width(self.clip_rect.width()),
+            (Direction::LeftRight, Align::Justified) => rect.set_height(self.clip_rect.height()),
             _ => rect,
         };
         let id = self.id.next();

@@ -483,8 +483,6 @@ pub struct BootMethod {
     _0x3e: u16,
 }
 #[repr(C)]
-pub struct FirmwareData {}
-#[repr(C)]
 pub struct BootInfoNTR {
     _0x0: [u8; 0x280],
     pub header: ShortNDSHeader,
@@ -496,7 +494,7 @@ pub struct BootInfoNTR {
     pub slot_2_info: [u8; 0xC],
     pub vblank_counter: u32,
     pub boot_method: BootMethod,
-    pub firmware_data: [u8; 0x74],
+    pub firmware_data: FirmwareData,
     pub mac_address: [u8; 6],
     pub wifi_channels: [u8; 2],
     _0x4fc: [u8; 4],
@@ -517,3 +515,11 @@ pub struct BootInfoNTR {
     _0x660: [u8; 0xA0],
 }
 const_assert!(core::mem::size_of::<BootInfoNTR>() == 0x800);
+
+
+//TODO: implement this damn struct properly
+#[repr(C)]
+pub union FirmwareData {
+    pub bytes: [u8; 0x74],
+    pub halfwords: [u16; 0x74/2],
+}

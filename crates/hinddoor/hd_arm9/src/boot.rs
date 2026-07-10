@@ -180,7 +180,7 @@ unsafe fn boot_unreturnable(
         reboot_lib::nocash_write("> ARM7i binary loaded \n");
 
         if boot_info.twl_header.head.twl_flags & (1 << 1) > 0 {
-            match reboot_lib::arm9_decrypt_modcrypt(0) {
+            match reboot_lib::arm9_decrypt_modcrypt() {
                 Ok(()) => (),
                 Err(code) => {
                     panic!("Failed to modcrypt, code: {code}");
@@ -258,8 +258,8 @@ unsafe fn boot_unreturnable(
     }
     reboot_lib::flush_mmc();
     reboot_lib::flush_mmc();
-    let _boot_func =
-        reboot_lib::arm9_send_arm7_jump(boot_info.twl_header.head.arm7_entry).unwrap_err();
+    reboot_lib::arm9_send_arm7_boot().unwrap();
+    //jump into the bootstrap function put in VRAM
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }

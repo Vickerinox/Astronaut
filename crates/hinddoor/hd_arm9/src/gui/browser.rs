@@ -3,7 +3,8 @@ use core::ops::{Add, Sub};
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
-    Input, SCREEN_RECT, micro_imgui::{self, Backend, Color, Sizing, Vec2, widgets::button::Button},
+    micro_imgui::{self, widgets::button::Button, Backend, Color, Sizing, Vec2},
+    Input, SCREEN_RECT,
 };
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
