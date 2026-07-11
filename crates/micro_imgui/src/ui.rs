@@ -46,6 +46,9 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             Color::new(200, 200, 200),
         ))
     }
+    pub fn backend(&self) -> &B {
+        &self.ctx.backend
+    }
     pub fn label<'c>(&mut self, text: &str) -> response::Response {
         self.add(Label::new(text, 8))
     }

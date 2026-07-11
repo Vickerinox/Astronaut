@@ -13,7 +13,7 @@ use crate::{
         AppData, GlobalData, MusicPlaying, frontend::{AppBooter, ClonableUiPage, StreamingWav, UiPage, pop_dir_entry}, main_menu::MainMenu,
     }, populate_fs_vec, stop_mod_file,
 };
-impl AppData {
+impl Browser {
     pub fn open_sd() -> Option<Browser> {
         Self::open_browser(Box::new(Browser::standard_goal), Box::new(MainMenu), String::from("sdmc:/"))
     }
@@ -52,10 +52,12 @@ impl<T:Fn(&Browser, &FileEntry, &mut GlobalData) -> Option<Box<dyn UiPage>> + Cl
         Box::new(self.clone())
     }
 }
-
-
 impl Browser {
-    pub fn look_for_file(format: &'static [FileType], transform: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>) -> Box<dyn BrowserGoal> {
+    pub fn search_file<T: Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>> + Clone + 'static>(format: &'static [FileType], start: String, exit: Box<dyn ClonableUiPage>, transform: T, ) -> Option<Browser> {
+        Browser::open_browser(Browser::look_for_file(format, transform), exit, start)
+     
+    }
+    pub fn look_for_file<T: Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>> + Clone + 'static>(format: &'static [FileType], transform: T) -> Box<dyn BrowserGoal> {
         let a = move |browser: &Browser, entry: &FileEntry, data: &mut GlobalData| {
             if format.contains(&entry.kind) {
                 transform(data, browser.current_path.clone() + &entry.file_name)
@@ -267,9 +269,8 @@ impl UiPage for Browser {
                         new_folder = Some(f);
                     }
                     Err(_err) => {
-                        new_state = Some(Box::new(super::error::Error {
-                            error_string: format!("Filesystem error!"),
-                        }));
+                        new_state = Some(Box::new(super::error::Error::new( format!("Filesystem error!"),
+                        )));
                     }
                 }
             }

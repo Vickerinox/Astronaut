@@ -514,7 +514,7 @@ unsafe fn main() {
         }
         
         let (color, video_context) = app_data.global_data.load_theme();
-        let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
+        let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
 
         
         app_area.fader.target.write(0);

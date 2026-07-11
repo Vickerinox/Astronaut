@@ -336,9 +336,9 @@ impl UiPage for AppBooter {
         data: &mut GlobalData,
     ) -> Option<Box<dyn UiPage>> {
         let Ok(mut file) = fatfs_embedded::open(&mut self.path, FileOptions::Read) else {
-            return Some(Box::new(super::error::Error {
-                error_string: format!("File doesn't exist."),
-            }));
+            return Some(Box::new(super::error::Error::new(
+     format!("File doesn't exist."),
+            )));
         };
         ui.request_repaint();
         let error = unsafe {
@@ -347,7 +347,7 @@ impl UiPage for AppBooter {
         };
         unsafe { (*(APP_AREA_START as *mut AppArea)).fader.target.write(0) };
         let error_string = alloc::format!("Failed to boot file: {error:?}");
-        Some(Box::new(super::error::Error { error_string }))
+        Some(Box::new(super::error::Error::new(error_string)))
     }
 }
 pub trait ClonableUiPage: UiPage {

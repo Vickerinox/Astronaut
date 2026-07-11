@@ -17,7 +17,11 @@ pub struct DSMicroGuiBackend {
     video: reboot_lib::VideoHardwareHandle,
     layer: u16,
 }
-
+impl DSMicroGuiBackend {
+    pub fn held_buttons(&self) -> Buttons {
+        self.input.buttons_now
+    }
+}
 pub struct Inputs {
     buttons_now: Buttons,
     buttons_then: Buttons,
@@ -53,10 +57,10 @@ impl Inputs {
 }
 
 impl DSMicroGuiBackend {
-    pub fn new(video: reboot_lib::VideoHardwareHandle) -> Self {
+    pub fn new(video: reboot_lib::VideoHardwareHandle, buttons: Buttons) -> Self {
         Self {
             input: Inputs {
-                buttons_now: Buttons::empty(),
+                buttons_now: buttons,
                 buttons_then: Buttons::empty(),
                 last_touch_coord: Vec2::ZERO,
                 other_last_touch_coord: Vec2::ZERO,

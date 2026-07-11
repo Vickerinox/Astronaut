@@ -1,6 +1,5 @@
 use alloc::{
-    string::{String, ToString},
-    vec::Vec,
+    format, string::{String, ToString}, vec::Vec,
 };
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui::{Color, ColorSet, Style};
@@ -8,6 +7,31 @@ use reboot_lib::{Buttons, VIDEO_HARDWARE, VideoHardwareHandle, music_modules::mo
 
 use crate::{FileType, get_extension, gui::{GlobalData, MusicPlaying, StreamingWav, pop_dir_entry}, transfer_font_to_vram};
 
+pub struct BootCombo {
+    pub buttons: Buttons,
+    pub path: String,
+}
+
+pub struct BootCombos {
+    pub default: String,
+    pub additionals: Vec<BootCombo>,
+}
+impl BootCombos {
+    pub const fn default() -> Self { Self{
+        default: String::new(),
+        additionals: Vec::new(),}
+    }
+    pub fn add(&mut self, combo: BootCombo) {
+        if let Some(existing_entry) = self.additionals.iter_mut().filter(|i| i.buttons == combo.buttons).next() {
+            existing_entry.path = combo.path;
+        } else {
+            self.additionals.push(combo);
+        }
+    }
+    pub fn set_default(&mut self, path: String) {
+        self.default = path
+    }
+}
 pub struct Config {
     pub patch_flag: bool,
     pub wifi_firmware_upload: bool,
@@ -17,6 +41,47 @@ pub struct Config {
     pub top_wallpaper: String,
     pub theme: Theme,
     pub theme_path: String,
+    pub boot_combos: BootCombos,
+}
+
+impl Config {
+    pub fn into_ini(&self) -> String {
+        let mut ini = String::new();
+        ini.push_str("[options]\n");
+        ini.push_str("wifi_firm_upload");
+        if self.wifi_firmware_upload {
+            ini.push_str("=on\n");
+        } else {
+            ini.push_str("=off\n");
+        }
+        ini.push_str("patching");
+        if self.patch_flag {
+            ini.push_str("=on\n");
+        } else {
+            ini.push_str("=off\n");
+        }
+
+        ini.push_str("\n[style]\n");
+        if !self.theme_path.is_empty() {
+            ini.push_str(&format!("theme={}\n", &self.theme_path));
+        }
+        if !self.music.is_empty() {
+            ini.push_str(&format!("music={}\n", &self.music));
+        }
+        if !self.top_wallpaper.is_empty() {
+            ini.push_str(&format!("wallpaper={}\n", &self.top_wallpaper));
+        }
+
+        ini.push_str("\n[boot]\n");
+
+        if !self.boot_combos.default.is_empty() {
+            ini.push_str(&format!("default={}\n", &self.boot_combos.default));
+        }
+        for combo in &self.boot_combos.additionals {
+            ini.push_str(&format!("h{:04x}={}\n", combo.buttons.bits(), &combo.path));
+        }
+        ini
+    }
 }
 pub struct Theme {
     pub colors: micro_imgui_ds::micro_imgui::Style,
@@ -45,6 +110,7 @@ impl Config {
             music: String::new(),
             top_wallpaper: String::new(),
             theme_path: String::new(),
+            boot_combos: BootCombos::default(),
             theme: Theme {
                 colors: Style::DEFAULT,
                 folder_color: Color::new(200, 100, 100),
@@ -61,15 +127,24 @@ impl Config {
         else {
             return defaults;
         };
-        let current_combo = alloc::format!("h{:04x}", held_buttons.bits());
         ini::Ini::new(
             &str,
             Some(&mut |segment, key, value| match (segment, key, value) {
                 ("[boot]", key, value) => {
                     if defaults.autoboot.is_empty() && key == "default" {
                         defaults.autoboot = value.to_string();
-                    } else if key == &current_combo {
+                        defaults.boot_combos.default = value.to_string();
+                    } else {
+                    let Some((code, remainder)) = key.split_at_checked(1) else { return; };
+                    if code != "h" { return };
+                    let Ok(combo) = u16::from_str_radix(remainder, 16) else { return; };
+                    let combo = Buttons::from_bits_truncate(combo);
+
+                    defaults.boot_combos.add(BootCombo { buttons: combo, path: value.to_string() });    
+                    if held_buttons == combo {
                         defaults.autoboot = value.to_string();
+                    }
+                    
                     }
                 }
                 ("[options]", "wifi_firm_upload", "on") => {
