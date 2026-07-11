@@ -300,7 +300,7 @@ fn parse_color(color: &str, var: &mut Color) {
         }
         6 => {
             if let Ok(color) = u32::from_str_radix(color, 16) {
-                let [b, r, g, _] = color.to_le_bytes();
+                let [b, g, r, _] = color.to_le_bytes();
                 *var = Color::new(r, g, b);
             }
         }
