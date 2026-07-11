@@ -261,7 +261,7 @@ impl UiPage for Browser {
         }
         if ui.input_pressed(Input(Buttons::BUTTON_B)) && new_folder.is_none() {
             if ["nand:/", "sdmc:/"].contains(&self.current_path.as_str()) {
-                new_state = Some(Box::new(MainMenu));
+                new_state = Some(self.exit.clone_ui());
             } else {
                 pop_dir_entry(&mut self.current_path);
                 match fatfs_embedded::opendir(&mut self.current_path) {

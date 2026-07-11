@@ -87,15 +87,12 @@ impl Settings {
             }
             if ui.button("save").clicked() {
                 result = Some(Box::new(super::error::Error::new(String::from("FAILED TO WRITE NEW CONFIG"))));
-                if let Ok(mut file) = fatfs_embedded::open(&mut "sdmc:/_nds/vlaunch/settings.ini".to_string(), FileOptions::Write) {
+                if let Ok(mut file) = fatfs_embedded::open(&mut "sdmc:/_nds/vlaunch/settings.ini".to_string(), FileOptions::Write | FileOptions::CreateAlways)  {
                     
                     let new_ini = data.config.into_ini();
                     let bytes = new_ini.as_bytes();
                     let Ok(stuff) = fatfs_embedded::write(&mut file, bytes) else { return result;};
                     if stuff != bytes.len() as _ {
-                        return result;
-                    }
-                    if fatfs_embedded::truncate(&mut file).is_err() {
                         return result;
                     }
                     result = Some(Box::new(MainMenu));
