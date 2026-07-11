@@ -179,7 +179,6 @@ pub unsafe fn arm9_decrypt_modcrypt() -> Result<(), NonZeroU32> {
     com_arm9(12, &[])
 }
 
-
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_arm7(user_type: u32, pointer: *mut ()) -> Result<(), NonZeroU32> {
     com_arm9(9, &[user_type, pointer as u32])

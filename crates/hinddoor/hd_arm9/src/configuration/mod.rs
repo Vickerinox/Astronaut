@@ -1,4 +1,7 @@
-use alloc::{string::{String, ToString}, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui::{Color, ColorSet, Style};
 use reboot_lib::{Buttons, VIDEO_HARDWARE};
@@ -65,38 +68,65 @@ impl Config {
         }
     }
     pub fn load_theme(&mut self) {
-        if [".ini", ".INI"].into_iter().find(|i| self.style.theme_path.ends_with(i)).is_none() {
+        if [".ini", ".INI"]
+            .into_iter()
+            .find(|i| self.style.theme_path.ends_with(i))
+            .is_none()
+        {
             return;
         }
         let mut font = String::new();
-        let Some(theme) = read_whole_file_to_string(&mut self.style.theme_path) else { return };
+        let Some(theme) = read_whole_file_to_string(&mut self.style.theme_path) else {
+            return;
+        };
         pop_dir_entry(&mut self.style.theme_path); // go from the ini path to it's directory, base dir for free!
-        ini::Ini::new(&theme, Some(&mut |segment, key, value| match (segment, key) {
-            ("[assets]", "music") => handle_path(&mut self.style.theme_path, &mut self.style.music, value),
-            ("[assets]", "wallpaper") => handle_path(&mut self.style.theme_path, &mut self.style.top_wallpaper, value),
-            ("[assets]", "font") => handle_path(&mut self.style.theme_path, &mut font, value),
-            ("[colors]", "background") => parse_color(value, &mut self.style.colors.background_color),
-            ("[colors]", "text") => parse_color(value, &mut self.style.colors.text_color),
-            ("[colors]", "assets") => parse_color(value, &mut self.style.asset_color),
-            ("[colors]", "roms") => parse_color(value, &mut self.style.bootable_color),
-            ("[colors]", "folders") => parse_color(value, &mut self.style.folder_color),
-            ("[widgets]", key) => handle_gah(&mut self.style.colors.default, key, value),
-            ("[widgets.active]", key) => handle_gah(&mut self.style.colors.focused, key, value),
-            ("[widgets.pressed]", key) => handle_gah(&mut self.style.colors.pressed, key, value), 
-            _ => (),
-        }));
-        let Some(font) = read_whole_file(&mut font) else { return };
-        let Some(([a,b], rem)) = font.split_first_chunk() else { return };
+        ini::Ini::new(
+            &theme,
+            Some(&mut |segment, key, value| match (segment, key) {
+                ("[assets]", "music") => {
+                    handle_path(&mut self.style.theme_path, &mut self.style.music, value)
+                }
+                ("[assets]", "wallpaper") => handle_path(
+                    &mut self.style.theme_path,
+                    &mut self.style.top_wallpaper,
+                    value,
+                ),
+                ("[assets]", "font") => handle_path(&mut self.style.theme_path, &mut font, value),
+                ("[colors]", "background") => {
+                    parse_color(value, &mut self.style.colors.background_color)
+                }
+                ("[colors]", "text") => parse_color(value, &mut self.style.colors.text_color),
+                ("[colors]", "assets") => parse_color(value, &mut self.style.asset_color),
+                ("[colors]", "roms") => parse_color(value, &mut self.style.bootable_color),
+                ("[colors]", "folders") => parse_color(value, &mut self.style.folder_color),
+                ("[widgets]", key) => handle_gah(&mut self.style.colors.default, key, value),
+                ("[widgets.active]", key) => handle_gah(&mut self.style.colors.focused, key, value),
+                ("[widgets.pressed]", key) => {
+                    handle_gah(&mut self.style.colors.pressed, key, value)
+                }
+                _ => (),
+            }),
+        );
+        let Some(font) = read_whole_file(&mut font) else {
+            return;
+        };
+        let Some(([a, b], rem)) = font.split_first_chunk() else {
+            return;
+        };
         if a & b == 0 {
             for i in 0..rem.len() {
-                unsafe { (0x2ff_1000 as *mut u8).add(i).write(rem[i]);}
+                unsafe {
+                    (0x2ff_1000 as *mut u8).add(i).write(rem[i]);
+                }
             }
-        }
-        unsafe { transfer_font_to_vram(); }
+        } 
+        
     }
     pub fn load(held_buttons: Buttons) -> Self {
         let mut defaults = Self::default();
-        let Some(str) = read_whole_file_to_string(&mut "sdmc:/_nds/vlaunch/settings.ini".to_string()) else {
+        let Some(str) =
+            read_whole_file_to_string(&mut "sdmc:/_nds/vlaunch/settings.ini".to_string())
+        else {
             return defaults;
         };
         let current_combo = alloc::format!("h{:04x}", held_buttons.bits());
@@ -156,13 +186,17 @@ fn handle_path(base: &String, var: &mut String, value: &str) {
 pub mod ini;
 fn parse_color(color: &str, var: &mut Color) {
     match color.len() {
-        4 => if let Ok(color) = u32::from_str_radix(color, 16) {
-            *var = Color(color as u16);
-        },
-        6 => if let Ok(color) = u32::from_str_radix(color, 16) {
-            let [r, g, b, _] = color.to_le_bytes();
-            *var = Color::new(r, g, b);
-        },
+        4 => {
+            if let Ok(color) = u32::from_str_radix(color, 16) {
+                *var = Color(color as u16);
+            }
+        }
+        6 => {
+            if let Ok(color) = u32::from_str_radix(color, 16) {
+                let [b, r, g, _] = color.to_le_bytes();
+                *var = Color::new(r, g, b);
+            }
+        }
         _ => (),
     }
 }

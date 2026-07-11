@@ -87,7 +87,7 @@ pub unsafe fn unlaunch_breakpoint() {
 
 #[instruction_set(arm::a32)]
 #[cfg(target_arch = "arm")]
-unsafe fn init_font() {
+unsafe fn load_default_font() {
     const FONT_FILE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));
     for i in 0..FONT_FILE.len() {
         core::ptr::write_volatile((0x2FF2000 as *mut u8).add(i), FONT_FILE[i]);
@@ -101,6 +101,14 @@ unsafe fn init_font() {
         out("r2") _,
         out("r3") _,
     );
+}
+#[cfg(not(target_arch = "arm"))]
+unsafe fn load_default_font() {
+    panic!()
+}
+#[instruction_set(arm::a32)]
+#[cfg(target_arch = "arm")]
+unsafe fn init_font() {
     transfer_font_to_vram();
 }
 unsafe fn transfer_font_to_vram() {
@@ -192,7 +200,7 @@ pub enum FileType {
     Ini,
     None,
 }
-const ASSOCIATION_LIST: &[(&[u8], FileType)] = &[
+pub const ASSOCIATION_LIST: &[(&[u8], FileType)] = &[
     (b".WAV", FileType::Wav),
     (b".MOD", FileType::Mod),
     (b".INI", FileType::Ini),
@@ -201,7 +209,15 @@ const ASSOCIATION_LIST: &[(&[u8], FileType)] = &[
     (b".DSI", FileType::Rom),
     (b".APP", FileType::Rom),
 ];
-fn populate_fs_vec(
+pub fn filetype(extension: &[u8]) -> FileType {
+    ASSOCIATION_LIST
+        .iter()
+        .filter_map(|(t, i)| extension.ends_with(t).then_some(i))
+        .next()
+        .copied()
+        .unwrap_or(FileType::None)
+}
+pub fn populate_fs_vec(
     folder: &mut fatfs_embedded::fatfs::Directory,
 ) -> Vec<(String, String, FileType)> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
@@ -226,7 +242,7 @@ fn populate_fs_vec(
                     } else {
                         s_name
                     };
-                    ASSOCIATION_LIST.iter().filter_map(|(t, i)| s_name.ends_with(t).then_some(i)).next().copied().unwrap_or(FileType::None)
+                    filetype(s_name)
                 };
                 let fname = name.clone();
                 if name.len() > 35 {
@@ -267,6 +283,7 @@ fn populate_fs_vec(
 pub use micro_imgui_ds::SCREEN_RECT;
 
 unsafe fn arm7_crash() -> ! {
+    load_default_font();
     set_bright(0 | (1 << 14));
     let mut video_context = init_graphics();
     micro_imgui_ds::gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(
@@ -325,7 +342,9 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
         .write(DisplayControl::BG_MODE_5);
 
     //copy font to vram
+    
     init_font();
+    
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     init_3d_hardware(&mut video_context);
     video_context.next_frame();
@@ -431,7 +450,7 @@ unsafe fn main() {
         }
         // ARM7 is alive! make sure to let it know.
         IPC_FIFO_HARDWARE.set_status(0);
-        
+
         app_area.fader.target.write(16);
         app_area.fader.current.write(16);
 
@@ -487,6 +506,7 @@ unsafe fn main() {
                 app_data.autoboot();
             }
         }
+        load_default_font();
         app_data.global_data.config.load_theme();
         let video_context = init_graphics();
         if let Some(wallpaper) = app_data.load_wallpaper() {

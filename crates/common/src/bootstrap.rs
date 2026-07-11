@@ -516,10 +516,9 @@ pub struct BootInfoNTR {
 }
 const_assert!(core::mem::size_of::<BootInfoNTR>() == 0x800);
 
-
 //TODO: implement this damn struct properly
 #[repr(C)]
 pub union FirmwareData {
     pub bytes: [u8; 0x74],
-    pub halfwords: [u16; 0x74/2],
+    pub halfwords: [u16; 0x74 / 2],
 }

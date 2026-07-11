@@ -1,6 +1,5 @@
 use reboot_lib::{flush_mmc, VRAMCtrl, VIDEO_HARDWARE};
 
-
 // cheaty macro stolen right from the interwebz
 pub struct WordAligned<Bytes: ?Sized> {
     pub _align: [u32; 0],

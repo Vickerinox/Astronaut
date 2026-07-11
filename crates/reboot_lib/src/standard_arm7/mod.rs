@@ -60,7 +60,16 @@ pub struct Controller {
 }
 impl Controller {
     unsafe fn next_fetch(&mut self) -> u32 {
-        let Self { last_pen, pen_down, last_x, last_y, x_scale, x_offset, y_scale, y_offset } = self;
+        let Self {
+            last_pen,
+            pen_down,
+            last_x,
+            last_y,
+            x_scale,
+            x_offset,
+            y_scale,
+            y_offset,
+        } = self;
         let mut controls = (!core::ptr::read_volatile(0x4000130 as *const u16)) & 0x3FF;
         let controls_2 = (!core::ptr::read_volatile(0x4000136 as *const u16));
         controls |= (controls_2 & 3) << 10;
@@ -104,18 +113,16 @@ impl Controller {
             controls ^= crate::Buttons::PEN_DOWN;
         };
 
-        
         controls.bits() as u32 | ((*last_x as u32) << 16) | ((*last_y as u32) << 24)
-    } 
+    }
 }
 struct ModCryptor {
-    console_id: [u32; 2]
+    console_id: [u32; 2],
 }
 impl ModCryptor {
     unsafe fn dewit(&mut self) -> u32 {
         let Self { console_id } = self;
         let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
-
 
         AES_HARDWARE.init_from_header(header, console_id.clone());
 
@@ -141,16 +148,14 @@ impl ModCryptor {
 
         use crate::ndma::NDMAControl;
 
-        let mem =
-            core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
+        let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
 
         decrypt_module_ndma(mem, key);
         if header.modcrypt2_len > 0 {
             let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
             let ptr = header.arm7i_load;
             let len = header.modcrypt2_len;
-            let mem =
-                core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
+            let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
             decrypt_module_ndma(mem, key);
         }
         0
@@ -193,7 +198,7 @@ pub fn main_arm7() {
             crate::load_nand_key_y(3, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
             crate::nand_crypt_init(3);
         }
-        
+
         crate::spi::touchscreen::init_tsc_dsi();
 
         crate::init_interrupts();
@@ -238,29 +243,40 @@ pub fn main_arm7() {
         SPI_HARDWARE.read_firmware(&mut user.bytes, offset);
         SPI_HARDWARE.read_firmware(mac, 0x36);
         boot_info.wifi_channels = [0x41, 0x10];
-        let adcx1 = user.halfwords[0x58/2];
-        let adcy1 = user.halfwords[0x5A/2];
+        let adcx1 = user.halfwords[0x58 / 2];
+        let adcy1 = user.halfwords[0x5A / 2];
         let scrx1 = user.bytes[0x5C];
         let scry1 = user.bytes[0x5D];
 
-        let adcx2 = user.halfwords[0x5E/2];
-        let adcy2 = user.halfwords[0x60/2];
+        let adcx2 = user.halfwords[0x5E / 2];
+        let adcy2 = user.halfwords[0x60 / 2];
         let scrx2 = user.bytes[0x62];
         let scry2 = user.bytes[0x63];
 
         let mut controller = {
             let x_scale = ((scrx2 as i32 - scrx1 as i32) << 19) / (adcx2 as i32 - adcx1 as i32);
             let y_scale = ((scry2 as i32 - scry1 as i32) << 19) / (adcy2 as i32 - adcy1 as i32);
-            let x_offset =
-                (((adcx1 as i32 + adcx2 as i32) * x_scale) - ((scrx1 as i32 + scrx2 as i32) << 19)) / 2;
-            let y_offset =
-                (((adcy1 as i32 + adcy2 as i32) * y_scale) - ((scry1 as i32 + scry2 as i32) << 19)) / 2;
+            let x_offset = (((adcx1 as i32 + adcx2 as i32) * x_scale)
+                - ((scrx1 as i32 + scrx2 as i32) << 19))
+                / 2;
+            let y_offset = (((adcy1 as i32 + adcy2 as i32) * y_scale)
+                - ((scry1 as i32 + scry2 as i32) << 19))
+                / 2;
 
             let last_x = 0;
             let last_y = 0;
             let pen_down = false;
-            let last_pen = false;    
-            Controller { last_pen, pen_down, last_x, last_y, x_scale, x_offset, y_scale, y_offset }
+            let last_pen = false;
+            Controller {
+                last_pen,
+                pen_down,
+                last_x,
+                last_y,
+                x_scale,
+                x_offset,
+                y_scale,
+                y_offset,
+            }
         };
         let mut modcryptor = ModCryptor { console_id };
         loop {

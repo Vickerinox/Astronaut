@@ -34,7 +34,10 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
 
     pub fn set_focus(&mut self, response: &Response) {
-        self.ctx.focus_on(response.id);
+        self.ctx.focus_on(Some(response.id));
+    }
+    pub fn clear_focus(&mut self) {
+        self.ctx.focus_on(None);
     }
     pub fn button<'c>(&mut self, text: &str) -> response::Response {
         self.add(Button::new(

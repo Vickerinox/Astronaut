@@ -1,4 +1,4 @@
-/* 
+/*
 MIT License
 
 Copyright (c) 2024 Caleb Garrett
@@ -809,7 +809,7 @@ pub unsafe extern "C" fn ff_oem2uni(oem: u32, cp: u16) -> u32 {
             UC437.get((oem - 0x80) as usize).copied().unwrap_or(0) as u32
         } else {
             0
-        } 
+        }
     } else {
         0
     }
@@ -905,7 +905,9 @@ pub unsafe extern "C" fn ff_wtoupper(mut uni: u32) -> u32 {
                 }
             }
             if cmd == 0 {
-                let Some(r) = p.get(nc as usize..) else { return uc as u32};
+                let Some(r) = p.get(nc as usize..) else {
+                    return uc as u32;
+                };
                 p = r;
             } /* Skip table if needed */
         }

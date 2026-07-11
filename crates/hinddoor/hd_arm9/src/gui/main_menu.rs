@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 use micro_imgui_ds::{
-    gui,
-    micro_imgui::{widgets::checkbox::Checkbox, Backend},
+    Input, gui, micro_imgui::{Backend, InputEvent, widgets::checkbox::Checkbox},
 };
 use reboot_lib::Buttons;
 
@@ -15,6 +14,11 @@ impl UiPage for MainMenu {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
+        if ui.input_pressed(Input::FOCUS_NEXT) || !ui.has_focus_anywhere() {
+            ui.focus_next();
+        } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
+            ui.focus_prev();
+        }
         //ui.vertical_centered(|ui| {
         ui.header("Welcome!");
         ui.label("Made by Vikrinox, 2026");

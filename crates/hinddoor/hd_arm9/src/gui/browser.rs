@@ -9,9 +9,13 @@ use micro_imgui_ds::{
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
 use crate::{
-    BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, FileType, get_extension, gui::{
-        AppData, MusicPlaying, frontend::{AppBooter, StreamingWav, UiPage, pop_dir_entry}, main_menu::MainMenu,
-    }, populate_fs_vec, stop_mod_file,
+    get_extension,
+    gui::{
+        frontend::{pop_dir_entry, AppBooter, StreamingWav, UiPage},
+        main_menu::MainMenu,
+        AppData, MusicPlaying,
+    },
+    populate_fs_vec, stop_mod_file, FileType, BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC,
 };
 impl AppData {
     pub fn open_sd() -> Option<Browser> {
@@ -78,7 +82,7 @@ impl UiPage for Browser {
         if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
             focus_on = Some(10);
         }
-        if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) {
+        if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) || !ui.has_focus_anywhere() {
             focus_on = Some(0);
         }
 
@@ -88,31 +92,14 @@ impl UiPage for Browser {
 
         let in_step = *offset % ITEM_SPACING;
 
-        let mut control_dir = 0;
-        if ui.input_pressed(Input(Buttons::DIRECTION_UP)) {
-            control_dir = 1;
-        }
-
-        if ui.input_pressed(Input(Buttons::DIRECTION_DOWN)) {
-            control_dir = -1;
-        }
-        if ui.input_down(Input(Buttons::DIRECTION_UP)) && ui.has_focus_anywhere() {
+        if ui.input_down(Input(Buttons::DIRECTION_UP)) {
             *hold_timer += 1;
             ui.request_repaint();
-        } else if ui.input_down(Input(Buttons::DIRECTION_DOWN)) && ui.has_focus_anywhere() {
+        } else if ui.input_down(Input(Buttons::DIRECTION_DOWN)) {
             *hold_timer -= 1;
             ui.request_repaint();
         } else {
             *hold_timer = 0;
-        }
-        if hold_timer.abs() > 30 && (*hold_timer & 1 == 0) {
-            if hold_timer.is_negative() {
-                ui.focus_next();
-                control_dir = -1;
-            } else {
-                ui.focus_prev();
-                control_dir = 1
-            }
         }
 
         let mut new_state: Option<Box<dyn UiPage>> = None;
@@ -134,22 +121,16 @@ impl UiPage for Browser {
         let mut focus = None;
         for (i, item) in shown_items.iter().take(items).enumerate() {
             let (name, path, kind) = item;
-            let color = 
-                
-                match kind {
-                    FileType::None => ui.style().text_color,
-                    FileType::Rom => data.config.style.bootable_color,
-                    FileType::Mod => data.config.style.asset_color,
-                    FileType::Wav => data.config.style.asset_color,
-                    FileType::Bmp => data.config.style.asset_color,
-                    FileType::Ini => data.config.style.asset_color,
-                    FileType::Dir => data.config.style.folder_color,
-                };
-            let response = ui.add(Button::new(
-                name,
-                Sizing::Padded(Vec2::new(248, 8)),
-                color,
-            ));
+            let color = match kind {
+                FileType::None => ui.style().text_color,
+                FileType::Rom => data.config.style.bootable_color,
+                FileType::Mod => data.config.style.asset_color,
+                FileType::Wav => data.config.style.asset_color,
+                FileType::Bmp => data.config.style.asset_color,
+                FileType::Ini => data.config.style.asset_color,
+                FileType::Dir => data.config.style.folder_color,
+            };
+            let response = ui.add(Button::new(name, Sizing::Padded(Vec2::new(248, 8)), color));
             if response.focused() {
                 focus = Some(i);
             }
@@ -165,12 +146,12 @@ impl UiPage for Browser {
                         if let Ok(f) = fatfs_embedded::opendir(current_path) {
                             new_folder = Some(f);
                         }
-                    },
+                    }
                     FileType::Rom => {
                         current_path.push_str(path);
                         let path = current_path.clone();
                         new_state = Some(Box::new(AppBooter { path }));
-                    },
+                    }
                     FileType::Mod => {
                         current_path.push_str(path);
                         match fatfs_embedded::open(current_path, FileOptions::Read) {
@@ -198,7 +179,7 @@ impl UiPage for Browser {
                             Err(_abort) => (),
                         }
                         pop_dir_entry(current_path);
-                    },
+                    }
                     _ => (),
                 }
             }
@@ -218,28 +199,38 @@ impl UiPage for Browser {
             outline_size: 0,
         });
 
+
         if focus == focus_on {
             if focus_on == Some(0) {
                 *offset = (*offset).sub(ITEM_SPACING * 10).max(0);
+                *offset -= in_step;
             }
             if focus_on == Some(10) {
                 *offset = (*offset).add(ITEM_SPACING * 10).min(max_scroll).max(0);
+                *offset -= in_step;
             }
         }
-        if control_dir == 1 {
-            if focus == Some(0) && *offset > 0 {
-                *offset = offset.wrapping_sub(ITEM_SPACING).max(0);
-                ui.cancel_refocus();
+        if (hold_timer.abs() > 30 && (*hold_timer & 1 == 0)) || hold_timer.abs() == 1 {
+            if hold_timer.is_negative() {
+                if focus == Some(10) {
+                    if shown_items.len() >= 12 {
+                        *offset = offset.saturating_add(ITEM_SPACING);
+                    }
+                } else {
+                    ui.focus_next();
+                }
+                *offset -= in_step;
+            
+            } else {
+                if focus == Some(0)  {
+                    if *offset > 0 {
+                        *offset = offset.wrapping_sub(ITEM_SPACING).max(0);
+                    }
+                } else {
+                    ui.focus_prev();
+                }
+                *offset -= in_step;
             }
-
-            *offset -= in_step;
-        } else if control_dir == -1 {
-            if focus == Some(10) && shown_items.len() >= 12 {
-                *offset = offset.saturating_add(ITEM_SPACING);
-                ui.cancel_refocus();
-            }
-
-            *offset -= in_step;
         }
         if ui.input_pressed(Input(Buttons::BUTTON_B)) && new_folder.is_none() {
             if ["nand:/", "sdmc:/"].contains(&current_path.as_str()) {

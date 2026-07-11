@@ -141,8 +141,8 @@ impl<'a, B: Backend> Frame<'a, B> {
     pub fn has_focus_anywhere(&mut self) -> bool {
         self.ctx.focused_response.is_some()
     }
-    pub fn focus_on(&mut self, id: Id) {
-        self.focused_response = Some(id)
+    pub fn focus_on(&mut self, id: Option<Id>) {
+        self.focused_response = id;
     }
     pub fn focus_next(&mut self) {
         self.focus_dir = 1;
@@ -273,13 +273,7 @@ impl<B: Backend> Ctx<B> {
         if self.backend.input_pressed(B::InputQuery::POINTER_DOWN) {
             self.touchdown_pos = TouchDown::Touch(self.backend.last_known_pointer_location());
         }
-        let focus_dir = if self.backend.input_pressed(B::InputQuery::FOCUS_NEXT) {
-            1
-        } else if self.backend.input_pressed(B::InputQuery::FOCUS_PREVIOUS) {
-            -1
-        } else {
-            0
-        };
+        let focus_dir = 0; 
         Frame {
             ctx: self,
             pressed_response: None,

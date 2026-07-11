@@ -2,8 +2,8 @@ use core::alloc::Layout;
 
 use crate::{
     boot::{self, read_all},
-    get_extension, send_mod_file, stop_mod_file, AppArea, APP_AREA_START, BACKGROUND_COLOR,
-    SCREEN_RECT,
+    get_extension, send_mod_file, stop_mod_file, AppArea, FileType, APP_AREA_START,
+    BACKGROUND_COLOR, SCREEN_RECT,
 };
 use alloc::{boxed::Box, format, string::String};
 use common::blowfish::BFCTX;
@@ -367,31 +367,31 @@ impl AppData {
         crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
     pub fn play_startup_music(&mut self) {
-        match fatfs_embedded::open(&mut self.global_data.config.style.music, FileOptions::Read) {
-            Ok(file) => {
-                stop_mod_file();
-                self.global_data.loading_mod_file = MusicPlaying::None;
-                let Some(extension) = get_extension(self.global_data.config.style.music.as_bytes())
-                else {
-                    return;
-                };
-                self.global_data.loading_mod_file = match extension {
-                    b".mod" | b".MOD" => MusicPlaying::Mod(MODAsyncLoader::new(file)),
-                    b".wav" | b".WAV" => {
-                        if let Some(mut stream) = StreamingWav::new(file) {
-                            unsafe {
-                                stream.play();
-                            }
-                            MusicPlaying::Wav(stream)
-                        } else {
-                            MusicPlaying::None
-                        }
-                    }
-                    _ => MusicPlaying::None,
-                };
+        let Ok(file) =
+            fatfs_embedded::open(&mut self.global_data.config.style.music, FileOptions::Read)
+        else {
+            return;
+        };
+        stop_mod_file();
+        self.global_data.loading_mod_file = MusicPlaying::None;
+        let Some(extension) = get_extension(self.global_data.config.style.music.as_bytes()) else {
+            return;
+        };
+        let a = extension.to_ascii_uppercase();
+        match crate::filetype(&a) {
+            FileType::Mod => {
+                self.global_data.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(file))
             }
-            Err(_abort) => {}
-        }
+            FileType::Wav => {
+                if let Some(mut stream) = StreamingWav::new(file) {
+                    unsafe {
+                        stream.play();
+                    }
+                    self.global_data.loading_mod_file = MusicPlaying::Wav(stream)
+                }
+            }
+            _ => (),
+        };
     }
     pub fn load_wallpaper(&mut self) -> Option<crate::bmp::DecodedBMP> {
         let file = fatfs_embedded::open(
@@ -402,24 +402,22 @@ impl AppData {
         crate::bmp::DecodedBMP::from_reader(file)
     }
     pub fn do_background_tasks(&mut self) {
-        let mut music = MusicPlaying::None;
-        core::mem::swap(&mut music, &mut self.global_data.loading_mod_file);
-        match music {
+        match &mut self.global_data.loading_mod_file {
             MusicPlaying::None => (),
-            MusicPlaying::Wav(mut wav_stream) => {
+            MusicPlaying::Wav(wav_stream) => {
                 let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() } << 11;
                 let bytes_to_read = pos as usize - wav_stream.player_head;
                 unsafe {
                     wav_stream.fetch_new(bytes_to_read);
                 };
-                self.global_data.loading_mod_file = MusicPlaying::Wav(wav_stream);
             }
             MusicPlaying::Mod(loading_mod) => match loading_mod.process() {
-                Ok(Some(ret)) => {
+                Some(ret) => {
                     send_mod_file(ret);
                 }
-                Ok(None) => (),
-                Err(cont) => self.global_data.loading_mod_file = MusicPlaying::Mod(cont),
+                None => if loading_mod.done() {
+                    self.global_data.loading_mod_file = MusicPlaying::None;
+                },
             },
         }
     }
@@ -453,6 +451,7 @@ impl AppData {
             }
             if let Some(new_ui) = self.current_ui.ui(ui, &mut self.global_data) {
                 self.current_ui = new_ui;
+                ui.clear_focus();
             }
         });
     }

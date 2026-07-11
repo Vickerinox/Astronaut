@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 use micro_imgui_ds::{
-    micro_imgui::{widgets::checkbox::Checkbox, Backend},
-    Input,
+    Input, micro_imgui::{Backend, InputEvent, widgets::checkbox::Checkbox},
 };
 use reboot_lib::Buttons;
 
@@ -15,6 +14,11 @@ impl UiPage for Settings {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<alloc::boxed::Box<dyn UiPage>> {
+        if ui.input_pressed(Input::FOCUS_NEXT) || !ui.has_focus_anywhere() {
+            ui.focus_next();
+        } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
+            ui.focus_prev();
+        }
         ui.header("Settings");
         ui.label("NOTE: These will reset on reboot, for permanent settings, use the config file.");
         ui.add_space(8);
