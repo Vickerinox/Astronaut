@@ -328,6 +328,7 @@ impl StreamingWav {
 pub struct AppBooter {
     pub path: String,
 }
+
 impl UiPage for AppBooter {
     fn ui(
         &mut self,
@@ -349,6 +350,9 @@ impl UiPage for AppBooter {
         Some(Box::new(super::error::Error { error_string }))
     }
 }
+pub trait ClonableUiPage: UiPage {
+    fn clone_ui(&self) -> Box<dyn ClonableUiPage>;
+}
 pub trait UiPage {
     fn ui(
         &mut self,
@@ -356,6 +360,12 @@ pub trait UiPage {
         data: &mut GlobalData,
     ) -> Option<Box<dyn UiPage>>;
 }
+impl<T: Clone + UiPage + 'static> ClonableUiPage for T {
+    fn clone_ui(&self) -> Box<dyn ClonableUiPage> {
+        Box::new(self.clone())
+    }
+} 
+
 impl AppData {
     pub unsafe fn autoboot(&mut self) {
         let mut path = core::mem::take(&mut self.global_data.config.autoboot);
@@ -368,13 +378,13 @@ impl AppData {
     }
     pub fn play_startup_music(&mut self) {
         let Ok(file) =
-            fatfs_embedded::open(&mut self.global_data.config.style.music, FileOptions::Read)
+            fatfs_embedded::open(&mut self.global_data.config.music, FileOptions::Read)
         else {
             return;
         };
         stop_mod_file();
         self.global_data.loading_mod_file = MusicPlaying::None;
-        let Some(extension) = get_extension(self.global_data.config.style.music.as_bytes()) else {
+        let Some(extension) = get_extension(self.global_data.config.music.as_bytes()) else {
             return;
         };
         let a = extension.to_ascii_uppercase();
@@ -395,7 +405,7 @@ impl AppData {
     }
     pub fn load_wallpaper(&mut self) -> Option<crate::bmp::DecodedBMP> {
         let file = fatfs_embedded::open(
-            &mut self.global_data.config.style.top_wallpaper,
+            &mut self.global_data.config.top_wallpaper,
             FileOptions::Read,
         )
         .ok()?;

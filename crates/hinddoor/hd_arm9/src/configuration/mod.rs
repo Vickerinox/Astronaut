@@ -9,44 +9,21 @@ use reboot_lib::{Buttons, VIDEO_HARDWARE};
 use crate::{get_extension, gui::pop_dir_entry, transfer_font_to_vram};
 
 pub struct Config {
-    pub style: Pretties,
-    pub options: Options,
+    pub patch_flag: bool,
+    pub wifi_firmware_upload: bool,
     pub autoboot: String,
     pub ini: String,
-}
-pub struct Pretties {
     pub music: String,
     pub top_wallpaper: String,
+    pub theme: Theme,
     pub theme_path: String,
+}
+pub struct Theme {
     pub colors: micro_imgui_ds::micro_imgui::Style,
     pub folder_color: Color,
     pub bootable_color: Color,
     pub asset_color: Color,
-}
-pub struct Options {
-    pub patch_flag: bool,
-    pub wifi_firmware_upload: bool,
-}
-impl Options {
-    pub const fn default() -> Self {
-        Self {
-            patch_flag: true,
-            wifi_firmware_upload: true,
-        }
-    }
-}
-impl Pretties {
-    pub const fn default() -> Self {
-        Self {
-            music: String::new(),
-            top_wallpaper: String::new(),
-            theme_path: String::new(),
-            colors: Style::DEFAULT,
-            folder_color: Color::new(200, 100, 100),
-            bootable_color: Color::new(100, 200, 100),
-            asset_color: Color::new(100, 100, 200),
-        }
-    }
+
 }
 fn read_whole_file_to_string(path: &mut String) -> Option<String> {
     String::from_utf8(read_whole_file(path)?).ok()
@@ -61,48 +38,57 @@ fn read_whole_file(path: &mut String) -> Option<Vec<u8>> {
 impl Config {
     pub const fn default() -> Self {
         Self {
-            options: Options::default(),
+            patch_flag: true,
+            wifi_firmware_upload: true,
             autoboot: String::new(),
             ini: String::new(),
-            style: Pretties::default(),
+            music: String::new(),
+            top_wallpaper: String::new(),
+            theme_path: String::new(),
+            theme: Theme {
+                colors: Style::DEFAULT,
+                folder_color: Color::new(200, 100, 100),
+                bootable_color: Color::new(100, 200, 100),
+                asset_color: Color::new(100, 100, 200),
+            },
         }
     }
     pub fn load_theme(&mut self) {
         if [".ini", ".INI"]
             .into_iter()
-            .find(|i| self.style.theme_path.ends_with(i))
+            .find(|i| self.theme_path.ends_with(i))
             .is_none()
         {
             return;
         }
         let mut font = String::new();
-        let Some(theme) = read_whole_file_to_string(&mut self.style.theme_path) else {
+        let Some(theme) = read_whole_file_to_string(&mut self.theme_path) else {
             return;
         };
-        pop_dir_entry(&mut self.style.theme_path); // go from the ini path to it's directory, base dir for free!
+        pop_dir_entry(&mut self.theme_path); // go from the ini path to it's directory, base dir for free!
         ini::Ini::new(
             &theme,
             Some(&mut |segment, key, value| match (segment, key) {
                 ("[assets]", "music") => {
-                    handle_path(&mut self.style.theme_path, &mut self.style.music, value)
+                    handle_path(&mut self.theme_path, &mut self.music, value)
                 }
                 ("[assets]", "wallpaper") => handle_path(
-                    &mut self.style.theme_path,
-                    &mut self.style.top_wallpaper,
+                    &mut self.theme_path,
+                    &mut self.top_wallpaper,
                     value,
                 ),
-                ("[assets]", "font") => handle_path(&mut self.style.theme_path, &mut font, value),
+                ("[assets]", "font") => handle_path(&mut self.theme_path, &mut font, value),
                 ("[colors]", "background") => {
-                    parse_color(value, &mut self.style.colors.background_color)
+                    parse_color(value, &mut self.theme.colors.background_color)
                 }
-                ("[colors]", "text") => parse_color(value, &mut self.style.colors.text_color),
-                ("[colors]", "assets") => parse_color(value, &mut self.style.asset_color),
-                ("[colors]", "roms") => parse_color(value, &mut self.style.bootable_color),
-                ("[colors]", "folders") => parse_color(value, &mut self.style.folder_color),
-                ("[widgets]", key) => handle_gah(&mut self.style.colors.default, key, value),
-                ("[widgets.active]", key) => handle_gah(&mut self.style.colors.focused, key, value),
+                ("[colors]", "text") => parse_color(value, &mut self.theme.colors.text_color),
+                ("[colors]", "assets") => parse_color(value, &mut self.theme.asset_color),
+                ("[colors]", "roms") => parse_color(value, &mut self.theme.bootable_color),
+                ("[colors]", "folders") => parse_color(value, &mut self.theme.folder_color),
+                ("[widgets]", key) => handle_gah(&mut self.theme.colors.default, key, value),
+                ("[widgets.active]", key) => handle_gah(&mut self.theme.colors.focused, key, value),
                 ("[widgets.pressed]", key) => {
-                    handle_gah(&mut self.style.colors.pressed, key, value)
+                    handle_gah(&mut self.theme.colors.pressed, key, value)
                 }
                 _ => (),
             }),
@@ -141,25 +127,25 @@ impl Config {
                     }
                 }
                 ("[options]", "wifi_firm_upload", "on") => {
-                    defaults.options.wifi_firmware_upload = true;
+                    defaults.wifi_firmware_upload = true;
                 }
                 ("[options]", "wifi_firm_upload", "off") => {
-                    defaults.options.wifi_firmware_upload = false;
+                    defaults.wifi_firmware_upload = false;
                 }
                 ("[options]", "patching", "on") => {
-                    defaults.options.patch_flag = true;
+                    defaults.patch_flag = true;
                 }
                 ("[options]", "patching", "off") => {
-                    defaults.options.patch_flag = false;
+                    defaults.patch_flag = false;
                 }
                 ("[style]", "wallpaper", value) => {
-                    defaults.style.top_wallpaper = value.to_string();
+                    defaults.top_wallpaper = value.to_string();
                 }
                 ("[style]", "music", value) => {
-                    defaults.style.music = value.to_string();
+                    defaults.music = value.to_string();
                 }
                 ("[style]", "theme", value) => {
-                    defaults.style.theme_path = value.to_string();
+                    defaults.theme_path = value.to_string();
                 }
                 _ => (),
             }),

@@ -4,8 +4,9 @@ use micro_imgui_ds::{
 };
 use reboot_lib::Buttons;
 
-use crate::gui::{frontend::UiPage, special_thanks::SpecialThanks, AppData};
+use crate::gui::{AppData, frontend::{ UiPage}, special_thanks::SpecialThanks};
 
+#[derive(Clone)]
 pub struct MainMenu;
 
 impl UiPage for MainMenu {

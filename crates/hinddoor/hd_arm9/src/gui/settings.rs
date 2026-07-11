@@ -1,11 +1,12 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, string::String};
 use micro_imgui_ds::{
-    Input, micro_imgui::{Backend, InputEvent, widgets::checkbox::Checkbox},
+    Input, micro_imgui::{Backend, InputEvent, widgets::{button::Button, checkbox::Checkbox}},
 };
 use reboot_lib::Buttons;
 
-use crate::gui::{frontend::UiPage, MainMenu};
+use crate::gui::{AppData, MainMenu, browser::Browser, frontend::UiPage};
 
+#[derive(Clone)]
 pub struct Settings;
 
 impl UiPage for Settings {
@@ -14,6 +15,7 @@ impl UiPage for Settings {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<alloc::boxed::Box<dyn UiPage>> {
+        let mut result: Option<Box<dyn UiPage>> = None;
         if ui.input_pressed(Input::FOCUS_NEXT) || !ui.has_focus_anywhere() {
             ui.focus_next();
         } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
@@ -23,17 +25,44 @@ impl UiPage for Settings {
         ui.label("NOTE: These will reset on reboot, for permanent settings, use the config file.");
         ui.add_space(8);
         ui.add(Checkbox::new(
-            &mut data.config.options.patch_flag,
+            &mut data.config.patch_flag,
             "DSi Menu patching",
         ));
         ui.add(Checkbox::new(
-            &mut data.config.options.wifi_firmware_upload,
+            &mut data.config.wifi_firmware_upload,
             "WiFi Firmware upload",
         ));
-        if ui.button("go back").clicked() || ui.input_pressed(Input(Buttons::BUTTON_B)) {
-            Some(Box::new(MainMenu))
-        } else {
-            None
+
+        ui.add_space(4);
+        ui.label("Theme:");
+        if ui.button(&data.config.theme_path).clicked() {
+            let b = AppData::open_browser(Browser::look_for_file(&[crate::FileType::Ini], &|data, path| { data.config.theme_path = path; Some(Box::new(Self))}), Box::new(Self), String::from("sdmc:/"));
+            if let Some(b) = b {
+                result = Some(Box::new(b))
+            }
         }
+
+
+        ui.add_space(4);
+        ui.label("(Override) Music:");
+        if ui.button(&data.config.music).clicked() {
+            let b = AppData::open_browser(Browser::look_for_file(&[crate::FileType::Wav, crate::FileType::Mod], &|data, path| { data.config.music = path; Some(Box::new(Self))}), Box::new(Self), String::from("sdmc:/"));
+            if let Some(b) = b {
+                result = Some(Box::new(b))
+            }
+        }
+
+        ui.add_space(4);
+        ui.label("(Override) Wallpaper:");
+        if ui.button(&data.config.top_wallpaper).clicked() {
+            let b = AppData::open_browser(Browser::look_for_file(&[crate::FileType::Wav, crate::FileType::Mod], &|data, path| { data.config.top_wallpaper = path; Some(Box::new(Self))}), Box::new(Self), String::from("sdmc:/"));
+            if let Some(b) = b {
+                result = Some(Box::new(b))
+            }
+        }
+        if ui.button("go back").clicked() || ui.input_pressed(Input(Buttons::BUTTON_B)) {
+            result = Some(Box::new(MainMenu));
+        } 
+        result
     }
 }

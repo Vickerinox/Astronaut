@@ -45,7 +45,6 @@ use reboot_lib::{
 };
 
 use crate::boot::read_all;
-use crate::configuration::Pretties;
 use crate::fat::driver::SDMMCDriver;
 use crate::gui::AppData;
 
@@ -217,9 +216,16 @@ pub fn filetype(extension: &[u8]) -> FileType {
         .copied()
         .unwrap_or(FileType::None)
 }
+
+#[derive(Clone)]
+pub struct FileEntry {
+    pub file_name: String,
+    pub display_name: String,
+    pub kind: FileType,
+}
 pub fn populate_fs_vec(
     folder: &mut fatfs_embedded::fatfs::Directory,
-) -> Vec<(String, String, FileType)> {
+) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
         loop {
@@ -253,7 +259,7 @@ pub fn populate_fs_vec(
                     name.truncate(boundary);
                     name.push_str("...");
                 }
-                vec.push((name, fname, color))
+                vec.push(FileEntry { display_name: name, file_name: fname, kind: color})
             } else {
                 panic!("SD WAS EJECTED!");
             }
@@ -265,7 +271,7 @@ pub fn populate_fs_vec(
         let mut j = i;
         loop {
             let Some(under) = vec.get(j - 1) else { break };
-            if under.2 > temp.2 {
+            if under.kind > temp.kind {
                 let under = under.clone();
                 let Some(over) = vec.get_mut(j) else { break };
                 *over = under;
@@ -519,7 +525,7 @@ unsafe fn main() {
 
         micro_imgui_ds::micro_imgui::run(
             backend,
-            app_data.global_data.config.style.colors.clone(),
+            app_data.global_data.config.theme.colors.clone(),
             app_data,
             |mut f, app_data| {
                 app_data.update(&mut f);

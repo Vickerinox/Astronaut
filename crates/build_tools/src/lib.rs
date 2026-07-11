@@ -323,8 +323,8 @@ pub fn generate_font(bmp: &[u8]) -> Option<Vec<u8>> {
 }
 #[test]
 pub fn build_font() {
-    let input = generate_font(include_bytes!("/home/vik/Documents/MelonDS/emuSD/Deltarune Theme/font.bmp")).expect("A");
+    let input = generate_font(include_bytes!("/home/vik/Documents/MelonDS/emuSD/Light Theme/font.bmp")).expect("A");
     let mut a = vec![0u8; 2];
     a.extend_from_slice(&input);
-    std::fs::write("/home/vik/Documents/MelonDS/emuSD/Deltarune Theme/font.bin", a);
+    std::fs::write("/home/vik/Documents/MelonDS/emuSD/Light Theme/font.bin", a);
 }
