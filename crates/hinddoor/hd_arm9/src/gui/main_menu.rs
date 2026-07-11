@@ -22,7 +22,7 @@ impl UiPage for MainMenu {
         }
         //ui.vertical_centered(|ui| {
         ui.header("Welcome!");
-        ui.label("Made by Vikrinox, 2026");
+        ui.label("Astronaut made by Vikrinox, 2026");
         ui.header(" ");
         let mut res: Option<Box<dyn UiPage>> = None;
         if ui.button("Browse Files on SD").clicked() {
