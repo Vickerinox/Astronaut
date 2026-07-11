@@ -512,20 +512,16 @@ unsafe fn main() {
                 app_data.autoboot();
             }
         }
-        load_default_font();
-        app_data.global_data.config.load_theme();
-        let video_context = init_graphics();
-        if let Some(wallpaper) = app_data.load_wallpaper() {
-            show_wallpaper(wallpaper);
-        }
+        
+        let (color, video_context) = app_data.global_data.load_theme();
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context);
 
-        app_data.play_startup_music();
+        
         app_area.fader.target.write(0);
 
         micro_imgui_ds::micro_imgui::run(
             backend,
-            app_data.global_data.config.theme.colors.clone(),
+            color,
             app_data,
             |mut f, app_data| {
                 app_data.update(&mut f);

@@ -1,7 +1,7 @@
 pub use micro_imgui_ds::gui::DSMicroGuiBackend;
 
 mod backend;
-pub use frontend::{AppData, GlobalData, MusicPlaying};
+pub use frontend::{AppData, GlobalData, MusicPlaying, StreamingWav};
 mod browser;
 mod error;
 mod frontend;

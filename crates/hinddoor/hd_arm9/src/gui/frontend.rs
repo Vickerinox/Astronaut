@@ -376,41 +376,6 @@ impl AppData {
         //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
         crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
-    pub fn play_startup_music(&mut self) {
-        let Ok(file) =
-            fatfs_embedded::open(&mut self.global_data.config.music, FileOptions::Read)
-        else {
-            return;
-        };
-        stop_mod_file();
-        self.global_data.loading_mod_file = MusicPlaying::None;
-        let Some(extension) = get_extension(self.global_data.config.music.as_bytes()) else {
-            return;
-        };
-        let a = extension.to_ascii_uppercase();
-        match crate::filetype(&a) {
-            FileType::Mod => {
-                self.global_data.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(file))
-            }
-            FileType::Wav => {
-                if let Some(mut stream) = StreamingWav::new(file) {
-                    unsafe {
-                        stream.play();
-                    }
-                    self.global_data.loading_mod_file = MusicPlaying::Wav(stream)
-                }
-            }
-            _ => (),
-        };
-    }
-    pub fn load_wallpaper(&mut self) -> Option<crate::bmp::DecodedBMP> {
-        let file = fatfs_embedded::open(
-            &mut self.global_data.config.top_wallpaper,
-            FileOptions::Read,
-        )
-        .ok()?;
-        crate::bmp::DecodedBMP::from_reader(file)
-    }
     pub fn do_background_tasks(&mut self) {
         match &mut self.global_data.loading_mod_file {
             MusicPlaying::None => (),

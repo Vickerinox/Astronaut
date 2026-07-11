@@ -22,8 +22,9 @@ impl UiPage for Settings {
             ui.focus_prev();
         }
         ui.header("Settings");
-        ui.label("NOTE: These will reset on reboot, for permanent settings, use the config file.");
+        
         ui.add_space(8);
+        ui.label("Boot Options:");
         ui.add(Checkbox::new(
             &mut data.config.patch_flag,
             "DSi Menu patching",
@@ -35,7 +36,7 @@ impl UiPage for Settings {
 
         ui.add_space(4);
         ui.label("Theme:");
-        if ui.button(&data.config.theme_path).clicked() {
+        if ui.button(data.config.theme_path.is_empty().then_some("(none)").unwrap_or(&data.config.theme_path)).clicked() {
             let b = AppData::open_browser(Browser::look_for_file(&[crate::FileType::Ini], &|data, path| { data.config.theme_path = path; Some(Box::new(Self))}), Box::new(Self), String::from("sdmc:/"));
             if let Some(b) = b {
                 result = Some(Box::new(b))
@@ -44,8 +45,8 @@ impl UiPage for Settings {
 
 
         ui.add_space(4);
-        ui.label("(Override) Music:");
-        if ui.button(&data.config.music).clicked() {
+        ui.label("Override Music:");
+        if ui.button(data.config.music.is_empty().then_some("(none)").unwrap_or(&data.config.music)).clicked() {
             let b = AppData::open_browser(Browser::look_for_file(&[crate::FileType::Wav, crate::FileType::Mod], &|data, path| { data.config.music = path; Some(Box::new(Self))}), Box::new(Self), String::from("sdmc:/"));
             if let Some(b) = b {
                 result = Some(Box::new(b))
@@ -53,16 +54,23 @@ impl UiPage for Settings {
         }
 
         ui.add_space(4);
-        ui.label("(Override) Wallpaper:");
-        if ui.button(&data.config.top_wallpaper).clicked() {
+        ui.label("Override Wallpaper:");
+        if ui.button(data.config.top_wallpaper.is_empty().then_some("(none)").unwrap_or(&data.config.top_wallpaper)).clicked() {
             let b = AppData::open_browser(Browser::look_for_file(&[crate::FileType::Wav, crate::FileType::Mod], &|data, path| { data.config.top_wallpaper = path; Some(Box::new(Self))}), Box::new(Self), String::from("sdmc:/"));
             if let Some(b) = b {
                 result = Some(Box::new(b))
             }
         }
-        if ui.button("go back").clicked() || ui.input_pressed(Input(Buttons::BUTTON_B)) {
-            result = Some(Box::new(MainMenu));
-        } 
+        ui.add_space(ui.clip_rect().height()-14);
+        ui.horizontal(|ui| {
+            if ui.button("go back").clicked() {
+                result = Some(Box::new(MainMenu));
+            }
+            if ui.button("save").clicked() {
+                result = Some(Box::new(MainMenu));
+            }  
+        });
+        
         result
     }
 }
