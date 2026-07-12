@@ -406,7 +406,7 @@ unsafe fn wifi_card_write_memory(addr: u32, data: &mut [u8]) -> bool {
         return true;
     }
 
-    let (blocks, snipit_data) = data.split_at_mut(0);
+    let (blocks, snipit_data) = data.split_at_mut(data.len() & !0x7f);
     if !blocks.is_empty() {
         let mut buf: &mut [u32] = bytemuck::cast_slice_mut(blocks);
         PORT.buffer = buf;
@@ -419,8 +419,8 @@ unsafe fn wifi_card_write_memory(addr: u32, data: &mut [u8]) -> bool {
         }
     }
     
-    let len = (data.len() as u32 + 3) & !3;
-    let mut iter = data.iter();
+    let len = (snipit_data.len() as u32 + 3) & !3;
+    let mut iter = snipit_data.iter();
     
 
     for _ in 0..(len - 1) {
