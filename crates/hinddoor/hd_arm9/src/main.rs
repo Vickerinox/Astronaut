@@ -391,7 +391,7 @@ unsafe fn load_wifi_firmware() -> u32 {
     if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
         ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
             Ok(_) => 0,
-            Err(e) => e.get(),
+            Err(e) => panic!("error {} wifi", e.get()),
         };
     }
     alloc::alloc::dealloc(firmware_ptr, layout);
@@ -731,6 +731,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     use micro_imgui_ds::micro_imgui;
     use micro_imgui_ds::micro_imgui::Vec2;
     unsafe {
+        set_bright(0 | (1 << 14));
         core::arch::asm!("mov r11, r11");
         core::ptr::write_volatile(0x5000000 as *mut u16, 0b0111110100000000);
         core::ptr::write_volatile(0x5000400 as *mut u16, 0b0111110100000000);

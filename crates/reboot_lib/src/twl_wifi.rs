@@ -1,4 +1,4 @@
-use core::num::NonZeroU32;
+use core::{num::NonZeroU32, ptr::addr_of_mut};
 
 use volatile_register::RW;
 
@@ -232,13 +232,13 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
         return 10;
     }
     // Write these random words which i have no idea what they do
-    if wifi_card_write_memory(data_base + 0x18, &dest.to_le_bytes()) {
+    if wifi_card_write_memory(data_base + 0x18, &mut dest.to_le_bytes()) {
         return 11;
     }
-    if wifi_card_write_memory(data_base + 0x6C, &0x80u32.to_le_bytes()) {
+    if wifi_card_write_memory(data_base + 0x6C, &mut 0x80u32.to_le_bytes()) {
         return 11;
     }
-    if wifi_card_write_memory(data_base + 0x74, &0x63u32.to_le_bytes()) {
+    if wifi_card_write_memory(data_base + 0x74, &mut 0x63u32.to_le_bytes()) {
         return 11;
     }
     // Start the firmware
@@ -256,7 +256,7 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     0
 }
 
-fn find_firmware_for_card(version: u8, firmware: &[u8]) -> Option<&[u8]> {
+fn find_firmware_for_card(version: u8, firmware: &mut [u8]) -> Option<&mut [u8]> {
     let firmware_count = firmware.get(0xa2).copied()?;
     let firmware_index = (0..firmware_count as usize)
         .into_iter()
@@ -269,7 +269,7 @@ fn find_firmware_for_card(version: u8, firmware: &[u8]) -> Option<&[u8]> {
             .and_then(|i| i.first_chunk::<4>())?;
         u32::from_le_bytes(offset.clone()) as usize
     };
-    let firmware = firmware.get(offset..)?;
+    let firmware = firmware.get_mut(offset..)?;
     Some(firmware)
 }
 fn find_interest_addr(firmware: &[u8]) -> Option<NonZeroU32> {
@@ -297,7 +297,7 @@ enum FirmwarePart {
     PartC = 2,
     PartD = 3,
 }
-fn get_wifi_part<'a>(firmware: &'a [u8], part: FirmwarePart) -> Option<(&'a [u8], u32)> {
+fn get_wifi_part<'a>(firmware: &'a mut [u8], part: FirmwarePart) -> Option<(&'a mut [u8], u32)> {
     let parts = firmware.get(4 + (part as u8 as usize * 16)..)?;
     let (offset, rem) = parts.split_first_chunk::<4>()?;
     let offset = u32::from_le_bytes(offset.clone()) as usize;
@@ -306,22 +306,22 @@ fn get_wifi_part<'a>(firmware: &'a [u8], part: FirmwarePart) -> Option<(&'a [u8]
     let (flags, rem) = rem.split_first_chunk::<4>()?;
     let (destination, rem) = rem.split_first_chunk::<4>()?;
     let destination = u32::from_le_bytes(destination.clone());
-    firmware.get(offset..offset + len).map(|i| (i, destination))
+    firmware.get_mut(offset..offset + len).map(|i| (i, destination))
 }
-unsafe fn wifi_card_upload_binary(addr: u32, binary: &[u8]) -> bool {
+unsafe fn wifi_card_upload_binary(addr: u32, binary: &mut [u8]) -> bool {
     const CHUNK_SIZE: usize = 0x1F0;
-    for (i, chunk) in binary.chunks(CHUNK_SIZE).enumerate() {
+    for (i, chunk) in binary.chunks_mut(CHUNK_SIZE).enumerate() {
         if wifi_card_write_memory(addr + (i * CHUNK_SIZE) as u32, chunk) {
             return true;
         }
     }
     false
 }
-unsafe fn wifi_card_upload_binary_lz(addr: u32, binary: &[u8]) -> bool {
+unsafe fn wifi_card_upload_binary_lz(addr: u32, binary: &mut [u8]) -> bool {
     if wifi_card_start_lz(addr) {
         return true;
     }
-    for chunk in binary.chunks(0x1F8) {
+    for chunk in binary.chunks_mut(0x1F8) {
         if wifi_card_upload_lz(chunk) {
             return true;
         }
@@ -333,22 +333,42 @@ unsafe fn wifi_card_start_lz(addr: u32) -> bool {
     wifi_wait_count4();
     nwifi_write_mbox_u32(0xD, false) | nwifi_write_mbox_u32(addr, true)
 }
-unsafe fn wifi_card_upload_lz(data: &[u8]) -> bool {
+unsafe fn wifi_card_upload_lz(data: &mut [u8]) -> bool {
     if data.is_empty() {
         return false;
     }
-    let len = (data.len() as u32 + 3) & !3;
-    let mut iter = data.iter();
-
+    
+    
+    
+    let total_len = (data.len() as u32 + 3) & !3;
     wifi_wait_count4();
     if nwifi_write_mbox_u32(0xE, false) {
         return true;
     }
-    if nwifi_write_mbox_u32(len as u32, false) {
+    
+    if nwifi_write_mbox_u32(total_len as u32, false) {
         return true;
     }
 
-    for _ in 0..(len - 1) {
+    
+    let (blocks, snipit_data) = data.split_at_mut(data.len() & !0x7f);
+    if !blocks.is_empty() {
+        let mut buf: &mut [u32] = bytemuck::cast_slice_mut(blocks);
+        PORT.buffer = buf;
+        
+        let addr = 0x1000-total_len as u32;
+        let res = SDIO_CONTROLLER.send_command(&mut PORT, crate::mmc::Command::SDIORegWBlock, ((1<<31) | (1 << 28) | (1 << 27) | (1 << 26) |
+                ((addr & 0x1FFFF) << 9) | ((buf.len() / 0x20) as u32)));
+        if !res.successful() {
+            return true;
+        }
+        
+    }
+
+    let snipit_len = (snipit_data.len() as u32 + 3) & !3;
+    let mut iter = snipit_data.iter();
+
+    for _ in 0..(snipit_len - 1) {
         let byte = iter.next().copied().unwrap_or(0);
         if sdio_write_func_byte(SDIOFunc::One, 0, byte) {
             return true;
@@ -369,12 +389,12 @@ unsafe fn wifi_wait_count4() {
         crate::swi::swi_delay(0x100);
     }
 }
-unsafe fn wifi_card_write_memory(addr: u32, data: &[u8]) -> bool {
+unsafe fn wifi_card_write_memory(addr: u32, data: &mut [u8]) -> bool {
     if data.is_empty() {
         return false;
     }
-    let len = (data.len() as u32 + 3) & !3;
-    let mut iter = data.iter();
+
+    let total_len = (data.len() as u32 + 3) & !3;
     wifi_wait_count4();
     if nwifi_write_mbox_u32(3, false) {
         return true;
@@ -382,9 +402,26 @@ unsafe fn wifi_card_write_memory(addr: u32, data: &[u8]) -> bool {
     if nwifi_write_mbox_u32(addr, false) {
         return true;
     }
-    if nwifi_write_mbox_u32(len, false) {
+    if nwifi_write_mbox_u32(total_len, false) {
         return true;
     }
+
+    let (blocks, snipit_data) = data.split_at_mut(0);
+    if !blocks.is_empty() {
+        let mut buf: &mut [u32] = bytemuck::cast_slice_mut(blocks);
+        PORT.buffer = buf;
+        
+        let addr = 0x1000-total_len as u32;
+        let res = SDIO_CONTROLLER.send_command(&mut PORT, crate::mmc::Command::SDIORegWBlock, ((1<<31) | (1 << 28) | (1 << 27) | (1 << 26) |
+                ((addr & 0x1FFFF) << 9) | ((buf.len() / 0x20) as u32)));
+        if !res.successful() {
+            return true;
+        }
+    }
+    
+    let len = (data.len() as u32 + 3) & !3;
+    let mut iter = data.iter();
+    
 
     for _ in 0..(len - 1) {
         let byte = iter.next().copied().unwrap_or(0);

@@ -3,7 +3,7 @@ use core::{
     ops::{BitAndAssign, BitOrAssign, Not},
 };
 
-use crate::{swi_delay, MemoryWrapper};
+use crate::{MemoryWrapper, StorageSector, swi_delay};
 use volatile_register::*;
 
 pub mod driver;
@@ -258,8 +258,8 @@ impl MMC {
         argument: u32,
     ) -> Status {
         self.status.write(Status::empty());
-        self.block_count.write(port.buffer.len() as u16);
-        self.block_count_32.write(port.buffer.len() as u16);
+        self.block_count.write(((port.buffer.len() * 4 )/ port.block_len as usize) as u16);
+        self.block_count_32.write(((port.buffer.len() * 4 )/ port.block_len as usize) as u16);
         let mut timeout = 0;
 
         self.param.write(argument);
@@ -277,10 +277,7 @@ impl MMC {
         self.tmio_get_response(port, command as u16);
 
         if command.transmits_data() {
-            let Some(buf) = port.buffer.as_mut() else {
-                return Status::from_bits_retain(0xB4B4B4B4);
-            };
-            let mut sector_iter = buf.iter_mut();
+            let mut sector_iter = (&mut *port.buffer).chunks_exact_mut(port.block_len as usize /4);
             let Some(mut current_sector) = sector_iter.next() else {
                 return Status::from_bits_retain(0x4B4B4B4B);
             };
@@ -298,10 +295,7 @@ impl MMC {
                         .contains(DataControl32::RX_READY)
                     {
                         timeout = 0;
-                        for word in current_sector
-                            .0
-                            .iter_mut()
-                            .take((port.block_len / 4) as usize)
+                        for word in current_sector.iter_mut()
                         {
                             (word as *mut u32).write_volatile(self.data_fifo_32.read());
                         }
@@ -321,7 +315,7 @@ impl MMC {
                     }
                     if !self.data_control_32.read().contains(DataControl32::TX_BUSY) {
                         timeout = 0;
-                        for word in current_sector.0.iter_mut() {
+                        for word in current_sector.iter_mut() {
                             self.data_fifo_32.write(*word);
                         }
                         let Some(next_sector) = sector_iter.next() else {
@@ -409,6 +403,7 @@ pub enum Command {
     Test = 3,
     SDIOOpCond = r3(5),
     SDIORegRW = r1(52),
+    SDIORegWBlock = r1(53) | CMD_DATA_EN | CMD_DATA_MULTI | CMD_DATA_W | 0x4000,
     //basic commands (class 0)
     GoIdleState = none(0),
     AllSendCID = r2(2),
@@ -509,7 +504,7 @@ pub struct TMIOPort {
     pub clock: ClockCnt,
     pub block_len: u16,
     pub option: u16,
-    pub buffer: *mut [crate::StorageSector],
+    pub buffer: *mut [u32],
     pub response: [u32; 4],
 }
 impl TMIOPort {
