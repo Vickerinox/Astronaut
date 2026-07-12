@@ -361,7 +361,7 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
     video_context
 }
 
-unsafe fn find_wifi_firmware() -> Option<String> {
+unsafe fn find_wifi_firmware_path() -> Option<String> {
     const CONTENT_FOLDER: &str = "nand:/title/0003000F/484E4341/content/";
     let app_version = {
         let mut firmware_tmd = fatfs_embedded::open(
@@ -376,22 +376,22 @@ unsafe fn find_wifi_firmware() -> Option<String> {
     };
     Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
 }
-fn find_firmware(firmware: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
-    let firmware_count = firmware.get(0x2).copied()?;
+fn find_firmware_for_card(header: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
+    let firmware_count = header.get(0x2).copied()?;
     let firmware_index = (0..firmware_count as usize)
         .into_iter()
-        .filter(|i| firmware.get(0x4 + 8 + (*i * 32)).copied() == Some(version))
+        .filter(|i| header.get(0x4 + 8 + (*i * 32)).copied() == Some(version))
         .next()?;
     let offset = {
         let firmware_offset = 0x4 + (firmware_index * 32);
-        let offset = firmware
+        let offset = header
             .get(firmware_offset..)
             .and_then(|i| i.first_chunk::<4>())?;
         u32::from_le_bytes(offset.clone())
     };
     let size = {
         let firmware_offset = 0x4 + 4 + (firmware_index * 32);
-        let offset = firmware
+        let offset = header
             .get(firmware_offset..)
             .and_then(|i| i.first_chunk::<4>())?;
         u32::from_le_bytes(offset.clone())
@@ -400,12 +400,12 @@ fn find_firmware(firmware: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
 }
 unsafe fn get_wifi_firmware(wifi_ver: u8) -> Option<(fatfs_embedded::fatfs::File, alloc::alloc::Layout)> {
 
-    let mut firmware_path = find_wifi_firmware()?;
+    let mut firmware_path = find_wifi_firmware_path()?;
     let mut firmware = fatfs_embedded::open(&mut firmware_path, FileOptions::Read).ok()?;
     fatfs_embedded::seek(&mut firmware, 0xA0).ok()?;
     let mut header = [0u8; 0x60];
     read_all(&mut header, &mut firmware).ok()?;
-    let (offset, size) = find_firmware(&header, wifi_ver)?;
+    let (offset, size) = find_firmware_for_card(&header, wifi_ver)?;
     
     fatfs_embedded::seek(&mut firmware, offset).ok()?;
 
