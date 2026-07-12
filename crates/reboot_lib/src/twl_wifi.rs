@@ -189,10 +189,7 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     if nwifi_init_func1() {
         return 3;
     }
-    //find an appropriate firmware for this card
-    let Some(firmware) = find_firmware_for_card(wifi_version, firmware) else {
-        return 4;
-    };
+    
     //find out what the base address of the data segment for this card is
     let Some(interest_area) = find_interest_addr(firmware) else {
         return 5;

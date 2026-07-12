@@ -235,9 +235,9 @@ pub fn main_arm7() {
             settings_offset
         } else {
             settings_offset + 0x100
-        };
-
+        };    
         let boot_info = &mut (*BOOTINFO_MEM).ntr;
+        boot_info.wifi_other[0] = wifi_ver;
         let user = &mut boot_info.firmware_data;
         let mac = &mut boot_info.mac_address;
         SPI_HARDWARE.read_firmware(&mut user.bytes, offset);

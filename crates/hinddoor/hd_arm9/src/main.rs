@@ -376,24 +376,56 @@ unsafe fn find_wifi_firmware() -> Option<String> {
     };
     Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
 }
-unsafe fn load_wifi_firmware() -> u32 {
+fn find_firmware(firmware: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
+    let firmware_count = firmware.get(0x2).copied()?;
+    let firmware_index = (0..firmware_count as usize)
+        .into_iter()
+        .filter(|i| firmware.get(0x4 + 8 + (*i * 32)).copied() == Some(version))
+        .next()?;
+    let offset = {
+        let firmware_offset = 0x4 + (firmware_index * 32);
+        let offset = firmware
+            .get(firmware_offset..)
+            .and_then(|i| i.first_chunk::<4>())?;
+        u32::from_le_bytes(offset.clone())
+    };
+    let size = {
+        let firmware_offset = 0x4 + 4 + (firmware_index * 32);
+        let offset = firmware
+            .get(firmware_offset..)
+            .and_then(|i| i.first_chunk::<4>())?;
+        u32::from_le_bytes(offset.clone())
+    };
+    Some((offset, size))
+}
+unsafe fn get_wifi_firmware(wifi_ver: u8) -> Option<(fatfs_embedded::fatfs::File, alloc::alloc::Layout)> {
+
+    let mut firmware_path = find_wifi_firmware()?;
+    let mut firmware = fatfs_embedded::open(&mut firmware_path, FileOptions::Read).ok()?;
+    fatfs_embedded::seek(&mut firmware, 0xA0).ok()?;
+    let mut header = [0u8; 0x60];
+    read_all(&mut header, &mut firmware).ok()?;
+    let (offset, size) = find_firmware(&header, wifi_ver)?;
+    
+    fatfs_embedded::seek(&mut firmware, offset).ok()?;
+
+    let layout = core::alloc::Layout::from_size_align(size as usize, 4).ok()?;
+    Some((firmware, layout))
+}
+unsafe fn load_wifi_firmware(wifi_ver: u8) -> u32 {
     let mut ret = 0xDEADBEEF;
-    let Some(mut firmware_path) = find_wifi_firmware() else {
-        return ret;
-    };
-    let Ok(mut firmware) = fatfs_embedded::open(&mut firmware_path, FileOptions::Read) else {
-        return ret;
-    };
-    let size = fatfs_embedded::size(&mut firmware);
-    let layout = core::alloc::Layout::from_size_align_unchecked(size as usize, 4);
+    let Some((mut firmware, layout)) = get_wifi_firmware(wifi_ver) else {return ret};
     let firmware_ptr = alloc::alloc::alloc(layout);
-    let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, size as usize);
+    let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, layout.size());
+    
+
     if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
         ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
             Ok(_) => 0,
-            Err(e) => panic!("error {} wifi", e.get()),
+            Err(e) => e.get(),
         };
     }
+    
     alloc::alloc::dealloc(firmware_ptr, layout);
     ret
 }

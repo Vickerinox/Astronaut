@@ -497,7 +497,7 @@ pub struct BootInfoNTR {
     pub firmware_data: FirmwareData,
     pub mac_address: [u8; 6],
     pub wifi_channels: [u8; 2],
-    _0x4fc: [u8; 4],
+    pub wifi_other: [u8; 4],
     _0x500: [u8; 0x68],
     pub hardware_info: [u8; 0x18],
     _0x580: [u8; 0xC],
