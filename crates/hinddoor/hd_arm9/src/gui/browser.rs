@@ -9,18 +9,27 @@ use micro_imgui_ds::{
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
 use crate::{
-    BACKGROUND_COLOR, COLOR_BOOTABLE, COLOR_MUSIC, FileEntry, FileType, get_extension, gui::{
-        AppData, GlobalData, MusicPlaying, frontend::{AppBooter, ClonableUiPage, StreamingWav, UiPage, pop_dir_entry}, main_menu::MainMenu,
-    }, populate_fs_vec, stop_mod_file,
+    get_extension,
+    gui::{
+        frontend::{pop_dir_entry, AppBooter, ClonableUiPage, StreamingWav, UiPage},
+        main_menu::MainMenu,
+        AppData, GlobalData, MusicPlaying,
+    },
+    populate_fs_vec, stop_mod_file, FileEntry, FileType, BACKGROUND_COLOR, COLOR_BOOTABLE,
+    COLOR_MUSIC,
 };
 impl Browser {
     pub fn open_sd() -> Option<Browser> {
-        Self::open_browser(Box::new(Browser::standard_goal), Box::new(MainMenu), String::from("sdmc:/"))
+        Self::open_browser(Mode::Browsing, Box::new(MainMenu), String::from("sdmc:/"))
     }
     pub fn open_nand() -> Option<Browser> {
-        Self::open_browser(Box::new(Browser::standard_goal), Box::new(MainMenu), String::from("nand:/"))
+        Self::open_browser(Mode::Browsing, Box::new(MainMenu), String::from("nand:/"))
     }
-    pub fn open_browser(goal: Box<dyn BrowserGoal>, exit: Box<dyn ClonableUiPage>, mut open_path: String) -> Option<Browser> {
+    pub fn open_browser(
+        mode: Mode,
+        exit: Box<dyn ClonableUiPage>,
+        mut open_path: String,
+    ) -> Option<Browser> {
         fatfs_embedded::opendir(&mut open_path).ok().map(|mut i| {
             let immediate_files = populate_fs_vec(&mut i);
             Browser {
@@ -29,8 +38,8 @@ impl Browser {
                 offset: 0,
                 drag_start: 0,
                 hold_timer: 0,
-                goal,
-                exit
+                mode,
+                exit,
             }
         })
     }
@@ -41,33 +50,51 @@ pub struct Browser {
     offset: i32,
     drag_start: i16,
     hold_timer: i16,
-    goal: Box<dyn BrowserGoal>,
+    mode: Mode,
     exit: Box<dyn ClonableUiPage>,
 }
-pub trait BrowserGoal: Fn(&Browser, &FileEntry, &mut GlobalData) -> Option<Box<dyn UiPage>> {
+#[derive(Clone)]
+pub enum Mode {
+    Browsing,
+    Searching(BrowserSearch),
+}
+pub struct BrowserSearch {
+    pub filter: &'static [FileType],
+    pub goal: Box<dyn BrowserGoal>,
+}
+impl Clone for BrowserSearch {
+    fn clone(&self) -> Self {
+        Self {
+            filter: self.filter.clone(),
+            goal: self.goal.clone_goal(),
+        }
+    }
+}
+pub trait BrowserGoal: Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>> {
     fn clone_goal(&self) -> Box<dyn BrowserGoal>;
-} 
-impl<T:Fn(&Browser, &FileEntry, &mut GlobalData) -> Option<Box<dyn UiPage>> + Clone + 'static> BrowserGoal for T {
+}
+impl<T: Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>> + Clone + 'static> BrowserGoal
+    for T
+{
     fn clone_goal(&self) -> Box<dyn BrowserGoal> {
         Box::new(self.clone())
     }
 }
 impl Browser {
-    pub fn search_file<T: Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>> + Clone + 'static>(format: &'static [FileType], start: String, exit: Box<dyn ClonableUiPage>, transform: T, ) -> Option<Browser> {
-        Browser::open_browser(Browser::look_for_file(format, transform), exit, start)
-     
-    }
-    pub fn look_for_file<T: Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>> + Clone + 'static>(format: &'static [FileType], transform: T) -> Box<dyn BrowserGoal> {
-        let a = move |browser: &Browser, entry: &FileEntry, data: &mut GlobalData| {
-            if format.contains(&entry.kind) {
-                transform(data, browser.current_path.clone() + &entry.file_name)
-            } else if entry.kind == FileType::Dir {
-                browser.open_new(&entry.file_name)
-            } else {
-                None
-            }
-        };
-        Box::new(a)
+    pub fn search_file(
+        format: &'static [FileType],
+        start: String,
+        exit: Box<dyn ClonableUiPage>,
+        transform: Box<dyn BrowserGoal>,
+    ) -> Option<Browser> {
+        Browser::open_browser(
+            Mode::Searching(BrowserSearch {
+                filter: format,
+                goal: transform,
+            }),
+            exit,
+            start,
+        )
     }
     fn open_new(&self, file_name: &str) -> Option<Box<dyn UiPage>> {
         let mut new_folder = self.current_path.clone() + file_name + "/";
@@ -78,52 +105,51 @@ impl Browser {
                 offset: 0,
                 drag_start: 0,
                 hold_timer: 0,
-                goal: self.goal.clone_goal(),
                 exit: self.exit.clone_ui(),
+                mode: self.mode.clone(),
             }))
         } else {
             None
         }
     }
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
-        let FileEntry { file_name, kind, .. } = file;
+        let FileEntry {
+            file_name, kind, ..
+        } = file;
         match *kind {
-                    FileType::Dir => {
-                        self.open_new(file_name)
+            FileType::Dir => self.open_new(file_name),
+            FileType::Rom => {
+                let path = self.current_path.clone() + file_name;
+                Some(Box::new(AppBooter { path }))
+            }
+            FileType::Mod => {
+                let mut path = self.current_path.clone() + file_name;
+                match fatfs_embedded::open(&mut path, FileOptions::Read) {
+                    Ok(module) => {
+                        data.loading_mod_file = MusicPlaying::None;
+                        data.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(module));
                     }
-                    FileType::Rom => {
-                        let path = self.current_path.clone() + file_name;
-                        Some(Box::new(AppBooter { path }))
-                    }
-                    FileType::Mod => {
-                        let mut path = self.current_path.clone() + file_name;
-                        match fatfs_embedded::open(&mut path, FileOptions::Read) {
-                            Ok(module) => {
-                                data.loading_mod_file = MusicPlaying::None;
-                                data.loading_mod_file =
-                                    MusicPlaying::Mod(MODAsyncLoader::new(module));
-                            }
-                            Err(_abort) => (),
-                        }
-                        None
-                    }
-                    FileType::Wav => {
-                        let _ = stop_mod_file();
-                        let mut path = self.current_path.clone() + file_name;
-                        match fatfs_embedded::open(&mut path, FileOptions::Read) {
-                            Ok(module) => {
-                                if let Some(mut wav) = StreamingWav::new(module) {
-                                    data.loading_mod_file = MusicPlaying::None;
-                                    unsafe { wav.play() };
-                                    data.loading_mod_file = MusicPlaying::Wav(wav);
-                                }
-                            }
-                            Err(_abort) => (),
-                        }
-                        None
-                    }
-                    _ => None,
+                    Err(_abort) => (),
                 }
+                None
+            }
+            FileType::Wav => {
+                let _ = stop_mod_file();
+                let mut path = self.current_path.clone() + file_name;
+                match fatfs_embedded::open(&mut path, FileOptions::Read) {
+                    Ok(module) => {
+                        if let Some(mut wav) = StreamingWav::new(module) {
+                            data.loading_mod_file = MusicPlaying::None;
+                            unsafe { wav.play() };
+                            data.loading_mod_file = MusicPlaying::Wav(wav);
+                        }
+                    }
+                    Err(_abort) => (),
+                }
+                None
+            }
+            _ => None,
+        }
     }
 }
 impl UiPage for Browser {
@@ -132,8 +158,6 @@ impl UiPage for Browser {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        
-
         const ITEM_SPACING: i32 = 14;
 
         let max_scroll = ((self.immediate_files.len()) as i32 * ITEM_SPACING) - (ITEM_SPACING * 11);
@@ -154,7 +178,8 @@ impl UiPage for Browser {
             focus_on = Some(0);
         }
 
-        let shown_items = self.immediate_files
+        let shown_items = self
+            .immediate_files
             .get(((self.offset / ITEM_SPACING) as usize)..)
             .unwrap_or(&[]);
 
@@ -197,7 +222,11 @@ impl UiPage for Browser {
                 FileType::Ini => data.config.theme.asset_color,
                 FileType::Dir => data.config.theme.folder_color,
             };
-            let response = ui.add(Button::new(&item.display_name, Sizing::Padded(Vec2::new(248, 8)), color));
+            let response = ui.add(Button::new(
+                &item.display_name,
+                Sizing::Padded(Vec2::new(248, 8)),
+                color,
+            ));
             if response.focused() {
                 focus = Some(i);
             }
@@ -206,8 +235,17 @@ impl UiPage for Browser {
                 ui.request_repaint();
             }
             if response.clicked() {
-                if let Some(new_stuff) = (self.goal)(&self, item, data) {
-                    new_state = Some(new_stuff);
+                match &self.mode {
+                    Mode::Browsing => new_state = self.standard_goal(&item, data),
+                    Mode::Searching(BrowserSearch { filter, goal }) => {
+                        new_state = if filter.contains(&item.kind) {
+                            goal(data, self.current_path.clone() + &item.file_name)
+                        } else if item.kind == FileType::Dir {
+                            self.open_new(&item.file_name.clone())
+                        } else {
+                            None
+                        }
+                    }
                 }
             }
         }
@@ -226,18 +264,17 @@ impl UiPage for Browser {
             outline_size: 0,
         });
 
-
         if focus == focus_on {
             if focus_on == Some(0) {
                 self.offset = (self.offset).sub(ITEM_SPACING * 10).max(0);
-                
             }
             if focus_on == Some(10) {
                 self.offset = (self.offset).add(ITEM_SPACING * 10).min(max_scroll).max(0);
             }
             self.offset -= in_step;
         }
-        if (self.hold_timer.abs() > 30 && (self.hold_timer & 1 == 0)) || self.hold_timer.abs() == 1 {
+        if (self.hold_timer.abs() > 30 && (self.hold_timer & 1 == 0)) || self.hold_timer.abs() == 1
+        {
             if self.hold_timer.is_negative() {
                 if focus == Some(10) {
                     if shown_items.len() >= 12 {
@@ -247,9 +284,8 @@ impl UiPage for Browser {
                     ui.focus_next();
                 }
                 self.offset -= in_step;
-            
             } else {
-                if focus == Some(0)  {
+                if focus == Some(0) {
                     if self.offset > 0 {
                         self.offset = self.offset.wrapping_sub(ITEM_SPACING).max(0);
                     }
@@ -269,8 +305,9 @@ impl UiPage for Browser {
                         new_folder = Some(f);
                     }
                     Err(_err) => {
-                        new_state = Some(Box::new(super::error::Error::new( format!("Filesystem error!"),
-                        )));
+                        new_state = Some(Box::new(super::error::Error::new(format!(
+                            "Filesystem error!"
+                        ))));
                     }
                 }
             }

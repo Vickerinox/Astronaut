@@ -223,9 +223,7 @@ pub struct FileEntry {
     pub display_name: String,
     pub kind: FileType,
 }
-pub fn populate_fs_vec(
-    folder: &mut fatfs_embedded::fatfs::Directory,
-) -> Vec<FileEntry> {
+pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
         loop {
@@ -259,7 +257,11 @@ pub fn populate_fs_vec(
                     name.truncate(boundary);
                     name.push_str("...");
                 }
-                vec.push(FileEntry { display_name: name, file_name: fname, kind: color})
+                vec.push(FileEntry {
+                    display_name: name,
+                    file_name: fname,
+                    kind: color,
+                })
             } else {
                 panic!("SD WAS EJECTED!");
             }
@@ -348,9 +350,9 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
         .write(DisplayControl::BG_MODE_5);
 
     //copy font to vram
-    
+
     init_font();
-    
+
     let mut video_context = reboot_lib::VideoHardwareHandle::new();
     init_3d_hardware(&mut video_context);
     video_context.next_frame();
@@ -512,11 +514,10 @@ unsafe fn main() {
                 app_data.autoboot();
             }
         }
-        
+
         let (color, video_context) = app_data.global_data.load_theme();
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
 
-        
         app_area.fader.target.write(0);
 
         micro_imgui_ds::micro_imgui::run(

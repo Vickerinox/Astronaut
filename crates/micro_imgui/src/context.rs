@@ -273,7 +273,7 @@ impl<B: Backend> Ctx<B> {
         if self.backend.input_pressed(B::InputQuery::POINTER_DOWN) {
             self.touchdown_pos = TouchDown::Touch(self.backend.last_known_pointer_location());
         }
-        let focus_dir = 0; 
+        let focus_dir = 0;
         Frame {
             ctx: self,
             pressed_response: None,

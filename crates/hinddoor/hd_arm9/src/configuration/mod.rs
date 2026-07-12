@@ -1,11 +1,19 @@
 use alloc::{
-    format, string::{String, ToString}, vec::Vec,
+    format,
+    string::{String, ToString},
+    vec::Vec,
 };
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui::{Color, ColorSet, Style};
-use reboot_lib::{Buttons, VIDEO_HARDWARE, VideoHardwareHandle, music_modules::mods::MODAsyncLoader};
+use reboot_lib::{
+    music_modules::mods::MODAsyncLoader, Buttons, VideoHardwareHandle, VIDEO_HARDWARE,
+};
 
-use crate::{FileType, get_extension, gui::{GlobalData, MusicPlaying, StreamingWav, pop_dir_entry}, transfer_font_to_vram};
+use crate::{
+    get_extension,
+    gui::{pop_dir_entry, GlobalData, MusicPlaying, StreamingWav},
+    transfer_font_to_vram, FileType,
+};
 
 pub struct BootCombo {
     pub buttons: Buttons,
@@ -17,12 +25,19 @@ pub struct BootCombos {
     pub additionals: Vec<BootCombo>,
 }
 impl BootCombos {
-    pub const fn default() -> Self { Self{
-        default: String::new(),
-        additionals: Vec::new(),}
+    pub const fn default() -> Self {
+        Self {
+            default: String::new(),
+            additionals: Vec::new(),
+        }
     }
     pub fn add(&mut self, combo: BootCombo) {
-        if let Some(existing_entry) = self.additionals.iter_mut().filter(|i| i.buttons == combo.buttons).next() {
+        if let Some(existing_entry) = self
+            .additionals
+            .iter_mut()
+            .filter(|i| i.buttons == combo.buttons)
+            .next()
+        {
             existing_entry.path = combo.path;
         } else {
             self.additionals.push(combo);
@@ -84,11 +99,9 @@ impl Config {
     }
 }
 pub struct Theme {
-    pub colors: micro_imgui_ds::micro_imgui::Style,
     pub folder_color: Color,
     pub bootable_color: Color,
     pub asset_color: Color,
-
 }
 fn read_whole_file_to_string(path: &mut String) -> Option<String> {
     String::from_utf8(read_whole_file(path)?).ok()
@@ -112,14 +125,13 @@ impl Config {
             theme_path: String::new(),
             boot_combos: BootCombos::default(),
             theme: Theme {
-                colors: Style::DEFAULT,
                 folder_color: Color::new(200, 100, 100),
                 bootable_color: Color::new(100, 200, 100),
                 asset_color: Color::new(100, 100, 200),
             },
         }
     }
-    
+
     pub fn load(held_buttons: Buttons) -> Self {
         let mut defaults = Self::default();
         let Some(str) =
@@ -135,16 +147,24 @@ impl Config {
                         defaults.autoboot = value.to_string();
                         defaults.boot_combos.default = value.to_string();
                     } else {
-                    let Some((code, remainder)) = key.split_at_checked(1) else { return; };
-                    if code != "h" { return };
-                    let Ok(combo) = u16::from_str_radix(remainder, 16) else { return; };
-                    let combo = Buttons::from_bits_truncate(combo);
+                        let Some((code, remainder)) = key.split_at_checked(1) else {
+                            return;
+                        };
+                        if code != "h" {
+                            return;
+                        };
+                        let Ok(combo) = u16::from_str_radix(remainder, 16) else {
+                            return;
+                        };
+                        let combo = Buttons::from_bits_truncate(combo);
 
-                    defaults.boot_combos.add(BootCombo { buttons: combo, path: value.to_string() });    
-                    if held_buttons == combo {
-                        defaults.autoboot = value.to_string();
-                    }
-                    
+                        defaults.boot_combos.add(BootCombo {
+                            buttons: combo,
+                            path: value.to_string(),
+                        });
+                        if held_buttons == combo {
+                            defaults.autoboot = value.to_string();
+                        }
                     }
                 }
                 ("[options]", "wifi_firm_upload", "on") => {
@@ -174,54 +194,49 @@ impl Config {
         defaults
     }
 }
+fn read_ini(path: &mut String) -> Option<String> {
+    [".ini", ".INI"].into_iter().find(|i| path.ends_with(i))?;
+    read_whole_file_to_string(path)
+}
 impl GlobalData {
-    unsafe fn load_theme_inner(theme_path: &mut String, music_path: &mut String, wallpaper_path: &mut String, theme: &mut Theme) {
-
-        if [".ini", ".INI"]
-            .into_iter()
-            .find(|i| theme_path.ends_with(i))
-            .is_none()
-        {
-            return;
-        }
-        let Some(theme_string) = read_whole_file_to_string(theme_path) else {
-            return;
+    unsafe fn load_theme_inner(
+        theme_path: &mut String,
+        music_path: &mut String,
+        wallpaper_path: &mut String,
+        theme: &mut Theme,
+    ) -> Style {
+        let mut style = Style::DEFAULT;
+        let Some(theme_string) = read_ini(theme_path) else {
+            crate::load_default_font();
+            return style;
         };
         let mut font = String::new();
         let mut base_dir = theme_path.clone();
-        pop_dir_entry(&mut base_dir); // go from the ini path to it's directory, base dir for free!
+        pop_dir_entry(&mut base_dir);
         ini::Ini::new(
             &theme_string,
             Some(&mut |segment, key, value| match (segment, key) {
-                ("[assets]", "music") => {
-                    handle_path(&base_dir, music_path, value)
-                }
-                ("[assets]", "wallpaper") => handle_path(
-                    &base_dir,
-                    wallpaper_path,
-                    value,
-                ),
+                ("[assets]", "music") => handle_path(&base_dir, music_path, value),
+                ("[assets]", "wallpaper") => handle_path(&base_dir, wallpaper_path, value),
                 ("[assets]", "font") => handle_path(&base_dir, &mut font, value),
-                ("[colors]", "background") => {
-                    parse_color(value, &mut theme.colors.background_color)
-                }
-                ("[colors]", "text") => parse_color(value, &mut theme.colors.text_color),
+                ("[colors]", "background") => parse_color(value, &mut style.background_color),
+                ("[colors]", "text") => parse_color(value, &mut style.text_color),
                 ("[colors]", "assets") => parse_color(value, &mut theme.asset_color),
                 ("[colors]", "roms") => parse_color(value, &mut theme.bootable_color),
                 ("[colors]", "folders") => parse_color(value, &mut theme.folder_color),
-                ("[widgets]", key) => handlecolorset(&mut theme.colors.default, key, value),
-                ("[widgets.active]", key) => handlecolorset(&mut theme.colors.focused, key, value),
-                ("[widgets.pressed]", key) => {
-                    handlecolorset(&mut theme.colors.pressed, key, value)
-                }
+                ("[widgets]", key) => handlecolorset(&mut style.default, key, value),
+                ("[widgets.active]", key) => handlecolorset(&mut style.focused, key, value),
+                ("[widgets.pressed]", key) => handlecolorset(&mut style.pressed, key, value),
                 _ => (),
             }),
         );
         let Some(font) = read_whole_file(&mut font) else {
-            return;
+            crate::load_default_font();
+            return style;
         };
         let Some(([a, b], rem)) = font.split_first_chunk() else {
-            return;
+            crate::load_default_font();
+            return style;
         };
         if a & b == 0 {
             for i in 0..rem.len() {
@@ -229,49 +244,53 @@ impl GlobalData {
                     (0x2ff_1000 as *mut u8).add(i).write(rem[i]);
                 }
             }
-        } 
-        
+        }
+        style
     }
 
     fn play_startup_music(path: &mut String) -> MusicPlaying {
-        let Ok(file) =
-            fatfs_embedded::open(path, FileOptions::Read) else { return MusicPlaying::None };
-        let Some(extension) = get_extension(path.as_bytes()) else { return MusicPlaying::None };
+        let Ok(file) = fatfs_embedded::open(path, FileOptions::Read) else {
+            return MusicPlaying::None;
+        };
+        let Some(extension) = get_extension(path.as_bytes()) else {
+            return MusicPlaying::None;
+        };
         let a = extension.to_ascii_uppercase();
         match crate::filetype(&a) {
-            FileType::Mod => {
-                MusicPlaying::Mod(MODAsyncLoader::new(file))
-            }
+            FileType::Mod => MusicPlaying::Mod(MODAsyncLoader::new(file)),
             FileType::Wav => {
                 if let Some(mut stream) = StreamingWav::new(file) {
-                     unsafe {
+                    unsafe {
                         stream.play();
                     }
                     MusicPlaying::Wav(stream)
-                } else { MusicPlaying::None }
+                } else {
+                    MusicPlaying::None
+                }
             }
-            _ => MusicPlaying::None
+            _ => MusicPlaying::None,
         }
     }
     fn load_wallpaper(path: &mut String) -> Option<crate::bmp::DecodedBMP> {
-        let file = fatfs_embedded::open(
-            path,
-            FileOptions::Read,
-        )
-        .ok()?;
+        let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
         crate::bmp::DecodedBMP::from_reader(file)
     }
     pub unsafe fn load_theme(&mut self) -> (Style, VideoHardwareHandle) {
         let mut music = self.config.music.clone();
         let mut wallpaper = self.config.top_wallpaper.clone();
-        crate::load_default_font();
-        Self::load_theme_inner(&mut self.config.theme_path, &mut music, &mut wallpaper, &mut self.config.theme);
+
+        let colors = Self::load_theme_inner(
+            &mut self.config.theme_path,
+            &mut music,
+            &mut wallpaper,
+            &mut self.config.theme,
+        );
         let video_context = crate::init_graphics();
         if let Some(wallpaper) = Self::load_wallpaper(&mut wallpaper) {
             crate::show_wallpaper(wallpaper);
         }
         self.loading_mod_file = Self::play_startup_music(&mut music);
-        (self.config.theme.colors.clone(), video_context)
+        (colors, video_context)
     }
 }
 fn handlecolorset(set: &mut ColorSet, key: &str, value: &str) {

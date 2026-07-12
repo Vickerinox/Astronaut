@@ -1,5 +1,5 @@
-use std::process::Command;
 use build_tools::{compress, generate_font};
+use std::process::Command;
 
 fn main() {
     // add git commit hash to env

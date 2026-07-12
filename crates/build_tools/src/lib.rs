@@ -276,9 +276,7 @@ fn _decompress(data: &[u8]) -> Vec<u8> {
     output
 }
 pub fn generate_font(bmp: &[u8]) -> Option<Vec<u8>> {
-    let font =
-        DecodedBMP::from_reader(std::io::Cursor::new(bmp))
-            .expect("INVALID FONT BMP!!!");
+    let font = DecodedBMP::from_reader(std::io::Cursor::new(bmp)).expect("INVALID FONT BMP!!!");
     assert!(font.colors.len() <= 4);
     assert!(font.colors.len() > 2);
     assert!(font.width() == 1024);
@@ -323,7 +321,10 @@ pub fn generate_font(bmp: &[u8]) -> Option<Vec<u8>> {
 }
 #[test]
 pub fn build_font() {
-    let input = generate_font(include_bytes!("/home/vik/Documents/MelonDS/emuSD/Light Theme/font.bmp")).expect("A");
+    let input = generate_font(include_bytes!(
+        "/home/vik/Documents/MelonDS/emuSD/Light Theme/font.bmp"
+    ))
+    .expect("A");
     let mut a = vec![0u8; 2];
     a.extend_from_slice(&input);
     std::fs::write("/home/vik/Documents/MelonDS/emuSD/Light Theme/font.bin", a);

@@ -1,10 +1,12 @@
 use alloc::boxed::Box;
 use micro_imgui_ds::{
-    Input, gui, micro_imgui::{Backend, InputEvent, widgets::checkbox::Checkbox},
+    gui,
+    micro_imgui::{widgets::checkbox::Checkbox, Backend, InputEvent},
+    Input,
 };
 use reboot_lib::Buttons;
 
-use crate::gui::{AppData, browser::Browser, frontend::UiPage, special_thanks::SpecialThanks};
+use crate::gui::{browser::Browser, frontend::UiPage, special_thanks::SpecialThanks, AppData};
 
 #[derive(Clone)]
 pub struct MainMenu;
@@ -15,7 +17,9 @@ impl UiPage for MainMenu {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        if ui.input_pressed(Input::FOCUS_NEXT) || (!ui.has_focus_anywhere() && ui.backend().held_buttons().is_empty()) {
+        if ui.input_pressed(Input::FOCUS_NEXT)
+            || (!ui.has_focus_anywhere() && ui.backend().held_buttons().is_empty())
+        {
             ui.focus_next();
         } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
             ui.focus_prev();

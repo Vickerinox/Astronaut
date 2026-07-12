@@ -336,9 +336,9 @@ impl UiPage for AppBooter {
         data: &mut GlobalData,
     ) -> Option<Box<dyn UiPage>> {
         let Ok(mut file) = fatfs_embedded::open(&mut self.path, FileOptions::Read) else {
-            return Some(Box::new(super::error::Error::new(
-     format!("File doesn't exist."),
-            )));
+            return Some(Box::new(super::error::Error::new(format!(
+                "File doesn't exist."
+            ))));
         };
         ui.request_repaint();
         let error = unsafe {
@@ -364,7 +364,7 @@ impl<T: Clone + UiPage + 'static> ClonableUiPage for T {
     fn clone_ui(&self) -> Box<dyn ClonableUiPage> {
         Box::new(self.clone())
     }
-} 
+}
 
 impl AppData {
     pub unsafe fn autoboot(&mut self) {
@@ -390,9 +390,11 @@ impl AppData {
                 Some(ret) => {
                     send_mod_file(ret);
                 }
-                None => if loading_mod.done() {
-                    self.global_data.loading_mod_file = MusicPlaying::None;
-                },
+                None => {
+                    if loading_mod.done() {
+                        self.global_data.loading_mod_file = MusicPlaying::None;
+                    }
+                }
             },
         }
     }

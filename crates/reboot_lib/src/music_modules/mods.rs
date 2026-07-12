@@ -70,12 +70,10 @@ impl MODAsyncLoader {
                 };
 
                 match fatfs_embedded::read(&mut reader, &mut wip_header[..1084]) {
-                    Ok(progress) => {
-                        Self::LoadingHeader {
-                            reader: reader,
-                            progress: progress as usize,
-                            wip_header,
-                        }
+                    Ok(progress) => Self::LoadingHeader {
+                        reader: reader,
+                        progress: progress as usize,
+                        wip_header,
                     },
                     Err(err) => {
                         unsafe {
@@ -150,7 +148,7 @@ impl MODAsyncLoader {
                 mut header,
                 wip_patterns,
             } => {
-                let mut patterns = unsafe {&mut *wip_patterns };
+                let mut patterns = unsafe { &mut *wip_patterns };
                 match fatfs_embedded::read(&mut reader, &mut patterns[progress..]) {
                     Ok(new_progress) => {
                         let progress = progress + new_progress as usize;
@@ -202,7 +200,7 @@ impl MODAsyncLoader {
                         unsafe {
                             crate::flush_mmc();
                             *self = Self::Consumed;
-                            return Some(alloc::boxed::Box::from_raw(header))
+                            return Some(alloc::boxed::Box::from_raw(header));
                         }
                     };
                     if info.length > 0 {
@@ -232,11 +230,9 @@ impl MODAsyncLoader {
                                     progress,
                                     sample,
                                     header,
-                                }        
+                                };
                             }
-                            Err(err) => {
-                                break Self::Consumed
-                            },
+                            Err(err) => break Self::Consumed,
                         };
                     } else {
                         progress = 0;
@@ -244,7 +240,6 @@ impl MODAsyncLoader {
                     }
                 }
                 //we've gone through all samples!
-                
             }
             other => other,
         };
