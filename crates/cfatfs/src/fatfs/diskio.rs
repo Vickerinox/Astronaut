@@ -43,7 +43,7 @@ pub trait FatFsDriver {
 /// Installed driver singleton. A call to `install()` places the driver here.
 /// Only one driver instance is supported.
 static mut DRIVER: Option<&'static mut dyn FatFsDriver> = None;
-
+ 
 /// Installs a driver for the file system. Only one driver can be installed at a time.
 /// The driver must implement the `FatFsDriver` trait.
 /// The driver is placed on the heap using `Box` so that it lives for the lifetime of
