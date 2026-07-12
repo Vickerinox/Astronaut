@@ -378,23 +378,20 @@ unsafe fn find_wifi_firmware_path() -> Option<String> {
 }
 fn find_firmware_for_card(header: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
     let firmware_count = header.get(0x2).copied()?;
-    let firmware_index = (0..firmware_count as usize)
+    let firm_params = (0..firmware_count as usize)
         .into_iter()
-        .filter(|i| header.get(0x4 + 8 + (*i * 32)).copied() == Some(version))
+        .filter_map(|i| {
+            let offset = 0x4 + (i * 32);
+            header.get(offset..offset+9)
+        })
+        .filter(|i| i.get(8).copied() == Some(version))
         .next()?;
+
     let offset = {
-        let firmware_offset = 0x4 + (firmware_index * 32);
-        let offset = header
-            .get(firmware_offset..)
-            .and_then(|i| i.first_chunk::<4>())?;
-        u32::from_le_bytes(offset.clone())
+        u32::from_le_bytes(firm_params.first_chunk()?.clone())
     };
     let size = {
-        let firmware_offset = 0x4 + 4 + (firmware_index * 32);
-        let offset = header
-            .get(firmware_offset..)
-            .and_then(|i| i.first_chunk::<4>())?;
-        u32::from_le_bytes(offset.clone())
+        u32::from_le_bytes(firm_params.get(4..)?.first_chunk()?.clone())
     };
     Some((offset, size))
 }
