@@ -243,7 +243,7 @@ impl Color {
         let r = (r as u16 & 0b11111000) >> 3;
         let g = (g as u16 & 0b11111000) << 2;
         let b = (b as u16 & 0b11111000) << 7;
-        Self(r | g | b)
+        Self(r | g | b | 0x8000)
     }
 }
 pub enum Sizing {

@@ -8,7 +8,7 @@ use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
     BadEntrypoint(u32),
-
+    NdsModeNotSupported,
     FileReadError,
 }
 impl Debug for BootError {
@@ -17,6 +17,7 @@ impl Debug for BootError {
             Self::BadBinaryLocation(arg0) => write!(f, "BadBinaryLocation {arg0:#10X?}"),
             Self::BadEntrypoint(arg0) => write!(f, "BadEntrypoint {arg0:#10X}"),
             Self::FileReadError => write!(f, "FileReadErr"),
+            BootError::NdsModeNotSupported => write!(f, "Only DSi mode apps are supported"),
         }
     }
 }
@@ -285,7 +286,9 @@ pub unsafe fn boot_app(
         return BootError::FileReadError;
     }
     reboot_lib::nocash_write("> Loaded Header");
-
+    if !header.is_dsi_mode() {
+        return BootError::NdsModeNotSupported;
+    }
     if header.is_dsi_mode() {
         if header.arm9i_size != 0 {
             let arm9_range = (header.arm9i_load)..(header.arm9i_load + header.arm9i_size);

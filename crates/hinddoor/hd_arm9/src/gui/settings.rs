@@ -10,7 +10,7 @@ use crate::{FileType, configuration::BootCombo, gui::{AppData, GlobalData, MainM
 #[derive(Clone)]
 pub enum Settings {
     Main,
-    BootCombos,
+    BootCombos(usize),
     SelectedCombo(Buttons, u32),
 }
 impl Settings {
@@ -23,7 +23,7 @@ impl Settings {
         ui.add_space(8);
         ui.label("Boot Options:");
         if ui.button("Change Boot Combos").clicked() {
-            *self = Self::BootCombos;
+            *self = Self::BootCombos(0);
         }
         ui.add(Checkbox::new(
             &mut data.config.patch_flag,
@@ -41,7 +41,7 @@ impl Settings {
                 data.config.theme_path = String::new();
             }
             if ui.button(data.config.theme_path.is_empty().then_some("(none)").unwrap_or(&data.config.theme_path)).clicked() {
-                let b = Browser::search_file(&[FileType::Ini], String::from("sdmc:/"), Box::new(Self::Main), &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> { data.config.theme_path = path; Some(Box::new(Self::Main))});
+                let b = Browser::search_file(&[FileType::Ini], String::from("sdmc:/"), Box::new(Self::Main), &| data: &mut GlobalData,path: String,| -> Option<Box<dyn UiPage>> { data.config.theme_path = path; Some(Box::new(Self::Main))});
                 if let Some(b) = b {
                     result = Some(Box::new(b))
                 }
@@ -57,7 +57,7 @@ impl Settings {
                 data.config.music = String::new();
             }
             if ui.button(data.config.music.is_empty().then_some("(none)").unwrap_or(&data.config.music)).clicked() {
-                let b = Browser::search_file(&[FileType::Wav, FileType::Mod], String::from("sdmc:/"), Box::new(Self::Main), &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> { data.config.music = path; Some(Box::new(Self::Main))});
+                let b = Browser::search_file(&[FileType::Wav, FileType::Mod], String::from("sdmc:/"), Box::new(Self::Main), &|  data: &mut GlobalData,path: String,| -> Option<Box<dyn UiPage>> { data.config.music = path; Some(Box::new(Self::Main))});
                 if let Some(b) = b {
                     result = Some(Box::new(b))
                 }
@@ -72,7 +72,7 @@ impl Settings {
                 data.config.top_wallpaper = String::new();
             }
             if ui.button(data.config.top_wallpaper.is_empty().then_some("(none)").unwrap_or(&data.config.top_wallpaper)).clicked() {
-                let b = Browser::search_file(&[FileType::Wav, FileType::Mod], String::from("sdmc:/"), Box::new(Self::Main), &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> { data.config.top_wallpaper = path; Some(Box::new(Self::Main))});
+                let b = Browser::search_file(&[FileType::Wav, FileType::Mod], String::from("sdmc:/"), Box::new(Self::Main), &| data: &mut GlobalData,path: String,| -> Option<Box<dyn UiPage>> { data.config.top_wallpaper = path; Some(Box::new(Self::Main))});
                 if let Some(b) = b {
                     result = Some(Box::new(b))
                 }
@@ -102,15 +102,21 @@ impl Settings {
             result
         })
     }
-    fn boot_combo_settings(&mut self, ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+    fn boot_combo_settings(&mut self, page: usize, ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
     data: &mut super::GlobalData) -> Option<Box<dyn UiPage>> {
 
+        const PAGE_SIZE: usize = 4;
         ui.label("default boot option:");
         if ui.button(data.config.boot_combos.default.is_empty().then_some("(none)").unwrap_or(&data.config.boot_combos.default)).clicked() {
             *self = Self::SelectedCombo(Buttons::empty(), 999)
         }
         let mut delete = None;
-        for (i,j) in data.config.boot_combos.additionals.iter_mut().enumerate().take(5) {
+        let total_pages = data.config.boot_combos.additionals.is_empty().then_some(0).unwrap_or((data.config.boot_combos.additionals.len()-1)/PAGE_SIZE);
+        
+        let show_additionals = data.config.boot_combos.additionals.get_mut(page * PAGE_SIZE..).unwrap_or(&mut []); 
+        ui.add_space(8);
+        
+        for (i,j) in show_additionals.iter_mut().enumerate().take(PAGE_SIZE) {
             ui.add_space(4);
             let BootCombo { buttons, path } = j;
             ui.label(&format!("Combo {}:", format_combo(*buttons)));
@@ -127,10 +133,23 @@ impl Settings {
             
 
         }
+        ui.add_space(ui.clip_rect().height()-24);
+        ui.label(&format!("page {}/{} (l or r dpad/buttons)", page+1, total_pages+1));
+        ui.add_space(2);
+
         if let Some(del) = delete {
             data.config.boot_combos.additionals.remove(del);
         }
-        ui.add_space(ui.clip_rect().height()-14);
+        if page < total_pages {
+            if ui.input_pressed(Input(Buttons::BUTTON_R)) || ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
+                *self = Self::BootCombos(page+1)
+            }
+        }
+        if page > 0 {
+            if ui.input_pressed(Input(Buttons::BUTTON_L)) || ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) {
+                *self = Self::BootCombos(page-1)
+            }
+        }
         ui.horizontal(|ui| {
             if ui.button("go back").clicked() {
                 *self = Self::Main;
@@ -156,13 +175,13 @@ impl UiPage for Settings {
         }
         match self {
             Settings::Main => self.main_settings(ui, data),
-            Settings::BootCombos => self.boot_combo_settings(ui, data),
+            Settings::BootCombos(page) => {let a = *page; self.boot_combo_settings(a, ui, data)},
             Settings::SelectedCombo(combo, timer) => {
                 let buttons = ui.backend().held_buttons();
                 if *timer > 0 {
                     if *timer > 90 {
                         if *combo == Buttons::BUTTON_A | Buttons::BUTTON_B {
-                            *self = Self::BootCombos;
+                            *self = Self::BootCombos(0);
                             ui.request_repaint();
                             None
                         } else {
@@ -176,24 +195,24 @@ impl UiPage for Settings {
                                 } else {
                                     data.config.boot_combos.add(BootCombo {buttons, path}); 
                                 }
-                                Some(Box::new(Settings::BootCombos))
+                                Some(Box::new(Settings::BootCombos(0)))
                             };
                             if ui.button("Launch something from SD").clicked() {
                                 
-                                let b = Browser::search_file(&[FileType::Rom], String::from("sdmc:/"), Box::new(Self::BootCombos), Box::new(a));
+                                let b = Browser::search_file(&[FileType::Rom], String::from("sdmc:/"), Box::new(Self::BootCombos(0)), Box::new(a));
                                 if let Some(b) = b {
                                     ret = Some(Box::new(b))
                                 }
                             }
                             if ui.button("Launch something from NAND").clicked() {
                             
-                                let b = Browser::search_file(&[FileType::Rom], String::from("nand:/"), Box::new(Self::BootCombos), Box::new(a));
+                                let b = Browser::search_file(&[FileType::Rom], String::from("nand:/"), Box::new(Self::BootCombos(0)), Box::new(a));
                                 if let Some(b) = b {
                                     ret = Some(Box::new(b))
                                 }
                             }
                             if ui.button("cancel").clicked() {
-                                *self = Self::BootCombos;
+                                *self = Self::BootCombos(0);
                             }
                             ret
                         }

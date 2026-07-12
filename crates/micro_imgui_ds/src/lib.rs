@@ -175,6 +175,9 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 outline_color,
                 outline_size,
             } => {
+                if color.0 < 0x8000 {
+                    return area;
+                }
                 let Rect {
                     min: micro_imgui::Vec2 { x, y },
                     max: Vec2 { x: x2, y: y2 },
