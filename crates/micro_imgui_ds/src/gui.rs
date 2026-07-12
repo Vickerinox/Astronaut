@@ -19,6 +19,7 @@ impl<'a> VideoTextPass<'a> {
                     host: h.to_owned(),
                     used_space: Rect::from_two_pos(available_space.min, available_space.min),
                 };
+                h.set_texture((7 << 20) | (2 << 26) | (1 << 29) | 0x3000);
                 closure(&mut host)
             })
         }

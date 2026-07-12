@@ -23,9 +23,11 @@ impl UiPage for Error {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         _data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
+        crate::focus_default(ui);
         ui.header("ERROR:");
         ui.label(&self.error_string);
-        if ui.button("okay").clicked() {
+        ui.add_space(ui.clip_rect().height() - 24);
+        if ui.button("oh... okay").clicked() {
             Some(Box::new(MainMenu))
         } else {
             None

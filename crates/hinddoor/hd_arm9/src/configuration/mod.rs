@@ -6,7 +6,8 @@ use alloc::{
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui::{Color, ColorSet, Style};
 use reboot_lib::{
-    music_modules::mods::MODAsyncLoader, Buttons, VideoHardwareHandle, VIDEO_HARDWARE,
+    music_modules::mods::MODAsyncLoader, Buttons, DisplayControl, VRAMCtrl, VideoHardwareHandle,
+    VIDEO_HARDWARE,
 };
 
 use crate::{
@@ -203,6 +204,7 @@ impl GlobalData {
         theme_path: &mut String,
         music_path: &mut String,
         wallpaper_path: &mut String,
+        background_path: &mut String,
         theme: &mut Theme,
     ) -> Style {
         let mut style = Style::DEFAULT;
@@ -218,6 +220,7 @@ impl GlobalData {
             Some(&mut |segment, key, value| match (segment, key) {
                 ("[assets]", "music") => handle_path(&base_dir, music_path, value),
                 ("[assets]", "wallpaper") => handle_path(&base_dir, wallpaper_path, value),
+                ("[assets]", "background") => handle_path(&base_dir, background_path, value),
                 ("[assets]", "font") => handle_path(&base_dir, &mut font, value),
                 ("[colors]", "background") => parse_color(value, &mut style.background_color),
                 ("[colors]", "text") => parse_color(value, &mut style.text_color),
@@ -278,17 +281,48 @@ impl GlobalData {
     pub unsafe fn load_theme(&mut self) -> (Style, VideoHardwareHandle) {
         let mut music = self.config.music.clone();
         let mut wallpaper = self.config.top_wallpaper.clone();
+        let mut background = String::new();
 
         let colors = Self::load_theme_inner(
             &mut self.config.theme_path,
             &mut music,
             &mut wallpaper,
+            &mut background,
             &mut self.config.theme,
         );
-        let video_context = crate::init_graphics();
         if let Some(wallpaper) = Self::load_wallpaper(&mut wallpaper) {
-            crate::show_wallpaper(wallpaper);
+            VIDEO_HARDWARE
+                .vram_control_bank_c
+                .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+            crate::show_wallpaper(wallpaper, 0x06840000 as *mut u16);
+
+            VIDEO_HARDWARE
+                .vram_control_bank_c
+                .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
+            VIDEO_HARDWARE
+                .disp_b_control
+                .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
+        } else {
+            VIDEO_HARDWARE
+                .disp_b_control
+                .write(DisplayControl::BG_MODE_5);
         }
+        VIDEO_HARDWARE
+            .vram_control_bank_a
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+        if let Some(background) = Self::load_wallpaper(&mut background) {
+            crate::show_wallpaper(background, 0x06800000 as *mut u16);
+        } else {
+            for i in 0..(256 * 192) {
+                (0x06800000 as *mut u16)
+                    .add(i)
+                    .write(colors.background_color.0 | 0x8000);
+            }
+        }
+        let video_context = crate::init_graphics();
+
         self.loading_mod_file = Self::play_startup_music(&mut music);
         (colors, video_context)
     }
@@ -321,6 +355,17 @@ fn parse_color(color: &str, var: &mut Color) {
             if let Ok(color) = u32::from_str_radix(color, 16) {
                 let [b, g, r, _] = color.to_le_bytes();
                 *var = Color::new(r, g, b);
+            }
+        }
+        7 | 8 => {
+            if let Ok(color) = u32::from_str_radix(color, 16) {
+                let [b, g, r, a] = color.to_le_bytes();
+
+                if a == 0 {
+                    *var = Color::new_transparent(r, g, b)
+                } else {
+                    *var = Color::new(r, g, b);
+                }
             }
         }
         _ => (),

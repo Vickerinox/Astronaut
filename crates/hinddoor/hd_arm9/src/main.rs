@@ -25,15 +25,16 @@ pub struct Fader {
 }
 reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 
+use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use common::blowfish::BFCTX;
 use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
-use micro_imgui_ds::read_controller;
+use micro_imgui_ds::{read_controller, Input};
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 use reboot_lib::timers::TimerControl;
 
-use micro_imgui_ds::micro_imgui::Color;
+use micro_imgui_ds::micro_imgui::{Backend, Color, InputEvent};
 use reboot_lib::music_modules::mods::MODHeader;
 use reboot_lib::{
     flush_mmc, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES, ENGINE_B_PALETTES,
@@ -223,6 +224,18 @@ pub struct FileEntry {
     pub display_name: String,
     pub kind: FileType,
 }
+pub fn truncate_name(string: &str, bound: usize) -> String {
+    let mut string = string.to_string();
+    if string.len() > bound + 3 {
+        let mut boundary = bound;
+        while !string.is_char_boundary(boundary) {
+            boundary += 1;
+        }
+        string.truncate(boundary);
+        string.push_str("...");
+    }
+    string
+}
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
     unsafe {
@@ -248,18 +261,10 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
                     };
                     filetype(s_name)
                 };
-                let fname = name.clone();
-                if name.len() > 35 {
-                    let mut boundary = 32;
-                    while !name.is_char_boundary(boundary) {
-                        boundary += 1;
-                    }
-                    name.truncate(boundary);
-                    name.push_str("...");
-                }
+                let dname = truncate_name(&name, 35);
                 vec.push(FileEntry {
-                    display_name: name,
-                    file_name: fname,
+                    display_name: dname,
+                    file_name: name,
                     kind: color,
                 })
             } else {
@@ -345,9 +350,6 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
     VIDEO_HARDWARE.disp_b_bg3_scale[1].write(0);
     VIDEO_HARDWARE.disp_b_bg3_scale[2].write(0);
     VIDEO_HARDWARE.disp_b_bg3_scale[3].write(0xFF00);
-    VIDEO_HARDWARE
-        .disp_b_control
-        .write(DisplayControl::BG_MODE_5);
 
     //copy font to vram
 
@@ -533,7 +535,19 @@ unsafe fn main() {
         );
     }
 }
-fn show_wallpaper(bmp: crate::bmp::DecodedBMP) {
+
+pub fn focus_default(
+    ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+) {
+    if ui.input_pressed(Input::FOCUS_NEXT)
+        || (!ui.has_focus_anywhere() && !ui.input_pressed(micro_imgui_ds::Input::FOCUSED_PRESS))
+    {
+        ui.focus_next();
+    } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
+        ui.focus_prev();
+    }
+}
+fn show_wallpaper(bmp: crate::bmp::DecodedBMP, destination: *mut u16) {
     if bmp.height() != 192 {
         return;
     }
@@ -586,19 +600,9 @@ fn show_wallpaper(bmp: crate::bmp::DecodedBMP) {
             _ => return,
         };
     unsafe {
-        VIDEO_HARDWARE
-            .vram_control_bank_c
-            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
         for (i, pixel) in pixel_iter.enumerate() {
-            (0x06840000 as *mut u16).add(i).write(pixel);
+            destination.add(i).write(pixel);
         }
-        VIDEO_HARDWARE
-            .vram_control_bank_c
-            .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
-
-        VIDEO_HARDWARE
-            .disp_b_control
-            .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
     }
 }
 

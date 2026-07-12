@@ -7,7 +7,7 @@ use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
     micro_imgui::{
         widgets::{button::Button, checkbox::Checkbox},
-        Backend, InputEvent,
+        Backend, InputEvent, Response,
     },
     Input,
 };
@@ -16,7 +16,7 @@ use reboot_lib::Buttons;
 use crate::{
     configuration::BootCombo,
     gui::{browser::Browser, frontend::UiPage, AppData, GlobalData, MainMenu},
-    FileType,
+    truncate_name, FileType,
 };
 
 #[derive(Clone)]
@@ -55,16 +55,7 @@ impl Settings {
             if ui.button("reset").clicked() {
                 data.config.theme_path = String::new();
             }
-            if ui
-                .button(
-                    data.config
-                        .theme_path
-                        .is_empty()
-                        .then_some("(none)")
-                        .unwrap_or(&data.config.theme_path),
-                )
-                .clicked()
-            {
+            if path_button(ui, &data.config.theme_path, 28).clicked() {
                 let b = Browser::search_file(
                     &[FileType::Ini],
                     String::from("sdmc:/"),
@@ -88,16 +79,7 @@ impl Settings {
             if ui.button("reset").clicked() {
                 data.config.music = String::new();
             }
-            if ui
-                .button(
-                    data.config
-                        .music
-                        .is_empty()
-                        .then_some("(none)")
-                        .unwrap_or(&data.config.music),
-                )
-                .clicked()
-            {
+            if path_button(ui, &data.config.music, 28).clicked() {
                 let b = Browser::search_file(
                     &[FileType::Wav, FileType::Mod],
                     String::from("sdmc:/"),
@@ -122,16 +104,7 @@ impl Settings {
             if ui.button("reset").clicked() {
                 data.config.top_wallpaper = String::new();
             }
-            if ui
-                .button(
-                    data.config
-                        .top_wallpaper
-                        .is_empty()
-                        .then_some("(none)")
-                        .unwrap_or(&data.config.top_wallpaper),
-                )
-                .clicked()
-            {
+            if path_button(ui, &data.config.top_wallpaper, 28).clicked() {
                 let b = Browser::search_file(
                     &[FileType::Wav, FileType::Mod],
                     String::from("sdmc:/"),
@@ -184,16 +157,7 @@ impl Settings {
     ) -> Option<Box<dyn UiPage>> {
         const PAGE_SIZE: usize = 4;
         ui.label("default boot option:");
-        if ui
-            .button(
-                data.config
-                    .boot_combos
-                    .default
-                    .is_empty()
-                    .then_some("(none)")
-                    .unwrap_or(&data.config.boot_combos.default),
-            )
-            .clicked()
+        if path_button(ui, &data.config.boot_combos.default, 35).clicked()
         {
             *self = Self::SelectedCombo(Buttons::empty(), 999)
         }
@@ -222,7 +186,7 @@ impl Settings {
                 if ui.button("delete").clicked() {
                     delete = Some(i);
                 }
-                if ui.button(path).clicked() {
+                if path_button(ui, path, 28).clicked() {
                     *self = Self::SelectedCombo(*buttons, 999)
                 }
             })
@@ -264,19 +228,24 @@ impl Settings {
         None
     }
 }
+fn path_button(
+    ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+    text: &str,
+    limit: usize,
+) -> Response {
+    if text.is_empty() {
+        ui.button("(none)")
+    } else {
+        ui.button(&truncate_name(&text, limit))
+    }
+}
 impl UiPage for Settings {
     fn ui(
         &mut self,
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        if ui.input_pressed(Input::FOCUS_NEXT)
-            || (!ui.has_focus_anywhere() && ui.backend().held_buttons().is_empty())
-        {
-            ui.focus_next();
-        } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
-            ui.focus_prev();
-        }
+        crate::focus_default(ui);
         match self {
             Settings::Main => self.main_settings(ui, data),
             Settings::BootCombos(page) => {
@@ -364,41 +333,24 @@ fn format_combo(buttons: Buttons) -> String {
         return String::from("default");
     }
     let mut string = String::new();
-    if buttons.contains(Buttons::BUTTON_A) {
-        string += "A+";
-    }
-    if buttons.contains(Buttons::BUTTON_B) {
-        string += "B+";
-    }
-    if buttons.contains(Buttons::BUTTON_X) {
-        string += "X+";
-    }
-    if buttons.contains(Buttons::BUTTON_Y) {
-        string += "Y+";
-    }
-    if buttons.contains(Buttons::BUTTON_L) {
-        string += "L+";
-    }
-    if buttons.contains(Buttons::BUTTON_R) {
-        string += "R+";
-    }
-    if buttons.contains(Buttons::BUTTON_START) {
-        string += "Start+";
-    }
-    if buttons.contains(Buttons::BUTTON_SELECT) {
-        string += "Select+";
-    }
-    if buttons.contains(Buttons::DIRECTION_UP) {
-        string += "Up+";
-    }
-    if buttons.contains(Buttons::DIRECTION_DOWN) {
-        string += "Down+";
-    }
-    if buttons.contains(Buttons::DIRECTION_LEFT) {
-        string += "Left+";
-    }
-    if buttons.contains(Buttons::DIRECTION_RIGHT) {
-        string += "Right+";
+    const FORMAT_COMBOS: &[(Buttons, &str)] = &[
+        (Buttons::BUTTON_A, "A+"),
+        (Buttons::BUTTON_B, "B+"),
+        (Buttons::BUTTON_X, "X+"),
+        (Buttons::BUTTON_Y, "Y+"),
+        (Buttons::BUTTON_L, "L+"),
+        (Buttons::BUTTON_R, "R+"),
+        (Buttons::BUTTON_START, "Start+"),
+        (Buttons::BUTTON_SELECT, "Select+"),
+        (Buttons::DIRECTION_UP, "Up+"),
+        (Buttons::DIRECTION_DOWN, "Down+"),
+        (Buttons::DIRECTION_LEFT, "Left+"),
+        (Buttons::DIRECTION_RIGHT, "Right+"),
+    ];
+    for (button, str) in FORMAT_COMBOS {
+        if buttons.contains(*button) {
+            string += str;
+        }
     }
     string.pop();
     string

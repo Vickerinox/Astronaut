@@ -263,7 +263,7 @@ impl<B: Backend> Ctx<B> {
         mut f: F,
         t: &mut T,
     ) -> R {
-        let frame = self.start_frame();
+        let mut frame = self.start_frame();
         let ret = f(frame, t);
         ret
     }

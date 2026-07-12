@@ -17,15 +17,10 @@ impl UiPage for MainMenu {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        if ui.input_pressed(Input::FOCUS_NEXT)
-            || (!ui.has_focus_anywhere() && ui.backend().held_buttons().is_empty())
-        {
-            ui.focus_next();
-        } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
-            ui.focus_prev();
-        }
         //ui.vertical_centered(|ui| {
+        crate::focus_default(ui);
         ui.header("Welcome!");
+        ui.add_space(4);
         ui.label("Astronaut made by Vikrinox, 2026");
         ui.header(" ");
         let mut res: Option<Box<dyn UiPage>> = None;

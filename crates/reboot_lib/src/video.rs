@@ -99,6 +99,14 @@ impl<'a> VertexListHost<'a> {
                 .write(color)
         };
     }
+    pub fn set_texture(&mut self, texture: u32) {
+        unsafe {
+            VIDEO_HARDWARE
+                .geometry_commands
+                .material_texture_attributes
+                .write(texture);
+        }
+    }
     pub unsafe fn to_owned(&mut self) -> Self {
         Self(self.0)
     }

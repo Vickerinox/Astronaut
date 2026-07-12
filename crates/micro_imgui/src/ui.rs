@@ -72,16 +72,6 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         (Rect::from_two_pos(rect_min, rect_min + size), response)
     }
 
-    pub fn vertical_centered<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {
-        let old_clip_rect = self.clip_rect();
-        let old_layout = self.layout.clone();
-        self.layout = Layout(Direction::TopDown, Align::Middle);
-        let ret = closure(self);
-        self.layout = old_layout;
-        self.clip_rect = old_clip_rect;
-        self.add_space(16);
-        ret
-    }
     pub fn horizontal<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {
         let old_clip_rect = self.clip_rect();
         let old_layout = self.layout.clone();

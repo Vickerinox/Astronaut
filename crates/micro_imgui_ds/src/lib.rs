@@ -3,7 +3,7 @@ use core::num::NonZeroU16;
 pub use micro_imgui;
 
 use micro_imgui::{LayerId, Rect, Vec2};
-use reboot_lib::Buttons;
+use reboot_lib::{Buttons, VIDEO_HARDWARE};
 
 pub const SCREEN_RECT: micro_imgui::Rect = micro_imgui::Rect {
     min: Vec2::ZERO,
@@ -146,6 +146,8 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     }
 
     fn end_frame(&mut self) {
+        unsafe { while VIDEO_HARDWARE.vcount.read() != 190 {} }
+        unsafe { while VIDEO_HARDWARE.vcount.read() == 190 {} }
         unsafe { self.video.next_frame() };
     }
 
@@ -170,14 +172,13 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
         let space = match shape {
             micro_imgui::Shape::Rectangle {
                 area,
-                fill: color,
+                fill,
                 rounding: _,
                 outline_color,
                 outline_size,
             } => {
-                if color.0 < 0x8000 {
-                    return area;
-                }
+                let bg = fill.0 < 0x8000;
+
                 let Rect {
                     min: micro_imgui::Vec2 { x, y },
                     max: Vec2 { x: x2, y: y2 },
@@ -186,25 +187,61 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 let y = y << 4;
                 let x2 = x2 << 4;
                 let y2 = y2 << 4;
+
                 let outline_size = outline_size << 4;
                 unsafe {
                     self.video.create_vertex_list(
                         reboot_lib::VertexListType::IndividualQuads,
                         |f| {
-                            f.vertex_set_texture_coordinate(234 << 4, 1 << 4);
+                            let bg = outline_color.0 < 0x8000;
+                            if bg {
+                                f.set_texture((5 << 20) | (5 << 23) | (7 << 26) | (0xF0000));
+                            } else {
+                                f.set_texture(0);
+                            }
                             f.set_vertex_color(outline_color.0 as u32);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x, y + (320 << 4));
+                            }
                             f.add_vertex_double(x, y, 0);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x, y2 + (320 << 4));
+                            }
                             f.add_vertex_double(x, y2, 0);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x2, y2 + (320 << 4));
+                            }
                             f.add_vertex_double(x2, y2, 0);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x2, y + (320 << 4));
+                            }
                             f.add_vertex_double(x2, y, 0);
-                            f.set_vertex_color(color.0 as u32);
+                            f.set_vertex_color(fill.0 as u32);
+                            let bg = fill.0 < 0x8000;
+                            if bg {
+                                f.set_texture((5 << 20) | (5 << 23) | (7 << 26) | (0xF0000));
+                            } else {
+                                f.set_texture(0);
+                            }
                             let x = x.wrapping_add_unsigned(outline_size);
                             let y = y.wrapping_add_unsigned(outline_size);
                             let x2 = x2.wrapping_sub_unsigned(outline_size);
                             let y2 = y2.wrapping_sub_unsigned(outline_size);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x, y + (320 << 4));
+                            }
                             f.add_vertex_double(x, y, 1);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x, y2 + (320 << 4));
+                            }
                             f.add_vertex_double(x, y2, 1);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x2, y2 + (320 << 4));
+                            }
                             f.add_vertex_double(x2, y2, 1);
+                            if bg {
+                                f.vertex_set_texture_coordinate(x2, y + (320 << 4));
+                            }
                             f.add_vertex_double(x2, y, 1);
                         },
                     );
@@ -267,4 +304,7 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     fn reserve_layer(&mut self) -> LayerId {
         self.advance_layer()
     }
+}
+impl DSMicroGuiBackend {
+    fn draw_rectangle(&mut self, rect: Rect, color: micro_imgui::Color, z: i16) {}
 }

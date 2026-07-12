@@ -245,6 +245,12 @@ impl Color {
         let b = (b as u16 & 0b11111000) << 7;
         Self(r | g | b | 0x8000)
     }
+    pub const fn new_transparent(r: u8, g: u8, b: u8) -> Self {
+        let r = (r as u16 & 0b11111000) >> 3;
+        let g = (g as u16 & 0b11111000) << 2;
+        let b = (b as u16 & 0b11111000) << 7;
+        Self(r | g | b)
+    }
 }
 pub enum Sizing {
     Automatic,

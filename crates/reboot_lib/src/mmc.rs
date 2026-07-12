@@ -298,7 +298,11 @@ impl MMC {
                         .contains(DataControl32::RX_READY)
                     {
                         timeout = 0;
-                        for word in current_sector.0.iter_mut() {
+                        for word in current_sector
+                            .0
+                            .iter_mut()
+                            .take((port.block_len / 4) as usize)
+                        {
                             (word as *mut u32).write_volatile(self.data_fifo_32.read());
                         }
                         let Some(next_sector) = sector_iter.next() else {
