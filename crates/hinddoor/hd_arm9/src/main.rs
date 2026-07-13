@@ -46,6 +46,7 @@ use reboot_lib::{
 };
 
 use crate::boot::read_all;
+use crate::configuration::{Config, Theme};
 use crate::fat::driver::SDMMCDriver;
 use crate::gui::AppData;
 
@@ -124,6 +125,14 @@ unsafe fn transfer_font_to_vram() {
     core::ptr::write_volatile(
         0x06880004 as *mut u32,
         core::ptr::read_volatile(0x2FF_1804 as *const u32),
+    );
+    core::ptr::write_volatile(
+        0x06880008 as *mut u32,
+        core::ptr::read_volatile(0x2FF_1808 as *const u32),
+    );
+    core::ptr::write_volatile(
+        0x0688000C as *mut u32,
+        core::ptr::read_volatile(0x2FF_180C as *const u32),
     );
 }
 #[cfg(not(target_arch = "arm"))]
@@ -454,8 +463,7 @@ unsafe fn main() {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
-        (&raw mut (*app_area.app_data.as_mut_ptr()).global_data.blowfish)
-            .write((*(0x1FFC894 as *const BFCTX)).clone());
+        
         VIDEO_HARDWARE
             .power_control
             .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
@@ -520,16 +528,21 @@ unsafe fn main() {
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
-        let ptr = app_area.app_data.as_mut_ptr();
-        (&raw mut (*ptr).global_data.autoboot).write(None);
-        (&raw mut (*ptr).current_ui).write(Box::new(gui::MainMenu));
-        (&raw mut (*ptr).global_data.loading_mod_file).write(gui::MusicPlaying::None);
+        let app_data = {
+            let ptr = app_area.app_data.as_mut_ptr();
+            (&raw mut (*ptr).current_ui).write(Box::new(gui::MainMenu));
+            (&raw mut (*ptr).global_data.autoboot).write(None);
+            (&raw mut (*ptr).global_data.loading_mod_file).write(gui::MusicPlaying::None);
+            (&raw mut (*ptr).global_data.config).write(Config::default());
+            (&raw mut (*ptr).global_data.theme).write(Theme::DEFAULT);
+            (&raw mut (*ptr).global_data.blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
+            app_area.app_data.assume_init_mut()
+            
+        };
+        
         let (buttons, _, _) = read_controller();
-        (&raw mut (*ptr).global_data.config).write(configuration::Config::load(buttons));
-
-        let app_data = app_area.app_data.assume_init_mut();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
-
+        app_data.global_data.config.load(buttons);
         if !force_menu {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
@@ -546,14 +559,15 @@ unsafe fn main() {
             }
         }
 
-        let (color, video_context) = app_data.global_data.load_theme();
+        let (assets, style) = app_data.global_data.theme.load(&mut app_data.global_data.config.theme_path);
+        let video_context = app_data.global_data.load_theme(assets);
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
 
         app_area.fader.target.write(0);
 
         micro_imgui_ds::micro_imgui::run(
             backend,
-            color,
+            style,
             app_data,
             |mut f, app_data| {
                 app_data.update(&mut f);

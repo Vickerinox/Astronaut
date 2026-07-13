@@ -259,6 +259,11 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 let x = coord.x as u8;
                 let y = coord.y as u8;
                 unsafe {
+                    if color.0 < 0x8000 {
+                        VIDEO_HARDWARE.geometry_commands.material_color_palette.write(1);
+                    } else {
+                        VIDEO_HARDWARE.geometry_commands.material_color_palette.write(0);
+                    }
                     VideoTextPass::new(&mut self.video, bounds).text_pass(|f| {
                         f.set_position(x, y);
                         f.set_color(color.0 as u32);

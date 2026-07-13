@@ -1,9 +1,7 @@
 use core::alloc::Layout;
 
 use crate::{
-    boot::{self, read_all},
-    get_extension, send_mod_file, stop_mod_file, AppArea, FileType, APP_AREA_START,
-    BACKGROUND_COLOR, SCREEN_RECT,
+    APP_AREA_START, AppArea, BACKGROUND_COLOR, FileType, SCREEN_RECT, boot::{self, read_all}, configuration::Theme, get_extension, send_mod_file, stop_mod_file,
 };
 use alloc::{boxed::Box, format, string::String};
 use common::blowfish::BFCTX;
@@ -19,6 +17,7 @@ pub struct GlobalData {
     pub blowfish: BFCTX,
     pub loading_mod_file: MusicPlaying,
     pub config: crate::configuration::Config,
+    pub theme: Theme,
 }
 
 pub struct AppData {

@@ -215,12 +215,12 @@ impl UiPage for Browser {
         for (i, item) in shown_items.iter().take(items).enumerate() {
             let color = match item.kind {
                 FileType::None => ui.style().text_color,
-                FileType::Rom => data.config.theme.bootable_color,
-                FileType::Mod => data.config.theme.asset_color,
-                FileType::Wav => data.config.theme.asset_color,
-                FileType::Bmp => data.config.theme.asset_color,
-                FileType::Ini => data.config.theme.asset_color,
-                FileType::Dir => data.config.theme.folder_color,
+                FileType::Rom => data.theme.bootable_color,
+                FileType::Mod => data.theme.asset_color,
+                FileType::Wav => data.theme.asset_color,
+                FileType::Bmp => data.theme.asset_color,
+                FileType::Ini => data.theme.asset_color,
+                FileType::Dir => data.theme.folder_color,
             };
             let response = ui.add(Button::new(
                 &item.display_name,
