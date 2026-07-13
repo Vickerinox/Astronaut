@@ -157,8 +157,7 @@ impl Settings {
     ) -> Option<Box<dyn UiPage>> {
         const PAGE_SIZE: usize = 4;
         ui.label("default boot option:");
-        if path_button(ui, &data.config.boot_combos.default, 35).clicked()
-        {
+        if path_button(ui, &data.config.boot_combos.default, 35).clicked() {
             *self = Self::SelectedCombo(Buttons::empty(), 999)
         }
         let mut delete = None;

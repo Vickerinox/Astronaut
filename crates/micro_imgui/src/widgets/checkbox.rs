@@ -24,8 +24,7 @@ impl<'t> AutoAdd for Checkbox<'t> {
         let rect = ui.draw(Shape::Text {
             bounds,
             str: &text,
-            color: Color::new(200, 200, 200),
-            outline: Color::new(0, 0, 0),
+            color: ui.style().text_color,
             size: 8,
         });
         let wanted_size = rect.size();

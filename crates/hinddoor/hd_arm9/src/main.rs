@@ -114,26 +114,13 @@ unsafe fn init_font() {
 }
 unsafe fn transfer_font_to_vram() {
     for i in 0..0x200 {
-        let reg = core::ptr::read_volatile((0x2FF_1000 as *const u32).add(i));
-        core::ptr::write_volatile((0x6818000 as *mut u32).add(i), reg);
+        let reg = (0x2FF_1000 as *const u32).add(i).read();
+        (0x6818000 as *mut u32).add(i).write(reg);
     }
-
-    core::ptr::write_volatile(
-        0x06880000 as *mut u32,
-        core::ptr::read_volatile(0x2FF_1800 as *const u32),
-    );
-    core::ptr::write_volatile(
-        0x06880004 as *mut u32,
-        core::ptr::read_volatile(0x2FF_1804 as *const u32),
-    );
-    core::ptr::write_volatile(
-        0x06880008 as *mut u32,
-        core::ptr::read_volatile(0x2FF_1808 as *const u32),
-    );
-    core::ptr::write_volatile(
-        0x0688000C as *mut u32,
-        core::ptr::read_volatile(0x2FF_180C as *const u32),
-    );
+    for i in 0..4 {
+        let reg = (0x2FF_1800 as *const u32).add(i).read();
+        (0x06880000 as *mut u32).add(i).write(reg);
+    }
 }
 #[cfg(not(target_arch = "arm"))]
 unsafe fn init_font() {
@@ -151,9 +138,11 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     VIDEO_HARDWARE
         .vram_control_bank_e
         .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK E
+    
     VIDEO_HARDWARE
         .engine_a_ctrl
         .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_3D | DisplayControl::ENABLE_BG_0);
+    
     VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
     video_context.next_frame(); //swap geometry buffers
 
@@ -178,10 +167,12 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
         .geometry_commands
         .pipeline_set_viewport
         .write(Viewport::WHOLE_SCREEN_DEFAULT);
+    /* 
     VIDEO_HARDWARE
         .geometry_commands
         .material_texture_attributes
         .write((7 << 20) | (2 << 26) | (1 << 29) | 0x3000); //bind font texture
+    */
     VIDEO_HARDWARE
         .geometry_commands
         .material_color_palette
@@ -391,28 +382,25 @@ fn find_firmware_for_card(header: &[u8; 0x60], version: u8) -> Option<(u32, u32)
         .into_iter()
         .filter_map(|i| {
             let offset = 0x4 + (i * 32);
-            header.get(offset..offset+9)
+            header.get(offset..offset + 9)
         })
         .filter(|i| i.get(8).copied() == Some(version))
         .next()?;
 
-    let offset = {
-        u32::from_le_bytes(firm_params.first_chunk()?.clone())
-    };
-    let size = {
-        u32::from_le_bytes(firm_params.get(4..)?.first_chunk()?.clone())
-    };
+    let offset = { u32::from_le_bytes(firm_params.first_chunk()?.clone()) };
+    let size = { u32::from_le_bytes(firm_params.get(4..)?.first_chunk()?.clone()) };
     Some((offset, size))
 }
-unsafe fn get_wifi_firmware(wifi_ver: u8) -> Option<(fatfs_embedded::fatfs::File, alloc::alloc::Layout)> {
-
+unsafe fn get_wifi_firmware(
+    wifi_ver: u8,
+) -> Option<(fatfs_embedded::fatfs::File, alloc::alloc::Layout)> {
     let mut firmware_path = find_wifi_firmware_path()?;
     let mut firmware = fatfs_embedded::open(&mut firmware_path, FileOptions::Read).ok()?;
     fatfs_embedded::seek(&mut firmware, 0xA0).ok()?;
     let mut header = [0u8; 0x60];
     read_all(&mut header, &mut firmware).ok()?;
     let (offset, size) = find_firmware_for_card(&header, wifi_ver)?;
-    
+
     fatfs_embedded::seek(&mut firmware, offset).ok()?;
 
     let layout = core::alloc::Layout::from_size_align(size as usize, 4).ok()?;
@@ -420,10 +408,11 @@ unsafe fn get_wifi_firmware(wifi_ver: u8) -> Option<(fatfs_embedded::fatfs::File
 }
 unsafe fn load_wifi_firmware(wifi_ver: u8) -> u32 {
     let mut ret = 0xDEADBEEF;
-    let Some((mut firmware, layout)) = get_wifi_firmware(wifi_ver) else {return ret};
+    let Some((mut firmware, layout)) = get_wifi_firmware(wifi_ver) else {
+        return ret;
+    };
     let firmware_ptr = alloc::alloc::alloc(layout);
     let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, layout.size());
-    
 
     if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
         ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
@@ -431,7 +420,7 @@ unsafe fn load_wifi_firmware(wifi_ver: u8) -> u32 {
             Err(e) => e.get(),
         };
     }
-    
+
     alloc::alloc::dealloc(firmware_ptr, layout);
     ret
 }
@@ -463,7 +452,6 @@ unsafe fn main() {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
-        
         VIDEO_HARDWARE
             .power_control
             .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
@@ -537,9 +525,8 @@ unsafe fn main() {
             (&raw mut (*ptr).global_data.theme).write(Theme::DEFAULT);
             (&raw mut (*ptr).global_data.blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
             app_area.app_data.assume_init_mut()
-            
         };
-        
+
         let (buttons, _, _) = read_controller();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
         app_data.global_data.config.load(buttons);
@@ -559,7 +546,10 @@ unsafe fn main() {
             }
         }
 
-        let (assets, style) = app_data.global_data.theme.load(&mut app_data.global_data.config.theme_path);
+        let (assets, style) = app_data
+            .global_data
+            .theme
+            .load(&mut app_data.global_data.config.theme_path);
         let video_context = app_data.global_data.load_theme(assets);
         let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
 

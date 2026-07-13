@@ -2,7 +2,7 @@ use core::num::NonZeroU32;
 
 use alloc::rc;
 
-use crate::{Control, MMC, StorageSector};
+use crate::{Control, StorageSector, MMC};
 
 use super::{ClockCnt, Command, Status, TMIOPort, MMC_CONTROLLER};
 
@@ -314,7 +314,8 @@ pub unsafe fn read_sectors(
     use crate::StorageSector;
 
     let device = &mut DEVICES[device as u8 as usize];
-    device.port.buffer = core::slice::from_raw_parts_mut(buf as *mut StorageSector as *mut u32, buf.len() * 128);
+    device.port.buffer =
+        core::slice::from_raw_parts_mut(buf as *mut StorageSector as *mut u32, buf.len() * 128);
 
     let sector = match device.kind {
         None => return Err(Status::all()),
@@ -335,7 +336,8 @@ pub unsafe fn write_sd_sectors(
     buf: *mut [crate::StorageSector],
 ) -> Result<(), Status> {
     let device = &mut DEVICES[DeviceSelect::SDCardSlot as u8 as usize];
-    device.port.buffer = core::slice::from_raw_parts_mut(buf as *mut StorageSector as *mut u32, buf.len() * 128);
+    device.port.buffer =
+        core::slice::from_raw_parts_mut(buf as *mut StorageSector as *mut u32, buf.len() * 128);
 
     let sector = match device.kind {
         None => return Err(Status::all()),

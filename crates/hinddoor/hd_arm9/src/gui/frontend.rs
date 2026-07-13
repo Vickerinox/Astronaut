@@ -1,7 +1,10 @@
 use core::alloc::Layout;
 
 use crate::{
-    APP_AREA_START, AppArea, BACKGROUND_COLOR, FileType, SCREEN_RECT, boot::{self, read_all}, configuration::Theme, get_extension, send_mod_file, stop_mod_file,
+    boot::{self, read_all},
+    configuration::Theme,
+    get_extension, send_mod_file, stop_mod_file, AppArea, FileType, APP_AREA_START,
+    BACKGROUND_COLOR, SCREEN_RECT,
 };
 use alloc::{boxed::Box, format, string::String};
 use common::blowfish::BFCTX;

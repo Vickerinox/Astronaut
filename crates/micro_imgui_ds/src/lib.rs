@@ -252,7 +252,6 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 bounds,
                 str,
                 color,
-                outline: _,
                 size,
             } => {
                 let coord = bounds.min;
@@ -260,9 +259,15 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 let y = coord.y as u8;
                 unsafe {
                     if color.0 < 0x8000 {
-                        VIDEO_HARDWARE.geometry_commands.material_color_palette.write(1);
+                        VIDEO_HARDWARE
+                            .geometry_commands
+                            .material_color_palette
+                            .write(1);
                     } else {
-                        VIDEO_HARDWARE.geometry_commands.material_color_palette.write(0);
+                        VIDEO_HARDWARE
+                            .geometry_commands
+                            .material_color_palette
+                            .write(0);
                     }
                     VideoTextPass::new(&mut self.video, bounds).text_pass(|f| {
                         f.set_position(x, y);

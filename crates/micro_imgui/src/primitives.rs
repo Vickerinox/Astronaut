@@ -269,7 +269,6 @@ pub enum Shape<'a, I> {
         bounds: Rect,
         str: &'a str,
         color: Color,
-        outline: Color,
         size: u8,
     },
     Image {

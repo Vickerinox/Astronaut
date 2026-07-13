@@ -3,7 +3,7 @@ use core::{
     ops::{BitAndAssign, BitOrAssign, Not},
 };
 
-use crate::{MemoryWrapper, StorageSector, swi_delay};
+use crate::{swi_delay, MemoryWrapper, StorageSector};
 use volatile_register::*;
 
 pub mod driver;
@@ -258,8 +258,10 @@ impl MMC {
         argument: u32,
     ) -> Status {
         self.status.write(Status::empty());
-        self.block_count.write(((port.buffer.len() * 4 )/ port.block_len as usize) as u16);
-        self.block_count_32.write(((port.buffer.len() * 4 )/ port.block_len as usize) as u16);
+        self.block_count
+            .write(((port.buffer.len() * 4) / port.block_len as usize) as u16);
+        self.block_count_32
+            .write(((port.buffer.len() * 4) / port.block_len as usize) as u16);
         let mut timeout = 0;
 
         self.param.write(argument);
@@ -277,7 +279,7 @@ impl MMC {
         self.tmio_get_response(port, command as u16);
 
         if command.transmits_data() {
-            let mut sector_iter = (&mut *port.buffer).chunks_exact_mut(port.block_len as usize /4);
+            let mut sector_iter = (&mut *port.buffer).chunks_exact_mut(port.block_len as usize / 4);
             let Some(mut current_sector) = sector_iter.next() else {
                 return Status::from_bits_retain(0x4B4B4B4B);
             };
@@ -295,8 +297,7 @@ impl MMC {
                         .contains(DataControl32::RX_READY)
                     {
                         timeout = 0;
-                        for word in current_sector.iter_mut()
-                        {
+                        for word in current_sector.iter_mut() {
                             (word as *mut u32).write_volatile(self.data_fifo_32.read());
                         }
                         let Some(next_sector) = sector_iter.next() else {

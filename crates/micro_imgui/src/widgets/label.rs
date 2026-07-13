@@ -22,8 +22,7 @@ impl<'t> AutoAdd for Label<'t> {
         let rect = ui.draw(Shape::Text {
             bounds,
             str: &text,
-            color: Color::new(200, 200, 200),
-            outline: Color::new(0, 0, 0),
+            color: ui.style().text_color,
             size,
         });
         let resp = ui.allocate_size(rect.size(), Sense::hovered());

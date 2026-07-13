@@ -43,7 +43,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         self.add(Button::new(
             text,
             crate::Sizing::Automatic,
-            Color::new(200, 200, 200),
+            self.style().text_color,
         ))
     }
     pub fn backend(&self) -> &B {

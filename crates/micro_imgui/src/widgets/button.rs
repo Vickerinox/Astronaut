@@ -40,7 +40,6 @@ impl<'t> AutoAdd for Button<'t> {
             bounds,
             str: &text,
             color: text_color,
-            outline: Color::new(0, 0, 0),
             size: 8,
         });
         let wanted_size = rect.scale_uniform(3).size();

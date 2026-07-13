@@ -189,7 +189,7 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     if nwifi_init_func1() {
         return 3;
     }
-    
+
     //find out what the base address of the data segment for this card is
     let Some(interest_area) = find_interest_addr(firmware) else {
         return 5;
@@ -303,7 +303,9 @@ fn get_wifi_part<'a>(firmware: &'a mut [u8], part: FirmwarePart) -> Option<(&'a 
     let (flags, rem) = rem.split_first_chunk::<4>()?;
     let (destination, rem) = rem.split_first_chunk::<4>()?;
     let destination = u32::from_le_bytes(destination.clone());
-    firmware.get_mut(offset..offset + len).map(|i| (i, destination))
+    firmware
+        .get_mut(offset..offset + len)
+        .map(|i| (i, destination))
 }
 unsafe fn wifi_card_upload_binary(addr: u32, binary: &mut [u8]) -> bool {
     const CHUNK_SIZE: usize = 0x1F0;
@@ -334,32 +336,36 @@ unsafe fn wifi_card_upload_lz(data: &mut [u8]) -> bool {
     if data.is_empty() {
         return false;
     }
-    
-    
-    
+
     let total_len = (data.len() as u32 + 3) & !3;
     wifi_wait_count4();
     if nwifi_write_mbox_u32(0xE, false) {
         return true;
     }
-    
+
     if nwifi_write_mbox_u32(total_len as u32, false) {
         return true;
     }
 
-    
     let (blocks, snipit_data) = data.split_at_mut(data.len() & !0x7f);
     if !blocks.is_empty() {
         let mut buf: &mut [u32] = bytemuck::cast_slice_mut(blocks);
         PORT.buffer = buf;
-        
-        let addr = 0x1000-total_len as u32;
-        let res = SDIO_CONTROLLER.send_command(&mut PORT, crate::mmc::Command::SDIORegWBlock, ((1<<31) | (1 << 28) | (1 << 27) | (1 << 26) |
-                ((addr & 0x1FFFF) << 9) | ((buf.len() / 0x20) as u32)));
+
+        let addr = 0x1000 - total_len as u32;
+        let res = SDIO_CONTROLLER.send_command(
+            &mut PORT,
+            crate::mmc::Command::SDIORegWBlock,
+            ((1 << 31)
+                | (1 << 28)
+                | (1 << 27)
+                | (1 << 26)
+                | ((addr & 0x1FFFF) << 9)
+                | ((buf.len() / 0x20) as u32)),
+        );
         if !res.successful() {
             return true;
         }
-        
     }
 
     let snipit_len = (snipit_data.len() as u32 + 3) & !3;
@@ -407,18 +413,25 @@ unsafe fn wifi_card_write_memory(addr: u32, data: &mut [u8]) -> bool {
     if !blocks.is_empty() {
         let mut buf: &mut [u32] = bytemuck::cast_slice_mut(blocks);
         PORT.buffer = buf;
-        
-        let addr = 0x1000-total_len as u32;
-        let res = SDIO_CONTROLLER.send_command(&mut PORT, crate::mmc::Command::SDIORegWBlock, ((1<<31) | (1 << 28) | (1 << 27) | (1 << 26) |
-                ((addr & 0x1FFFF) << 9) | ((buf.len() / 0x20) as u32)));
+
+        let addr = 0x1000 - total_len as u32;
+        let res = SDIO_CONTROLLER.send_command(
+            &mut PORT,
+            crate::mmc::Command::SDIORegWBlock,
+            ((1 << 31)
+                | (1 << 28)
+                | (1 << 27)
+                | (1 << 26)
+                | ((addr & 0x1FFFF) << 9)
+                | ((buf.len() / 0x20) as u32)),
+        );
         if !res.successful() {
             return true;
         }
     }
-    
+
     let len = (snipit_data.len() as u32 + 3) & !3;
     let mut iter = snipit_data.iter();
-    
 
     for _ in 0..(len - 1) {
         let byte = iter.next().copied().unwrap_or(0);
