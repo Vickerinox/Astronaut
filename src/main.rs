@@ -193,11 +193,11 @@ struct FixedCompilerArgs {
 impl FixedCompilerArgs {
     fn build(self) -> Result<(), BuildError> {
         let env_us = env::current_dir().expect("Failed to get current dir using ENV");
-        let arm9_path = env_us.clone().join("crates/hinddoor/hd_arm9");
-        let arm7_path = env_us.clone().join("crates/hinddoor/hd_arm7");
+        let arm9_path = env_us.clone().join("astronaut/arm9");
+        let arm7_path = env_us.clone().join("astronaut/arm7");
 
-        let arm9_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm9");
-        let arm7_bootstrap_path = env_us.clone().join("crates/hinddoor/bs_arm7");
+        let arm9_bootstrap_path = env_us.clone().join("astronaut/bootstrap");
+        let arm7_bootstrap_path = env_us.clone().join("astronaut/bs_arm7");
 
         let arm9_installer_path = env_us.clone().join("crates/installer/arm9");
         let arm7_installer_path = env_us.clone().join("crates/installer/arm7");
@@ -235,10 +235,10 @@ impl FixedCompilerArgs {
         //let _enter = span.enter();
         build::build_crate(arm9_bootstrap_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
         debug!("Built arm9 bootstrap");
-        build::build_crate(arm7_bootstrap_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
-        debug!("Built arm7 bootstrap");
-        build::compile_bootstrap(arm9_bs_elf, bootstrap_include_path)
-            .map_err(Crate::BootStrap.err())?;
+        //build::build_crate(arm7_bootstrap_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
+        //debug!("Built arm7 bootstrap");
+        //build::compile_bootstrap(arm9_bs_elf, bootstrap_include_path)
+        //    .map_err(Crate::BootStrap.err())?;
         debug!("Done compiling bootstraps!");
         //drop(_enter);
         //let span = span!(Level::TRACE, "Arm7 binary");
@@ -246,14 +246,14 @@ impl FixedCompilerArgs {
         //we have to do this idiotic thing or cargo craps itself with config.toml
         info!("Compiling ARM7 binary... ");
         build::build_crate(arm7_path).map_err(|e| (e, Crate::Arm7))?;
-        debug!("Done building AMR7!");
+        //debug!("Done building AMR7!");
 
         //drop(_enter);
         //let span = span!(Level::TRACE, "Arm7 binary injection");
         //let _enter = span.enter();
         info!("Injecting into ARM7...");
-        build::compile_arm7(arm7_elf, arm7_include_path).map_err(Crate::Arm7.err())?;
-        debug!("Done injecting AMR7!");
+        //build::compile_arm7(arm7_elf, arm7_include_path).map_err(Crate::Arm7.err())?;
+        //debug!("Done injecting AMR7!");
         //drop(_enter);
         //let span = span!(Level::TRACE, "Arm9 binary");
         //let _enter = span.enter();

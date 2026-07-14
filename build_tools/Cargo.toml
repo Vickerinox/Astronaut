@@ -1,0 +1,9 @@
+[package]
+name = "build_tools"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tracing = { version = "0.1.41", features = ["log-always"] }
+thiserror = "2.0.9"
+elf = "0.7.4"

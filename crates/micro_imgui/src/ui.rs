@@ -72,15 +72,17 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
         (Rect::from_two_pos(rect_min, rect_min + size), response)
     }
 
-    pub fn horizontal<R>(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>) -> R) -> R {
+    /// Start a horizontal layout in the middle of the ui
+    /// 
+    /// 
+    pub fn horizontal(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>)) {
         let old_clip_rect = self.clip_rect();
         let old_layout = self.layout.clone();
         self.layout = Layout(Direction::LeftRight, Align::Min);
-        let ret = closure(self);
+        closure(self);
         self.layout = old_layout;
         self.clip_rect = old_clip_rect;
         self.add_space(16);
-        ret
     }
 
     pub fn allocate_size(&mut self, size: Vec2, sense: Sense) -> Response {
