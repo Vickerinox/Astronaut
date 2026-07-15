@@ -482,16 +482,13 @@ unsafe fn main() {
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
                     let mut file_path = params.parse_path();
-                    (&raw mut app_data.global_data.autoboot)
-                        .write(Some((file_path.clone(), params)));
                     if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
-                        //app_data.current_ui = CurrentUI::LoadingApp { file, file_path };
+                        (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
                         boot::boot_app(&mut file, &mut file_path, &mut app_data.global_data);
                     }
                 }
-            } else {
-                app_data.autoboot();
             }
+            app_data.autoboot();
         }
 
         let (assets, style) = app_data

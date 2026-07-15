@@ -110,7 +110,7 @@ impl UnlaunchParams {
     pub fn parse_path(&self) -> String {
         // NOTE: unwrap_or_default is a code size optimization.
         // We really don't need to know *why* parsing failed.
-        String::from_utf16(&self.file_path).unwrap_or_default()
+        String::from_utf16(&self.file_path).map(|mut i| {i.truncate(i.find(&['\0']).unwrap_or(i.len())); i} ).unwrap_or_default()
     }
 }
 /// Boot info provided by past boots of the console
