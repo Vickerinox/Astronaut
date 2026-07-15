@@ -1,5 +1,3 @@
-
-
 pub fn _crc16(mut value: u16, buffer: &[u8]) -> u16 {
     /*
     val[0..7] = C0C1h,C181h,C301h,C601h,CC01h,D801h,F001h,A001h

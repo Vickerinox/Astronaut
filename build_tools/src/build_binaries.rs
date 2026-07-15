@@ -1,8 +1,4 @@
-use std::{
-    fmt::Display,
-    path::PathBuf,
-    process::Stdio,
-};
+use std::{fmt::Display, path::PathBuf, process::Stdio};
 
 use thiserror::Error;
 use tracing::{debug, error, info};
@@ -115,9 +111,7 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     Ok(())
 }
 
-pub fn compile_arm7(
-    elf_file_path: PathBuf,
-) -> Result<Vec<u8>, CompileError> {
+pub fn compile_arm7(elf_file_path: PathBuf) -> Result<Vec<u8>, CompileError> {
     const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x600000C;
     const HEADER_SIZE: usize = 12;
     //const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
@@ -179,9 +173,7 @@ pub fn compile_arm7(
     Ok(empty_bin)
 }
 
-pub fn compile_bootstrap(
-    elf9_file_path: PathBuf,
-) -> Result<Vec<u8>, CompileError> {
+pub fn compile_bootstrap(elf9_file_path: PathBuf) -> Result<Vec<u8>, CompileError> {
     const HEADER_SIZE: usize = 12;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
