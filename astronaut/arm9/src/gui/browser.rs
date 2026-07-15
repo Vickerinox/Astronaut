@@ -8,9 +8,15 @@ use micro_imgui_ds::{
 };
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
-use crate::{ FileEntry, FileType, filetype, get_extension, gui::{
-        GlobalData, frontend::{AppBooter, ClonableUiPage, UiPage, pop_dir_entry}, main_menu::MainMenu, 
-    }, music::{MusicPlaying, StreamingWav, stop_mod_file}, truncate_name,
+use crate::{
+    filetype, get_extension,
+    gui::{
+        frontend::{pop_dir_entry, AppBooter, ClonableUiPage, UiPage},
+        main_menu::MainMenu,
+        GlobalData,
+    },
+    music::{stop_mod_file, MusicPlaying, StreamingWav},
+    truncate_name, FileEntry, FileType,
 };
 
 pub fn is_bootable(str: &[u8]) -> bool {
@@ -29,40 +35,40 @@ pub fn is_music_module(str: &[u8]) -> bool {
 
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
-    unsafe {
-        loop {
-            if let Ok(file) = fatfs_embedded::readdir(folder) {
-                let Ok(name) = core::ffi::CStr::from_ptr(file.fname.as_ptr()).to_str() else {
-                    continue;
-                };
-                let name = alloc::string::String::from(name);
-                if name.is_empty() {
-                    break;
-                }
-                let is_dir =
-                    file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
-                let color = if is_dir {
-                    FileType::Dir
-                } else {
-                    let s_name = core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_bytes();
-                    let s_name = if s_name.is_empty() {
-                        name.as_bytes()
-                    } else {
-                        s_name
-                    };
-                    filetype(s_name)
-                };
-                let dname = truncate_name(&name, 35);
-                vec.push(FileEntry {
-                    display_name: dname,
-                    file_name: name,
-                    kind: color,
-                })
-            } else {
-                panic!("SD WAS EJECTED!");
+
+    loop {
+        if let Ok(file) = fatfs_embedded::readdir(folder) {
+            let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str()
+            else {
+                continue;
+            };
+            let name = alloc::string::String::from(name);
+            if name.is_empty() {
+                break;
             }
+            let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
+            let color = if is_dir {
+                FileType::Dir
+            } else {
+                let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_bytes() };
+                let s_name = if s_name.is_empty() {
+                    name.as_bytes()
+                } else {
+                    s_name
+                };
+                filetype(s_name)
+            };
+            let dname = truncate_name(&name, 35);
+            vec.push(FileEntry {
+                display_name: dname,
+                file_name: name,
+                kind: color,
+            })
+        } else {
+            panic!("SD card seems to have been ejected!");
         }
     }
+
     for i in 1..vec.len() {
         let Some(temp) = vec.get(i) else { break };
         let temp = temp.clone();

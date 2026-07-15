@@ -9,7 +9,7 @@ pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
     BadEntrypoint(u32),
     NdsModeNotSupported,
-    FileReadError, 
+    FileReadError,
 }
 impl Debug for BootError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -21,7 +21,9 @@ impl Debug for BootError {
         }
     }
 }
-use crate::{gui::GlobalData, set_background, AppArea, APP_AREA_START, resources::BOOTSTRAP_BINARY};
+use crate::{
+    gui::GlobalData, resources::BOOTSTRAP_BINARY, set_background, AppArea, APP_AREA_START,
+};
 
 pub fn read_all(
     mut buffer: &mut [u8],
@@ -92,7 +94,6 @@ unsafe fn boot_unreturnable(
             .contains(&(boot_info.twl_header.title_id & !0xFF))
         {
             let a = crate::load_wifi_firmware(boot_info.ntr.wifi_other[0]);
-            
         }
     }
 
@@ -337,5 +338,5 @@ pub unsafe fn inject_bootstrap() {
         (common::bootstrap::BOOTLOADER_MEM as *mut u8)
             .add(i)
             .write_volatile(*byte);
-    } 
+    }
 }

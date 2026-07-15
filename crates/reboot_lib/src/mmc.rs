@@ -337,7 +337,6 @@ impl MMC {
         command: Command,
         argument: u32,
     ) -> Status {
-        //return self.new_send_command(port, command, argument);
         self.wait_busy();
         self.prepare_port(port);
         self.send_command_inner(port, command, argument)

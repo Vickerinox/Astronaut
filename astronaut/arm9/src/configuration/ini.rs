@@ -1,11 +1,7 @@
 pub struct Ini {}
 
-
 impl Ini {
-    pub fn new<'a>(
-        from: &'a str,
-        mut key_fn: Option<&mut dyn FnMut(&'a str, &'a str, &'a str)>,
-    ) {
+    pub fn new<'a>(from: &'a str, mut key_fn: Option<&mut dyn FnMut(&'a str, &'a str, &'a str)>) {
         let mut segment_name = "";
         for line in from.split(['\n'].as_slice()) {
             let mut parts = line.split([';', '#'].as_slice());
@@ -30,7 +26,6 @@ impl Ini {
                     if let Some(func) = &mut key_fn {
                         func(&segment_name, key, value)
                     }
-                    
                 }
             }
         }

@@ -73,8 +73,8 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     }
 
     /// Start a horizontal layout in the middle of the ui
-    /// 
-    /// 
+    ///
+    ///
     pub fn horizontal(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>)) {
         let old_clip_rect = self.clip_rect();
         let old_layout = self.layout.clone();

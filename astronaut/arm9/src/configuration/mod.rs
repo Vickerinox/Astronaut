@@ -11,7 +11,10 @@ use reboot_lib::{
 };
 
 use crate::{
-    FileType, get_extension, gui::{GlobalData, pop_dir_entry}, music::{MusicPlaying, StreamingWav},
+    get_extension,
+    gui::{pop_dir_entry, GlobalData},
+    music::{MusicPlaying, StreamingWav},
+    FileType,
 };
 
 pub struct BootCombo {
@@ -190,7 +193,8 @@ impl Config {
 
     pub fn load(&mut self, held_buttons: Buttons) {
         let Some(str) =
-            read_whole_file_to_string(&mut "sdmc:/_nds/astronaut/settings.ini".to_string()).or_else(|| read_whole_file_to_string(&mut "nand:/astronaut.ini".to_string()))
+            read_whole_file_to_string(&mut "sdmc:/_nds/astronaut/settings.ini".to_string())
+                .or_else(|| read_whole_file_to_string(&mut "nand:/astronaut.ini".to_string()))
         else {
             return;
         };
@@ -290,7 +294,7 @@ impl GlobalData {
             crate::load_default_font();
         }
         let wp = if self.config.top_wallpaper.is_empty() {
-            &mut wallpaper 
+            &mut wallpaper
         } else {
             &mut self.config.top_wallpaper
         };
@@ -316,11 +320,11 @@ impl GlobalData {
         VIDEO_HARDWARE
             .vram_control_bank_a
             .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-        
+
         if let Some(background) = Self::load_wallpaper(&mut background) {
             crate::show_wallpaper(background, 0x06800000 as *mut u16);
         } else {
-            for i in 0..(256*192) {
+            for i in 0..(256 * 192) {
                 (0x06800000 as *mut u16).add(i).write(0x8000);
             }
         }
@@ -375,15 +379,13 @@ fn handle_path(base: &String, var: &mut String, value: &str) {
 }
 pub mod ini;
 fn parse_color(color_str: &str, var: &mut Color) {
-    let Ok(color) = u32::from_str_radix(color_str, 16) else { return };
+    let Ok(color) = u32::from_str_radix(color_str, 16) else {
+        return;
+    };
     let [b, g, r, a] = color.to_le_bytes();
     *var = match color_str.len() {
-        4 => {
-            Color(color as u16)
-        }
-        6 => {
-            Color::new(r, g, b)
-        }
+        4 => Color(color as u16),
+        6 => Color::new(r, g, b),
         7 | 8 => {
             if a == 0 {
                 Color::new_transparent(r, g, b)

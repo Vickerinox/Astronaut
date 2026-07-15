@@ -1,15 +1,15 @@
-
 use crate::{
-    APP_AREA_START, AppArea, SCREEN_RECT, boot::{self, }, configuration::Theme, music::{MusicPlaying, send_mod_file},
+    boot::{self},
+    configuration::Theme,
+    music::{send_mod_file, MusicPlaying},
+    AppArea, APP_AREA_START, SCREEN_RECT,
 };
 use alloc::{boxed::Box, format, string::String};
 use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::Backend;
-use reboot_lib::{
-    autoboot_info::UnlaunchParams,
-};
+use reboot_lib::autoboot_info::UnlaunchParams;
 pub struct GlobalData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
     pub blowfish: BFCTX,
@@ -23,8 +23,6 @@ pub struct AppData {
 
     pub current_ui: Box<dyn UiPage>,
 }
-
-
 
 pub struct AppBooter {
     pub path: String,

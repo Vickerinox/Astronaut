@@ -1,4 +1,3 @@
-
 // cheaty macro stolen right from the interwebz
 pub struct WordAligned<Bytes: ?Sized> {
     pub _align: [u32; 0],
@@ -12,7 +11,7 @@ macro_rules! include_bytes_word_align {
         };
 
         &ALIGNED.bytes
-    }}; 
+    }};
 }
 
 pub const FONT_FILE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));

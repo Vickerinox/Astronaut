@@ -2,7 +2,7 @@ use core::alloc::Layout;
 
 use reboot_lib::{sound::SoundControl, timers::TimerControl};
 
-use crate::{APP_AREA_START, AppArea, boot::read_all};
+use crate::{boot::read_all, AppArea, APP_AREA_START};
 
 pub struct StreamingWav {
     file: fatfs_embedded::fatfs::File,
@@ -13,8 +13,6 @@ pub struct StreamingWav {
     stream_type: StreamType,
     frequency: u32,
 }
-
-
 
 const WAV_BUFFER_LEN: usize = 1024 * 64;
 const WAV_BUFFER_LAYOUT: Layout = unsafe { Layout::from_size_align_unchecked(WAV_BUFFER_LEN, 4) };

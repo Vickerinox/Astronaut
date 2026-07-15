@@ -1,4 +1,9 @@
-use std::{fmt::Display, io::{Error, Write}, path::PathBuf, process::Stdio};
+use std::{
+    fmt::Display,
+    io::{Error, Write},
+    path::PathBuf,
+    process::Stdio,
+};
 
 use thiserror::Error;
 use tracing::{debug, error, info};
@@ -62,8 +67,8 @@ pub enum CompileError {
     #[error("could not run cargo command {0}")]
     Cargo(CargoError),
 }
-use std::io::Error as IoError;
 use elf::ParseError;
+use std::io::Error as IoError;
 
 #[derive(Error, Debug)]
 pub enum CargoError {
@@ -171,7 +176,7 @@ pub fn compile_arm7(
         empty_bin.push(0u8);
     }
     info!("ARM Binary is {:x?} bytes", empty_bin.len());
-    
+
     info!("MISSION COMPLETE");
     Ok(empty_bin)
 }
@@ -270,8 +275,11 @@ pub fn compile_bootstrap(
         empty_bin[file_range].copy_from_slice(data);
     }
     */
-    assert!(empty_bin.len() < 0x4000, "WHATT TEHTEHETHTEHHETTE {:x}", empty_bin.len());
-    
+    assert!(
+        empty_bin.len() < 0x4000,
+        "WHATT TEHTEHETHTEHHETTE {:x}",
+        empty_bin.len()
+    );
 
     info!("MISSION COMPLETE");
     Ok(empty_bin)

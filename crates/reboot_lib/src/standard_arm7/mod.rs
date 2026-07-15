@@ -170,8 +170,8 @@ pub fn main_arm7() {
         init::init_power_regs();
         init::init_i2c();
         init::init_ntr_sound();
-        init::init_powerman2(); 
-        init::init_nwram(); 
+        init::init_powerman2();
+        init::init_nwram();
 
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
@@ -325,10 +325,6 @@ pub fn main_arm7() {
                     NDMA_HARDWARE.reset();
                     MMC_CONTROLLER.reset();
                     SDIO_CONTROLLER.reset();
-                    let _ = crate::i2c::I2C_HARDWARE.write_register(
-                        I2CRegister::I2cPower(crate::i2c::PowerRegister::MMCPWR),
-                        0,
-                    );
                     bootstrap::boot_arm7();
                 }
 

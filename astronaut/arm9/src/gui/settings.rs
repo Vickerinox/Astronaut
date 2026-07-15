@@ -5,16 +5,15 @@ use alloc::{
 };
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
-    micro_imgui::{
-        widgets::{ checkbox::Checkbox},
-        Backend,  Response,
-    },
+    micro_imgui::{widgets::checkbox::Checkbox, Backend, Response},
     Input,
 };
 use reboot_lib::Buttons;
 
 use crate::{
-     FileType, configuration::BootCombo, gui::{GlobalData, MainMenu, browser::Browser, frontend::UiPage}, truncate_name,
+    configuration::BootCombo,
+    gui::{browser::Browser, frontend::UiPage, GlobalData, MainMenu},
+    truncate_name, FileType,
 };
 
 #[derive(Clone)]
@@ -62,7 +61,8 @@ impl Settings {
                         data.config.theme_path = path;
                         Some(Box::new(Self::Main))
                     },
-                ).map(into_ui);
+                )
+                .map(into_ui);
             }
         });
 
@@ -77,12 +77,12 @@ impl Settings {
                     &[FileType::Wav, FileType::Mod],
                     String::from("sdmc:/"),
                     Box::new(Self::Main),
-                        &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
-                            data.config.music = path;
-                            Some(Box::new(Self::Main))
-                        },
-                    
-                ).map(into_ui);
+                    &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+                        data.config.music = path;
+                        Some(Box::new(Self::Main))
+                    },
+                )
+                .map(into_ui);
             }
         });
 
@@ -98,13 +98,12 @@ impl Settings {
                     &[FileType::Wav, FileType::Mod],
                     String::from("sdmc:/"),
                     Box::new(Self::Main),
-                    
-                        &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
-                            data.config.top_wallpaper = path;
-                            Some(Box::new(Self::Main))
-                        },
-                    
-                ).map(into_ui);
+                    &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+                        data.config.top_wallpaper = path;
+                        Some(Box::new(Self::Main))
+                    },
+                )
+                .map(into_ui);
             }
         });
 
@@ -132,7 +131,6 @@ impl Settings {
                     result = Some(Box::new(MainMenu));
                 }
             }
-            
         });
         result
     }
@@ -253,14 +251,12 @@ impl UiPage for Settings {
                             let mut ret: Option<Box<dyn UiPage>> = None;
                             ui.label(&format!("you've chosen: {}", format_combo(*combo)));
                             let buttons = *combo;
-                            let a = &|data: &mut GlobalData,
-                                          path: String|
-                                  -> Option<Box<dyn UiPage>> {
-                                data.config.boot_combos.finish(path);
-                                Some(Box::new(Settings::BootCombos(0)))
-                            };
+                            let a =
+                                &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+                                    data.config.boot_combos.finish(path);
+                                    Some(Box::new(Settings::BootCombos(0)))
+                                };
                             if ui.button("Launch something from SD").clicked() {
-                                
                                 let b = Browser::search_file(
                                     &[FileType::Rom],
                                     String::from("sdmc:/"),
@@ -273,7 +269,6 @@ impl UiPage for Settings {
                                 }
                             }
                             if ui.button("Launch something from NAND").clicked() {
-                                
                                 let b = Browser::search_file(
                                     &[FileType::Rom],
                                     String::from("nand:/"),

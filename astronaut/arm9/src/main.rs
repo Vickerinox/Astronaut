@@ -10,7 +10,7 @@ pub mod music;
 pub mod resources;
 pub struct FileSystems {
     pub nand_fs: RawFileSystem,
-    pub sdmc_fs: RawFileSystem, 
+    pub sdmc_fs: RawFileSystem,
 }
 pub struct AppArea {
     sdmmc_driver: core::mem::MaybeUninit<SDMMCDriver>,
@@ -53,13 +53,13 @@ use crate::gui::AppData;
 
 extern crate alloc;
 
+pub mod arm7_exploit;
 mod boot;
 pub mod configuration;
 pub mod fat;
 mod gui;
 mod mbr;
 mod nand;
-pub mod arm7_exploit;
 #[repr(C)]
 pub struct NandAutobootEntry {
     category: u16,
@@ -74,13 +74,13 @@ impl NandAutobootEntry {
         title_id: 0,
         version: 0,
         buttons: Buttons::empty(),
-        _reserved: 0, 
+        _reserved: 0,
     };
 }
 
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
-} 
+}
 #[inline(always)]
 pub unsafe fn unlaunch_breakpoint() {
     #[cfg(target_arch = "arm")]
@@ -139,11 +139,11 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     VIDEO_HARDWARE
         .vram_control_bank_e
         .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK E
-    
+
     VIDEO_HARDWARE
         .engine_a_ctrl
         .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_3D | DisplayControl::ENABLE_BG_0);
-    
+
     VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
     video_context.next_frame(); //swap geometry buffers
 
@@ -168,7 +168,7 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
         .geometry_commands
         .pipeline_set_viewport
         .write(Viewport::WHOLE_SCREEN_DEFAULT);
-    /* 
+    /*
     VIDEO_HARDWARE
         .geometry_commands
         .material_texture_attributes
@@ -594,8 +594,6 @@ pub unsafe fn set_background(color: u16) {
     ENGINE_B_PALETTES.bg_palettes[0].write(color);
 }
 
-
-
 const DSI_WRAM_START: usize = 0x037C0000;
 const BINARY_START: usize = 0x037DF27C;
 const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
@@ -641,7 +639,6 @@ pub unsafe extern "C" fn _start() {
 pub unsafe extern "C" fn _start() {
     main();
 }
-
 
 fn read_encrypted_nand(
     buffer: *mut [reboot_lib::StorageSector],

@@ -176,7 +176,11 @@ pub unsafe fn dsio_hw_init() {
 }
 pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 {
     // TODO: find a better way to detect already uploaded firmware?
-    if I2C_HARDWARE.read_register(PowerRegister::WIFILED.into()).ok() == Some(0x13) {
+    if I2C_HARDWARE
+        .read_register(PowerRegister::WIFILED.into())
+        .ok()
+        == Some(0x13)
+    {
         return 0;
     }
     //set initial registers
@@ -198,7 +202,6 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     let Some(interest_area) = find_interest_addr(firmware) else {
         return 5;
     };
-    
 
     let data_base = interest_area.get();
 

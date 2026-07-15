@@ -1,8 +1,5 @@
 use alloc::boxed::Box;
-use micro_imgui_ds::{
-    gui,
-    micro_imgui::Backend,
-};
+use micro_imgui_ds::{gui, micro_imgui::Backend};
 use reboot_lib::Buttons;
 
 use crate::gui::{browser::Browser, frontend::UiPage, special_thanks::SpecialThanks};
