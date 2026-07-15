@@ -40,7 +40,7 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     Ok(())
 }
 
-pub fn compile_arm7(
+pub fn _compile_arm7(
     elf_file_path: PathBuf,
     include_file_path: PathBuf,
 ) -> Result<(), CompileError> {
@@ -103,19 +103,19 @@ pub fn compile_arm7(
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)
         .open(&include_file_path)
-        .map_err(|e| CompileError::BinCreationFailure(e))?;
+        .map_err(|e| CompileError::_BinCreationFailure(e))?;
     bin_file
         .set_len(empty_bin.len() as _)
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::_BinWriteFailute(e))?;
     bin_file
         .write_all(&empty_bin[..])
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::_BinWriteFailute(e))?;
 
     info!("MISSION COMPLETE");
     Ok(())
 }
 
-pub fn compile_bootstrap(
+pub fn _compile_bootstrap(
     elf9_file_path: PathBuf,
     bootstrap_file_path: PathBuf,
 ) -> Result<(), CompileError> {
@@ -212,13 +212,13 @@ pub fn compile_bootstrap(
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)
         .open(&bootstrap_file_path)
-        .map_err(|e| CompileError::BinCreationFailure(e))?;
+        .map_err(|e| CompileError::_BinCreationFailure(e))?;
     bin_file
         .set_len(empty_bin.len() as _)
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::_BinWriteFailute(e))?;
     bin_file
         .write_all(&empty_bin[..])
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
+        .map_err(|e| CompileError::_BinWriteFailute(e))?;
 
     info!("MISSION COMPLETE");
     Ok(())

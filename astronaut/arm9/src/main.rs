@@ -27,7 +27,7 @@ pub struct Fader {
 reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 
 use alloc::string::ToString;
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String};
 use common::blowfish::BFCTX;
 use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
@@ -35,8 +35,7 @@ use micro_imgui_ds::{read_controller, Input};
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 use reboot_lib::timers::TimerControl;
 
-use micro_imgui_ds::micro_imgui::{Backend, Color, InputEvent};
-use reboot_lib::music_modules::mods::MODHeader;
+use micro_imgui_ds::micro_imgui::{Backend, InputEvent};
 use reboot_lib::{
     flush_mmc, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES, ENGINE_B_PALETTES,
     IPC_FIFO_HARDWARE,
@@ -106,6 +105,7 @@ unsafe fn load_default_font() {
 }
 #[cfg(not(target_arch = "arm"))]
 unsafe fn load_default_font() {
+    transfer_font_to_vram();
     panic!()
 }
 #[instruction_set(arm::a32)]
@@ -189,8 +189,6 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
 }
 
-const COLOR_BOOTABLE: Color = Color::new(100, 200, 100);
-const COLOR_MUSIC: Color = Color::new(100, 100, 200);
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum FileType {
     Dir,

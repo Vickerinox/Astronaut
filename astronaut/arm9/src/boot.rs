@@ -93,7 +93,7 @@ unsafe fn boot_unreturnable(
         if ![0x00030017_484E4100, 0x00030004_49485900]
             .contains(&(boot_info.twl_header.title_id & !0xFF))
         {
-            let a = crate::load_wifi_firmware(boot_info.ntr.wifi_other[0]);
+            crate::load_wifi_firmware(boot_info.ntr.wifi_other[0]);
         }
     }
 

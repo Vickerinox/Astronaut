@@ -12,11 +12,7 @@ pub enum Crate {
     Arm9,
     Arm7,
     Arm9BootStrap,
-    Arm7BootStrap,
-    BootStrap,
     TMD,
-    Arm9Installer,
-    Arm7Installer,
 }
 impl Crate {
     pub fn err(self) -> impl FnOnce(CompileError) -> BuildError {
@@ -59,9 +55,9 @@ pub enum CompileError {
     #[error("elf is missing segments ")]
     ElfMissingSegments,
     #[error("bin file create failure {0}")]
-    BinCreationFailure(IoError),
+    _BinCreationFailure(IoError),
     #[error("bin could not be written {0}")]
-    BinWriteFailute(IoError),
+    _BinWriteFailute(IoError),
     #[error("TMD compiling error {0}")]
     TMD(TMDCompileError),
     #[error("could not run cargo command {0}")]

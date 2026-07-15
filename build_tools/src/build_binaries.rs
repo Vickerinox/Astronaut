@@ -1,6 +1,5 @@
 use std::{
     fmt::Display,
-    io::{Error, Write},
     path::PathBuf,
     process::Stdio,
 };
@@ -118,7 +117,6 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
 
 pub fn compile_arm7(
     elf_file_path: PathBuf,
-    include_file_path: PathBuf,
 ) -> Result<Vec<u8>, CompileError> {
     const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x600000C;
     const HEADER_SIZE: usize = 12;
@@ -183,7 +181,6 @@ pub fn compile_arm7(
 
 pub fn compile_bootstrap(
     elf9_file_path: PathBuf,
-    bootstrap_file_path: PathBuf,
 ) -> Result<Vec<u8>, CompileError> {
     const HEADER_SIZE: usize = 12;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;

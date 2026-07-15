@@ -17,15 +17,11 @@ mod errors;
 mod mmc;
 mod testing;
 
-pub struct ElfStat {
-    entry_point: u32,
-    size: u32,
-}
-fn inject_elf(
+fn _inject_elf(
     elf_file_path: &PathBuf,
     memory: &mut [u8],
     start_addr: usize,
-) -> Result<ElfStat, CompileError> {
+) -> Result<(), CompileError> {
     info!("SELECTED ELF: {:?}", &elf_file_path);
     let file = fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
@@ -59,55 +55,7 @@ fn inject_elf(
         );
         memory[file_range].copy_from_slice(data);
     }
-    Ok(ElfStat {
-        entry_point: entry_value,
-        size: end as u32,
-    })
-}
-fn construct_installer_rom(arm9: PathBuf, arm7: PathBuf) -> Result<Vec<u8>, BuildError> {
-    let mut rom = vec![0u8; 0x80000];
-    let mut header = common::bootstrap::TWLHeader::new();
-
-    let elf_file_path = &arm9;
-
-    const MAGIC_START_POINT_ARM9: usize = 0x02010000;
-    const MAGIC_START_POINT_ARM7: usize = 0x02300000;
-
-    let ElfStat { entry_point, size } =
-        inject_elf(&arm9, &mut rom[0x4000..], MAGIC_START_POINT_ARM9)
-            .map_err(|e| Crate::Arm9Installer.err()(e))?;
-
-    header.head.arm9_load = (MAGIC_START_POINT_ARM9) as u32;
-    header.head.arm9_size = size;
-    header.head.arm9_entry = entry_point;
-    header.head.arm9_offset = 0x4000;
-
-    let arm7_offset = 0x5000 + (size & !0xFFF);
-
-    let ElfStat { entry_point, size } = inject_elf(
-        &arm7,
-        &mut rom[(arm7_offset as usize)..],
-        MAGIC_START_POINT_ARM7,
-    )
-    .map_err(|e| Crate::Arm7Installer.err()(e))?;
-
-    header.head.arm7_load = (MAGIC_START_POINT_ARM7) as u32;
-    header.head.arm7_size = size;
-    header.head.arm7_entry = entry_point;
-    header.head.arm7_offset = arm7_offset;
-
-    header.head.title.copy_from_slice(b"HOMEBREW    ");
-    header.head.unit_code = 3;
-
-    let header_as_bytes = unsafe {
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(header) as *const u8,
-            core::mem::size_of_val(&header),
-        )
-    };
-    rom[..header_as_bytes.len()].copy_from_slice(header_as_bytes);
-
-    Ok(rom)
+    Ok(())
 }
 
 fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
@@ -197,84 +145,21 @@ impl FixedCompilerArgs {
         let arm7_path = env_us.clone().join("astronaut/arm7");
 
         let arm9_bootstrap_path = env_us.clone().join("astronaut/bootstrap");
-        let arm7_bootstrap_path = env_us.clone().join("astronaut/bs_arm7");
-
-        let arm9_installer_path = env_us.clone().join("crates/installer/arm9");
-        let arm7_installer_path = env_us.clone().join("crates/installer/arm7");
 
         let arm9_elf = env_us
             .clone()
             .join("target-binary/thumbv5te-none-eabi/release/DeBoot_arm9");
-        let arm7_elf = env_us
-            .clone()
-            .join("target-binary/thumbv4t-none-eabi/release/DeBoot_arm7");
 
-        let arm9_elf_installer = env_us
-            .clone()
-            .join("target-installer/armv5te-none-eabi/release/arm9");
-        let arm7_elf_installer = env_us
-            .clone()
-            .join("target-installer/armv4t-none-eabi/release/arm7");
-
-        let arm9_bs_elf = env_us
-            .clone()
-            .join("target-bootstrap/armv5te-none-eabi/release/arm9_bootstrap");
-        // arm7 no longer needs a bootstrap since it's binary is already in VRAM (2025-12-06)
-        /*
-        let arm7_bs_elf = env_us
-            .clone()
-            .join("target-bootstrap/armv4t-none-eabi/release/arm7_bootstrap");
-        */
-
-        let arm7_include_path = env_us.clone().join("crates/hinddoor/hd_arm9/src/arm7.bin");
-        let bootstrap_include_path = env_us
-            .clone()
-            .join("crates/hinddoor/hd_arm9/src/bootstrap.bin");
-
-        //let span = span!(Level::TRACE, "Compiling Bootstrap");
-        //let _enter = span.enter();
+        info!("Compiling bootstrap binary... ");
         build::build_crate(arm9_bootstrap_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
-        debug!("Built arm9 bootstrap");
-        //build::build_crate(arm7_bootstrap_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
-        //debug!("Built arm7 bootstrap");
-        //build::compile_bootstrap(arm9_bs_elf, bootstrap_include_path)
-        //    .map_err(Crate::BootStrap.err())?;
-        debug!("Done compiling bootstraps!");
-        //drop(_enter);
-        //let span = span!(Level::TRACE, "Arm7 binary");
-        //let _enter = span.enter();
-        //we have to do this idiotic thing or cargo craps itself with config.toml
         info!("Compiling ARM7 binary... ");
         build::build_crate(arm7_path).map_err(|e| (e, Crate::Arm7))?;
-        //debug!("Done building AMR7!");
-
-        //drop(_enter);
-        //let span = span!(Level::TRACE, "Arm7 binary injection");
-        //let _enter = span.enter();
-        info!("Injecting into ARM7...");
-        //build::compile_arm7(arm7_elf, arm7_include_path).map_err(Crate::Arm7.err())?;
-        //debug!("Done injecting AMR7!");
-        //drop(_enter);
-        //let span = span!(Level::TRACE, "Arm9 binary");
-        //let _enter = span.enter();
         info!("Compiling ARM9 binary... ");
         build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
-        debug!("Done building ARM9!");
+        debug!("Done building stuff!");
 
-        /*
-        build::build_crate(arm9_installer_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
-        debug!("Built arm9 installer");
-        build::build_crate(arm7_installer_path).map_err(|e| (e, Crate::Arm7BootStrap))?;
-        debug!("Built arm7 installer");
-        */
-        //drop(_enter);
-        //let span = span!(Level::TRACE, "Arm9 binary injection");
-        //let _enter = span.enter();
         info!("Resolving MMC image... ");
         debug!("Done building ARM9!");
-        //drop(_enter);
-        //let span = span!(Level::TRACE, "tmd");
-        //let _enter = span.enter();
         let mmc_image_path = std::fs::canonicalize(&self.tmd_file).map_err(|_| BuildError {
             compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(self.tmd_file)),
             crate_type: Crate::TMD,
@@ -284,7 +169,7 @@ impl FixedCompilerArgs {
         let exploited_tmd = construct_tmd(arm9_elf)?;
         mmc::write_tmd_to_image(mmc_image_path, &exploited_tmd).map_err(Crate::TMD.err())?;
 
-        if let Some(mut path) = self.export_tmd {
+        if let Some(path) = self.export_tmd {
             if fs::write(&path, &exploited_tmd[520..]).is_err() {
                 error!("path for TMD export not available");
             }
