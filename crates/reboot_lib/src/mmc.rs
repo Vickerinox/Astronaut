@@ -286,7 +286,7 @@ impl MMC {
             timeout = 0;
             if command.reads_data() {
                 // Read loop
-                while !value.intersects(Status::ALL_ERRORS ^ Status::ERR_CMD_TIMEOUT) {
+                while !value.intersects(Status::ALL_ERRORS) {
                     timeout += 1;
                     if timeout > 0x10_0000 {
                         return !Status::INSERTED;
@@ -309,7 +309,7 @@ impl MMC {
                 }
             } else {
                 // Write loop
-                while !value.intersects(Status::ALL_ERRORS ^ Status::ERR_CMD_TIMEOUT) {
+                while !value.intersects(Status::ALL_ERRORS) {
                     timeout += 1;
                     if timeout > 0x10_0000 {
                         return !Status::INSERTED;

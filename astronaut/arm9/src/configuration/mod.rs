@@ -190,7 +190,7 @@ impl Config {
 
     pub fn load(&mut self, held_buttons: Buttons) {
         let Some(str) =
-            read_whole_file_to_string(&mut "sdmc:/_nds/vlaunch/settings.ini".to_string())
+            read_whole_file_to_string(&mut "sdmc:/_nds/astronaut/settings.ini".to_string()).or_else(|| read_whole_file_to_string(&mut "nand:/astronaut.ini".to_string()))
         else {
             return;
         };
@@ -313,11 +313,16 @@ impl GlobalData {
                 .write(DisplayControl::BG_MODE_5);
         }
 
+        VIDEO_HARDWARE
+            .vram_control_bank_a
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+        
         if let Some(background) = Self::load_wallpaper(&mut background) {
-            VIDEO_HARDWARE
-                .vram_control_bank_a
-                .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
             crate::show_wallpaper(background, 0x06800000 as *mut u16);
+        } else {
+            for i in 0..(256*192) {
+                (0x06800000 as *mut u16).add(i).write(0x8000);
+            }
         }
 
         let video_context = crate::init_graphics();

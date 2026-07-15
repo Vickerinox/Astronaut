@@ -114,7 +114,7 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
 pub fn compile_arm7(
     elf_file_path: PathBuf,
     include_file_path: PathBuf,
-) -> Result<(), CompileError> {
+) -> Result<Vec<u8>, CompileError> {
     const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x600000C;
     const HEADER_SIZE: usize = 12;
     //const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
@@ -171,26 +171,15 @@ pub fn compile_arm7(
         empty_bin.push(0u8);
     }
     info!("ARM Binary is {:x?} bytes", empty_bin.len());
-    let mut bin_file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(&include_file_path)
-        .map_err(|e| CompileError::BinCreationFailure(e))?;
-    bin_file
-        .set_len(empty_bin.len() as _)
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
-    bin_file
-        .write_all(&empty_bin[..])
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
-
+    
     info!("MISSION COMPLETE");
-    Ok(())
+    Ok(empty_bin)
 }
 
 pub fn compile_bootstrap(
     elf9_file_path: PathBuf,
     bootstrap_file_path: PathBuf,
-) -> Result<(), CompileError> {
+) -> Result<Vec<u8>, CompileError> {
     const HEADER_SIZE: usize = 12;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
@@ -282,18 +271,8 @@ pub fn compile_bootstrap(
     }
     */
     assert!(empty_bin.len() < 0x4000, "WHATT TEHTEHETHTEHHETTE {:x}", empty_bin.len());
-    let mut bin_file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(&bootstrap_file_path)
-        .map_err(|e| CompileError::BinCreationFailure(e))?;
-    bin_file
-        .set_len(empty_bin.len() as _)
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
-    bin_file
-        .write_all(&empty_bin[..])
-        .map_err(|e| CompileError::BinWriteFailute(e))?;
+    
 
     info!("MISSION COMPLETE");
-    Ok(())
+    Ok(empty_bin)
 }

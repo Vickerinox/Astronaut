@@ -40,7 +40,7 @@ impl UiPage for MainMenu {
             res = Some(Box::new(SpecialThanks));
         }
         ui.add_space(82);
-        ui.label(concat!("build commit: ", env!("GIT_HASH")));
+        ui.label(concat!("version ", env!("CARGO_PKG_VERSION")));
         res
         //})
     }

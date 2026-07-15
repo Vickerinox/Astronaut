@@ -5,8 +5,8 @@ use volatile_register::RW;
 pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as *mut I2CInterface);
 
 pub unsafe fn init() {
-    I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 1);
     I2C_HARDWARE.write_register(PowerRegister::MMCPWR.into(), 0);
+    
     //I2C_HARDWARE.write_register(PowerRegister::PowerButtonTap, 0x10);
     //I2C_HARDWARE.write_register(PowerRegister::PowerButtonHold, 0x64);
 }

@@ -175,6 +175,10 @@ pub unsafe fn dsio_hw_init() {
     SDIO_CONTROLLER.options.write(0x40EE);
 }
 pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 {
+    // TODO: find a better way to detect already uploaded firmware?
+    if I2C_HARDWARE.read_register(PowerRegister::WIFILED.into()).ok() == Some(0x13) {
+        return 0;
+    }
     //set initial registers
     dsio_hw_init();
     //perform reset on the card (enough to be sure were in 4-bit bus width)
@@ -194,8 +198,10 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     let Some(interest_area) = find_interest_addr(firmware) else {
         return 5;
     };
+    
 
     let data_base = interest_area.get();
+
     // Upload segment D (bootstub data)
     let Some((part_d, dest)) = get_wifi_part(firmware, FirmwarePart::PartD) else {
         return 6;

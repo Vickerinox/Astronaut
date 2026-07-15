@@ -5,10 +5,9 @@
 #![feature(str_from_raw_parts)]
 #![feature(str_split_remainder)]
 
-const BOOTSTRAP_BINARY: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bootstrap.bin"));
-reboot_lib::const_assert!(BOOTSTRAP_BINARY.len() < 0x4000);
 pub mod bmp;
 pub mod music;
+pub mod resources;
 pub struct FileSystems {
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem, 
@@ -60,7 +59,7 @@ pub mod fat;
 mod gui;
 mod mbr;
 mod nand;
-pub mod new_takeover;
+pub mod arm7_exploit;
 #[repr(C)]
 pub struct NandAutobootEntry {
     category: u16,
@@ -75,13 +74,13 @@ impl NandAutobootEntry {
         title_id: 0,
         version: 0,
         buttons: Buttons::empty(),
-        _reserved: 0,
+        _reserved: 0, 
     };
 }
 
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
-}
+} 
 #[inline(always)]
 pub unsafe fn unlaunch_breakpoint() {
     #[cfg(target_arch = "arm")]
@@ -91,7 +90,7 @@ pub unsafe fn unlaunch_breakpoint() {
 #[instruction_set(arm::a32)]
 #[cfg(target_arch = "arm")]
 unsafe fn load_default_font() {
-    const FONT_FILE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));
+    use resources::FONT_FILE;
     for i in 0..FONT_FILE.len() {
         core::ptr::write_volatile((0x2FF2000 as *mut u8).add(i), FONT_FILE[i]);
     }
@@ -415,7 +414,7 @@ unsafe fn main() {
         IPC_FIFO_HARDWARE.enable();
         IPC_FIFO_HARDWARE.set_status(0);
 
-        new_takeover::takeover_arm7();
+        arm7_exploit::takeover_arm7();
 
         steal_main_mem();
 
