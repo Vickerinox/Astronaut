@@ -43,7 +43,7 @@ fn main() {
 
     let dest_path = std::path::Path::new(&out_dir).join("arm7.bin");
     let elf7_file_path =
-        std::path::PathBuf::from("../../target-subbinary/thumbv4t-none-eabi/release/DeBoot_arm7");
+        std::path::PathBuf::from("../../target-subbinary/thumbv4t-none-eabi/release/arm7");
     let boostrap_bin =
         build_tools::build_binaries::compile_arm7(elf7_file_path.clone()).unwrap_or(Vec::new()); //.expect("Please compile the ARM7 binary before the main binary");
 

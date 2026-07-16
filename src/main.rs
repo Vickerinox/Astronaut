@@ -13,7 +13,7 @@ use std::{
 use clap::Parser;
 use elf::{endian::AnyEndian, ElfBytes};
 //use rfd::FileDialog;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
 mod build;
@@ -130,16 +130,13 @@ impl TryFrom<CompilerArgs> for FixedCompilerArgs {
 
     fn try_from(value: CompilerArgs) -> Result<Self, Self::Error> {
         Ok(Self {
-            tmd_file: value
-                .tmd_file
-                .or_else(get_file)
-                .ok_or("No path specified")?,
+            tmd_file: value.tmd_file,
             export_tmd: value.export_tmd,
         })
     }
 }
 struct FixedCompilerArgs {
-    tmd_file: PathBuf,
+    tmd_file: Option<PathBuf>,
     export_tmd: Option<PathBuf>,
 }
 impl FixedCompilerArgs {
@@ -152,7 +149,7 @@ impl FixedCompilerArgs {
 
         let arm9_elf = env_us
             .clone()
-            .join("target-binary/thumbv5te-none-eabi/release/DeBoot_arm9");
+            .join("target-binary/thumbv5te-none-eabi/release/arm9");
 
         info!("Compiling bootstrap binary... ");
         build::build_crate(arm9_bootstrap_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
@@ -160,48 +157,40 @@ impl FixedCompilerArgs {
         build::build_crate(arm7_path).map_err(|e| (e, Crate::Arm7))?;
         info!("Compiling ARM9 binary... ");
         build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
+        debug!("Done building ARM9!");
+        info!("Creating final binary...");
+        let exploited_tmd = construct_tmd(arm9_elf)?;
         debug!("Done building stuff!");
 
-        info!("Resolving MMC image... ");
-        debug!("Done building ARM9!");
-        let mmc_image_path = std::fs::canonicalize(&self.tmd_file).map_err(|_| BuildError {
-            compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(self.tmd_file)),
-            crate_type: Crate::TMD,
-        })?;
-        debug!("resolved to {:?}", mmc_image_path);
-        info!("Injecting TMD into MMC image...");
-        let exploited_tmd = construct_tmd(arm9_elf)?;
-        mmc::write_tmd_to_image(mmc_image_path, &exploited_tmd).map_err(Crate::TMD.err())?;
-
-        if let Some(path) = self.export_tmd {
-            if fs::write(&path, &exploited_tmd[520..]).is_err() {
-                error!("path for TMD export not available");
-            }
-            /*
-            match construct_installer_rom(arm9_elf_installer, arm7_elf_installer) {
-                Ok(installer) => {path.add_extension("dsi");
-                if fs::write(&path, &installer).is_err() {
-                    error!("Path for Installer rom not available");
-                }},
-                Err(err) => {
-                    error!("Failed to build installer {err:?}");
-                }
-            }
-            */
+        let path = self.export_tmd.unwrap_or(env_us.join("release.bin"));
+        match fs::write(&path, &exploited_tmd[520..]) {
+            Ok(()) => info!("Final binary written to {:?}", &path),
+            Err(e) => error!("Failed to write the final binary to {:?}, error: {}", &path, e),
         }
+
+
+        if let Some(mmc_image_path) = &self.tmd_file {
+            info!("Resolving NAND image... ");
+            let mmc_image_path = std::fs::canonicalize(mmc_image_path).map_err(|_| BuildError {
+                compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(mmc_image_path.clone())),
+                crate_type: Crate::TMD,
+            })?;
+                
+            debug!("resolved to {:?}", &mmc_image_path);
+            info!("Injecting TMD into NAND image...");
+            
+            warn!("Using this method of install is unsafe and done at your own risk! It does not prevent the official firmware from deleting itself!");
+            
+            mmc::write_tmd_to_image(mmc_image_path, &exploited_tmd).map_err(Crate::TMD.err())?;
+        } else {
+            info!("No NAND image provided, skipping TMD injection.");
+        }
+    
 
         Ok(())
     }
 }
 
-fn get_file() -> Option<PathBuf> {
-    /*
-    FileDialog::new()
-        .set_title("Select TMD to modify...")
-        .pick_file()
-     */
-    None
-}
 fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)

@@ -16,13 +16,3 @@ Cargo.lock
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
-
-
-# Added by cargo
-
-/target
-
-# pls no sue nintuende
-unlaunch_decomp/unlaunchc.bin
-unlaunch_decomp/src/unlaunch.decomp.bin
-unlaunch_decomp/failed_inputs.txt

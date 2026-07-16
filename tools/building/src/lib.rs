@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::{
     error::Error,
     io::{Read, Seek},
@@ -272,8 +275,7 @@ fn _decompress(data: &[u8]) -> Vec<u8> {
     assert_eq!(output.len(), size);
     output
 }
-pub fn generate_font(bmp: &[u8]) -> Option<Vec<u8>> {
-    let font = DecodedBMP::from_reader(std::io::Cursor::new(bmp)).expect("INVALID FONT BMP!!!");
+pub fn convert_font(font: &DecodedBMP) -> Option<Vec<u8>> {
     assert!(font.colors.len() <= 8);
     assert!(font.colors.len() >= 2);
     assert!(font.width() == 1024);
@@ -315,6 +317,10 @@ pub fn generate_font(bmp: &[u8]) -> Option<Vec<u8>> {
         .flatten();
     bitmap.extend(colors);
     Some(bitmap)
+}
+pub fn generate_font(bmp: &[u8]) -> Option<Vec<u8>> {
+    let font = DecodedBMP::from_reader(std::io::Cursor::new(bmp)).expect("INVALID FONT BMP!!!");
+    convert_font(&font)
 }
 #[test]
 pub fn build_font() {

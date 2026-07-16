@@ -14,7 +14,7 @@ strip = true                                # Strip symbols from binary*
 panic='abort'
 
 [[bin]]
-name = "DeBoot_arm7"
+name = "arm7"
 path = "src/main.rs"
 test = false
 bench = false
