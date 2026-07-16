@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
+
 bitflags::bitflags! {
     #[derive(Clone, Copy)]
     pub struct ROMSCFG: u16 {

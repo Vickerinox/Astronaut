@@ -1,10 +1,10 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
+///Code for interacting with the TI-TSC2117 Based Touch screen and dac controller on DSi
+
 use core::marker::PhantomData;
 
-///Code for interacting with the TI-TSC2117 Touch screen and dac controller on DSi
-///
-/// Viktor Karlsson 2025
-///
-///
 
 pub struct ControlPage;
 pub struct SoundPage;

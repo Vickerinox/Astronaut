@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 #[cfg(feature = "arm7i")]
 #[cfg(target_arch = "arm")]

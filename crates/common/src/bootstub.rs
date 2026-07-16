@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 //DKA bootstub struct
 const _BOOTSTUB_MAGIC: u64 = 0x62757473746F6F62; // "bootstub"
 const _BOOTSTUB_LOCATION: *mut BootStub = 0x2FF4000 as *mut BootStub;

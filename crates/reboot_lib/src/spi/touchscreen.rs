@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use crate::spi::{write_powerman, Control, SPI_HARDWARE};
 
 use super::SPIControl;

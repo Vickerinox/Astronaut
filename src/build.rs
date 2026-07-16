@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::{io::Write, path::PathBuf, process::Stdio};
 
 use tracing::{debug, error, info};

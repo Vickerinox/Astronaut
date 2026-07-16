@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use crate::bootstrap::TWLHeader;
 
 const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {

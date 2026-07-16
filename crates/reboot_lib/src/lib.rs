@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 #![no_std]
 #![feature(allocator_api)]
 #![feature(ptr_metadata)]

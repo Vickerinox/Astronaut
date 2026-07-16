@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 #[repr(C)]
 pub struct FirmwareHeader {
     pub part3_location: u16,

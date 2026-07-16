@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use build_tools::{compress, generate_font};
 use std::{io::Write, process::Command};
 

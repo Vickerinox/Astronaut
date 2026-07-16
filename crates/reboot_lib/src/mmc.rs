@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use core::{
     num::NonZeroUsize,
     ops::{BitAndAssign, BitOrAssign, Not},
@@ -11,19 +14,6 @@ pub mod tmio;
 
 pub const MMC_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004800 as *mut MMC);
 pub const SDIO_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004A00 as *mut MMC);
-
-const TMIO_STAT1_CMD_IDX_ERR: u16 = 0x0001;
-const TMIO_STAT1_CRCFAIL: u16 = 0x0002;
-const TMIO_STAT1_STOPBIT_ERR: u16 = 0x0004;
-const TMIO_STAT1_DATATIMEOUT: u16 = 0x0008;
-const TMIO_STAT1_RXOVERFLOW: u16 = 0x0010;
-const TMIO_STAT1_TXUNDERRUN: u16 = 0x0020;
-const TMIO_STAT1_CMDTIMEOUT: u16 = 0x0040;
-const TMIO_STAT1_RXRDY: u16 = 0x0100;
-const TMIO_STAT1_TXRQ: u16 = 0x0200;
-const TMIO_STAT1_ILL_FUNC: u16 = 0x2000;
-const TMIO_STAT1_CMD_BUSY: u16 = 0x4000;
-const TMIO_STAT1_ILL_ACCESS: u16 = 0x8000;
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -43,14 +33,6 @@ bitflags::bitflags! {
     }
 }
 
-const TMIO_MASK_GW: u16 = (TMIO_STAT1_ILL_ACCESS
-    | TMIO_STAT1_CMDTIMEOUT
-    | TMIO_STAT1_TXUNDERRUN
-    | TMIO_STAT1_RXOVERFLOW
-    | TMIO_STAT1_DATATIMEOUT
-    | TMIO_STAT1_STOPBIT_ERR
-    | TMIO_STAT1_CRCFAIL
-    | TMIO_STAT1_CMD_IDX_ERR);
 
 use bitflags::bitflags;
 

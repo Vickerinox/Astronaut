@@ -1,4 +1,7 @@
-// cheaty macro stolen right from the interwebz
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// cheaty macro to word align byte arrays 
 pub struct WordAligned<Bytes: ?Sized> {
     pub _align: [u32; 0],
     pub bytes: Bytes,

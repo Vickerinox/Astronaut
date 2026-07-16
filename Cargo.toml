@@ -11,7 +11,7 @@ members = [
     "crates/common",
     "crates/micro_imgui",
     "crates/reboot_lib"
-, "crates/micro_imgui_ds", "tools/font_converter", "build_tools"]
+, "crates/micro_imgui_ds", "tools/font_converter", "tools/building"]
 
 [dependencies]
 common = {path="./crates/common"}

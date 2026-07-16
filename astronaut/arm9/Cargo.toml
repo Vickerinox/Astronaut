@@ -21,7 +21,7 @@ bench = false
 
 [build-dependencies]
 cc = "1"
-build_tools = {path = "../../build_tools"}
+build_tools = {path = "../../tools/building"}
 
 [dependencies]
 reboot_lib = {path = "../../crates/reboot_lib", features = ["arm9i", "standard_arm7"]}

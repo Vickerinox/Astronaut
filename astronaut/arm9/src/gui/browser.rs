@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use core::ops::{Add, Sub};
 
 use alloc::{boxed::Box, format, string::String, vec::Vec};

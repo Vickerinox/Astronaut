@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+
 #![feature(array_try_from_fn)]
 use std::{
     env::{self},

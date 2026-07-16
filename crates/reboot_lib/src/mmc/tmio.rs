@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use crate::{
     disable_interrupt, enable_interrupt, interupts, mmc::Command, set_interrupt_function,
     swi_delay, swi_halt, ClockCnt, Interrupt, StorageSector, TMIOPort, MMC, MMC_CONTROLLER,

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use crate::{
     context::{ColorSet, Frame},
     primitives::{Id, Rect, Vec2},

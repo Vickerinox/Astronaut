@@ -1,6 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use crate::{
     ui::{AutoAdd, Ui},
-    Backend, Color, Response, Sense, Shape, Vec2,
+    Backend, Response, Sense, Shape, Vec2,
 };
 
 pub struct Label<'a> {

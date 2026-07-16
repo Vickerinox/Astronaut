@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use micro_imgui::{Rect, Vec2};
 use reboot_lib::{VertexListHost, VertexListType, VideoHardwareHandle};
 

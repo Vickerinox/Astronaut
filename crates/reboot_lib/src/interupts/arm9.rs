@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use super::INTERRUPT_TABLE;
 /// A interrupt handler appropriate for the ds, courtesy of libnds
 #[cfg(target_arch = "arm")]

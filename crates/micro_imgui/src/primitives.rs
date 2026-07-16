@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use core::num::NonZeroU16;
 
 pub struct LayerId(pub NonZeroU16);

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use crate::MemoryWrapper;
 use alloc::alloc::Global;
 use bitflags::bitflags;

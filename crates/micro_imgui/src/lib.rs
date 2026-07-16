@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 #![no_std]
 #![feature(nonzero_ops)]
 
@@ -6,7 +9,6 @@ pub use ui::Ui;
 extern crate alloc;
 
 mod context;
-mod event;
 mod primitives;
 mod response;
 mod ui;

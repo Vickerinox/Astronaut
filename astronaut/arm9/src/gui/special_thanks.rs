@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use alloc::boxed::Box;
 use micro_imgui_ds::{micro_imgui::Backend, Input};
 use reboot_lib::Buttons;

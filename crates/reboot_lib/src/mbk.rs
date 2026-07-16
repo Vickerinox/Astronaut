@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 use crate::MemoryWrapper;
 pub struct GlobalMBKs([volatile_register::RW<u32>; 5]);
 pub const GLOBAL_MBKS: MemoryWrapper<GlobalMBKs> = MemoryWrapper(0x4004040 as *mut GlobalMBKs);

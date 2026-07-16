@@ -1,5 +1,8 @@
+// SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
+// SPDX-License-Identifier: MIT
+
 pub unsafe fn swi_delay(duration: u32) {
-    #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER
+    #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
         #[instruction_set(arm::t32)]
         || {
@@ -19,7 +22,7 @@ pub struct SHA1State([u32; 25]);
 #[allow(unused_variables)]
 //#[instruction_set(arm::a32)]
 pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
-    #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER
+    #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
         #[instruction_set(arm::t32)]
         || {
@@ -41,7 +44,7 @@ pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
 
 pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     let mut retu = start;
-    #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER
+    #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
         #[instruction_set(arm::t32)]
         || {
@@ -60,7 +63,7 @@ pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     retu
 }
 pub unsafe fn swi_vblank() {
-    #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER
+    #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
         #[instruction_set(arm::t32)]
         || {
@@ -70,7 +73,7 @@ pub unsafe fn swi_vblank() {
 }
 
 pub unsafe fn swi_halt() {
-    #[cfg(target_arch = "arm")] //MADDERFAKING BITHC RUST ANALYSER
+    #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     #[instruction_set(arm::t32)]
     core::arch::asm!("push {{r0-r3}}", "SWI 0x6", "pop {{r0-r3}}",);
 }
