@@ -11,14 +11,8 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 * Selective Autobooting via button combos during reset/startup
 * Patching of the DSi menu to nullify any anti-tampering and region locking checks. (Currently required)
 
-
 ## State of the project (Last updated 2026-07-15)
 Currently, while astronaut is adequate to recreate the basic functionality of unlaunch i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now. Instead, i've choosen to make this first proof of concept public. 
-
-
-## Compiling on your own
-Due to the complexity of compiling DS binaries with rust, the crate at the very root is designed for compiling the whole project.
-In order for the project to build correctly, one must also have the
 
 ## Compatability with Unlaunch
 In order to make sure there is not a sea of chaos within the DSi Modding community, the `a+b` button combo is fixed to start astronauts gui.
