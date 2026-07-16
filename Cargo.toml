@@ -9,7 +9,6 @@ members = [
     "astronaut/arm9",
     "astronaut/bootstrap",
     "crates/common",
-    "crates/magic_values",
     "crates/micro_imgui",
     "crates/reboot_lib"
 , "crates/micro_imgui_ds", "tools/font_converter", "build_tools"]
