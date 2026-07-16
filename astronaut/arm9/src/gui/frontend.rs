@@ -4,6 +4,8 @@ use crate::{
     music::{send_mod_file, MusicPlaying},
     AppArea, APP_AREA_START, SCREEN_RECT,
 };
+
+use reboot_lib::fatfs_embedded;
 use alloc::{boxed::Box, format, string::String};
 use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::FileOptions;

@@ -2,7 +2,7 @@ use core::fmt::Debug;
 
 use alloc::string::{String, ToString};
 use common::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
-use fatfs_embedded::fatfs::FileOptions;
+use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
 
 pub enum BootError {

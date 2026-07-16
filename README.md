@@ -2,6 +2,8 @@
 Astronaut is a custom stage2 firmware made exclusively for DSi consoles. Which is an alternative Nocash's Unlaunch. 
 It uses the same primary exploit as unlaunch, wherein it hijacks the console while loading the TMD data for the DSi Menu. Unlocking all features of the console for homebrew use.
 
+## Licensing
+Astronaut is primarily licensed under the GPL version 3 license, with exception to the cargo crates found in the `crates` directory on the root of this repository. These crates instead use the MIT license. For specifics, please check the top of a given source file to know it's licensing.
 
 ## Features
 * Launch DSi Compatible Homebrew and DSiWare software from the DSi SD card and DSi NAND
@@ -12,8 +14,6 @@ It uses the same primary exploit as unlaunch, wherein it hijacks the console whi
 
 ## State of the project (Last updated 2026-07-15)
 Currently, while astronaut is adequate to recreate the basic functionality of unlaunch i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now. Instead, i've choosen to make this first proof of concept public. 
-
-## Contributions
 
 
 ## Compiling on your own

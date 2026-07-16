@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::boot::read_all;
-
+use reboot_lib::fatfs_embedded;
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct BMPHeader {

@@ -3,6 +3,8 @@ use alloc::{
     format,
     string::{String, ToString},
 };
+
+use reboot_lib::fatfs_embedded;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
     micro_imgui::{widgets::checkbox::Checkbox, Backend, Response},

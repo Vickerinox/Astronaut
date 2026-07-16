@@ -1,5 +1,6 @@
 use core::alloc::Layout;
 
+use reboot_lib::fatfs_embedded;
 use reboot_lib::{sound::SoundControl, timers::TimerControl};
 
 use crate::{boot::read_all, AppArea, APP_AREA_START};

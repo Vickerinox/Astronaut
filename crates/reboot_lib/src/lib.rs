@@ -111,6 +111,8 @@ pub struct Controls {
     touch_x: u8,
     touch_y: u8,
 }
+pub use fatfs_embedded;
+
 #[cfg(feature = "standard_arm7")]
 unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
     IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);

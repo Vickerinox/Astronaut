@@ -27,4 +27,3 @@ build_tools = {path = "../../build_tools"}
 reboot_lib = {path = "../../crates/reboot_lib", features = ["arm9i", "standard_arm7"]}
 micro_imgui_ds = {path = "../../crates/micro_imgui_ds"}
 common = {path = "../../crates/common"}
-fatfs-embedded ={path = "../../crates/cfatfs", default-features = false}

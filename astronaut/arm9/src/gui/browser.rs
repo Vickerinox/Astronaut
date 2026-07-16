@@ -2,6 +2,7 @@ use core::ops::{Add, Sub};
 
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use fatfs_embedded::fatfs::FileOptions;
+use reboot_lib::fatfs_embedded;
 use micro_imgui_ds::{
     micro_imgui::{self, widgets::button::Button, Backend, Sizing, Vec2},
     Input, SCREEN_RECT,

@@ -395,6 +395,7 @@ unsafe fn uptick_wav() {
         .wav_counter
         .modify(|i| i + 1);
 }
+use reboot_lib::fatfs_embedded;
 unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to vlaunch!\n");

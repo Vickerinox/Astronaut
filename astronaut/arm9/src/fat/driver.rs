@@ -1,3 +1,5 @@
+
+use reboot_lib::fatfs_embedded;
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
 use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc, StorageSector};
 
