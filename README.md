@@ -24,6 +24,7 @@ When compiling Astronaut yourself you will need Cargo as well as the armv5/armv4
 
 In effect, this means that once cargo and your dependencies are installed, compiling *should* be as simple as running `cargo run`. Optionally, you can provide 2 paths as command line arguments, the first is a custom path for the `astronaut.bin` file, the second is a path for a NAND image (`nand.bin`) file for the DSi which you wish to install astronaut onto (WARNING; PLEASE ONLY DO THIS ON A NAND IMAGE WHERE UNLAUNCH OR ASTRONAUT HAS ALREADY BEEN INSTALLED WITH AN OFFICIAL INSTALLER. AS THIS METHOD OF INSTALLING DOES NOT DISABLE THE STANDARD FIRMWARE FROM DELETING ITSELF AND OR ASTRONAUT WHEN DETECTING THE FILE TAMPERING.)
 
+
 ## Compatability with Unlaunch (and the a+b combo)
 In order to make sure there is not a sea of chaos within the DSi Modding community, the `a+b` button combo is fixed to start astronauts gui.
 
