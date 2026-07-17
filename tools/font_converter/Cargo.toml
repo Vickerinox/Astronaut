@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = "*"
-rfd = "*"
-build_tools = {path = "../building/"}
+eframe = { version = "0.35.0", default-features = false, features = [
+    "default_fonts",
+    "wayland",
+    "wgpu",
+    "x11",
+] }
+rfd = { version = "0.17.2" }
+build_tools = { path = "../building/" }

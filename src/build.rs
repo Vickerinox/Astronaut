@@ -3,7 +3,7 @@
 
 use std::{io::Write, path::PathBuf, process::Stdio};
 
-use tracing::{debug, error, info};
+use log::{debug, error, info};
 
 use crate::errors::{CargoError, CompileError};
 
@@ -19,15 +19,6 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     info!(
         "Spawning cargo command cargo build -r in {}",
         path.to_str().expect("already checked")
-    );
-    info!(
-        "libclang path is: {:?}",
-        std::env::var("LIBCLANG_PATH") /*
-                                       std::env::set_var(
-                                           "LIBCLANG_PATH",
-                                           "/nix/store/2hn01gz32n3axgmzrcclivngcgkcxqbm-clang-21.1.7-lib/lib"
-                                       )
-                                       */
     );
     if !cwd
         .wait()

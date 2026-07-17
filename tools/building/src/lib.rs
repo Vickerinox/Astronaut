@@ -322,14 +322,5 @@ pub fn generate_font(bmp: &[u8]) -> Option<Vec<u8>> {
     let font = DecodedBMP::from_reader(std::io::Cursor::new(bmp)).expect("INVALID FONT BMP!!!");
     convert_font(&font)
 }
-#[test]
-pub fn build_font() {
-    let input = generate_font(include_bytes!(
-        "/home/vik/Documents/MelonDS/emuSD/Light Theme/font.bmp"
-    ))
-    .expect("A");
-    let mut a = vec![0u8; 2];
-    a.extend_from_slice(&input);
-    std::fs::write("/home/vik/Documents/MelonDS/emuSD/Light Theme/font.bin", a);
-}
+
 pub mod build_binaries;

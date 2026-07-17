@@ -13,7 +13,7 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
 use crate::{
-    filetype, get_extension,
+    filetype,
     gui::{
         frontend::{pop_dir_entry, AppBooter, ClonableUiPage, UiPage},
         main_menu::MainMenu,
@@ -23,19 +23,6 @@ use crate::{
     truncate_name, FileEntry, FileType,
 };
 
-pub fn is_bootable(str: &[u8]) -> bool {
-    let Some(extension) = get_extension(str) else {
-        return false;
-    };
-    [b".APP".as_slice(), b".NDS".as_slice(), b".DSI".as_slice()].contains(&extension)
-}
-
-pub fn is_music_module(str: &[u8]) -> bool {
-    let Some(extension) = get_extension(str) else {
-        return false;
-    };
-    [b".MOD".as_slice(), b".WAV".as_slice()].contains(&extension)
-}
 
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();

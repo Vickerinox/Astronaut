@@ -121,21 +121,21 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
 }
 #[derive(Parser)]
 struct CompilerArgs {
-    tmd_file: Option<PathBuf>,
     export_tmd: Option<PathBuf>,
+    nand_image_file: Option<PathBuf>,
 }
 impl TryFrom<CompilerArgs> for FixedCompilerArgs {
     type Error = &'static str;
 
     fn try_from(value: CompilerArgs) -> Result<Self, Self::Error> {
         Ok(Self {
-            tmd_file: value.tmd_file,
+            nand_image_file: value.nand_image_file,
             export_tmd: value.export_tmd,
         })
     }
 }
 struct FixedCompilerArgs {
-    tmd_file: Option<PathBuf>,
+    nand_image_file: Option<PathBuf>,
     export_tmd: Option<PathBuf>,
 }
 impl FixedCompilerArgs {
@@ -170,7 +170,7 @@ impl FixedCompilerArgs {
             ),
         }
 
-        if let Some(mmc_image_path) = &self.tmd_file {
+        if let Some(mmc_image_path) = &self.nand_image_file {
             info!("Resolving NAND image... ");
             let mmc_image_path = std::fs::canonicalize(mmc_image_path).map_err(|_| BuildError {
                 compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(

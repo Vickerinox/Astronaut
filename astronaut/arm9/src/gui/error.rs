@@ -4,19 +4,17 @@
 use alloc::{boxed::Box, string::String};
 
 use crate::gui::{
-    frontend::{ClonableUiPage, UiPage},
+    frontend::{UiPage},
     main_menu::MainMenu,
 };
 
 pub struct Error {
     pub error_string: String,
-    pub exti: Option<Box<dyn ClonableUiPage>>,
 }
 impl Error {
     pub fn new(error_string: String) -> Self {
         Self {
             error_string,
-            exti: None,
         }
     }
 }

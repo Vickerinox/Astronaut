@@ -149,8 +149,8 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     }
 
     fn end_frame(&mut self) {
-        unsafe { while VIDEO_HARDWARE.vcount.read() != 190 {} }
-        unsafe { while VIDEO_HARDWARE.vcount.read() == 190 {} }
+        while VIDEO_HARDWARE.vcount.read() != 190 {} 
+        while VIDEO_HARDWARE.vcount.read() == 190 {} 
         unsafe { self.video.next_frame() };
     }
 
@@ -180,7 +180,6 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 outline_color,
                 outline_size,
             } => {
-                let bg = fill.0 < 0x8000;
 
                 let Rect {
                     min: micro_imgui::Vec2 { x, y },
@@ -317,7 +316,4 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     fn reserve_layer(&mut self) -> LayerId {
         self.advance_layer()
     }
-}
-impl DSMicroGuiBackend {
-    fn draw_rectangle(&mut self, rect: Rect, color: micro_imgui::Color, z: i16) {}
 }

@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    context::{ColorSet, Frame},
+    context::{ Frame},
     primitives::{Id, Rect, Vec2},
     response::{self, Response, Sense},
     widgets::{button::Button, label::Label},
-    Backend, Color, LayerId, Style,
+    Backend, LayerId,
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {

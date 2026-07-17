@@ -365,6 +365,7 @@ unsafe fn wifi_card_upload_lz(data: &mut [u8]) -> bool {
         PORT.buffer = buf;
 
         let addr = 0x1000 - total_len as u32;
+        #[allow(static_mut_refs)]
         let res = SDIO_CONTROLLER.send_command(
             &mut PORT,
             crate::mmc::Command::SDIORegWBlock,
@@ -427,6 +428,7 @@ unsafe fn wifi_card_write_memory(addr: u32, data: &mut [u8]) -> bool {
         PORT.buffer = buf;
 
         let addr = 0x1000 - total_len as u32;
+        #[allow(static_mut_refs)]
         let res = SDIO_CONTROLLER.send_command(
             &mut PORT,
             crate::mmc::Command::SDIORegWBlock,
