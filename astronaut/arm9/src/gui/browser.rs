@@ -217,18 +217,19 @@ impl UiPage for Browser {
             self.drag_start = 0;
         }
 
-        let mut focus_on = None;
-        if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
-            focus_on = Some(10);
-        }
-        if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) || !ui.has_focus_anywhere() {
-            focus_on = Some(0);
-        }
-
         let shown_items = self
             .immediate_files
             .get(((self.offset / ITEM_SPACING) as usize)..)
             .unwrap_or(&[]);
+
+        let mut focus_on = None;
+        let items_visible = (shown_items.len() - 1).clamp(0, 10);
+        if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
+            focus_on = Some(items_visible);
+        }
+        if ui.input_pressed(Input(Buttons::DIRECTION_LEFT)) || !ui.has_focus_anywhere() {
+            focus_on = Some(0);
+        }
 
         let in_step = self.offset % ITEM_SPACING;
 
@@ -323,7 +324,7 @@ impl UiPage for Browser {
         if (self.hold_timer.abs() > 30 && (self.hold_timer & 1 == 0)) || self.hold_timer.abs() == 1
         {
             if self.hold_timer.is_negative() {
-                if focus == Some(10) {
+                if focus == Some(items_visible) {
                     if shown_items.len() >= 12 {
                         self.offset = self.offset.saturating_add(ITEM_SPACING);
                     }
