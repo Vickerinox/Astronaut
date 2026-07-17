@@ -1,4 +1,0 @@
-{
-    "rust-analyzer.cargo.target": "armv5te-none-eabi",
-    "rust-analyzer.check.allTargets": false
-}
