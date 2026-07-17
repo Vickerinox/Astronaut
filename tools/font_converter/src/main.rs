@@ -4,13 +4,24 @@
 use std::{error::Error, fs, path::PathBuf};
 
 use build_tools::DecodedBMP;
-use eframe::{NativeOptions, egui::{Color32, Pos2, Rect, Sense, TextureOptions, Vec2}, emath::RectTransform};
+use eframe::{
+    NativeOptions,
+    egui::{Color32, Pos2, Rect, Sense, TextureOptions, Vec2},
+    emath::RectTransform,
+};
 
 fn read_bmp(path: PathBuf) -> Result<DecodedBMP, Box<dyn Error>> {
-
-    let file = fs::OpenOptions::new().read(true).open(path).map_err(|e| format!("Error opening file: {e}"))?;
-    let bmp = build_tools::DecodedBMP::from_reader(file).map_err(|e| format!("Error decoding BMP {e}"))?;
-    if bmp.width() != 1024 || bmp.height() != 8 || bmp.dib.compression != 0 || bmp.dib.bits_per_pixel != 4{
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .open(path)
+        .map_err(|e| format!("Error opening file: {e}"))?;
+    let bmp = build_tools::DecodedBMP::from_reader(file)
+        .map_err(|e| format!("Error decoding BMP {e}"))?;
+    if bmp.width() != 1024
+        || bmp.height() != 8
+        || bmp.dib.compression != 0
+        || bmp.dib.bits_per_pixel != 4
+    {
         Err(format!("Bitmap must be 1024x8 pixels, use no compression, and use 4-bit color. Yours is {}x{}, uses compresion type {}, and {}-bit color.", bmp.width(), bmp.height(), bmp.dib.compression, bmp.dib.bits_per_pixel).into())
     } else {
         Ok(bmp)
@@ -19,7 +30,7 @@ fn read_bmp(path: PathBuf) -> Result<DecodedBMP, Box<dyn Error>> {
 enum Toolstate {
     None,
     Loaded(DecodedBMP, PathBuf),
-    Error(Box<dyn Error>)
+    Error(Box<dyn Error>),
 }
 fn main() {
     let mut state = Toolstate::None;
@@ -59,31 +70,25 @@ fn main() {
                     ui.heading("Preview");
                     let (default, alternative) = preview_texture.get_or_insert_with(|| {
                         let (texture, texture2) = {
-                            let colors = image.palette_table().clone();
+                            let colors = image.palette_table();
+                            let pixel_split_fn = |i: &u8| {
+                                [(i&0xF0) >> 4,i&0xF]
+                            };
+                            let color_map_fn = |i: u8| {
+                                if i & 3 == 0 {
+                                    return Color32::TRANSPARENT;
+                                }
+                                let [r,g,b,_] = colors.get(i as usize).cloned().unwrap_or_default();
+                                Color32::from_rgba_premultiplied(r, g, b, 255)
+                            };
                             let bitmap: Vec<_> = image
                                     .bitmap().iter()
-                                    .map(|i| {
-                                        [(i&0xF0) >> 4,i&0xF]
-                                    }).flatten().map(|i| {
-                                        if i & 3 == 0 {
-                                            return Color32::TRANSPARENT;
-                                        }
-                                        let [r,g,b,a] = colors.get(i as usize).cloned().unwrap_or([0,0,0,255]);
-                                        Color32::from_rgba_premultiplied(r, g, b, 255)
-                                    })
+                                    .map(pixel_split_fn).flatten().map(color_map_fn)
                                     .collect();
 
                             let bitmap2: Vec<_> = image
                                     .bitmap().iter()
-                                    .map(|i| {
-                                        [(i&0xF0) >> 4,i&0xF]
-                                    }).flatten().map(|i| {
-                                        if i & 3 == 0 {
-                                            return Color32::TRANSPARENT;
-                                        }
-                                        let [r,g,b,a] = colors.get(4+i as usize).cloned().unwrap_or([0,0,0,255]);
-                                        Color32::from_rgba_premultiplied(r, g, b, 255)
-                                    })
+                                    .map(pixel_split_fn).flatten().map(color_map_fn)
                                     .collect();
                             (
                             eframe::egui::ColorImage::new([1024, 8], bitmap), 
@@ -165,4 +170,4 @@ fn main() {
         }
         });
     }).expect("Failed to launch GUI for font converter");
-}   
+}
