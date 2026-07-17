@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
 #![feature(array_try_from_fn)]
 use std::{
     env::{self},
@@ -162,30 +161,33 @@ impl FixedCompilerArgs {
         let exploited_tmd = construct_tmd(arm9_elf)?;
         debug!("Done building stuff!");
 
-        let path = self.export_tmd.unwrap_or(env_us.join("release.bin"));
+        let path = self.export_tmd.unwrap_or(env_us.join("astronaut.bin"));
         match fs::write(&path, &exploited_tmd[520..]) {
             Ok(()) => info!("Final binary written to {:?}", &path),
-            Err(e) => error!("Failed to write the final binary to {:?}, error: {}", &path, e),
+            Err(e) => error!(
+                "Failed to write the final binary to {:?}, error: {}",
+                &path, e
+            ),
         }
-
 
         if let Some(mmc_image_path) = &self.tmd_file {
             info!("Resolving NAND image... ");
             let mmc_image_path = std::fs::canonicalize(mmc_image_path).map_err(|_| BuildError {
-                compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(mmc_image_path.clone())),
+                compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(
+                    mmc_image_path.clone(),
+                )),
                 crate_type: Crate::TMD,
             })?;
-                
+
             debug!("resolved to {:?}", &mmc_image_path);
             info!("Injecting TMD into NAND image...");
-            
+
             warn!("Using this method of install is unsafe and done at your own risk! It does not prevent the official firmware from deleting itself!");
-            
+
             mmc::write_tmd_to_image(mmc_image_path, &exploited_tmd).map_err(Crate::TMD.err())?;
         } else {
             info!("No NAND image provided, skipping TMD injection.");
         }
-    
 
         Ok(())
     }

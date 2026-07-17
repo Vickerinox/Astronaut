@@ -33,7 +33,6 @@ bitflags::bitflags! {
     }
 }
 
-
 use bitflags::bitflags;
 
 bitflags! {

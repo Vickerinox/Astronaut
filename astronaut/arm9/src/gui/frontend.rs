@@ -8,13 +8,13 @@ use crate::{
     AppArea, APP_AREA_START, SCREEN_RECT,
 };
 
-use reboot_lib::fatfs_embedded;
 use alloc::{boxed::Box, format, string::String};
 use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::Backend;
 use reboot_lib::autoboot_info::UnlaunchParams;
+use reboot_lib::fatfs_embedded;
 pub struct GlobalData {
     pub autoboot: Option<(String, &'static UnlaunchParams)>,
     pub blowfish: BFCTX,

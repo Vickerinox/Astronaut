@@ -1,19 +1,18 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
 use alloc::{
     boxed::Box,
     format,
     string::{String, ToString},
 };
 
-use reboot_lib::fatfs_embedded;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
     micro_imgui::{widgets::checkbox::Checkbox, Backend, Response},
     Input,
 };
+use reboot_lib::fatfs_embedded;
 use reboot_lib::Buttons;
 
 use crate::{

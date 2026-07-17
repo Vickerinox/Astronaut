@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
-use reboot_lib::fatfs_embedded;
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
+use reboot_lib::fatfs_embedded;
 use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc, StorageSector};
 
 use crate::{mbr, nand::BasicSDMMCCursor, read_encrypted_nand, read_sd_card, transmute_slice};

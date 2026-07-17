@@ -7,9 +7,9 @@ use alloc::{
     vec::Vec,
 };
 
-use reboot_lib::fatfs_embedded;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui::{Color, ColorSet, Style};
+use reboot_lib::fatfs_embedded;
 use reboot_lib::{
     music_modules::mods::MODAsyncLoader, Buttons, DisplayControl, VRAMCtrl, VideoHardwareHandle,
     VIDEO_HARDWARE,

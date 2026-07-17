@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
 #![no_main]
 #![no_std]
 #![feature(ptr_metadata)]
@@ -704,24 +703,19 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             micro_imgui::Rect::from_min_size(Vec2::ZERO, Vec2::new(255, 191)),
         )
         .text_pass(|text_pass| {
-            
             text_pass.set_color(0x7FFF);
             text_pass.set_position(60, 80);
             text_pass.layout_str("Software version: ", 8);
             text_pass.layout_str(env!("CARGO_PKG_VERSION"), 8);
-
             text_pass.set_position(7, 24);
             text_pass.layout_str("The console crashed!", 16);
             text_pass.set_position(0, 44);
             text_pass.layout_str(" It's safe to restart the console and try  again. For support please visit the DSi   hacking server on discord", 8);
-            
             text_pass.set_position(0, 120);
             text_pass.set_color(0x7766);
             text_pass.layout_str("Error Message:", 8);
             text_pass.next_line();
-            
             print_msg(info, text_pass);
-            
         });
         video_context.next_frame();
         loop {

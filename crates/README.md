@@ -1,4 +1,4 @@
-# Crates
+# Crates Folder
 
 This folder contains the additional crates that drive astronaut. They are all licensed under the MIT license (as opposed to astronaut as a whole which is licensed under GPLv3) and is astronauts equivalent to a toolchain.
 

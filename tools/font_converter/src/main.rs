@@ -61,9 +61,7 @@ fn main() {
                         This tool is made to create fonts for the Astronaut stage 2 mod on DSi consoles. 
                         It works by converting a 4-bit BMP sized 1024x8 into ascii character cells that are 7x8 pixels. 
                         Fonts may use 4 colors, with colors 0..=3 denoting the main palette, and colors 4..=7 denoting a optional second palette.
-                    
                     ");
-                
                 });
                 }
                 Toolstate::Loaded(image, bmp_path) => {
@@ -90,18 +88,16 @@ fn main() {
                                     .bitmap().iter()
                                     .map(pixel_split_fn).flatten().map(color_map_fn)
                                     .collect();
-                            (eframe::egui::ColorImage::new([1024, 8], bitmap), 
+                            (eframe::egui::ColorImage::new([1024, 8], bitmap),
                             eframe::egui::ColorImage::new([1024, 8], bitmap2))
                         };
                         (
                         ui.load_texture("font", texture, TextureOptions::NEAREST),    ui.load_texture("font_alt", texture2, TextureOptions::NEAREST)
-                    
-                    )
+                        )
                     });
                     ui.horizontal(|ui| {
                         ui.label("Preview text:");
                         ui.text_edit_singleline(&mut preview_text);
-                    
                     });
                     ui.horizontal(|ui| {
                         ui.label("Text Color: ");

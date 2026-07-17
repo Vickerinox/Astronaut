@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-
 use crate::bootstrap::TWLHeader;
 
 pub const ARGV_MAGIC: i32 = 0x5f617267;

@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 ///Code for interacting with the TI-TSC2117 Based Touch screen and dac controller on DSi
-
 use core::marker::PhantomData;
-
 
 pub struct ControlPage;
 pub struct SoundPage;
