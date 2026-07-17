@@ -90,8 +90,7 @@ fn main() {
                                     .bitmap().iter()
                                     .map(pixel_split_fn).flatten().map(color_map_fn)
                                     .collect();
-                            (
-                            eframe::egui::ColorImage::new([1024, 8], bitmap), 
+                            (eframe::egui::ColorImage::new([1024, 8], bitmap), 
                             eframe::egui::ColorImage::new([1024, 8], bitmap2))
                         };
                         (
