@@ -89,16 +89,13 @@ pub unsafe fn unlaunch_breakpoint() {
     core::arch::asm!("mov r11, r11");
 }
 
-#[instruction_set(arm::a32)]
+#[instruction_set(arm::t32)]
 #[cfg(target_arch = "arm")]
 unsafe fn load_default_font() {
     use resources::FONT_FILE;
-    for i in 0..FONT_FILE.len() {
-        core::ptr::write_volatile((0x2FF2000 as *mut u8).add(i), FONT_FILE[i]);
-    }
     core::arch::asm!(
-        "SWI 0x110000",
-        in("r0") 0x2FF2000,
+        "SWI 0x11",
+        in("r0") core::ptr::addr_of!(*FONT_FILE) as *const u8,
         in("r1") 0x2FF1000,
         lateout("r0") _,
         lateout("r1") _,
