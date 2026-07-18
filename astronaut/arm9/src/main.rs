@@ -41,7 +41,8 @@ use reboot_lib::timers::TimerControl;
 
 use micro_imgui_ds::micro_imgui::{Backend, InputEvent};
 use reboot_lib::{
-    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, Interrupt, VRAMCtrl, VideoHardwareHandle, bytemuck, flush_mmc,
+    bytemuck, flush_mmc, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES,
+    ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
 };
 use reboot_lib::{
     Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl, Viewport,
@@ -200,15 +201,15 @@ pub enum FileType {
     None,
 }
 
-pub fn filetype(extension: &[u8]) -> FileType {
-    const ASSOCIATION_LIST: &[(&[u8], FileType)] = &[
-        (b".WAV", FileType::Wav),
-        (b".MOD", FileType::Mod),
-        (b".INI", FileType::Ini),
-        (b".BMP", FileType::Bmp),
-        (b".NDS", FileType::Rom),
-        (b".DSI", FileType::Rom),
-        (b".APP", FileType::Rom),
+pub fn filetype(extension: &str) -> FileType {
+    const ASSOCIATION_LIST: &[(&str, FileType)] = &[
+        (".WAV", FileType::Wav),
+        (".MOD", FileType::Mod),
+        (".INI", FileType::Ini),
+        (".BMP", FileType::Bmp),
+        (".NDS", FileType::Rom),
+        (".DSI", FileType::Rom),
+        (".APP", FileType::Rom),
     ];
     ASSOCIATION_LIST
         .iter()
@@ -217,7 +218,7 @@ pub fn filetype(extension: &[u8]) -> FileType {
         .copied()
         .unwrap_or(FileType::None)
 }
-pub fn get_extension(str: &[u8]) -> Option<&[u8]> {
+pub fn get_extension(str: &str) -> Option<&str> {
     let len = str.len().checked_sub(4)?;
     str.get(len..)
 }
@@ -341,7 +342,9 @@ unsafe fn find_wifi_firmware_path() -> Option<String> {
 }
 /// Loads the code thats within the ".text_aux" segment into memory
 unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
-    let Ok(mut file) = fatfs_embedded::open(&mut data.our_path, FileOptions::Read) else { return false };
+    let Ok(mut file) = fatfs_embedded::open(&mut data.our_path, FileOptions::Read) else {
+        return false;
+    };
     if fatfs_embedded::seek(&mut file, 0x13800 + 520).is_err() {
         return false;
     }
@@ -350,13 +353,17 @@ unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
     {
         let as_bytes: &mut [u8] = bytemuck::must_cast_slice_mut(&mut binary_copy);
         if read_all(as_bytes, &mut file).is_err() {
-            return false
+            return false;
         }
     }
     let mut word_iter = binary_copy.into_iter();
-    VIDEO_HARDWARE.vram_control_bank_e.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+    VIDEO_HARDWARE
+        .vram_control_bank_e
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
     for i in 0..0x4000 {
-        (0x6880000 as *mut u32).add(i).write(word_iter.next().unwrap_or(0));
+        (0x6880000 as *mut u32)
+            .add(i)
+            .write(word_iter.next().unwrap_or(0));
     }
     true
 }
@@ -426,11 +433,6 @@ unsafe fn set_bright(factor: u16) {
 }
 const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 
-unsafe fn uptick_wav() {
-    (*(APP_AREA_START as *mut AppArea))
-        .wav_counter
-        .modify(|i| i + 1);
-}
 use reboot_lib::fatfs_embedded;
 unsafe fn main() {
     unsafe {
@@ -478,18 +480,15 @@ unsafe fn main() {
         reboot_lib::interupts::init_interrupts();
 
         IPC_FIFO_HARDWARE.enable_recv_irq();
-        reboot_lib::timers::TIMERS[0]
-            .write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
+
         reboot_lib::set_interrupt_function(Interrupt::VBlank, fade_out);
-        reboot_lib::set_interrupt_function(Interrupt::Timer0, uptick_wav);
         reboot_lib::enable_interrupt(Interrupt::IPCNonEmpty);
         reboot_lib::enable_interrupt(Interrupt::VBlank);
-        reboot_lib::enable_interrupt(Interrupt::Timer0);
+        music::init();
 
         core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
 
-        app_area.sdmmc_driver.write(SDMMCDriver::new());
-        let sdmmc_driver = app_area.sdmmc_driver.assume_init_mut();
+        let sdmmc_driver = app_area.sdmmc_driver.write(SDMMCDriver::new());
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
 
         let _ = app_area
@@ -534,104 +533,9 @@ unsafe fn main() {
         }
 
         if !load_aux_segment(&mut app_data.global_data) {
-            early_crash("Failed to load GUI");            
-        } 
-        load_gui(app_data, &mut app_area.fader, buttons);
-        
-    }
-}
-#[no_mangle]
-#[link_section = ".text_aux"]
-unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Buttons) {
-    let (assets, style) = app_data
-        .global_data
-        .theme
-        .load(&mut app_data.global_data.config.theme_path);
-    let video_context = app_data.global_data.load_theme(assets);
-    let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
-
-    fader.target.write(0);
-    
-    micro_imgui_ds::micro_imgui::run(
-        backend,
-        style,
-        app_data,
-        |mut f, app_data| {
-            app_data.update(&mut f);
-        },
-        |app_data| {
-            app_data.do_background_tasks();
-        },
-    );
-}
-
-pub fn focus_default(
-    ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
-) {
-    if ui.input_pressed(Input::FOCUS_NEXT)
-        || (!ui.has_focus_anywhere() && !ui.input_pressed(micro_imgui_ds::Input::FOCUSED_PRESS))
-    {
-        ui.focus_next();
-    } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
-        ui.focus_prev();
-    }
-}
-fn show_wallpaper(bmp: crate::bmp::DecodedBMP, destination: *mut u16) {
-    if bmp.height() != 192 {
-        return;
-    }
-    if bmp.width() != 256 {
-        return;
-    }
-    let paletter = bmp.palette_table();
-    let a = |chunk: &[u8]| {
-        let red = paletter[((chunk[0] as usize) << 2) + 0] >> 3;
-        let green = paletter[((chunk[0] as usize) << 2) + 1] >> 3;
-        let blue = paletter[((chunk[0] as usize) << 2) + 2] >> 3;
-        0x8000 | ((red as u16) << 10) | ((green as u16) << 5) | (blue as u16)
-    };
-    let b = |chunk: &[u8]| {
-        let red = chunk[0] >> 3;
-        let green = chunk[1] >> 3;
-        let blue = chunk[2] >> 3;
-        0x8000 | ((red as u16) << 10) | ((green as u16) << 5) | (blue as u16)
-    };
-    let pixel_iter: core::iter::Map<core::slice::ChunksExact<'_, u8>, &dyn Fn(&[u8]) -> u16> =
-        match (bmp.dib.bits_per_pixel, bmp.dib.compression) {
-            (16, 3) => {
-                if bmp.palette_table()
-                    != &[
-                        00, 0x7C, 0x00, 0x00, 0xE0, 0x03, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00,
-                    ]
-                {
-                    return;
-                }
-                bmp.bitmap.chunks_exact(2).map(&|chunk| {
-                    let pixel = u16::from_le_bytes([chunk[0], chunk[1]]);
-                    let red = pixel & 0x1F;
-                    let green = (pixel & (0x1F << 5)) >> 5;
-                    let blue = (pixel & (0x1F << 10)) >> 10;
-                    0x8000 | (red << 10) | (green << 5) | (blue)
-                })
-            }
-            (8, 0) => bmp.bitmap.chunks_exact(1).map(&a),
-            (32, 3) => {
-                if bmp.palette_table()
-                    != &[
-                        00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
-                    ]
-                {
-                    return;
-                }
-                bmp.bitmap.chunks_exact(4).map(&b)
-            }
-            (24, 0) => bmp.bitmap.chunks_exact(3).map(&b),
-            _ => return,
-        };
-    unsafe {
-        for (i, pixel) in pixel_iter.enumerate() {
-            destination.add(i).write(pixel);
+            early_crash("Failed to load GUI");
         }
+        gui::load_gui(app_data, &mut app_area.fader, buttons);
     }
 }
 
@@ -684,40 +588,6 @@ pub unsafe extern "C" fn _start() {
 #[cfg(not(target_arch = "arm"))]
 pub unsafe extern "C" fn _start() {
     main();
-}
-
-fn read_encrypted_nand(
-    buffer: *mut [reboot_lib::StorageSector],
-    start_sector: u32,
-) -> Result<(), u32> {
-    unsafe {
-        flush_mmc();
-        reboot_lib::arm9_set_buffer(buffer)?;
-        reboot_lib::arm9_read_nand_sector_encrypted(start_sector)?;
-        flush_mmc();
-        flush_mmc();
-    }
-    Ok(())
-}
-fn read_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> Result<(), u32> {
-    unsafe {
-        flush_mmc();
-        reboot_lib::arm9_set_buffer(buffer)?;
-        reboot_lib::arm9_read_sd_sector(start_sector)?;
-        flush_mmc();
-        flush_mmc();
-    }
-    Ok(())
-}
-fn write_sd_card(buffer: *mut [reboot_lib::StorageSector], start_sector: u32) -> Result<(), u32> {
-    unsafe {
-        flush_mmc();
-        reboot_lib::arm9_set_buffer(buffer)?;
-        reboot_lib::arm9_write_sd_sector(start_sector)?;
-        flush_mmc();
-        flush_mmc();
-    }
-    Ok(())
 }
 
 #[cfg(target_arch = "arm")]
@@ -825,8 +695,4 @@ unsafe fn print_msg(
         let _ = write!(buf, "{loc}");
         text_pass.layout_str(buf.as_str(), 8);
     };
-}
-#[inline]
-unsafe fn transmute_slice<T, U>(slice: *mut [T]) -> *mut U {
-    slice as *mut T as *mut () as *mut U
 }

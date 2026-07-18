@@ -237,7 +237,7 @@ impl UiPage for Settings {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        crate::focus_default(ui);
+        super::focus_default(ui);
         match self {
             Settings::Main => self.main_settings(ui, data),
             Settings::BootCombos(page) => {

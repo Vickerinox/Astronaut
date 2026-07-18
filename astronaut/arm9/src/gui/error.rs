@@ -19,7 +19,7 @@ impl UiPage for Error {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         _data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        crate::focus_default(ui);
+        super::focus_default(ui);
         ui.header("ERROR:");
         ui.label(&self.error_string);
         ui.add_space(ui.clip_rect().height() - 24);

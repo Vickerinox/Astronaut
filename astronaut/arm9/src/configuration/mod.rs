@@ -263,7 +263,7 @@ impl GlobalData {
         let Ok(file) = fatfs_embedded::open(path, FileOptions::Read) else {
             return MusicPlaying::None;
         };
-        let Some(extension) = get_extension(path.as_bytes()) else {
+        let Some(extension) = get_extension(path) else {
             return MusicPlaying::None;
         };
         let a = extension.to_ascii_uppercase();
@@ -312,7 +312,7 @@ impl GlobalData {
                 .vram_control_bank_c
                 .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
-            crate::show_wallpaper(wallpaper, 0x06840000 as *mut u16);
+            crate::gui::show_wallpaper(wallpaper, 0x06840000 as *mut u16);
 
             VIDEO_HARDWARE
                 .vram_control_bank_c
@@ -331,7 +331,7 @@ impl GlobalData {
             .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
         if let Some(background) = Self::load_wallpaper(&mut background) {
-            crate::show_wallpaper(background, 0x06800000 as *mut u16);
+            crate::gui::show_wallpaper(background, 0x06800000 as *mut u16);
         } else {
             for i in 0..(256 * 192) {
                 (0x06800000 as *mut u16).add(i).write(0x8000);

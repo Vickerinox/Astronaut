@@ -219,8 +219,10 @@ pub unsafe fn arm9_manual_sound_write(
     let timer = timer as u32 | ((loop_start as u32) << 16);
     com_arm9(14, &[ptr as u32, len as u32, timer, control.bits()])
 }
-
+unsafe impl bytemuck::NoUninit for StorageSector {}
+#[derive(Clone, Copy)]
 pub struct StorageSector([u32; 128]);
+
 impl StorageSector {
     pub const ZEROD: Self = Self([0; _]);
 }

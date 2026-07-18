@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
-use reboot_lib::fatfs_embedded;
 use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc, StorageSector};
+use reboot_lib::{bytemuck, fatfs_embedded};
 
-use crate::{mbr, nand::BasicSDMMCCursor, read_encrypted_nand, read_sd_card, transmute_slice};
+use crate::{mbr, nand::read_encrypted_nand, nand::read_sd_card, nand::BasicSDMMCCursor};
 
 pub struct SDMMCDriver {
     pub nand_controller: Option<BasicSDMMCCursor<'static>>,
@@ -24,16 +24,18 @@ impl SDMMCDriver {
     }
 
     unsafe fn try_mount_sd(&mut self) -> Option<BasicSDMMCCursor<'static>> {
-        let sd_buffer = core::slice::from_raw_parts_mut(0x2FC0000 as *mut StorageSector, 4);
-        read_sd_card(sd_buffer, 0).ok()?;
-        let mbr: &mbr::MBR = &*(transmute_slice(sd_buffer));
-        if !mbr.has_valid_signature() {
-            return None;
-        }
-        let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
         let sd_buffer =
             core::slice::from_raw_parts_mut(0x2FC0000 as *mut reboot_lib::StorageSector, 64);
-        match BasicSDMMCCursor::new(sd_buffer, twl_lba, false) {
+        read_sd_card(&mut sd_buffer[..4], 0).ok()?;
+        let lba = {
+            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&sd_buffer[0]);
+            if !mbr.has_valid_signature() {
+                return None;
+            }
+            core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba))
+        };
+
+        match BasicSDMMCCursor::new(sd_buffer, lba, false) {
             Ok(succ) => Some(succ),
             Err(code) => {
                 self.sdmc_error = code;
@@ -43,19 +45,20 @@ impl SDMMCDriver {
     }
 
     unsafe fn try_mount_nand(&mut self) -> Option<BasicSDMMCCursor<'static>> {
-        let nand_buffer = core::slice::from_raw_parts_mut(0x2FD0000 as *mut StorageSector, 4);
-        read_encrypted_nand(nand_buffer, 0).ok()?;
-        let mbr: &mbr::MBR = &*(transmute_slice(nand_buffer));
-        if !mbr.has_valid_signature() {
-            return None;
-        }
-        let twl_lba = core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba));
-        read_encrypted_nand(nand_buffer, twl_lba).ok()?;
-        let _twl_size =
-            core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].sector_count));
         let nand_buffer =
             core::slice::from_raw_parts_mut(0x2FD0000 as *mut reboot_lib::StorageSector, 64);
-        match BasicSDMMCCursor::new(nand_buffer, twl_lba, true) {
+
+        read_encrypted_nand(&mut nand_buffer[..4], 0).ok()?;
+        let lba = {
+            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&nand_buffer[0]);
+            if !mbr.has_valid_signature() {
+                return None;
+            }
+            core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba))
+        };
+        read_encrypted_nand(nand_buffer, lba).ok()?;
+        
+        match BasicSDMMCCursor::new(nand_buffer, lba, true) {
             Ok(succ) => Some(succ),
             Err(code) => {
                 self.nand_error = code;

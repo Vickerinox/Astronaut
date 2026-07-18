@@ -23,14 +23,17 @@ pub enum MBRError {
     BadSignature,
 }
 */
-
+unsafe impl reboot_lib::bytemuck::Pod for MBR {}
+unsafe impl reboot_lib::bytemuck::Zeroable for MBR {}
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct MBR {
     pub bootstrap: [u8; 446],
     pub partitions: [PartitionEntry; 4],
     pub boot_signature: [u8; 2],
 }
 #[repr(C, packed)]
+#[derive(Clone, Copy)]
 pub struct PartitionEntry {
     status: u8,
     chs_start: CHS,
@@ -40,6 +43,7 @@ pub struct PartitionEntry {
     pub sector_count: u32,
 }
 
+#[derive(Clone, Copy)]
 pub struct CHS([u8; 3]);
 impl core::fmt::Debug for CHS {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

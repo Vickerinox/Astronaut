@@ -1,7 +1,47 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use reboot_lib::StorageSector;
+use reboot_lib::{flush_mmc, StorageSector};
+
+pub fn read_encrypted_nand(
+    buffer: *mut [reboot_lib::StorageSector],
+    start_sector: u32,
+) -> Result<(), u32> {
+    unsafe {
+        flush_mmc();
+        reboot_lib::arm9_set_buffer(buffer)?;
+        reboot_lib::arm9_read_nand_sector_encrypted(start_sector)?;
+        flush_mmc();
+        flush_mmc();
+    }
+    Ok(())
+}
+pub fn read_sd_card(
+    buffer: *mut [reboot_lib::StorageSector],
+    start_sector: u32,
+) -> Result<(), u32> {
+    unsafe {
+        flush_mmc();
+        reboot_lib::arm9_set_buffer(buffer)?;
+        reboot_lib::arm9_read_sd_sector(start_sector)?;
+        flush_mmc();
+        flush_mmc();
+    }
+    Ok(())
+}
+pub fn write_sd_card(
+    buffer: *mut [reboot_lib::StorageSector],
+    start_sector: u32,
+) -> Result<(), u32> {
+    unsafe {
+        flush_mmc();
+        reboot_lib::arm9_set_buffer(buffer)?;
+        reboot_lib::arm9_write_sd_sector(start_sector)?;
+        flush_mmc();
+        flush_mmc();
+    }
+    Ok(())
+}
 
 pub struct BasicSDMMCCursor<'a> {
     buffer: &'a mut [StorageSector],
@@ -31,14 +71,14 @@ impl<'a> BasicSDMMCCursor<'a> {
     }
     pub fn read_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
-            true => crate::read_encrypted_nand(self.buffer, self.lba + sector),
-            false => crate::read_sd_card(self.buffer, self.lba + sector),
+            true => read_encrypted_nand(self.buffer, self.lba + sector),
+            false => read_sd_card(self.buffer, self.lba + sector),
         }
     }
     pub fn write_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
             true => Err(123456789),
-            false => crate::write_sd_card(self.buffer, self.lba + sector),
+            false => write_sd_card(self.buffer, self.lba + sector),
         }
     }
     fn advance_sector(&mut self) -> Result<(), BasicSDMMCError> {

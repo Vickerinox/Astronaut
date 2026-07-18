@@ -3,7 +3,7 @@
 
 use core::ops::{Add, Sub};
 
-use alloc::{boxed::Box, format, string::String, vec::Vec};
+use alloc::{boxed::Box, format, string::{String, ToString}, vec::Vec};
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
     micro_imgui::{self, widgets::button::Button, Backend, Sizing, Vec2},
@@ -22,7 +22,6 @@ use crate::{
     music::{stop_mod_file, MusicPlaying, StreamingWav},
     truncate_name, FileEntry, FileType,
 };
-
 
 #[no_mangle]
 #[link_section = ".text_aux"]
@@ -44,9 +43,9 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
             let color = if is_dir {
                 FileType::Dir
             } else {
-                let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_bytes() };
+                let Ok(s_name) = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }.to_str() else { continue };
                 let s_name = if s_name.is_empty() {
-                    name.as_bytes()
+                    &name
                 } else {
                     s_name
                 };
@@ -63,6 +62,11 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
         }
     }
 
+    sort_files(&mut vec);
+    vec
+}
+
+fn sort_files(vec: &mut Vec<FileEntry>) {
     // sort all the entries
     for i in 1..vec.len() {
         let Some(temp) = vec.get(i) else { break };
@@ -82,7 +86,6 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
         vec[j] = temp;
     }
 
-    vec
 }
 
 impl Browser {
@@ -165,11 +168,103 @@ pub enum BrowserMode {
     Browsing,
     /// Look for a specific type of file, and then do something with it once picked (used in the settings gui)
     Searching(BrowserSearch),
+
+    TitleList,
 }
 #[derive(Clone)]
 pub struct BrowserSearch {
     pub filter: &'static [FileType],
     pub goal: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>,
+}
+
+pub struct TitleLister {
+    roms: Vec<FileEntry>,
+    folders: Vec<String>,
+    rom_counter: usize,
+    folder_counter: usize,
+}
+impl TitleLister {
+    pub fn new() -> Self {
+        let mut folders = Vec::with_capacity(100);
+        folders.push("nand:/".to_string());
+        folders.push("sdmc:/".to_string());
+        Self { roms: Vec::with_capacity(100), folders, rom_counter: 0, folder_counter: 0 }
+    }
+}
+impl UiPage for TitleLister {
+    fn ui(
+        &mut self,
+        ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+        _data: &mut GlobalData,
+    ) -> Option<Box<dyn UiPage>>
+    {
+        ui.request_repaint();
+        ui.add_space(50);
+        ui.label(&format!("scanned dirs: {}", self.folder_counter));
+        ui.label(&format!("found titles: {}", self.rom_counter));
+
+        if self.folders.is_empty() {
+            if self.roms.is_empty() {
+                return Some(Box::new(MainMenu))
+            } else {
+                sort_files(&mut self.roms);
+                return Some(Box::new(Browser {
+                    immediate_files: core::mem::take(&mut self.roms),
+                    current_path: String::new(),
+                    scroll_offset: 0,
+                    drag_start: 0,
+                    hold_timer: 0,
+                    mode: BrowserMode::TitleList,
+                    exit: Box::new(MainMenu),
+                }))
+            }
+        }
+        let mut element_counter = 0;
+        while element_counter < 10 {
+
+            let mut folder_path = self.folders.pop()?;
+            let Ok(mut folder) = fatfs_embedded::opendir(&mut folder_path) else { continue };
+            while element_counter < 10 {
+                let file = fatfs_embedded::readdir(&mut folder).ok()?;
+                let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str()
+                else {
+                    continue;
+                };
+                let name = alloc::string::String::from(name);
+                if name.is_empty() {
+                    break;
+                }
+                let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
+
+                if is_dir {
+                    self.folders.push(folder_path.clone() + &name + "/");
+                    self.folder_counter += 1;
+                    element_counter += 1;
+                } else {
+                    let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_str().ok()? };
+                    let s_name = if s_name.is_empty() {
+                        &name
+                    } else {
+                        s_name
+                    };
+                    if filetype(s_name) == FileType::Rom {
+                        let path = folder_path.clone() + &name;
+                        let dname = truncate_name(&name, 35);
+                        element_counter += 1;
+                        self.rom_counter += 1;
+                        self.roms.push(FileEntry {
+                            display_name: dname,
+                            file_name: path,
+                            kind: FileType::Rom,
+                        })
+                    }
+                };
+                
+            }
+        }
+
+        None
+    }
 }
 
 impl Browser {
@@ -192,6 +287,9 @@ impl Browser {
             exit,
             start,
         )
+    }
+    pub fn title_list() -> TitleLister {
+        TitleLister::new()
     }
     /// Open an item in the browser
     #[no_mangle]
@@ -359,6 +457,9 @@ impl UiPage for Browser {
                         } else {
                             None
                         }
+                    },
+                    BrowserMode::TitleList => {
+                        new_state = Some(Box::new(AppBooter { path: item.file_name.clone() }));
                     }
                 }
             }
@@ -416,7 +517,7 @@ impl UiPage for Browser {
         }
         // handle pressing B button to back out of the current directory
         if ui.input_pressed(Input(Buttons::BUTTON_B)) && new_folder.is_none() {
-            if ["nand:/", "sdmc:/"].contains(&self.current_path.as_str()) {
+            if self.current_path.len() <= 6 {
                 new_state = Some(self.exit.clone_ui());
             } else {
                 pop_dir_entry(&mut self.current_path);

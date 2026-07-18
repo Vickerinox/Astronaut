@@ -12,8 +12,10 @@ pub struct MainMenu;
 
 #[no_mangle]
 #[link_section = ".note.text_aux"]
-fn main_menu_ui(ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>) -> Option<Box<dyn UiPage>> {
-    crate::focus_default(ui);
+fn main_menu_ui(
+    ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+) -> Option<Box<dyn UiPage>> {
+    super::focus_default(ui);
     ui.header("Welcome!");
     ui.add_space(4);
     ui.label("Astronaut made by Vikrinox, 2026");
@@ -29,6 +31,9 @@ fn main_menu_ui(ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds:
             res = Some(Box::new(sd))
         }
     }
+    if ui.button("Title List").clicked() {
+        res = Some(Box::new(Browser::title_list()))
+    }
     if ui.button("Settings").clicked() {
         res = Some(Box::new(super::settings::Settings::Main));
     }
@@ -38,7 +43,6 @@ fn main_menu_ui(ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds:
     ui.add_space(82);
     ui.label(concat!("version ", env!("CARGO_PKG_VERSION")));
     res
-    
 }
 impl UiPage for MainMenu {
     fn ui(
