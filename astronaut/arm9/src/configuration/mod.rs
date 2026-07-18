@@ -133,6 +133,8 @@ impl Theme {
         bootable_color: Color::new(100, 200, 100),
         asset_color: Color::new(100, 100, 200),
     };
+    #[no_mangle]
+    #[link_section = ".note.text_aux"]
     pub fn load(&mut self, theme_path: &mut String) -> (Assets, Style) {
         let mut assets = Assets {
             music: String::new(),
@@ -284,6 +286,8 @@ impl GlobalData {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
         crate::bmp::DecodedBMP::from_reader(file)
     }
+    #[no_mangle]
+    #[link_section = ".note.text_aux"]
     pub unsafe fn load_theme(&mut self, assets: Assets) -> VideoHardwareHandle {
         let Assets {
             mut music,

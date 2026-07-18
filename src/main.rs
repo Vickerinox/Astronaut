@@ -74,6 +74,7 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     const _MIN_EXPLOIT_LEN: usize = 0x13C01;
     const USED_EXPLOIT_LEN: usize = 81400;
     const MAGIC_START_POINT: usize = 0x37DF06C;
+    const MAGIC_AUX_START_POINT: usize = 0x06880000 - (0x13800 + 520);
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
     info!("SELECTED ELF: {:?}", &elf_file_path);
@@ -98,7 +99,11 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
         entrypoint, entry_point, entry_value
     );
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_memsz != 0) {
-        let file_offset_start = (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64);
+        let file_offset_start =  if segment.p_vaddr >= 0x06880000 {
+            (segment.p_vaddr as i64) - (MAGIC_AUX_START_POINT as i64)
+        } else {
+            (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64)
+        };
         let file_offset_end = file_offset_start + segment.p_memsz as i64;
         if file_offset_start.is_negative() {
             continue;
@@ -117,6 +122,13 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
             "Processing segment '{}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
             label, segment.p_memsz, file_offset_start, file_offset_end
         );
+        if empty_tmd.len() < file_range.end {
+            let missing_bytes = file_range.end - empty_tmd.len();
+            empty_tmd.reserve(missing_bytes);
+            for _ in 0..missing_bytes {
+                empty_tmd.push(0);
+            }
+        }
         if segment.p_filesz == 0 {
             for byte in empty_tmd[file_range].iter_mut() {
                 *byte = 0;

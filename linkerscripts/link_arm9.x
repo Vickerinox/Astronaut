@@ -3,6 +3,7 @@
 MEMORY
 {
   EXPLOIT_MEM : ORIGIN = 0x037DF27C, LENGTH = 0x13048
+  AUX_MEM : ORIGIN = 0x06880000, LENGTH = 0x10000
 }
 
 /* The entry point */
@@ -10,15 +11,27 @@ ENTRY(_start);
 
 SECTIONS
 {
-  .rodata :
+  .text_aux : 
+  {
+    *(.text_aux);
+  } > AUX_MEM
+
+  .rodata_aux : 
+  {
+    *(.rodata_aux .rodata_aux.*);
+  } > AUX_MEM
+
+  .rodata_main :
   {
     *(.rodata .rodata.*);
   } > EXPLOIT_MEM
 
-  .text :
+  .text_main :
   {
     *(.text .text.*);
   } > EXPLOIT_MEM
+
+
 
   /DISCARD/ :
   {

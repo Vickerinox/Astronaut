@@ -30,6 +30,7 @@ pub struct Fader {
 reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
 
 use alloc::string::ToString;
+use alloc::vec;
 use alloc::{boxed::Box, string::String};
 use common::blowfish::BFCTX;
 use core::str;
@@ -40,8 +41,7 @@ use reboot_lib::timers::TimerControl;
 
 use micro_imgui_ds::micro_imgui::{Backend, InputEvent};
 use reboot_lib::{
-    flush_mmc, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES, ENGINE_B_PALETTES,
-    IPC_FIFO_HARDWARE,
+    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, Interrupt, VRAMCtrl, VideoHardwareHandle, bytemuck, flush_mmc,
 };
 use reboot_lib::{
     Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl, Viewport,
@@ -51,7 +51,7 @@ use reboot_lib::{
 use crate::boot::read_all;
 use crate::configuration::{Config, Theme};
 use crate::fat::driver::SDMMCDriver;
-use crate::gui::AppData;
+use crate::gui::{AppData, GlobalData};
 
 extern crate alloc;
 
@@ -120,7 +120,7 @@ unsafe fn transfer_font_to_vram() {
     }
     for i in 0..4 {
         let reg = (0x2FF_1800 as *const u32).add(i).read();
-        (0x06880000 as *mut u32).add(i).write(reg);
+        (0x06890000 as *mut u32).add(i).write(reg);
     }
 }
 #[cfg(not(target_arch = "arm"))]
@@ -137,8 +137,8 @@ unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
         .vram_control_bank_a
         .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK A
     VIDEO_HARDWARE
-        .vram_control_bank_e
-        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK E
+        .vram_control_bank_f
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK F
 
     VIDEO_HARDWARE
         .engine_a_ctrl
@@ -237,6 +237,8 @@ impl PartialOrd for FileEntry {
         self.display_name.partial_cmp(&other.display_name)
     }
 }
+#[no_mangle]
+#[link_section = ".text_aux"]
 pub fn truncate_name(string: &str, bound: usize) -> String {
     let mut string = string.to_string();
     if string.len() > bound + 3 {
@@ -252,7 +254,7 @@ pub fn truncate_name(string: &str, bound: usize) -> String {
 
 pub use micro_imgui_ds::SCREEN_RECT;
 
-unsafe fn arm7_crash() -> ! {
+unsafe fn arm7_crash(message: &str) -> ! {
     load_default_font();
     set_bright(0 | (1 << 14));
     let mut video_context = init_graphics();
@@ -276,6 +278,9 @@ unsafe fn arm7_crash() -> ! {
                 "Alternatively, try to reach me via email: viktor@koda.re",
                 8,
             );
+            text_pass.next_line();
+            text_pass.layout_str("Error message: ", 8);
+            text_pass.layout_str(message, 8);
         },
     );
     video_context.next_frame();
@@ -287,7 +292,7 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
         .vram_control_bank_a
         .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
     VIDEO_HARDWARE
-        .vram_control_bank_e
+        .vram_control_bank_f
         .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
     //enable the 2D engine A, with no backgrounds on.
@@ -332,6 +337,27 @@ unsafe fn find_wifi_firmware_path() -> Option<String> {
         u32::from_be_bytes(app_version)
     };
     Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
+}
+/// Loads the code thats within the ".text_aux" segment into memory
+unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
+    let Ok(mut file) = fatfs_embedded::open(&mut data.our_path, FileOptions::Read) else { return false };
+    if fatfs_embedded::seek(&mut file, 0x13800 + 520).is_err() {
+        return false;
+    }
+    let remaining_size = fatfs_embedded::size(&mut file) - file.fptr;
+    let mut binary_copy = vec![0u32; (remaining_size >> 2) as usize];
+    {
+        let as_bytes: &mut [u8] = bytemuck::must_cast_slice_mut(&mut binary_copy);
+        if read_all(as_bytes, &mut file).is_err() {
+            return false
+        }
+    }
+    let mut word_iter = binary_copy.into_iter();
+    VIDEO_HARDWARE.vram_control_bank_e.write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+    for i in 0..0x4000 {
+        (0x6880000 as *mut u32).add(i).write(word_iter.next().unwrap_or(0));
+    }
+    true
 }
 fn find_firmware_for_card(header: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
     let firmware_count = header.get(0x2).copied()?;
@@ -431,14 +457,14 @@ unsafe fn main() {
         while IPC_FIFO_HARDWARE.read_status() != 1 {
             timeout_counter += 1;
             if timeout_counter > 0x800000 {
-                arm7_crash();
+                arm7_crash("arm7 exploit failed");
             }
         }
         IPC_FIFO_HARDWARE.set_status(1);
         while IPC_FIFO_HARDWARE.read_status() != 0 {
             timeout_counter += 1;
             if timeout_counter > 0x800000 {
-                arm7_crash();
+                arm7_crash("arm7 exploit failed");
             }
         }
         // ARM7 is alive! make sure to let it know.
@@ -506,27 +532,36 @@ unsafe fn main() {
             app_data.autoboot();
         }
 
-        let (assets, style) = app_data
-            .global_data
-            .theme
-            .load(&mut app_data.global_data.config.theme_path);
-        let video_context = app_data.global_data.load_theme(assets);
-        let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
-
-        app_area.fader.target.write(0);
-
-        micro_imgui_ds::micro_imgui::run(
-            backend,
-            style,
-            app_data,
-            |mut f, app_data| {
-                app_data.update(&mut f);
-            },
-            |app_data| {
-                app_data.do_background_tasks();
-            },
-        );
+        if !load_aux_segment(&mut app_data.global_data) {
+            arm7_crash("Failed to load GUI");            
+        } 
+        load_gui(app_data, &mut app_area.fader, buttons);
+        
     }
+}
+#[no_mangle]
+#[link_section = ".text_aux"]
+unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Buttons) {
+    let (assets, style) = app_data
+        .global_data
+        .theme
+        .load(&mut app_data.global_data.config.theme_path);
+    let video_context = app_data.global_data.load_theme(assets);
+    let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
+
+    fader.target.write(0);
+    
+    micro_imgui_ds::micro_imgui::run(
+        backend,
+        style,
+        app_data,
+        |mut f, app_data| {
+            app_data.update(&mut f);
+        },
+        |app_data| {
+            app_data.do_background_tasks();
+        },
+    );
 }
 
 pub fn focus_default(

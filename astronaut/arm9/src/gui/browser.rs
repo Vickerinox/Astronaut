@@ -23,6 +23,9 @@ use crate::{
     truncate_name, FileEntry, FileType,
 };
 
+
+#[no_mangle]
+#[link_section = ".text_aux"]
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
 
@@ -84,6 +87,9 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
 
 impl Browser {
     // Opens a version of the browser which lets the user browse the SD
+
+    #[no_mangle]
+    #[link_section = ".text_aux"]
     pub fn open_sd() -> Option<Browser> {
         Self::open_browser(
             BrowserMode::Browsing,
@@ -93,6 +99,9 @@ impl Browser {
     }
 
     // Opens a version of the browser which lets the user browse the NAND
+
+    #[no_mangle]
+    #[link_section = ".text_aux"]
     pub fn open_nand() -> Option<Browser> {
         Self::open_browser(
             BrowserMode::Browsing,
@@ -102,6 +111,9 @@ impl Browser {
     }
 
     // Opens any version of the browser
+
+    #[no_mangle]
+    #[link_section = ".text_aux"]
     pub fn open_browser(
         mode: BrowserMode,
         exit: Box<dyn ClonableUiPage>,
@@ -164,6 +176,8 @@ impl Browser {
     /// Opens a browser that looks for a specific filetype
     /// Once such a file is picked, the `transform` fn is called containing the path of the picked file.
     /// This then lets you open a new UI if you found something interesting.
+    #[no_mangle]
+    #[link_section = ".text_aux"]
     pub fn search_file(
         format: &'static [FileType],
         start: String,
@@ -180,6 +194,8 @@ impl Browser {
         )
     }
     /// Open an item in the browser
+    #[no_mangle]
+    #[link_section = ".text_aux"]
     fn open_new(&self, file_name: &str) -> Option<Box<dyn UiPage>> {
         let mut new_folder = self.current_path.clone() + file_name + "/";
         if let Ok(mut f) = fatfs_embedded::opendir(&mut new_folder) {
@@ -197,6 +213,8 @@ impl Browser {
         }
     }
     /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
+    #[no_mangle]
+    #[link_section = ".text_aux"]
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
         let FileEntry {
             file_name, kind, ..
