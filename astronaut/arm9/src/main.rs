@@ -254,7 +254,7 @@ pub fn truncate_name(string: &str, bound: usize) -> String {
 
 pub use micro_imgui_ds::SCREEN_RECT;
 
-unsafe fn arm7_crash(message: &str) -> ! {
+unsafe fn early_crash(message: &str) -> ! {
     load_default_font();
     set_bright(0 | (1 << 14));
     let mut video_context = init_graphics();
@@ -458,14 +458,14 @@ unsafe fn main() {
         while IPC_FIFO_HARDWARE.read_status() != 1 {
             timeout_counter += 1;
             if timeout_counter > 0x800000 {
-                arm7_crash("arm7 exploit failed");
+                early_crash("arm7 exploit failed");
             }
         }
         IPC_FIFO_HARDWARE.set_status(1);
         while IPC_FIFO_HARDWARE.read_status() != 0 {
             timeout_counter += 1;
             if timeout_counter > 0x800000 {
-                arm7_crash("arm7 exploit failed");
+                early_crash("arm7 exploit failed");
             }
         }
         // ARM7 is alive! make sure to let it know.
@@ -534,7 +534,7 @@ unsafe fn main() {
         }
 
         if !load_aux_segment(&mut app_data.global_data) {
-            arm7_crash("Failed to load GUI");            
+            early_crash("Failed to load GUI");            
         } 
         load_gui(app_data, &mut app_area.fader, buttons);
         
