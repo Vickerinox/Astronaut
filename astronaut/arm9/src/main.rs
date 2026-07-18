@@ -266,7 +266,7 @@ unsafe fn arm7_crash(message: &str) -> ! {
             text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str(
-                "If you can see this screen then something has gone wrong.",
+                "If you can see this screen then astronaut failed badly.",
                 8,
             );
             text_pass.next_line();
@@ -278,6 +278,7 @@ unsafe fn arm7_crash(message: &str) -> ! {
                 "Alternatively, try to reach me via email: viktor@koda.re",
                 8,
             );
+            text_pass.next_line();
             text_pass.next_line();
             text_pass.layout_str("Error message: ", 8);
             text_pass.layout_str(message, 8);

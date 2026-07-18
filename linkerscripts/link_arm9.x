@@ -16,10 +16,6 @@ SECTIONS
     *(.text_aux);
   } > AUX_MEM
 
-  .rodata_aux : 
-  {
-    *(.rodata_aux .rodata_aux.*);
-  } > AUX_MEM
 
   .rodata_main :
   {
