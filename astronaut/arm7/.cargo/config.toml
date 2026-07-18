@@ -4,6 +4,7 @@ lto = true                                  # Enable link-time optimization
 codegen-units = 1                           # Reduce number of codegen units to increase optimizations
 panic = 'abort'                             # Abort on panic
 strip = true                                # Strip symbols from binary*
+trim-paths = "all"
 
 [target.thumbv4t-none-eabi]                # All targets
 rustflags = ["-C", "linker-flavor=ld.lld","-C", "link-arg=-Tlinkerscripts/link_arm7.x"]

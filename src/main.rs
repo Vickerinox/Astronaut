@@ -129,7 +129,6 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     empty_tmd[M_STATE_OFFSET..][..M_STATE_OVERWRITE.len()].copy_from_slice(M_STATE_OVERWRITE);
     let values = entry_value.to_le_bytes();
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
-
     Ok(empty_tmd)
 }
 #[derive(Parser)]
