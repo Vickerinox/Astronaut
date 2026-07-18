@@ -84,14 +84,19 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
 }
 
 impl Browser {
+    // Opens a version of the browser which lets the user browse the SD
     pub fn open_sd() -> Option<Browser> {
-        Self::open_browser(Mode::Browsing, Box::new(MainMenu), String::from("sdmc:/"))
+        Self::open_browser(BrowserMode::Browsing, Box::new(MainMenu), String::from("sdmc:/"))
     }
+
+    // Opens a version of the browser which lets the user browse the NAND
     pub fn open_nand() -> Option<Browser> {
-        Self::open_browser(Mode::Browsing, Box::new(MainMenu), String::from("nand:/"))
+        Self::open_browser(BrowserMode::Browsing, Box::new(MainMenu), String::from("nand:/"))
     }
+
+    // Opens any version of the browser
     pub fn open_browser(
-        mode: Mode,
+        mode: BrowserMode,
         exit: Box<dyn ClonableUiPage>,
         mut open_path: String,
     ) -> Option<Browser> {
@@ -100,7 +105,7 @@ impl Browser {
             Browser {
                 immediate_files,
                 current_path: open_path,
-                offset: 0,
+                scroll_offset: 0,
                 drag_start: 0,
                 hold_timer: 0,
                 mode,
@@ -109,18 +114,38 @@ impl Browser {
         })
     }
 }
+/// The state of a file Browser UI
 pub struct Browser {
+
+    /// The files in the current directory.
     immediate_files: Vec<FileEntry>,
+    
+    /// The path to the current directory.
     current_path: String,
-    offset: i32,
+    
+    /// scroll offset (in pixels) to the browser.
+    scroll_offset: i32,
+    
+    /// The starting point of a swipe on the touchscreen.
     drag_start: i16,
+    
+    /// The number of frames one has held a direction button on the touchscreen
+    /// 
+    /// This is positive for downward direction, and negative for upward direction.
     hold_timer: i16,
-    mode: Mode,
+    
+    /// The purpose of this browser (see [`BrowserMode`] for details)
+    mode: BrowserMode,
+    
+    /// The UI this browser returns to once closed.
     exit: Box<dyn ClonableUiPage>,
 }
+/// The 
 #[derive(Clone)]
-pub enum Mode {
+pub enum BrowserMode {
+    /// Browsing all files on the SD card, roms are launched when pressed, music plays, directories open, etc.
     Browsing,
+    /// Look for a specific type of file, and then do something with it once picked (used in the settings gui)
     Searching(BrowserSearch),
 }
 #[derive(Clone)]
@@ -130,6 +155,9 @@ pub struct BrowserSearch {
 }
 
 impl Browser {
+    /// Opens a browser that looks for a specific filetype
+    /// Once such a file is picked, the `transform` fn is called containing the path of the picked file.
+    /// This then lets you open a new UI if you found something interesting.
     pub fn search_file(
         format: &'static [FileType],
         start: String,
@@ -137,7 +165,7 @@ impl Browser {
         transform: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>,
     ) -> Option<Browser> {
         Browser::open_browser(
-            Mode::Searching(BrowserSearch {
+            BrowserMode::Searching(BrowserSearch {
                 filter: format,
                 goal: transform,
             }),
@@ -145,13 +173,14 @@ impl Browser {
             start,
         )
     }
+    /// Open an item in the browser
     fn open_new(&self, file_name: &str) -> Option<Box<dyn UiPage>> {
         let mut new_folder = self.current_path.clone() + file_name + "/";
         if let Ok(mut f) = fatfs_embedded::opendir(&mut new_folder) {
             Some(Box::new(Self {
                 immediate_files: populate_fs_vec(&mut f),
                 current_path: new_folder,
-                offset: 0,
+                scroll_offset: 0,
                 drag_start: 0,
                 hold_timer: 0,
                 exit: self.exit.clone_ui(),
@@ -161,6 +190,7 @@ impl Browser {
             None
         }
     }
+    /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
         let FileEntry {
             file_name, kind, ..
@@ -209,23 +239,28 @@ impl UiPage for Browser {
     ) -> Option<Box<dyn UiPage>> {
         const ITEM_SPACING: i32 = 14;
 
+        // Find the max scroll ofset we may use
         let max_scroll = ((self.immediate_files.len()) as i32 * ITEM_SPACING) - (ITEM_SPACING * 11);
+        
+        // Handle touchscreen swipes
         if let Some(drag) = ui.drag() {
             let new_drag = drag.y - self.drag_start;
             self.drag_start += new_drag;
-            self.offset -= new_drag as i32;
-            self.offset = (self.offset).min(max_scroll).max(0);
+            self.scroll_offset -= new_drag as i32;
+            self.scroll_offset = (self.scroll_offset).min(max_scroll).max(0);
         } else {
             self.drag_start = 0;
         }
 
+        // Get a slice of possibly shown items
         let shown_items = self
             .immediate_files
-            .get(((self.offset / ITEM_SPACING) as usize)..)
+            .get(((self.scroll_offset / ITEM_SPACING) as usize)..)
             .unwrap_or(&[]);
 
-        let mut focus_on = None;
+        // Deal with Page up/down
         let items_visible = (shown_items.len() - 1).clamp(0, 10);
+        let mut focus_on = None;
         if ui.input_pressed(Input(Buttons::DIRECTION_RIGHT)) {
             focus_on = Some(items_visible);
         }
@@ -233,8 +268,10 @@ impl UiPage for Browser {
             focus_on = Some(0);
         }
 
-        let in_step = self.offset % ITEM_SPACING;
+        
+        let in_step = self.scroll_offset % ITEM_SPACING; // pixels away we are from nearest file entry boundary
 
+        // Deal with entry up/down
         if ui.input_down(Input(Buttons::DIRECTION_UP)) {
             self.hold_timer += 1;
             ui.request_repaint();
@@ -245,9 +282,13 @@ impl UiPage for Browser {
             self.hold_timer = 0;
         }
 
+        
+        // Start Ui and show the current path as a heading
         let mut new_state: Option<Box<dyn UiPage>> = None;
         let mut new_folder = None;
         ui.label(&self.current_path);
+
+        // Create two rectangles that mask the top/bottom entries being scrolled out of view
         let rect = micro_imgui::Rect::from_two_pos(
             ui.clip_rect().top_left(),
             ui.clip_rect().top_right() + Vec2::new(0, ITEM_SPACING as _),
@@ -258,11 +299,12 @@ impl UiPage for Browser {
         );
 
         let color = ui.style().background_color;
-
+        // Offset the first entry on the screen
         ui.add_space((ITEM_SPACING - in_step) as i16);
-        let items = if in_step == 0 { 11 } else { 12 };
+        let max_items = if in_step == 0 { 11 } else { 12 };
         let mut focus = None;
-        for (i, item) in shown_items.iter().take(items).enumerate() {
+        // Show all the items
+        for (i, item) in shown_items.iter().take(max_items).enumerate() {
             let color = match item.kind {
                 FileType::None => ui.style().text_color,
                 FileType::Rom => data.theme.bootable_color,
@@ -286,8 +328,8 @@ impl UiPage for Browser {
             }
             if response.clicked() {
                 match &self.mode {
-                    Mode::Browsing => new_state = self.standard_goal(&item, data),
-                    Mode::Searching(BrowserSearch { filter, goal }) => {
+                    BrowserMode::Browsing => new_state = self.standard_goal(&item, data),
+                    BrowserMode::Searching(BrowserSearch { filter, goal }) => {
                         new_state = if filter.contains(&item.kind) {
                             goal(data, self.current_path.clone() + &item.file_name)
                         } else if item.kind == FileType::Dir {
@@ -299,6 +341,7 @@ impl UiPage for Browser {
                 }
             }
         }
+        //Draw masking rectangles
         ui.paint_shape(micro_imgui::Shape::Rectangle {
             area: rect,
             fill: color,
@@ -316,35 +359,37 @@ impl UiPage for Browser {
 
         if focus == focus_on {
             if focus_on == Some(0) {
-                self.offset = (self.offset).sub(ITEM_SPACING * 10).max(0);
+                self.scroll_offset = (self.scroll_offset).sub(ITEM_SPACING * 10).max(0);
             }
             if focus_on == Some(10) {
-                self.offset = (self.offset).add(ITEM_SPACING * 10).min(max_scroll).max(0);
+                self.scroll_offset = (self.scroll_offset).add(ITEM_SPACING * 10).min(max_scroll).max(0);
             }
-            self.offset -= in_step;
+            self.scroll_offset -= in_step;
         }
-        if (self.hold_timer.abs() > 30 && (self.hold_timer & 1 == 0)) || self.hold_timer.abs() == 1
+        // If direction button was just pressed, or been held for over half a second
+        if self.hold_timer.abs() == 1 || (self.hold_timer.abs() > 30 && (self.hold_timer & 1 == 0))
         {
             if self.hold_timer.is_negative() {
                 if focus == Some(items_visible) {
                     if shown_items.len() >= 12 {
-                        self.offset = self.offset.saturating_add(ITEM_SPACING);
+                        self.scroll_offset = self.scroll_offset.saturating_add(ITEM_SPACING);
                     }
                 } else {
                     ui.focus_next();
                 }
-                self.offset -= in_step;
+                self.scroll_offset -= in_step;
             } else {
                 if focus == Some(0) {
-                    if self.offset > 0 {
-                        self.offset = self.offset.wrapping_sub(ITEM_SPACING).max(0);
+                    if self.scroll_offset > 0 {
+                        self.scroll_offset = self.scroll_offset.wrapping_sub(ITEM_SPACING).max(0);
                     }
                 } else {
                     ui.focus_prev();
                 }
-                self.offset -= in_step;
+                self.scroll_offset -= in_step;
             }
         }
+        // handle pressing B button to back out of the current directory
         if ui.input_pressed(Input(Buttons::BUTTON_B)) && new_folder.is_none() {
             if ["nand:/", "sdmc:/"].contains(&self.current_path.as_str()) {
                 new_state = Some(self.exit.clone_ui());
@@ -362,10 +407,12 @@ impl UiPage for Browser {
                 }
             }
         }
+        // Handle opening new directory within self
         if let Some(mut new_folder) = new_folder {
             self.immediate_files = populate_fs_vec(&mut new_folder);
-            self.offset = 0;
+            self.scroll_offset = 0;
         }
+        
         new_state
     }
 }
