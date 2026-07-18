@@ -27,6 +27,7 @@ use crate::{
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
 
+    // scan the dir for all the files
     loop {
         if let Ok(file) = fatfs_embedded::readdir(folder) {
             let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str()
@@ -60,13 +61,14 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
         }
     }
 
+    // sort all the entries
     for i in 1..vec.len() {
         let Some(temp) = vec.get(i) else { break };
         let temp = temp.clone();
         let mut j = i;
         loop {
             let Some(under) = vec.get(j - 1) else { break };
-            if under.kind > temp.kind {
+            if under.partial_cmp(&temp) == Some(core::cmp::Ordering::Greater)  {
                 let under = under.clone();
                 let Some(over) = vec.get_mut(j) else { break };
                 *over = under;

@@ -222,11 +222,20 @@ pub fn get_extension(str: &[u8]) -> Option<&[u8]> {
     str.get(len..)
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct FileEntry {
     pub file_name: String,
     pub display_name: String,
     pub kind: FileType,
+}
+impl PartialOrd for FileEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        match self.kind.partial_cmp(&other.kind) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.display_name.partial_cmp(&other.display_name)
+    }
 }
 pub fn truncate_name(string: &str, bound: usize) -> String {
     let mut string = string.to_string();
