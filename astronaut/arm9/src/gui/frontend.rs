@@ -16,7 +16,7 @@ use micro_imgui_ds::micro_imgui::Backend;
 use reboot_lib::autoboot_info::UnlaunchParams;
 use reboot_lib::fatfs_embedded;
 pub struct GlobalData {
-    pub autoboot: Option<(String, &'static UnlaunchParams)>,
+    pub our_path: String,
     pub blowfish: BFCTX,
     pub loading_mod_file: MusicPlaying,
     pub config: crate::configuration::Config,
@@ -25,7 +25,6 @@ pub struct GlobalData {
 
 pub struct AppData {
     pub global_data: GlobalData,
-
     pub current_ui: Box<dyn UiPage>,
 }
 

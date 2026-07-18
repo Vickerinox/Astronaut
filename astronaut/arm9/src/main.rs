@@ -407,7 +407,7 @@ unsafe fn uptick_wav() {
 use reboot_lib::fatfs_embedded;
 unsafe fn main() {
     unsafe {
-        reboot_lib::nocash_write("> Welcome to vlaunch!\n");
+        reboot_lib::nocash_write("> Welcome to astronaut!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
         VIDEO_HARDWARE
@@ -425,6 +425,8 @@ unsafe fn main() {
         arm7_exploit::takeover_arm7();
 
         steal_main_mem();
+
+        
 
         // Check in with the ARM7 to make sure it's alive
         let mut timeout_counter = 0;
@@ -474,10 +476,15 @@ unsafe fn main() {
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
+        let tmd_path = {
+            let slice = core::slice::from_raw_parts(0x02FE34C4 as *const u8, 41);
+            str::from_utf8(slice).map(|i| String::from("nand:/") + i).unwrap_or(String::new())
+        };
+
         let app_data = {
             let ptr = app_area.app_data.as_mut_ptr();
             (&raw mut (*ptr).current_ui).write(Box::new(gui::MainMenu));
-            (&raw mut (*ptr).global_data.autoboot).write(None);
+            (&raw mut (*ptr).global_data.our_path).write(tmd_path);
             (&raw mut (*ptr).global_data.loading_mod_file).write(music::MusicPlaying::None);
             (&raw mut (*ptr).global_data.config).write(Config::default());
             (&raw mut (*ptr).global_data.theme).write(Theme::DEFAULT);
