@@ -23,7 +23,6 @@ use crate::{
     truncate_name, FileEntry, FileType,
 };
 
-
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
 
@@ -68,7 +67,7 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
         let mut j = i;
         loop {
             let Some(under) = vec.get(j - 1) else { break };
-            if under.partial_cmp(&temp) == Some(core::cmp::Ordering::Greater)  {
+            if under.partial_cmp(&temp) == Some(core::cmp::Ordering::Greater) {
                 let under = under.clone();
                 let Some(over) = vec.get_mut(j) else { break };
                 *over = under;
@@ -86,12 +85,20 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
 impl Browser {
     // Opens a version of the browser which lets the user browse the SD
     pub fn open_sd() -> Option<Browser> {
-        Self::open_browser(BrowserMode::Browsing, Box::new(MainMenu), String::from("sdmc:/"))
+        Self::open_browser(
+            BrowserMode::Browsing,
+            Box::new(MainMenu),
+            String::from("sdmc:/"),
+        )
     }
 
     // Opens a version of the browser which lets the user browse the NAND
     pub fn open_nand() -> Option<Browser> {
-        Self::open_browser(BrowserMode::Browsing, Box::new(MainMenu), String::from("nand:/"))
+        Self::open_browser(
+            BrowserMode::Browsing,
+            Box::new(MainMenu),
+            String::from("nand:/"),
+        )
     }
 
     // Opens any version of the browser
@@ -116,31 +123,30 @@ impl Browser {
 }
 /// The state of a file Browser UI
 pub struct Browser {
-
     /// The files in the current directory.
     immediate_files: Vec<FileEntry>,
-    
+
     /// The path to the current directory.
     current_path: String,
-    
+
     /// scroll offset (in pixels) to the browser.
     scroll_offset: i32,
-    
+
     /// The starting point of a swipe on the touchscreen.
     drag_start: i16,
-    
+
     /// The number of frames one has held a direction button on the touchscreen
-    /// 
+    ///
     /// This is positive for downward direction, and negative for upward direction.
     hold_timer: i16,
-    
+
     /// The purpose of this browser (see [`BrowserMode`] for details)
     mode: BrowserMode,
-    
+
     /// The UI this browser returns to once closed.
     exit: Box<dyn ClonableUiPage>,
 }
-/// The 
+/// The
 #[derive(Clone)]
 pub enum BrowserMode {
     /// Browsing all files on the SD card, roms are launched when pressed, music plays, directories open, etc.
@@ -241,7 +247,7 @@ impl UiPage for Browser {
 
         // Find the max scroll ofset we may use
         let max_scroll = ((self.immediate_files.len()) as i32 * ITEM_SPACING) - (ITEM_SPACING * 11);
-        
+
         // Handle touchscreen swipes
         if let Some(drag) = ui.drag() {
             let new_drag = drag.y - self.drag_start;
@@ -268,7 +274,6 @@ impl UiPage for Browser {
             focus_on = Some(0);
         }
 
-        
         let in_step = self.scroll_offset % ITEM_SPACING; // pixels away we are from nearest file entry boundary
 
         // Deal with entry up/down
@@ -282,7 +287,6 @@ impl UiPage for Browser {
             self.hold_timer = 0;
         }
 
-        
         // Start Ui and show the current path as a heading
         let mut new_state: Option<Box<dyn UiPage>> = None;
         let mut new_folder = None;
@@ -362,7 +366,10 @@ impl UiPage for Browser {
                 self.scroll_offset = (self.scroll_offset).sub(ITEM_SPACING * 10).max(0);
             }
             if focus_on == Some(10) {
-                self.scroll_offset = (self.scroll_offset).add(ITEM_SPACING * 10).min(max_scroll).max(0);
+                self.scroll_offset = (self.scroll_offset)
+                    .add(ITEM_SPACING * 10)
+                    .min(max_scroll)
+                    .max(0);
             }
             self.scroll_offset -= in_step;
         }
@@ -412,7 +419,7 @@ impl UiPage for Browser {
             self.immediate_files = populate_fs_vec(&mut new_folder);
             self.scroll_offset = 0;
         }
-        
+
         new_state
     }
 }

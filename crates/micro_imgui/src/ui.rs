@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    context::{ Frame},
+    context::Frame,
     primitives::{Id, Rect, Vec2},
     response::{self, Response, Sense},
     widgets::{button::Button, label::Label},

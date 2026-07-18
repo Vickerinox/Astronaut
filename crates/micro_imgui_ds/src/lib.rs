@@ -149,8 +149,8 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
     }
 
     fn end_frame(&mut self) {
-        while VIDEO_HARDWARE.vcount.read() != 190 {} 
-        while VIDEO_HARDWARE.vcount.read() == 190 {} 
+        while VIDEO_HARDWARE.vcount.read() != 190 {}
+        while VIDEO_HARDWARE.vcount.read() == 190 {}
         unsafe { self.video.next_frame() };
     }
 
@@ -180,7 +180,6 @@ impl micro_imgui::Backend for DSMicroGuiBackend {
                 outline_color,
                 outline_size,
             } => {
-
                 let Rect {
                     min: micro_imgui::Vec2 { x, y },
                     max: Vec2 { x: x2, y: y2 },

@@ -3,19 +3,14 @@
 
 use alloc::{boxed::Box, string::String};
 
-use crate::gui::{
-    frontend::{UiPage},
-    main_menu::MainMenu,
-};
+use crate::gui::{frontend::UiPage, main_menu::MainMenu};
 
 pub struct Error {
     pub error_string: String,
 }
 impl Error {
     pub fn new(error_string: String) -> Self {
-        Self {
-            error_string,
-        }
+        Self { error_string }
     }
 }
 impl UiPage for Error {

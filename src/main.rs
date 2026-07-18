@@ -98,7 +98,6 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
         entrypoint, entry_point, entry_value
     );
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_memsz != 0) {
-        
         let file_offset_start = (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64);
         let file_offset_end = file_offset_start + segment.p_memsz as i64;
         if file_offset_start.is_negative() {

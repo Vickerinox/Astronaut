@@ -17,7 +17,8 @@ macro_rules! include_bytes_word_align {
     }};
 }
 
-pub const FONT_FILE: &[u8] = include_bytes_word_align!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));
+pub const FONT_FILE: &[u8] =
+    include_bytes_word_align!(concat!(env!("OUT_DIR"), "/font_compressed.bin"));
 reboot_lib::const_assert!(FONT_FILE.len() < 0x800);
 
 pub const ARM7_BINARY: &[u8] = include_bytes_word_align!(concat!(env!("OUT_DIR"), "/arm7.bin"));

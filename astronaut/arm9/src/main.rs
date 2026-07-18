@@ -426,8 +426,6 @@ unsafe fn main() {
 
         steal_main_mem();
 
-        
-
         // Check in with the ARM7 to make sure it's alive
         let mut timeout_counter = 0;
         while IPC_FIFO_HARDWARE.read_status() != 1 {
@@ -476,10 +474,10 @@ unsafe fn main() {
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
-        let tmd_path = {
-            let slice = core::slice::from_raw_parts(0x02FE34C4 as *const u8, 41);
-            str::from_utf8(slice).map(|i| String::from("nand:/") + i).unwrap_or(String::new())
-        };
+        let tmd_path = core::ffi::CStr::from_ptr(0x02FE34C4 as *const _)
+            .to_str()
+            .map(|i| String::from("nand:/") + i)
+            .unwrap_or(String::new());
 
         let app_data = {
             let ptr = app_area.app_data.as_mut_ptr();
