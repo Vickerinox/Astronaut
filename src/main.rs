@@ -97,9 +97,10 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
         "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
         entrypoint, entry_point, entry_value
     );
-    for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
+    for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_memsz != 0) {
+        
         let file_offset_start = (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64);
-        let file_offset_end = file_offset_start + segment.p_filesz as i64;
+        let file_offset_end = file_offset_start + segment.p_memsz as i64;
         if file_offset_start.is_negative() {
             continue;
         }
@@ -107,11 +108,23 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
             .segment_data(&segment)
             .map_err(|e| Crate::TMD.err()(CompileError::ElfSegmentError(e)))?;
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
+        let label = match segment.p_flags {
+            4 => "Read",
+            5 => "Execute",
+            6 => "Read+Write",
+            _ => "Other",
+        };
         debug!(
-            "Processing segment '{:x?}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
-            segment.p_flags, segment.p_filesz, file_offset_start, file_offset_end
+            "Processing segment '{}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
+            label, segment.p_memsz, file_offset_start, file_offset_end
         );
-        empty_tmd[file_range].copy_from_slice(data);
+        if segment.p_filesz == 0 {
+            for byte in empty_tmd[file_range].iter_mut() {
+                *byte = 0;
+            }
+        } else {
+            empty_tmd[file_range].copy_from_slice(data);
+        }
     }
     empty_tmd[M_STATE_OFFSET..][..M_STATE_OVERWRITE.len()].copy_from_slice(M_STATE_OVERWRITE);
     let values = entry_value.to_le_bytes();
