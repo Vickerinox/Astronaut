@@ -156,15 +156,26 @@ pub struct Browser {
     /// The UI this browser returns to once closed.
     exit: Box<dyn ClonableUiPage>,
 }
-/// The
-#[derive(Clone)]
+
 pub enum BrowserMode {
     /// Browsing all files on the SD card, roms are launched when pressed, music plays, directories open, etc.
     Browsing,
     /// Look for a specific type of file, and then do something with it once picked (used in the settings gui)
     Searching(BrowserSearch),
-
-    TitleList,
+    /// Search the current title list
+    TitleList(Option<Box<TitleLister>>),
+}
+impl Clone for BrowserMode {
+    fn clone(&self) -> Self {
+        match self {
+            BrowserMode::Browsing => BrowserMode::Browsing,
+            BrowserMode::Searching(search) => BrowserMode::Searching(BrowserSearch {
+                filter: search.filter,
+                goal: search.goal,
+            }),
+            BrowserMode::TitleList(_list) => BrowserMode::TitleList(None),
+        }
+    }
 }
 #[derive(Clone)]
 pub struct BrowserSearch {
@@ -173,7 +184,6 @@ pub struct BrowserSearch {
 }
 
 pub struct TitleLister {
-    roms: Vec<FileEntry>,
     folders: Vec<String>,
     rom_counter: usize,
     folder_counter: usize,
@@ -181,47 +191,18 @@ pub struct TitleLister {
 impl TitleLister {
     pub fn new() -> Self {
         let mut folders = Vec::with_capacity(500);
-        folders.push("nand:/".to_string());
         folders.push("sdmc:/".to_string());
-        Self { roms: Vec::with_capacity(200), folders, rom_counter: 0, folder_counter: 0 }
+        folders.push("nand:/".to_string());
+        Self { folders, rom_counter: 0, folder_counter: 0 }
     }
-}
-impl UiPage for TitleLister {
-    fn ui(
-        &mut self,
-        ui: &mut micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
-        _data: &mut GlobalData,
-    ) -> Option<Box<dyn UiPage>>
-    {
-        ui.request_repaint();
-        ui.add_space(50);
-        ui.label(&format!("scanned dirs: {}", self.folder_counter));
-        ui.label(&format!("found titles: {}", self.rom_counter));
-
-        if self.folders.is_empty() || ui.input_pressed(Input(Buttons::BUTTON_A)) {
-            if self.roms.is_empty() {
-                return Some(Box::new(MainMenu))
-            } else {
-                sort_files(&mut self.roms);
-                return Some(Box::new(Browser {
-                    immediate_files: core::mem::take(&mut self.roms),
-                    current_path: String::new(),
-                    scroll_offset: 0,
-                    drag_start: 0,
-                    hold_timer: 0,
-                    mode: BrowserMode::TitleList,
-                    exit: Box::new(MainMenu),
-                }))
-            }
-        }
+    pub fn scan_once(&mut self, current_files: &mut Vec<FileEntry>) -> bool {
         let mut element_counter = 0;
-        while element_counter < 4 {
-            let mut folder_path = self.folders.pop()?;
-            ui.label(&folder_path);
-            let Ok(mut folder) = fatfs_embedded::opendir(&mut folder_path) else { continue };
+        while element_counter < 5 {
+            let Some(mut folder_path) = self.folders.pop() else { return false };
             element_counter += 1;
+            let Ok(mut folder) = fatfs_embedded::opendir(&mut folder_path) else { continue };
             loop {
-                let file = fatfs_embedded::readdir(&mut folder).ok()?;
+                let Ok(file) = fatfs_embedded::readdir(&mut folder) else { return false };
                 if file.fattrib & fatfs_embedded::fatfs::FileAttributes::Hidden.bits() > 0 {
                     continue;
                 }
@@ -243,7 +224,7 @@ impl UiPage for TitleLister {
                     self.folder_counter += 1;
                     element_counter += 1;
                 } else {
-                    let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()).to_str().ok()? };
+                    let Ok(s_name) = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }.to_str() else { continue };
                     let s_name = if s_name.is_empty() {
                         &name
                     } else {
@@ -262,7 +243,7 @@ impl UiPage for TitleLister {
                         let dname = r_name.to_string() + " (" + &truncate_name(&name, 21) + ")";
                         element_counter += 1;
                         self.rom_counter += 1;
-                        self.roms.push(FileEntry {
+                        current_files.push(FileEntry {
                             display_name: dname,
                             file_name: path,
                             kind: FileType::Rom,
@@ -272,8 +253,7 @@ impl UiPage for TitleLister {
                 
             }
         }
-        
-        None
+        true
     }
 }
 
@@ -298,8 +278,16 @@ impl Browser {
             start,
         )
     }
-    pub fn title_list() -> TitleLister {
-        TitleLister::new()
+    pub fn title_list() -> Browser {
+        Browser {
+            immediate_files: Vec::with_capacity(500),
+            current_path: String::from("Scanning..."),
+            scroll_offset: 0,
+            drag_start: 0,
+            hold_timer: 0,
+            mode: BrowserMode::TitleList(Some(Box::new(TitleLister::new()))),
+            exit: Box::new(MainMenu),
+        }
     }
     /// Open an item in the browser
     #[no_mangle]
@@ -468,7 +456,7 @@ impl UiPage for Browser {
                             None
                         }
                     },
-                    BrowserMode::TitleList => {
+                    BrowserMode::TitleList(_) => {
                         new_state = Some(Box::new(AppBooter { path: item.file_name.clone() }));
                     }
                 }
@@ -525,24 +513,40 @@ impl UiPage for Browser {
                 self.scroll_offset -= in_step;
             }
         }
-        // handle pressing B button to back out of the current directory
-        if ui.input_pressed(Input(Buttons::BUTTON_B)) && new_folder.is_none() {
-            if self.current_path.len() <= 6 {
+        if let BrowserMode::TitleList(list) = &mut self.mode {
+            if ui.input_pressed(Input(Buttons::BUTTON_B)) {
                 new_state = Some(self.exit.clone_ui());
             } else {
-                pop_dir_entry(&mut self.current_path);
-                match fatfs_embedded::opendir(&mut self.current_path) {
-                    Ok(f) => {
-                        new_folder = Some(f);
+                if let Some(list) = list {
+                    if list.scan_once(&mut self.immediate_files) {
+                        ui.request_repaint();
+                    } else {
+                        self.current_path = format!("Found {} titles", self.immediate_files.len());
+                        self.mode = BrowserMode::TitleList(None);
                     }
-                    Err(_err) => {
-                        new_state = Some(Box::new(super::error::Error::new(format!(
-                            "Filesystem error!"
-                        ))));
+                }
+            }
+        } else {
+            // handle pressing B button to back out of the current directory
+            if ui.input_pressed(Input(Buttons::BUTTON_B)) && new_folder.is_none() {
+                if self.current_path.len() <= 6 {
+                    new_state = Some(self.exit.clone_ui());
+                } else {
+                    pop_dir_entry(&mut self.current_path);
+                    match fatfs_embedded::opendir(&mut self.current_path) {
+                        Ok(f) => {
+                            new_folder = Some(f);
+                        }
+                        Err(_err) => {
+                            new_state = Some(Box::new(super::error::Error::new(format!(
+                                "Filesystem error!"
+                            ))));
+                        }
                     }
                 }
             }
         }
+        
         // Handle opening new directory within self
         if let Some(mut new_folder) = new_folder {
             self.immediate_files = populate_fs_vec(&mut new_folder);

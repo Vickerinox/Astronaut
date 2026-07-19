@@ -25,7 +25,7 @@ impl SDMMCDriver {
 
     unsafe fn try_mount_sd(&mut self) -> Option<BasicSDMMCCursor<'static>> {
         let sd_buffer =
-            core::slice::from_raw_parts_mut(0x2FC0000 as *mut reboot_lib::StorageSector, 64);
+            core::slice::from_raw_parts_mut(0x2FC0000 as *mut reboot_lib::StorageSector, 8);
         read_sd_card(&mut sd_buffer[..4], 0).ok()?;
         let lba = {
             let mbr: &mbr::MBR = bytemuck::must_cast_ref(&sd_buffer[0]);
@@ -46,7 +46,7 @@ impl SDMMCDriver {
 
     unsafe fn try_mount_nand(&mut self) -> Option<BasicSDMMCCursor<'static>> {
         let nand_buffer =
-            core::slice::from_raw_parts_mut(0x2FD0000 as *mut reboot_lib::StorageSector, 64);
+            core::slice::from_raw_parts_mut(0x2FD0000 as *mut reboot_lib::StorageSector, 8);
 
         read_encrypted_nand(&mut nand_buffer[..4], 0).ok()?;
         let lba = {
