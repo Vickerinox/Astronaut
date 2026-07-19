@@ -5,13 +5,6 @@ use build_tools::{compress, generate_font};
 use std::{io::Write, process::Command};
 
 fn main() {
-    // add git commit hash to env
-    let output = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
-        .output()
-        .unwrap();
-    let git_hash = String::from_utf8(output.stdout).unwrap();
-    println!("cargo:rustc-env=GIT_HASH={}", &git_hash[..8]);
 
     // add font to build
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
