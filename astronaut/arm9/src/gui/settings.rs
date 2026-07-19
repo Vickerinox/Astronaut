@@ -6,7 +6,6 @@ use alloc::{
     format,
     string::{String, ToString},
 };
-
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
     micro_imgui::{widgets::checkbox::Checkbox, Backend, Response},
@@ -16,9 +15,7 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::Buttons;
 
 use crate::{
-    configuration::BootCombo,
-    gui::{browser::Browser, frontend::UiPage, GlobalData, MainMenu},
-    truncate_name, FileType,
+    FileType, configuration::{BootCombo, Config}, gui::{GlobalData, MainMenu, browser::Browser, error::Error, frontend::UiPage}, truncate_name,
 };
 
 #[derive(Clone)]
@@ -26,6 +23,50 @@ pub enum Settings {
     Main,
     BootCombos(usize),
     SelectedCombo(Buttons, u32),
+    SavedSettings {
+        nand: bool,
+        sd: bool,
+    }
+}
+fn save_settings(config: &Config) -> Settings {
+    let mut new_ini = config.into_ini();
+    
+    let sd = if let Ok(mut file) = fatfs_embedded::open(
+        &mut "sdmc:/_nds/astronaut/settings.ini".to_string(),
+        FileOptions::Write | FileOptions::CreateAlways,
+    ) {
+        let bytes = new_ini.as_bytes();
+        match fatfs_embedded::write(&mut file, bytes) {
+            Ok(len) => len == bytes.len() as _,
+            Err(_) => false,
+        }
+    } else {
+        false
+    };
+
+    let nand = if new_ini.len() > 0x4000 {
+        false
+    } else {
+        new_ini.reserve(0x4000-new_ini.len());
+        for _ in 0..(0x4000-new_ini.len()) {
+            new_ini.push('\0');
+        }
+        
+        match fatfs_embedded::open(
+            &mut "nand:/astronaut.ini".to_string(),
+            FileOptions::Write | FileOptions::OpenAlways,
+        ) {
+            Ok(mut file) => {
+                let bytes = new_ini.as_bytes();
+                match fatfs_embedded::write(&mut file, bytes) {
+                    Ok(len) => len == bytes.len() as _,
+                    Err(_) => false,
+                }
+            },
+            Err(_) => false,
+        }
+    };
+    Settings::SavedSettings { nand, sd }
 }
 impl Settings {
     fn main_settings(
@@ -118,47 +159,7 @@ impl Settings {
                 result = Some(Box::new(MainMenu));
             }
             if ui.button("save").clicked() {
-                result = Some(Box::new(super::error::Error::new(String::from(
-                    "Failed to save settings.",
-                ))));
-                let new_ini = data.config.into_ini();
-                let bytes = new_ini.as_bytes();
-                if let Ok(mut file) = fatfs_embedded::open(
-                    &mut "sdmc:/_nds/astronaut/settings.ini".to_string(),
-                    FileOptions::Write | FileOptions::CreateAlways,
-                ) {
-                    let Ok(stuff) = fatfs_embedded::write(&mut file, bytes) else {
-                        return;
-                    };
-                    if stuff != bytes.len() as _ {
-                        return;
-                    }
-                    result = Some(Box::new(MainMenu));
-                }
-
-                match fatfs_embedded::open(
-                    &mut "nand:/astronaut.ini".to_string(),
-                    FileOptions::Write | FileOptions::CreateAlways,
-                ) {
-                    Ok(mut file) => {
-                        let Ok(stuff) = fatfs_embedded::write(&mut file, bytes) else {
-                            result = Some(Box::new(super::error::Error::new(String::from(
-                                "Failed to save settings 1.",
-                            ))));
-                            return;
-                        };
-                        if stuff != bytes.len() as _ {
-                            result = Some(Box::new(super::error::Error::new(String::from(
-                                "Failed to save settings 2.",
-                            ))));
-                            return;
-                        }
-                        result = Some(Box::new(MainMenu));
-                    },
-                    Err(e) => {
-                        result = Some(Box::new(super::error::Error::new(format!("Error {:?}", e))));
-                    }
-                }
+                *self = save_settings(&data.config);
             }
         });
         result
@@ -336,6 +337,17 @@ impl UiPage for Settings {
                     ui.label("hold a button combo to start, or A+B to cancel.");
                     None
                 }
+            }
+            Self::SavedSettings { nand, sd } => {
+                let message = match (nand, sd) {
+                    (true, true) => "Settings saved to SD Card and System!",
+                    (true, false) => "Settings saved on system memory!",
+                    (false, true) => "Settings saved on SD Card!",
+                    (false, false) => "Failed to save settings!",
+                };
+                ui.label(message);
+                ui.add_space(ui.clip_rect().height()-14);
+                ui.button("Ok").clicked().then_some(Box::new(MainMenu))
             }
         }
     }
