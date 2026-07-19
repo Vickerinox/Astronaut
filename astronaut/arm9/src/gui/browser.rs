@@ -180,10 +180,10 @@ pub struct TitleLister {
 }
 impl TitleLister {
     pub fn new() -> Self {
-        let mut folders = Vec::with_capacity(100);
+        let mut folders = Vec::with_capacity(500);
         folders.push("nand:/".to_string());
         folders.push("sdmc:/".to_string());
-        Self { roms: Vec::with_capacity(100), folders, rom_counter: 0, folder_counter: 0 }
+        Self { roms: Vec::with_capacity(200), folders, rom_counter: 0, folder_counter: 0 }
     }
 }
 impl UiPage for TitleLister {
@@ -198,7 +198,7 @@ impl UiPage for TitleLister {
         ui.label(&format!("scanned dirs: {}", self.folder_counter));
         ui.label(&format!("found titles: {}", self.rom_counter));
 
-        if self.folders.is_empty() {
+        if self.folders.is_empty() || ui.input_pressed(Input(Buttons::BUTTON_A)) {
             if self.roms.is_empty() {
                 return Some(Box::new(MainMenu))
             } else {
@@ -265,7 +265,7 @@ impl UiPage for TitleLister {
                 
             }
         }
-
+        
         None
     }
 }
