@@ -13,14 +13,9 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
 use crate::{
-    filetype,
-    gui::{
-        frontend::{pop_dir_entry, AppBooter, ClonableUiPage, UiPage},
-        main_menu::MainMenu,
-        GlobalData,
-    },
-    music::{stop_mod_file, MusicPlaying, StreamingWav},
-    truncate_name, FileEntry, FileType,
+    FileEntry, FileType, boot::read_all, filetype, gui::{
+        GlobalData, frontend::{AppBooter, ClonableUiPage, UiPage, pop_dir_entry}, main_menu::MainMenu,
+    }, music::{MusicPlaying, StreamingWav, stop_mod_file}, truncate_name,
 };
 
 #[no_mangle]
@@ -248,8 +243,16 @@ impl UiPage for TitleLister {
                         s_name
                     };
                     if filetype(s_name) == FileType::Rom {
-                        let path = folder_path.clone() + &name;
-                        let dname = truncate_name(&name, 35);
+                        let mut path = folder_path.clone() + &name;
+                      
+                        let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else { continue };
+                        let mut title = [0u8; 12];
+                        if read_all(&mut title, &mut file).is_err() {
+                            continue
+                        }
+                        let Ok(r_name) = str::from_utf8(&title) else { continue };
+
+                        let dname = r_name.to_string() + " (" + &truncate_name(&name, 21) + ")";
                         element_counter += 1;
                         self.rom_counter += 1;
                         self.roms.push(FileEntry {
