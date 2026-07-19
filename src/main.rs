@@ -73,8 +73,6 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     const M_STATE_OFFSET: usize = 0x13250;
     const _MIN_EXPLOIT_LEN: usize = 0x13C01;
     const USED_EXPLOIT_LEN: usize = 0x16000;
-    const MAGIC_START_POINT: usize = 0x37DF06C;
-    const MAGIC_AUX_START_POINT: usize = 0x06880000 - (0x13800 + 520);
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
     info!("SELECTED ELF: {:?}", &elf_file_path);
@@ -83,7 +81,6 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
         .map_err(|e| Crate::TMD.err()(CompileError::ElfParseError(e)))?;
     let entrypoint = parse.ehdr.e_entry;
-    //let rodata = parse.section_header_by_name(".rodata").unwrap().unwrap();
     let mut empty_tmd = vec![0u8; USED_EXPLOIT_LEN];
 
     let Some(segments) = parse.segments() else {
@@ -92,22 +89,16 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
             crate_type: Crate::TMD,
         });
     };
-    let entry_point = entrypoint - (MAGIC_START_POINT as u64);
+    //let entry_point = entrypoint - (MAGIC_START_POINT as u64);
     let entry_value = (entrypoint as u32) + 4;
     info!(
         "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
-        entrypoint, entry_point, entry_value
+        entrypoint, entry_value, entry_value
     );
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_memsz != 0) {
-        let file_offset_start = if segment.p_vaddr >= 0x06880000 {
-            (segment.p_vaddr as i64) - (MAGIC_AUX_START_POINT as i64)
-        } else {
-            (segment.p_vaddr as i64) - (MAGIC_START_POINT as i64)
-        };
+        let file_offset_start = segment.p_paddr as i64 + 4;
         let file_offset_end = file_offset_start + segment.p_memsz as i64;
-        if file_offset_start.is_negative() {
-            continue;
-        }
+        
         let data = parse
             .segment_data(&segment)
             .map_err(|e| Crate::TMD.err()(CompileError::ElfSegmentError(e)))?;
@@ -118,16 +109,18 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
             6 => "Read+Write",
             _ => "Other",
         };
+        
         debug!(
             "Processing segment '{}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
             label, segment.p_memsz, file_offset_start, file_offset_end
         );
+        let Some(bin) = empty_tmd.get_mut(file_range) else { continue };
         if segment.p_filesz == 0 {
-            for byte in empty_tmd[file_range].iter_mut() {
+            for byte in bin.iter_mut() {
                 *byte = 0;
             }
         } else {
-            empty_tmd[file_range].copy_from_slice(data);
+            bin.copy_from_slice(data);
         }
     }
     empty_tmd[M_STATE_OFFSET..][..M_STATE_OVERWRITE.len()].copy_from_slice(M_STATE_OVERWRITE);
