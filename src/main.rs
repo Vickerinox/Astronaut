@@ -109,12 +109,12 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
             6 => "Read+Write",
             _ => "Other",
         };
-        
+        let Some(bin) = empty_tmd.get_mut(file_range) else { continue };
         debug!(
             "Processing segment '{}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
             label, segment.p_memsz, file_offset_start, file_offset_end
         );
-        let Some(bin) = empty_tmd.get_mut(file_range) else { continue };
+        
         if segment.p_filesz == 0 {
             for byte in bin.iter_mut() {
                 *byte = 0;
