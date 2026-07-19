@@ -404,6 +404,14 @@ pub fn main_arm7() {
                     }
                     response = 0;
                 }
+                15 => {
+                    let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+                    response = match mmc_write_encrypt(buffer, &key, arg) {
+                        Ok(_) => 0,
+                        Err(e) => e.bits(),
+                    }
+                }
                 _ => response = 0x8000_0000,
             }
             IPC_FIFO_HARDWARE.send_raw_blocking(response);
@@ -537,7 +545,7 @@ pub unsafe fn mmc_read_decrypt(
     );
     Ok(())
 }
-pub unsafe fn mmc_write_decrypt(
+pub unsafe fn mmc_write_encrypt(
     data: *mut [crate::StorageSector],
     ctr_base: &[u32; 4],
     sector: u32,
@@ -561,6 +569,17 @@ pub unsafe fn mmc_write_decrypt(
         &key,
     );
     crate::write_sectors(crate::DeviceSelect::EMMC, sector, data)?;
+    AES_HARDWARE.master_control.write(AESCnt::empty());
+    AES_HARDWARE.reset();
+    AES_HARDWARE.reset();
+    AES_HARDWARE.wait_key_busy();
+    AES_HARDWARE.set_key_slot(3);
+    AES_HARDWARE.wait_key_busy();
+
+    crate::AES_HARDWARE.ctr_crypt_block(
+        core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
+        &key,
+    );
     Ok(())
 }
 

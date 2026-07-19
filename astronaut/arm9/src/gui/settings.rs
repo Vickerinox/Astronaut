@@ -121,12 +121,12 @@ impl Settings {
                 result = Some(Box::new(super::error::Error::new(String::from(
                     "Failed to save settings.",
                 ))));
+                let new_ini = data.config.into_ini();
+                let bytes = new_ini.as_bytes();
                 if let Ok(mut file) = fatfs_embedded::open(
                     &mut "sdmc:/_nds/astronaut/settings.ini".to_string(),
                     FileOptions::Write | FileOptions::CreateAlways,
                 ) {
-                    let new_ini = data.config.into_ini();
-                    let bytes = new_ini.as_bytes();
                     let Ok(stuff) = fatfs_embedded::write(&mut file, bytes) else {
                         return;
                     };
@@ -134,6 +134,30 @@ impl Settings {
                         return;
                     }
                     result = Some(Box::new(MainMenu));
+                }
+
+                match fatfs_embedded::open(
+                    &mut "nand:/astronaut.ini".to_string(),
+                    FileOptions::Write | FileOptions::CreateAlways,
+                ) {
+                    Ok(mut file) => {
+                        let Ok(stuff) = fatfs_embedded::write(&mut file, bytes) else {
+                            result = Some(Box::new(super::error::Error::new(String::from(
+                                "Failed to save settings 1.",
+                            ))));
+                            return;
+                        };
+                        if stuff != bytes.len() as _ {
+                            result = Some(Box::new(super::error::Error::new(String::from(
+                                "Failed to save settings 2.",
+                            ))));
+                            return;
+                        }
+                        result = Some(Box::new(MainMenu));
+                    },
+                    Err(e) => {
+                        result = Some(Box::new(super::error::Error::new(format!("Error {:?}", e))));
+                    }
                 }
             }
         });

@@ -175,6 +175,11 @@ pub unsafe fn arm9_write_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> 
 }
 
 #[cfg(feature = "standard_arm7")]
+pub unsafe fn arm9_write_nand_sector(start_sector: u32) -> Result<(), NonZeroU32> {
+    com_arm9(15, &[start_sector])
+}
+
+#[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_arm7_boot() -> Result<(), NonZeroU32> {
     com_arm9(6, &[])
 }

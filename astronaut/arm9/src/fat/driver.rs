@@ -105,6 +105,10 @@ impl FatFsDriver for SDMMCDriver {
                     //just do your best flusha, no need to succeed
                     let _ = flusha.flush();
                 }
+                if let Some(flusha) = &mut self.nand_controller {
+                    //just do your best flusha, no need to succeed
+                    let _ = flusha.flush();
+                }
                 DiskResult::Ok
             }
             IoctlCommand::GetSectorCount(_) => DiskResult::ParameterError,
@@ -138,7 +142,7 @@ impl FatFsDriver for SDMMCDriver {
     fn disk_write(&mut self, drive: u8, mut buffer: &[u8], sector: u32) -> DiskResult {
         let Some(controller) = (match drive {
             1 => &mut self.sdmc_controller,
-            2 => return DiskResult::WriteProtected, //&mut self.nand_controller,
+            2 => &mut self.nand_controller,
             _ => return DiskResult::ParameterError,
         }) else {
             return DiskResult::NotReady;

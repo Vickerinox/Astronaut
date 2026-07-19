@@ -42,6 +42,19 @@ pub fn write_sd_card(
     }
     Ok(())
 }
+pub fn write_decrypted_nand(
+    buffer: *mut [reboot_lib::StorageSector],
+    start_sector: u32,
+) -> Result<(), u32> {
+    unsafe {
+        flush_mmc();
+        reboot_lib::arm9_set_buffer(buffer)?;
+        reboot_lib::arm9_write_nand_sector(start_sector)?;
+        flush_mmc();
+        flush_mmc();
+    }
+    Ok(())
+}
 
 pub struct BasicSDMMCCursor<'a> {
     buffer: &'a mut [StorageSector],
@@ -77,7 +90,7 @@ impl<'a> BasicSDMMCCursor<'a> {
     }
     pub fn write_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
-            true => Err(123456789),
+            true => write_decrypted_nand(self.buffer, self.lba + sector),
             false => write_sd_card(self.buffer, self.lba + sector),
         }
     }
