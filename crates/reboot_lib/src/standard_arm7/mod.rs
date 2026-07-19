@@ -537,6 +537,32 @@ pub unsafe fn mmc_read_decrypt(
     );
     Ok(())
 }
+pub unsafe fn mmc_write_decrypt(
+    data: *mut [crate::StorageSector],
+    ctr_base: &[u32; 4],
+    sector: u32,
+) -> Result<(), crate::Status> {
+
+    let mut key = ctr_base.clone();
+    add_on_key(&mut key, sector << 5);
+    let ptr = data as *mut ();
+    let len = data.len();
+    //AES_HARDWARE.set_key_slot(3);
+
+    AES_HARDWARE.master_control.write(AESCnt::empty());
+    AES_HARDWARE.reset();
+    AES_HARDWARE.reset();
+    AES_HARDWARE.wait_key_busy();
+    AES_HARDWARE.set_key_slot(3);
+    AES_HARDWARE.wait_key_busy();
+
+    crate::AES_HARDWARE.ctr_crypt_block(
+        core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
+        &key,
+    );
+    crate::write_sectors(crate::DeviceSelect::EMMC, sector, data)?;
+    Ok(())
+}
 
 /// read from the SD card using NDMA.
 pub unsafe fn sd_read_sectors(

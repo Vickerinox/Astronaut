@@ -185,46 +185,37 @@ pub struct BrowserSearch {
 
 pub struct TitleLister {
     folders: Vec<String>,
-    rom_counter: usize,
-    folder_counter: usize,
+    current_folder: Option<(fatfs_embedded::fatfs::Directory, String)>,
 }
 impl TitleLister {
     pub fn new() -> Self {
         let mut folders = Vec::with_capacity(500);
         folders.push("sdmc:/".to_string());
         folders.push("nand:/".to_string());
-        Self { folders, rom_counter: 0, folder_counter: 0 }
+        Self { folders, current_folder: None }
     }
-    pub fn scan_once(&mut self, current_files: &mut Vec<FileEntry>) -> bool {
-        let mut element_counter = 0;
-        while element_counter < 5 {
-            let Some(mut folder_path) = self.folders.pop() else { return false };
-            element_counter += 1;
-            let Ok(mut folder) = fatfs_embedded::opendir(&mut folder_path) else { continue };
-            loop {
-                let Ok(file) = fatfs_embedded::readdir(&mut folder) else { return false };
+    pub fn take_one(&mut self) -> Result<FileEntry, bool> {
+        match &mut self.current_folder {
+            Some((folder, folder_path)) => {
+                let file = fatfs_embedded::readdir(folder).map_err(|_| false)?;
                 if file.fattrib & fatfs_embedded::fatfs::FileAttributes::Hidden.bits() > 0 {
-                    continue;
+                    return Err(true);
                 }
-                let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str()
-                else {
-                    continue;
-                };
+                let name = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str().map_err(|_| true)?;
                 let name = alloc::string::String::from(name);
                 if name.is_empty() {
-                    break;
+                    self.current_folder = None;
+                    return Err(true);
                 }
                 let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
 
                 if is_dir {
                     if name.starts_with(".") {
-                        continue;
+                        return Err(true);
                     }
                     self.folders.push(folder_path.clone() + &name + "/");
-                    self.folder_counter += 1;
-                    element_counter += 1;
                 } else {
-                    let Ok(s_name) = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }.to_str() else { continue };
+                    let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }.to_str().map_err(|_| true)?;
                     let s_name = if s_name.is_empty() {
                         &name
                     } else {
@@ -233,24 +224,38 @@ impl TitleLister {
                     if filetype(s_name) == FileType::Rom {
                         let mut path = folder_path.clone() + &name;
                       
-                        let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else { continue };
+                        let mut file = fatfs_embedded::open(&mut path, FileOptions::Read).map_err(|_| true)?;
                         let mut title = [0u8; 12];
                         if read_all(&mut title, &mut file).is_err() {
-                            continue
+                            return Err(true);
                         }
-                        let Ok(r_name) = str::from_utf8(&title) else { continue };
+                        let r_name = str::from_utf8(&title).map_err(|_| true)?;
 
                         let dname = r_name.to_string() + " (" + &truncate_name(&name, 21) + ")";
-                        element_counter += 1;
-                        self.rom_counter += 1;
-                        current_files.push(FileEntry {
+                        return Ok(FileEntry {
                             display_name: dname,
                             file_name: path,
                             kind: FileType::Rom,
-                        })
+                        });
                     }
-                };
-                
+                }
+            },
+            None => {
+                let mut folder_path = self.folders.pop().ok_or(false)?;
+                let folder = fatfs_embedded::opendir(&mut folder_path).map_err(|_| true)?;
+                self.current_folder = Some((folder, folder_path));
+            },
+        }
+        Err(true)
+    }
+    pub fn scan_once(&mut self, current_files: &mut Vec<FileEntry>) -> bool {
+        for _ in 0..5 {
+            match self.take_one() {
+                Ok(title) => {
+                    current_files.push(title);
+                },
+                Err(true) => (),
+                Err(false) => return false,
             }
         }
         true

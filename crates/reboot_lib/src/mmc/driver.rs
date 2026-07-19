@@ -334,11 +334,12 @@ pub unsafe fn read_sectors(
         Err(res | res2)
     }
 }
-pub unsafe fn write_sd_sectors(
+pub unsafe fn write_sectors(
+    device: DeviceSelect,
     sector: u32,
     buf: *mut [crate::StorageSector],
 ) -> Result<(), Status> {
-    let device = &mut DEVICES[DeviceSelect::SDCardSlot as u8 as usize];
+    let device = &mut DEVICES[device as u8 as usize];
     device.port.buffer =
         core::slice::from_raw_parts_mut(buf as *mut StorageSector as *mut u32, buf.len() * 128);
 
@@ -354,6 +355,12 @@ pub unsafe fn write_sd_sectors(
     } else {
         Err(res)
     }
+}
+pub unsafe fn write_sd_sectors(
+    sector: u32,
+    buf: *mut [crate::StorageSector],
+) -> Result<(), Status> {
+    write_sectors(DeviceSelect::SDCardSlot, sector, buf)
 }
 
 pub unsafe fn nocash_write(str: &str) {
