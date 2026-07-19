@@ -215,12 +215,16 @@ impl UiPage for TitleLister {
             }
         }
         let mut element_counter = 0;
-        while element_counter < 2 {
-
+        while element_counter < 4 {
             let mut folder_path = self.folders.pop()?;
+            ui.label(&folder_path);
             let Ok(mut folder) = fatfs_embedded::opendir(&mut folder_path) else { continue };
+            element_counter += 1;
             loop {
                 let file = fatfs_embedded::readdir(&mut folder).ok()?;
+                if file.fattrib & fatfs_embedded::fatfs::FileAttributes::Hidden.bits() > 0 {
+                    continue;
+                }
                 let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str()
                 else {
                     continue;
@@ -232,6 +236,9 @@ impl UiPage for TitleLister {
                 let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
 
                 if is_dir {
+                    if name.starts_with(".") {
+                        continue;
+                    }
                     self.folders.push(folder_path.clone() + &name + "/");
                     self.folder_counter += 1;
                     element_counter += 1;
