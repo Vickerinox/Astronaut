@@ -126,15 +126,15 @@ pub struct Theme {
     pub folder_color: Color,
     pub bootable_color: Color,
     pub asset_color: Color,
-}
+} 
 impl Theme {
-    pub const DEFAULT: Self = Theme {
+    pub const DEFAULT: Self = Theme { 
         folder_color: Color::new(200, 100, 100),
-        bootable_color: Color::new(100, 200, 100),
+        bootable_color: Color::new(100, 200, 100), 
         asset_color: Color::new(100, 100, 200),
     };
-    #[no_mangle]
-    #[link_section = ".note.text_aux"]
+    #[no_mangle] 
+    #[link_section = ".text_aux"]
     pub fn load(&mut self, theme_path: &mut String) -> (Assets, Style) {
         let mut assets = Assets {
             music: String::new(),
@@ -287,7 +287,7 @@ impl GlobalData {
         crate::bmp::DecodedBMP::from_reader(file)
     }
     #[no_mangle]
-    #[link_section = ".note.text_aux"]
+    #[link_section = ".text_aux"]
     pub unsafe fn load_theme(&mut self, assets: Assets) -> VideoHardwareHandle {
         let Assets {
             mut music,

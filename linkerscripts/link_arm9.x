@@ -2,7 +2,10 @@
 /* minimum exploit mem size: 0x13048 */
 MEMORY
 {
-  EXPLOIT_MEM : ORIGIN = 0x037DF27C, LENGTH = 0x13048
+  TMD_REGION1 : ORIGIN = 0x00208, LENGTH = 0x13048
+  TMD_REGION2 : ORIGIN = 0x13800, LENGTH = 0x10000
+
+  EXPLOIT_MEM : ORIGIN = 0x037DF278, LENGTH = 0x13048
   AUX_MEM : ORIGIN = 0x06880000, LENGTH = 0x10000
 }
 
@@ -11,11 +14,6 @@ ENTRY(_start);
 
 SECTIONS
 {
-  .text_aux : 
-  {
-    *(.text_aux);
-  } > AUX_MEM
-
 
   .rodata_main :
   {
@@ -27,6 +25,20 @@ SECTIONS
     *(.text .text.*);
   } > EXPLOIT_MEM
 
+  .data_main :
+  {
+    *(.data .data.*);
+  } > EXPLOIT_MEM
+
+  .bss_main :
+  {
+    *(.bss .bss.*);
+  } > EXPLOIT_MEM
+
+  .text_aux : 
+  {
+    *(.text_aux);
+  } > AUX_MEM
 
 
   /DISCARD/ :
