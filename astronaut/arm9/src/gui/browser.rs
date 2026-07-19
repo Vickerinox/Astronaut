@@ -220,11 +220,11 @@ impl UiPage for TitleLister {
             }
         }
         let mut element_counter = 0;
-        while element_counter < 10 {
+        while element_counter < 2 {
 
             let mut folder_path = self.folders.pop()?;
             let Ok(mut folder) = fatfs_embedded::opendir(&mut folder_path) else { continue };
-            while element_counter < 10 {
+            loop {
                 let file = fatfs_embedded::readdir(&mut folder).ok()?;
                 let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str()
                 else {
