@@ -13,27 +13,27 @@ pub struct StreamingWav {
     data_start: usize,
     _data_len: usize,
     player_head: usize,
-    scratch_buffer: &'static mut [u8],
+    scratch_buffer: &'static mut [u16],
     stream_type: StreamType,
     frequency: u32,
 }
 
 const WAV_BUFFER_LEN: usize = 1024 * 64;
-const WAV_BUFFER_LAYOUT: Layout = unsafe { Layout::from_size_align_unchecked(WAV_BUFFER_LEN, 4) };
+const WAV_BUFFER_LAYOUT: Layout = unsafe { Layout::from_size_align_unchecked(WAV_BUFFER_LEN * core::mem::size_of::<u16>(), 4) };
 
 impl Drop for StreamingWav {
     fn drop(&mut self) {
         unsafe {
             self.stop();
-            alloc::alloc::dealloc(self.scratch_buffer.as_mut_ptr(), WAV_BUFFER_LAYOUT)
+            alloc::alloc::dealloc(self.scratch_buffer.as_mut_ptr() as *mut u8, WAV_BUFFER_LAYOUT)
         };
     }
 }
 enum StreamType {
     MonoU8,
     MonoI16,
-    StereoU8 { audio: &'static mut [u8] },
-    StereoI16 { audio: &'static mut [u8] },
+    StereoU8 { audio: &'static mut [u16] },
+    StereoI16 { audio: &'static mut [u16] },
 }
 impl Drop for StreamType {
     fn drop(&mut self) {
@@ -42,18 +42,18 @@ impl Drop for StreamType {
                 StreamType::MonoU8 => (),
                 StreamType::MonoI16 => (),
                 StreamType::StereoU8 { audio } => {
-                    alloc::alloc::dealloc(audio.as_mut_ptr(), WAV_BUFFER_LAYOUT);
+                    alloc::alloc::dealloc(audio.as_mut_ptr() as *mut _, WAV_BUFFER_LAYOUT);
                 }
                 StreamType::StereoI16 { audio } => {
-                    alloc::alloc::dealloc(audio.as_mut_ptr(), WAV_BUFFER_LAYOUT);
+                    alloc::alloc::dealloc(audio.as_mut_ptr() as *mut _, WAV_BUFFER_LAYOUT);
                 }
             }
         };
     }
 }
-fn alloc_wav_buf() -> &'static mut [u8] {
+fn alloc_wav_buf() -> &'static mut [u16] {
     let buffer = unsafe { alloc::alloc::alloc(WAV_BUFFER_LAYOUT) };
-    unsafe { core::slice::from_raw_parts_mut(buffer, WAV_BUFFER_LEN) }
+    unsafe { core::slice::from_raw_parts_mut(buffer as *mut _, WAV_BUFFER_LEN) }
 }
 impl StreamingWav {
     #[no_mangle]
@@ -164,7 +164,7 @@ impl StreamingWav {
             match &mut self.stream_type {
                 StreamType::MonoU8 => {
                     let _ = reboot_lib::arm9_manual_sound_write(
-                        self.scratch_buffer,
+                        reboot_lib::bytemuck::must_cast_slice_mut(self.scratch_buffer),
                         0,
                         snd_timer,
                         format.with_panning(0x40),
@@ -173,7 +173,7 @@ impl StreamingWav {
                 }
                 StreamType::MonoI16 => {
                     let _ = reboot_lib::arm9_manual_sound_write(
-                        self.scratch_buffer,
+                        reboot_lib::bytemuck::must_cast_slice_mut(self.scratch_buffer),
                         0,
                         snd_timer,
                         format.with_panning(0x40),
@@ -182,15 +182,15 @@ impl StreamingWav {
                 }
                 StreamType::StereoU8 { audio } => {
                     let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
-                    let _ = reboot_lib::arm9_manual_sound_write(
-                        left,
+                    let _ = reboot_lib::arm9_manual_sound_write(                        
+                        reboot_lib::bytemuck::must_cast_slice_mut(left),
                         0,
                         snd_timer,
                         format.with_panning(0x0),
                         0,
                     );
                     let _ = reboot_lib::arm9_manual_sound_write(
-                        right,
+                        reboot_lib::bytemuck::must_cast_slice_mut(right),
                         1,
                         snd_timer,
                         format.with_panning(0x7F),
@@ -200,14 +200,14 @@ impl StreamingWav {
                 StreamType::StereoI16 { audio } => {
                     let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
                     let _ = reboot_lib::arm9_manual_sound_write(
-                        left,
+                        reboot_lib::bytemuck::must_cast_slice_mut(left),
                         0,
                         snd_timer,
                         format.with_panning(0x0),
                         0,
                     );
                     let _ = reboot_lib::arm9_manual_sound_write(
-                        right,
+                        reboot_lib::bytemuck::must_cast_slice_mut(right),
                         1,
                         snd_timer,
                         format.with_panning(0x7F),
@@ -271,40 +271,33 @@ impl StreamingWav {
         }
         while count > 0 {
             let break_point = self.player_head % WAV_BUFFER_LEN;
-            let slice = &mut (&mut *self.scratch_buffer)[break_point..];
+            let slice = &mut self.scratch_buffer[break_point..];
             let cut = slice.len().min(count);
             let final_slice = &mut slice[..cut];
-            if read_all(final_slice, &mut self.file, self.data_start as u32).is_ok() {
+            if read_all(reboot_lib::bytemuck::must_cast_slice_mut(final_slice), &mut self.file, self.data_start as u32).is_ok() {
                 self.player_head += final_slice.len();
                 count -= final_slice.len();
                 match &mut self.stream_type {
                     StreamType::MonoU8 => {
-                        for val in final_slice {
+                        for val in reboot_lib::bytemuck::must_cast_slice_mut::<u16, u8>(final_slice) {
                             *val = val.wrapping_add(0x80);
                         }
                     }
                     StreamType::MonoI16 => (),
                     StreamType::StereoU8 { audio } => {
-                        let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
+                        let (left, right) = reboot_lib::bytemuck::must_cast_slice_mut::<u16, u8>(audio).split_at_mut(WAV_BUFFER_LEN);
+                        let br = break_point / 2;
                         for (i, val) in final_slice.iter().enumerate() {
-                            if i & 1 == 0 {
-                                left[(break_point + i) / 2] = val.wrapping_add(0x80);
-                            } else {
-                                right[(break_point + i) / 2] = val.wrapping_add(0x80)
-                            }
+                            left[br + i] = ((val >> 0) as u8).wrapping_add(0x80);
+                            right[br + i] = ((val >> 8) as u8).wrapping_add(0x80);
                         }
                     }
                     StreamType::StereoI16 { audio } => {
                         let (left, right) = audio.split_at_mut(WAV_BUFFER_LEN / 2);
                         let break_point = break_point / 2;
                         for (i, val) in final_slice.chunks_exact(2).enumerate() {
-                            if i & 1 == 0 {
-                                left[break_point + i] = val[0];
-                                left[break_point + i + 1] = val[1];
-                            } else {
-                                right[break_point + i - 1] = val[0];
-                                right[break_point + i] = val[1];
-                            }
+                            left[break_point + i] = val[0];
+                            right[break_point + i] = val[1];
                         }
                     }
                 }

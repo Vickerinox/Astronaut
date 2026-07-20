@@ -85,7 +85,7 @@ impl AppData {
         match &mut self.global_data.loading_mod_file {
             MusicPlaying::None => (),
             MusicPlaying::Wav(wav_stream) => {
-                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() } << 11;
+                let pos = unsafe { (*(APP_AREA_START as *mut AppArea)).wav_counter.read() } << 10;
                 let bytes_to_read = pos as usize - wav_stream.counter(); 
                 unsafe { 
                     wav_stream.fetch_new(bytes_to_read);
