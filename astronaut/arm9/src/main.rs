@@ -560,9 +560,13 @@ pub unsafe fn set_background(color: u16) {
     ENGINE_B_PALETTES.bg_palettes[0].write(color);
 }
 
+// Where NWRAM Starts 
 const DSI_WRAM_START: usize = 0x037C0000;
+// Where the TMD code starts
 const BINARY_START: usize = 0x037DF27C;
+// Where to put the app area (arbitrary, memory before this used as stack space)
 const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
+// How long the app area may theorhetically be as to not collide with code
 const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
 
 #[no_mangle]
@@ -570,11 +574,11 @@ const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
 #[instruction_set(arm::a32)]
 pub unsafe extern "C" fn _start() {
     core::arch::asm!(
-        //turn of interrupts via the IME register
+        // turn off interrupts via the IME register
         "mov r0, #0x04000000",
         "str r0, [r0, #0x208]",
 
-        //load start of stack(s)
+        // load start of stack(s)
         "mov r0, #0x12",
         "msr cpsr, r0",
         "ldr sp, ={stack_irq}",
@@ -593,9 +597,9 @@ pub unsafe extern "C" fn _start() {
 
         // Halt the CPU after main returns (if it does)
         "2: b 2b", // Infinite loop
-        stack_irq = const DSI_WRAM_START + 0x2000,
-        stack_svc = const DSI_WRAM_START + 0x4000,
-        stack_sys = const DSI_WRAM_START + 0x8000,
+        stack_irq = const DSI_WRAM_START + 0x2000, // 8KB IRQ Stack
+        stack_svc = const DSI_WRAM_START + 0x4000, // 8KB SVC Stack
+        stack_sys = const DSI_WRAM_START + 0x8000, // 16KB System/User Stack
         main = sym main, // Link the `main` symbol
         options(noreturn) // No return possible from this function
     );
