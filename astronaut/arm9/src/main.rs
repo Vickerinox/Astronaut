@@ -35,13 +35,11 @@ use alloc::{boxed::Box, string::String};
 use common::blowfish::BFCTX;
 use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
-use micro_imgui_ds::{read_controller, Input};
+use micro_imgui_ds::{read_controller};
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
-use reboot_lib::timers::TimerControl;
 
-use micro_imgui_ds::micro_imgui::{Backend, InputEvent};
 use reboot_lib::{
-    bytemuck, flush_mmc, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES,
+    bytemuck, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES,
     ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
 };
 use reboot_lib::{
@@ -439,20 +437,27 @@ unsafe fn main() {
         reboot_lib::nocash_write("> Welcome to astronaut!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
+        // Turn on the screens (won't be visible until ARM7 turns on the backlight)
         VIDEO_HARDWARE
             .power_control
             .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
 
+        
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
+        // Set the Screen to all white
         set_bright(16 | (1 << 14));
+        // Set the backgrounds to a default color
         set_background(BACKGROUND_COLOR);
 
+        // Initialize IPC 
         IPC_FIFO_HARDWARE.enable();
         IPC_FIFO_HARDWARE.set_status(0);
 
+        // Take over ARM7
         arm7_exploit::takeover_arm7();
 
+        // Steal the 16MB of main mem to use most of it as a heap
         steal_main_mem();
 
         // Check in with the ARM7 to make sure it's alive
@@ -470,9 +475,11 @@ unsafe fn main() {
                 early_crash("arm7 exploit failed");
             }
         }
-        // ARM7 is alive! make sure to let it know.
+
+        // ARM7 is alive! make sure to let it know we know.
         IPC_FIFO_HARDWARE.set_status(0);
 
+        // We could start working the fader
         app_area.fader.target.write(16);
         app_area.fader.current.write(16);
 
@@ -491,20 +498,25 @@ unsafe fn main() {
         let sdmmc_driver = app_area.sdmmc_driver.write(SDMMCDriver::new());
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
 
+        // Mount NAND (eMMC)
         let _ = app_area
             .filesystems
             .nand_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
+        
+        // Mount SD/MMC Card Slot
         let _ = app_area
             .filesystems
             .sdmc_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
 
+        // Find the TMD we were launched from (if any, string left over by stage 2)
         let tmd_path = core::ffi::CStr::from_ptr(0x02FE34C4 as *const _)
             .to_str()
             .map(|i| String::from("nand:/") + i)
             .unwrap_or(String::new());
 
+        // Initialize the state of ourselves
         let app_data = {
             let ptr = app_area.app_data.as_mut_ptr();
             (&raw mut (*ptr).current_ui).write(Box::new(gui::MainMenu));
@@ -516,10 +528,12 @@ unsafe fn main() {
             app_area.app_data.assume_init_mut()
         };
 
+        // Figure out what to start
         let (buttons, _, _) = read_controller();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
         app_data.global_data.config.load(buttons);
         if !force_menu {
+            // Chainload by other homebrew
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
                     let mut file_path = params.parse_path();
@@ -529,9 +543,11 @@ unsafe fn main() {
                     }
                 }
             }
+            // Load default app based on config
             app_data.autoboot();
         }
 
+        // We didn't load anything, load the GUI instead
         if !load_aux_segment(&mut app_data.global_data) {
             early_crash("Failed to load GUI");
         }
@@ -671,10 +687,13 @@ impl core::fmt::Write for PanicFmt {
 }
 impl PanicFmt {
     pub fn as_str(&self) -> &str {
-        //SAFETY: the only way to modify the fmt is by writing a str into it. Therefore it is valid utf8.
+        //SAFETY: the only way to modify the fmt is by writing a str into it. Therefore it is valid utf8 as long as the str's pushed onto it are.
         unsafe { str::from_raw_parts(self.base as *const u8, self.len) }
     }
 }
+
+#[cfg(target_arch = "arm")]
+#[panic_handler]
 unsafe fn print_msg(
     info: &core::panic::PanicInfo,
     text_pass: &mut micro_imgui_ds::gui::TextLayoutHandle,
@@ -691,7 +710,7 @@ unsafe fn print_msg(
         text_pass.layout_str("Error location:", 8);
         text_pass.next_line();
 
-        let mut buf = PanicFmt::new(0x20F_1000 as *mut u8, 0x1000); //if
+        let mut buf = PanicFmt::new(0x20F_1000 as *mut u8, 0x1000);
         let _ = write!(buf, "{loc}");
         text_pass.layout_str(buf.as_str(), 8);
     };

@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use build_tools::{compress, generate_font};
-use std::{io::Write, process::Command};
-
 fn main() {
     // find the out directory to put included files
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
