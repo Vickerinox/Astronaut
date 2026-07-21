@@ -123,14 +123,14 @@ struct ModCryptor {
     console_id: [u32; 2],
 }
 impl ModCryptor {
-    unsafe fn dewit(&mut self) -> u32 {
+    unsafe fn decrypt_modules(&mut self) -> u32 {
         let Self { console_id } = self;
         let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
 
         AES_HARDWARE.init_from_header(header, console_id.clone());
 
-        if header.arm9i_offset != header.modcrypt1_offset
-            && header.head.arm9_offset != header.modcrypt1_offset
+        if header.modcrypt1_offset < header.head.ntr_rom_size && (header.arm9i_offset != header.modcrypt1_offset
+            && header.head.arm9_offset != header.modcrypt1_offset)
         {
             return 1;
         }
@@ -139,21 +139,23 @@ impl ModCryptor {
                 return 2;
             }
         }
-        let ptr = if header.arm9i_offset == header.modcrypt1_offset {
-            header.arm9i_load
-        } else {
-            header.head.arm9_load
-        };
+        if header.modcrypt1_offset < header.head.ntr_rom_size {
+            let ptr = if header.arm9i_offset == header.modcrypt1_offset {
+                header.arm9i_load
+            } else {
+                header.head.arm9_load
+            };
 
-        let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
+            let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
 
-        let len = header.modcrypt1_len;
+            let len = header.modcrypt1_len;
 
-        use crate::ndma::NDMAControl;
+            use crate::ndma::NDMAControl;
 
-        let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
+            let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
 
-        decrypt_module_ndma(mem, key);
+            decrypt_module_ndma(mem, key);
+        }
         if header.modcrypt2_len > 0 {
             let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
             let ptr = header.arm7i_load;
@@ -377,7 +379,7 @@ pub fn main_arm7() {
 
                 12 => {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    response = modcryptor.dewit();
+                    response = modcryptor.decrypt_modules();
                 }
                 13 => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
