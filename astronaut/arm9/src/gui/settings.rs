@@ -16,7 +16,7 @@ use reboot_lib::Buttons;
 
 use crate::{
     configuration::{BootCombo, Config},
-    gui::{browser::Browser, error::Error, frontend::UiPage, GlobalData, MainMenu},
+    gui::{browser::Browser, frontend::UiPage, GlobalData, MainMenu},
     truncate_name, FileType,
 };
 

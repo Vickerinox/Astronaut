@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
-use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc, StorageSector};
+use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc};
 use reboot_lib::{bytemuck, fatfs_embedded};
 
 use crate::{mbr, nand::read_encrypted_nand, nand::read_sd_card, nand::BasicSDMMCCursor};

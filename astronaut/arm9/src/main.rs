@@ -693,7 +693,6 @@ impl PanicFmt {
 }
 
 #[cfg(target_arch = "arm")]
-#[panic_handler]
 unsafe fn print_msg(
     info: &core::panic::PanicInfo,
     text_pass: &mut micro_imgui_ds::gui::TextLayoutHandle,
