@@ -122,8 +122,14 @@ impl Controller {
 struct ModCryptor {
     console_id: [u32; 2],
 }
+#[repr(u32)]
+enum ModCryptResult {
+    Ok = 0,
+    Module1Error = 1,
+    Module2Error = 2,
+}
 impl ModCryptor {
-    unsafe fn decrypt_modules(&mut self) -> u32 {
+    unsafe fn decrypt_modules(&mut self) -> ModCryptResult {
         let Self { console_id } = self;
         let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
 
@@ -135,10 +141,12 @@ impl ModCryptor {
             if (header.arm9i_offset != header.modcrypt1_offset
                 && header.head.arm9_offset != header.modcrypt1_offset)
             {
-                return 1;
+                return ModCryptResult::Module1Error;
             }
             // key to use for decryption
-            let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
+            let Some(key) = header.arm9_sha1.first_chunk().cloned() else {
+                return ModCryptResult::Module1Error;
+            };
             // memory to decrypt (in words)
             let mem = {
                 let ptr = if header.arm9i_offset == header.modcrypt1_offset {
@@ -156,10 +164,12 @@ impl ModCryptor {
         if header.modcrypt2_offset < header.head.ntr_rom_size && header.modcrypt2_len > 0 {
             // Module 2 should start at where the arm7i binary starts
             if header.arm7i_offset != header.modcrypt2_offset {
-                return 2;
+                return ModCryptResult::Module2Error;
             }
             // key to use for decryption
-            let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
+            let Some(key) = header.arm7_sha1.first_chunk().cloned() else { 
+                return ModCryptResult::Module2Error 
+            };
             // Memory to decrypt (in words)
             let mem = {
                 let ptr = header.arm7i_load;
@@ -168,7 +178,7 @@ impl ModCryptor {
             };
             Self::decrypt_module_ndma(mem, key);
         }
-        0
+        ModCryptResult::Ok
     }
     unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {
         AES_HARDWARE.master_control.write(AESCnt::empty());
@@ -442,7 +452,7 @@ pub fn main_arm7() {
 
                 12 => {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    response = modcryptor.decrypt_modules();
+                    response = modcryptor.decrypt_modules() as u32;
                 }
                 13 => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
