@@ -129,38 +129,43 @@ impl ModCryptor {
 
         AES_HARDWARE.init_from_header(header, console_id.clone());
 
-        if header.modcrypt1_offset < header.head.ntr_rom_size && (header.arm9i_offset != header.modcrypt1_offset
-            && header.head.arm9_offset != header.modcrypt1_offset)
-        {
-            return 1;
+        // module is within rom area and longer than 0 bytes (eg. nocash mp3 decode puts it OUTSIDE rom area)
+        if header.modcrypt1_offset < header.head.ntr_rom_size && header.modcrypt1_len > 0 {
+            // Module 1 should start at where one of the arm9 binaries start
+            if (header.arm9i_offset != header.modcrypt1_offset
+                && header.head.arm9_offset != header.modcrypt1_offset)
+            {
+                return 1;
+            }
+            // key to use for decryption
+            let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
+            // memory to decrypt (in words)
+            let mem = {
+                let ptr = if header.arm9i_offset == header.modcrypt1_offset {
+                    header.arm9i_load
+                } else {
+                    header.head.arm9_load
+                };
+                let len = header.modcrypt1_len;
+                core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2)
+            };
+            decrypt_module_ndma(mem, key);
         }
-        if header.modcrypt2_len != 0 {
+
+        // module is within rom area and longer than 0 bytes
+        if header.modcrypt2_offset < header.head.ntr_rom_size && header.modcrypt2_len > 0 {
+            // Module 2 should start at where the arm7i binary starts
             if header.arm7i_offset != header.modcrypt2_offset {
                 return 2;
             }
-        }
-        if header.modcrypt1_offset < header.head.ntr_rom_size {
-            let ptr = if header.arm9i_offset == header.modcrypt1_offset {
-                header.arm9i_load
-            } else {
-                header.head.arm9_load
-            };
-
-            let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
-
-            let len = header.modcrypt1_len;
-
-            use crate::ndma::NDMAControl;
-
-            let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
-
-            decrypt_module_ndma(mem, key);
-        }
-        if header.modcrypt2_len > 0 {
+            // key to use for decryption
             let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
-            let ptr = header.arm7i_load;
-            let len = header.modcrypt2_len;
-            let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
+            // Memory to decrypt (in words)
+            let mem = {
+                let ptr = header.arm7i_load;
+                let len = header.modcrypt2_len;
+                core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2)
+            };
             decrypt_module_ndma(mem, key);
         }
         0
