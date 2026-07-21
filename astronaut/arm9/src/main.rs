@@ -595,7 +595,7 @@ pub unsafe extern "C" fn _start() {
         "2: b 2b", // Infinite loop
         stack_irq = const DSI_WRAM_START + 0x2000,
         stack_svc = const DSI_WRAM_START + 0x4000,
-        stack_sys = const DSI_WRAM_START + 0x6000,
+        stack_sys = const DSI_WRAM_START + 0x8000,
         main = sym main, // Link the `main` symbol
         options(noreturn) // No return possible from this function
     );
