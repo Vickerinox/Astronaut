@@ -98,7 +98,7 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_memsz != 0) {
         let file_offset_start = segment.p_paddr as i64 + 4;
         let file_offset_end = file_offset_start + segment.p_memsz as i64;
-        
+
         let data = parse
             .segment_data(&segment)
             .map_err(|e| Crate::TMD.err()(CompileError::ElfSegmentError(e)))?;
@@ -109,12 +109,14 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
             6 => "Read+Write",
             _ => "Other",
         };
-        let Some(bin) = empty_tmd.get_mut(file_range) else { continue };
+        let Some(bin) = empty_tmd.get_mut(file_range) else {
+            continue;
+        };
         debug!(
             "Processing segment '{}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
             label, segment.p_memsz, file_offset_start, file_offset_end
         );
-        
+
         if segment.p_filesz == 0 {
             for byte in bin.iter_mut() {
                 *byte = 0;

@@ -339,7 +339,7 @@ pub unsafe fn inject_bootstrap() {
     core::ptr::write_volatile(0x04000249 as *mut u8, 0x80); //enable VRAM bank I
     for (i, byte) in BOOTSTRAP_BINARY.iter().enumerate() {
         (common::bootstrap::BOOTLOADER_MEM as *mut u8)
-            .add(i) 
+            .add(i)
             .write_volatile(*byte);
     }
 }

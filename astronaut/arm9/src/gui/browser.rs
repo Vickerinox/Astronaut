@@ -3,7 +3,12 @@
 
 use core::ops::{Add, Sub};
 
-use alloc::{boxed::Box, format, string::{String, ToString}, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::{
     micro_imgui::{self, widgets::button::Button, Backend, Sizing, Vec2},
@@ -13,9 +18,15 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
 use crate::{
-    FileEntry, FileType, boot::read_all, filetype, gui::{
-        GlobalData, frontend::{AppBooter, ClonableUiPage, UiPage, pop_dir_entry}, main_menu::MainMenu,
-    }, music::{MusicPlaying, StreamingWav, stop_mod_file}, truncate_name,
+    boot::read_all,
+    filetype,
+    gui::{
+        frontend::{pop_dir_entry, AppBooter, ClonableUiPage, UiPage},
+        main_menu::MainMenu,
+        GlobalData,
+    },
+    music::{stop_mod_file, MusicPlaying, StreamingWav},
+    truncate_name, FileEntry, FileType,
 };
 
 #[no_mangle]
@@ -38,12 +49,12 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
             let color = if is_dir {
                 FileType::Dir
             } else {
-                let Ok(s_name) = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }.to_str() else { continue };
-                let s_name = if s_name.is_empty() {
-                    &name
-                } else {
-                    s_name
+                let Ok(s_name) =
+                    unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }.to_str()
+                else {
+                    continue;
                 };
+                let s_name = if s_name.is_empty() { &name } else { s_name };
                 filetype(s_name)
             };
             let dname = truncate_name(&name, 35);
@@ -80,7 +91,6 @@ fn sort_files(vec: &mut Vec<FileEntry>) {
         }
         vec[j] = temp;
     }
-
 }
 
 impl Browser {
@@ -192,7 +202,10 @@ impl TitleLister {
         let mut folders = Vec::with_capacity(500);
         folders.push("sdmc:/".to_string());
         folders.push("nand:/".to_string());
-        Self { folders, current_folder: None }
+        Self {
+            folders,
+            current_folder: None,
+        }
     }
     pub fn take_one(&mut self) -> Result<FileEntry, bool> {
         match &mut self.current_folder {
@@ -201,13 +214,16 @@ impl TitleLister {
                 if file.fattrib & fatfs_embedded::fatfs::FileAttributes::Hidden.bits() > 0 {
                     return Err(true);
                 }
-                let name = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str().map_err(|_| true)?;
+                let name = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }
+                    .to_str()
+                    .map_err(|_| true)?;
                 let name = alloc::string::String::from(name);
                 if name.is_empty() {
                     self.current_folder = None;
                     return Err(true);
                 }
-                let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
+                let is_dir =
+                    file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
 
                 if is_dir {
                     if name.starts_with(".") {
@@ -215,16 +231,15 @@ impl TitleLister {
                     }
                     self.folders.push(folder_path.clone() + &name + "/");
                 } else {
-                    let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }.to_str().map_err(|_| true)?;
-                    let s_name = if s_name.is_empty() {
-                        &name
-                    } else {
-                        s_name
-                    };
+                    let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }
+                        .to_str()
+                        .map_err(|_| true)?;
+                    let s_name = if s_name.is_empty() { &name } else { s_name };
                     if filetype(s_name) == FileType::Rom {
                         let mut path = folder_path.clone() + &name;
-                      
-                        let mut file = fatfs_embedded::open(&mut path, FileOptions::Read).map_err(|_| true)?;
+
+                        let mut file =
+                            fatfs_embedded::open(&mut path, FileOptions::Read).map_err(|_| true)?;
                         let mut title = [0u8; 12];
                         if read_all(&mut title, &mut file).is_err() {
                             return Err(true);
@@ -239,12 +254,12 @@ impl TitleLister {
                         });
                     }
                 }
-            },
+            }
             None => {
                 let mut folder_path = self.folders.pop().ok_or(false)?;
                 let folder = fatfs_embedded::opendir(&mut folder_path).map_err(|_| true)?;
                 self.current_folder = Some((folder, folder_path));
-            },
+            }
         }
         Err(true)
     }
@@ -253,7 +268,7 @@ impl TitleLister {
             match self.take_one() {
                 Ok(title) => {
                     current_files.push(title);
-                },
+                }
                 Err(true) => (),
                 Err(false) => return false,
             }
@@ -460,9 +475,11 @@ impl UiPage for Browser {
                         } else {
                             None
                         }
-                    },
+                    }
                     BrowserMode::TitleList(_) => {
-                        new_state = Some(Box::new(AppBooter { path: item.file_name.clone() }));
+                        new_state = Some(Box::new(AppBooter {
+                            path: item.file_name.clone(),
+                        }));
                     }
                 }
             }
@@ -551,7 +568,7 @@ impl UiPage for Browser {
                 }
             }
         }
-        
+
         // Handle opening new directory within self
         if let Some(mut new_folder) = new_folder {
             self.immediate_files = populate_fs_vec(&mut new_folder);

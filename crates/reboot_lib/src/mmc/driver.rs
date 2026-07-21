@@ -9,7 +9,7 @@ use crate::{Control, StorageSector, MMC};
 
 use super::{ClockCnt, Command, Status, TMIOPort, MMC_CONTROLLER};
 
-#[repr(u8)] 
+#[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum DeviceType {
     EMMC = 0,

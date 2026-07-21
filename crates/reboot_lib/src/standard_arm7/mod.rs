@@ -550,7 +550,6 @@ pub unsafe fn mmc_write_encrypt(
     ctr_base: &[u32; 4],
     sector: u32,
 ) -> Result<(), crate::Status> {
-
     let mut key = ctr_base.clone();
     add_on_key(&mut key, sector << 5);
     let ptr = data as *mut ();

@@ -57,7 +57,7 @@ impl SDMMCDriver {
             core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba))
         };
         read_encrypted_nand(nand_buffer, lba).ok()?;
-        
+
         match BasicSDMMCCursor::new(nand_buffer, lba, true) {
             Ok(succ) => Some(succ),
             Err(code) => {

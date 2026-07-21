@@ -3,10 +3,10 @@
 
 use std::io::{Read, Seek, Write};
 
-use crypto::{ 
+use crypto::{
     aes,
     aes::KeySize,
-    blockmodes::NoPadding, 
+    blockmodes::NoPadding,
     buffer::{RefReadBuffer, RefWriteBuffer},
 };
 pub struct NandSectorCursor<T: AsMut<[u8]>, I: NandSectorAccess<N>, const N: usize = 9> {

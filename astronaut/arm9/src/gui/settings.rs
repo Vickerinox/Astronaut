@@ -15,7 +15,9 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::Buttons;
 
 use crate::{
-    FileType, configuration::{BootCombo, Config}, gui::{GlobalData, MainMenu, browser::Browser, error::Error, frontend::UiPage}, truncate_name,
+    configuration::{BootCombo, Config},
+    gui::{browser::Browser, error::Error, frontend::UiPage, GlobalData, MainMenu},
+    truncate_name, FileType,
 };
 
 #[derive(Clone)]
@@ -23,14 +25,11 @@ pub enum Settings {
     Main,
     BootCombos(usize),
     SelectedCombo(Buttons, u32),
-    SavedSettings {
-        nand: bool,
-        sd: bool,
-    }
+    SavedSettings { nand: bool, sd: bool },
 }
 fn save_settings(config: &Config) -> Settings {
     let mut new_ini = config.into_ini();
-    
+
     let sd = if let Ok(mut file) = fatfs_embedded::open(
         &mut "sdmc:/_nds/astronaut/settings.ini".to_string(),
         FileOptions::Write | FileOptions::CreateAlways,
@@ -47,11 +46,11 @@ fn save_settings(config: &Config) -> Settings {
     let nand = if new_ini.len() > 0x4000 {
         false
     } else {
-        new_ini.reserve(0x4000-new_ini.len());
-        for _ in 0..(0x4000-new_ini.len()) {
+        new_ini.reserve(0x4000 - new_ini.len());
+        for _ in 0..(0x4000 - new_ini.len()) {
             new_ini.push('\0');
         }
-        
+
         match fatfs_embedded::open(
             &mut "nand:/astronaut.ini".to_string(),
             FileOptions::Write | FileOptions::OpenAlways,
@@ -62,7 +61,7 @@ fn save_settings(config: &Config) -> Settings {
                     Ok(len) => len == bytes.len() as _,
                     Err(_) => false,
                 }
-            },
+            }
             Err(_) => false,
         }
     };
@@ -346,7 +345,7 @@ impl UiPage for Settings {
                     (false, false) => "Failed to save settings!",
                 };
                 ui.label(message);
-                ui.add_space(ui.clip_rect().height()-14);
+                ui.add_space(ui.clip_rect().height() - 14);
                 ui.button("Ok").clicked().then_some(Box::new(MainMenu))
             }
         }

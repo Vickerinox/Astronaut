@@ -126,14 +126,14 @@ pub struct Theme {
     pub folder_color: Color,
     pub bootable_color: Color,
     pub asset_color: Color,
-} 
+}
 impl Theme {
-    pub const DEFAULT: Self = Theme { 
+    pub const DEFAULT: Self = Theme {
         folder_color: Color::new(200, 100, 100),
-        bootable_color: Color::new(100, 200, 100), 
+        bootable_color: Color::new(100, 200, 100),
         asset_color: Color::new(100, 100, 200),
     };
-    #[no_mangle] 
+    #[no_mangle]
     #[link_section = ".text_aux"]
     pub fn load(&mut self, theme_path: &mut String) -> (Assets, Style) {
         let mut assets = Assets {

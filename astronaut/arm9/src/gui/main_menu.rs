@@ -10,8 +10,8 @@ use crate::gui::{browser::Browser, frontend::UiPage, special_thanks::SpecialThan
 #[derive(Clone)]
 pub struct MainMenu;
 
-#[no_mangle] 
-#[link_section = ".text_aux"] 
+#[no_mangle]
+#[link_section = ".text_aux"]
 fn main_menu_ui(
     ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
 ) -> Option<Box<dyn UiPage>> {
@@ -40,7 +40,7 @@ fn main_menu_ui(
     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
         res = Some(Box::new(SpecialThanks));
     }
-    ui.add_space(ui.clip_rect().height()-14);
+    ui.add_space(ui.clip_rect().height() - 14);
     ui.label(concat!("version ", env!("CARGO_PKG_VERSION")));
     res
 }
