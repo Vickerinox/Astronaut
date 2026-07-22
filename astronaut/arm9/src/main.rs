@@ -35,12 +35,12 @@ use alloc::{boxed::Box, string::String};
 use common::blowfish::BFCTX;
 use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
-use micro_imgui_ds::{read_controller};
+use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 
 use reboot_lib::{
-    bytemuck, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES,
-    ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
+    bytemuck, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES, ENGINE_B_PALETTES,
+    IPC_FIFO_HARDWARE,
 };
 use reboot_lib::{
     Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl, Viewport,
@@ -442,7 +442,6 @@ unsafe fn main() {
             .power_control
             .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
 
-        
         (0x4000204 as *mut u16).write_volatile((1 << 15) | (1 << 13));
 
         // Set the Screen to all white
@@ -450,7 +449,7 @@ unsafe fn main() {
         // Set the backgrounds to a default color
         set_background(BACKGROUND_COLOR);
 
-        // Initialize IPC 
+        // Initialize IPC
         IPC_FIFO_HARDWARE.enable();
         IPC_FIFO_HARDWARE.set_status(0);
 
@@ -503,7 +502,7 @@ unsafe fn main() {
             .filesystems
             .nand_fs
             .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
-        
+
         // Mount SD/MMC Card Slot
         let _ = app_area
             .filesystems
@@ -560,7 +559,7 @@ pub unsafe fn set_background(color: u16) {
     ENGINE_B_PALETTES.bg_palettes[0].write(color);
 }
 
-// Where NWRAM Starts 
+// Where NWRAM Starts
 const DSI_WRAM_START: usize = 0x037C0000;
 // Where the TMD code starts
 const BINARY_START: usize = 0x037DF27C;

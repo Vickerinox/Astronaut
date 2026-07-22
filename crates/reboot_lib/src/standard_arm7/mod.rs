@@ -122,46 +122,113 @@ impl Controller {
 struct ModCryptor {
     console_id: [u32; 2],
 }
+#[repr(u32)]
+enum ModCryptResult {
+    Ok = 0,
+    Module1Error = 1,
+    Module2Error = 2,
+}
 impl ModCryptor {
-    unsafe fn dewit(&mut self) -> u32 {
+    unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {
+        AES_HARDWARE.master_control.write(AESCnt::empty());
+        AES_HARDWARE.reset();
+        AES_HARDWARE.reset();
+        AES_HARDWARE.wait_key_busy();
+        AES_HARDWARE.set_key_slot(0);
+        AES_HARDWARE.wait_key_busy();
+
+        let mut offset = 0;
+        while !mem.is_empty() {
+            // Split out the current available chunk
+            let split = (0xFFFF * 4).min(mem.len()); // max 0xFFFF * 16 bytes per block
+            let (chunk, remainder) = mem.split_at_mut(split);
+            mem = remainder;
+
+            // Create NDMA Config
+            use crate::ndma::NDMAControl;
+            let ptr = core::ptr::addr_of_mut!(*chunk);
+
+            let in_dma = crate::ndma::ChannelConfig {
+                word_count: split as _,
+                block_size: 4,
+                timing: 8,
+                fill_mode: 0,
+                control: NDMAControl::DST_MODE_FIXED
+                    | NDMAControl::SRC_MODE_INCREMENT
+                    | NDMAControl::BLOCK_SIZE_4
+                    | NDMAControl::START_ARM7_WRITE_AES
+                    | NDMAControl::ENABLE,
+            };
+
+            let out_dma = crate::ndma::ChannelConfig {
+                word_count: split as _,
+                block_size: 4,
+                timing: 8,
+                fill_mode: 0,
+                control: NDMAControl::SRC_MODE_FIXED
+                    | NDMAControl::DST_MODE_INCREMENT
+                    | NDMAControl::BLOCK_SIZE_4
+                    | NDMAControl::START_ARM7_READ_AES
+                    | NDMAControl::ENABLE,
+            };
+            // Setup AES
+            AES_HARDWARE.master_control.write(AESCnt::empty());
+            AES_HARDWARE.reset();
+            AES_HARDWARE.load_iv(&key);
+            add_on_key(&mut key, (split >> 2) as _);
+            AES_HARDWARE.payload_blocks.write((split >> 2) as u16);
+            // Setup NDMA
+            NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
+            NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
+            // Start!
+            AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1 << 31));
+            NDMA_HARDWARE.await_channel(0);
+            AES_HARDWARE.wait_aes_busy();
+            // repeat for remaining chunks...
+        }
+    }
+    unsafe fn dewit(&mut self) -> ModCryptResult {
         let Self { console_id } = self;
         let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
 
         AES_HARDWARE.init_from_header(header, console_id.clone());
-
-        if header.arm9i_offset != header.modcrypt1_offset
-            && header.head.arm9_offset != header.modcrypt1_offset
-        {
-            return 1;
-        }
-        if header.modcrypt2_len != 0 {
-            if header.arm7i_offset != header.modcrypt2_offset {
-                return 2;
+        if header.modcrypt1_len > 0 && header.head.ntr_rom_size != header.modcrypt1_offset {
+            if header.arm9i_offset != header.modcrypt1_offset
+                && header.head.arm9_offset != header.modcrypt1_offset
+            {
+                return ModCryptResult::Module1Error;
             }
+
+            let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
+
+            let mem = {
+                let ptr = if header.arm9i_offset == header.modcrypt1_offset {
+                    header.arm9i_load
+                } else {
+                    header.head.arm9_load
+                };
+
+                let len = header.modcrypt1_len;
+
+                core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2)
+            };
+
+            Self::decrypt_module_ndma(mem, key);
         }
-        let ptr = if header.arm9i_offset == header.modcrypt1_offset {
-            header.arm9i_load
-        } else {
-            header.head.arm9_load
-        };
-
-        let mut key: [u32; 4] = core::array::from_fn(|i| header.arm9_sha1[i]);
-
-        let len = header.modcrypt1_len;
-
-        use crate::ndma::NDMAControl;
-
-        let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
-
-        decrypt_module_ndma(mem, key);
-        if header.modcrypt2_len > 0 {
+        if header.modcrypt2_len > 0 && header.head.ntr_rom_size != header.modcrypt2_offset {
+            if header.arm7i_offset != header.modcrypt2_offset {
+                return ModCryptResult::Module2Error;
+            }
             let key: [u32; 4] = core::array::from_fn(|i| header.arm7_sha1[i]);
-            let ptr = header.arm7i_load;
-            let len = header.modcrypt2_len;
-            let mem = core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2);
-            decrypt_module_ndma(mem, key);
+            let mem = {
+                let ptr = header.arm7i_load;
+                let len = header.modcrypt2_len;
+
+                core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2)
+            };
+            Self::decrypt_module_ndma(mem, key);
         }
-        0
+        ModCryptResult::Ok 
     }
 }
 pub fn main_arm7() {
@@ -319,10 +386,26 @@ pub fn main_arm7() {
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     crate::disable_all_interrupts();
                     SOUND_HARDWARE.init();
+
+                    /*
+                    AES_HARDWARE.keyslots[0].load_key_x(&[0, 0, 0, 0]);
+                    AES_HARDWARE.keyslots[1].load_key_x(&[0, 0, 0, 0]);
+                    AES_HARDWARE.keyslots[2].load_key_x(&[0, 0, 0, 0]);
+                    AES_HARDWARE.keyslots[3].load_key_x(&[0, 0, 0, 0]);
+                    AES_HARDWARE.keyslots[0].load_key_y(&[0, 0, 0, 0]);
+                    AES_HARDWARE.keyslots[1].load_key_y(&[0, 0, 0, 0]);
+                    AES_HARDWARE.keyslots[2].load_key_y(&[0, 0, 0, 0]);
+                    */
+
                     AES_HARDWARE.init_from_header(
                         &(*(common::bootstrap::BOOTINFO_MEM)).twl_header,
                         console_id,
                     );
+
+                    AES_HARDWARE.keyslots[1]
+                        .load_key_y(&[0x8B5ACCE5, 0x72C9D056, 0xDCE8179C, 0xA9361239]);
+                    AES_HARDWARE.keyslots[2].load_key_y(&[0, 0, 0, 0]);
+
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
                     NDMA_HARDWARE.reset();
@@ -377,7 +460,7 @@ pub fn main_arm7() {
 
                 12 => {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
-                    response = modcryptor.dewit();
+                    response = modcryptor.dewit() as _;
                 }
                 13 => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
@@ -447,58 +530,6 @@ pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
         }
     }
     AES_HARDWARE.wait_aes_busy();
-}
-
-pub unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {
-    AES_HARDWARE.master_control.write(AESCnt::empty());
-    AES_HARDWARE.reset();
-    AES_HARDWARE.reset();
-    AES_HARDWARE.wait_key_busy();
-    AES_HARDWARE.set_key_slot(0);
-    AES_HARDWARE.wait_key_busy();
-
-    let mut offset = 0;
-    while !mem.is_empty() {
-        let split = (0xFFFF * 4).min(mem.len());
-        let (chunk, remainder) = mem.split_at_mut(split);
-        mem = remainder;
-        use crate::ndma::NDMAControl;
-        let ptr = core::ptr::addr_of_mut!(*chunk);
-
-        let in_dma = crate::ndma::ChannelConfig {
-            word_count: split as _,
-            block_size: 4,
-            timing: 8,
-            fill_mode: 0,
-            control: NDMAControl::DST_MODE_FIXED
-                | NDMAControl::SRC_MODE_INCREMENT
-                | NDMAControl::BLOCK_SIZE_4
-                | NDMAControl::START_ARM7_WRITE_AES
-                | NDMAControl::ENABLE,
-        };
-
-        let out_dma = crate::ndma::ChannelConfig {
-            word_count: split as _,
-            block_size: 4,
-            timing: 8,
-            fill_mode: 0,
-            control: NDMAControl::SRC_MODE_FIXED
-                | NDMAControl::DST_MODE_INCREMENT
-                | NDMAControl::BLOCK_SIZE_4
-                | NDMAControl::START_ARM7_READ_AES
-                | NDMAControl::ENABLE,
-        };
-        AES_HARDWARE.master_control.write(AESCnt::empty());
-        AES_HARDWARE.reset();
-        AES_HARDWARE.load_iv(&key);
-        add_on_key(&mut key, (split >> 2) as _);
-        AES_HARDWARE.payload_blocks.write((split >> 2) as u16);
-        NDMA_HARDWARE.set_raw_dma(1, in_dma, ptr as _, 0x4004408 as _);
-        NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
-        AES_HARDWARE.start((0 << 14) | (3 << 12) | (2 << 28) | (1 << 31));
-        NDMA_HARDWARE.await_channel(0);
-        AES_HARDWARE.wait_aes_busy();
-    }
 }
 
 pub unsafe fn clear_arm7_regs() {

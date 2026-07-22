@@ -201,7 +201,7 @@ impl TitleLister {
     pub fn new() -> Self {
         let mut folders = Vec::with_capacity(500);
         folders.push("sdmc:/".to_string());
-        folders.push("nand:/".to_string());
+        folders.push("nand:/".to_string()); 
         Self {
             folders,
             current_folder: None,

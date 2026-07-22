@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::println;
+
 use build_tools::{compress, generate_font};
 fn main() {
     // find the out directory to put included files
@@ -36,4 +38,8 @@ fn main() {
     }; //.expect("Please compile the ARM7 binary before the main binary");
 
     std::fs::write(arm7_path, arm7_bin).unwrap();
+
+    println!("cargo::rerun-if-changed=../../target-bootstrap/armv5te-none-eabi/release/arm9_bootstrap");
+    println!("cargo::rerun-if-changed=../../target-subbinary/thumbv4t-none-eabi/release/arm7");
+    println!("cargo::rerun-if-changed=./src/resources/font.bmp");
 }
