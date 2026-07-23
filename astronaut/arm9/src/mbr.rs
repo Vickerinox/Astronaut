@@ -32,6 +32,7 @@ pub struct MBR {
     pub partitions: [PartitionEntry; 4],
     pub boot_signature: [u8; 2],
 }
+
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub struct PartitionEntry {

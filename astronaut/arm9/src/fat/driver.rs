@@ -23,19 +23,17 @@ impl SDMMCDriver {
         }
     }
 
-    unsafe fn try_mount_sd(&mut self) -> Option<BasicSDMMCCursor<'static>> {
-        let sd_buffer =
-            core::slice::from_raw_parts_mut(0x2FC0000 as *mut reboot_lib::StorageSector, 8);
-        read_sd_card(&mut sd_buffer[..4], 0).ok()?;
+    unsafe fn try_mount_sd(&mut self, buffer: &'static mut [reboot_lib::StorageSector]) -> Option<BasicSDMMCCursor<'static>> {
+        read_sd_card(&mut buffer[..4], 0).ok()?;
         let lba = {
-            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&sd_buffer[0]);
+            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&buffer[0]);
             if !mbr.has_valid_signature() {
                 return None;
             }
             core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba))
         };
 
-        match BasicSDMMCCursor::new(sd_buffer, lba, false) {
+        match BasicSDMMCCursor::new(buffer, lba, false) {
             Ok(succ) => Some(succ),
             Err(code) => {
                 self.sdmc_error = code;
@@ -44,21 +42,19 @@ impl SDMMCDriver {
         }
     }
 
-    unsafe fn try_mount_nand(&mut self) -> Option<BasicSDMMCCursor<'static>> {
-        let nand_buffer =
-            core::slice::from_raw_parts_mut(0x2FD0000 as *mut reboot_lib::StorageSector, 8);
+    unsafe fn try_mount_nand(&mut self, buffer: &'static mut [reboot_lib::StorageSector]) -> Option<BasicSDMMCCursor<'static>> {
 
-        read_encrypted_nand(&mut nand_buffer[..4], 0).ok()?;
+        read_encrypted_nand(&mut buffer[..4], 0).ok()?;
         let lba = {
-            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&nand_buffer[0]);
+            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&buffer[0]);
             if !mbr.has_valid_signature() {
                 return None;
             }
             core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba))
         };
-        read_encrypted_nand(nand_buffer, lba).ok()?;
+        read_encrypted_nand(buffer, lba).ok()?;
 
-        match BasicSDMMCCursor::new(nand_buffer, lba, true) {
+        match BasicSDMMCCursor::new(buffer, lba, true) {
             Ok(succ) => Some(succ),
             Err(code) => {
                 self.nand_error = code;
@@ -79,11 +75,11 @@ impl FatFsDriver for SDMMCDriver {
         match unsafe { arm9_init_sdmmc(drive) } {
             Ok(()) => match drive {
                 1 => {
-                    self.sdmc_controller = unsafe { self.try_mount_sd() };
+                    self.sdmc_controller = unsafe { self.try_mount_sd(core::slice::from_raw_parts_mut(0x2FC0000 as *mut reboot_lib::StorageSector, 8)) };
                     self.sdmc_controller.is_none() as u8
                 }
                 2 => {
-                    self.nand_controller = unsafe { self.try_mount_nand() };
+                    self.nand_controller = unsafe { self.try_mount_nand(core::slice::from_raw_parts_mut(0x2FD0000 as *mut reboot_lib::StorageSector, 8)) };
                     self.nand_controller.is_none() as u8
                 }
                 _ => 1,
