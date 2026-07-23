@@ -245,14 +245,6 @@ pub fn main_arm7() {
 
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
-        /*
-        (0x400_0008 as *mut u32)
-            .write_volatile((0x400_0008 as *const u32).read_volatile() | (1 << 17));
-
-        (0x400_0004 as *mut u32)
-            .write_volatile((0x400_0004 as *const u32).read_volatile() | (1 << 3));
-        */
-
         let mut key = [0u32; 4];
         swi::generate_cid_key(&mut key);
 
@@ -405,6 +397,11 @@ pub fn main_arm7() {
                     //AES_HARDWARE.keyslots[1]
                     //    .load_key_y(&[0x8B5ACCE5, 0x72C9D056, 0xDCE8179C, 0xA9361239]);
                     //AES_HARDWARE.keyslots[2].load_key_y(&[0, 0, 0, 0]);
+
+
+                    // Fix for GM9i
+                    (0x2FFFD0C as *mut u32).write(0x454D4D43);
+
 
                     TIMERS.clear();
                     DMA_HARDWARE.reset();

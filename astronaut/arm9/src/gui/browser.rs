@@ -35,15 +35,18 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
     // scan the dir for all the files
     loop {
         if let Ok(file) = fatfs_embedded::readdir(folder) {
+            // decode name (*should* work, otherwise skip entry)
             let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }.to_str()
             else {
                 continue;
             };
-            let name = alloc::string::String::from(name);
+            // last dir entry, abort scan
             if name.is_empty() {
                 break;
             }
             let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
+            
+            // Determine file type based on short filename (which is always uppercase)
             let color = if is_dir {
                 FileType::Dir
             } else {
@@ -55,10 +58,14 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
                 let s_name = if s_name.is_empty() { &name } else { s_name };
                 filetype(s_name)
             };
+            
+            // Create a displayname that doesn't cause expansion in the GUI
             let dname = truncate_name(&name, 35);
+
+            // We found a file!
             vec.push(FileEntry {
                 display_name: dname,
-                file_name: name,
+                file_name: name.to_string(),
                 kind: color,
             })
         } else {
@@ -71,7 +78,7 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
 }
 
 fn sort_files(vec: &mut Vec<FileEntry>) {
-    // sort all the entries
+    // sort all the entries using insertion sort
     for i in 1..vec.len() {
         let Some(temp) = vec.get(i) else { break };
         let temp = temp.clone();
@@ -93,8 +100,6 @@ fn sort_files(vec: &mut Vec<FileEntry>) {
 
 impl Browser {
     // Opens a version of the browser which lets the user browse the SD
-
-
     pub fn open_sd() -> Option<Browser> {
         Self::open_browser(
             BrowserMode::Browsing,
@@ -104,8 +109,6 @@ impl Browser {
     }
 
     // Opens a version of the browser which lets the user browse the NAND
-
-
     pub fn open_nand() -> Option<Browser> {
         Self::open_browser(
             BrowserMode::Browsing,
@@ -115,7 +118,6 @@ impl Browser {
     }
 
     // Opens any version of the browser
-
     pub fn open_browser(
         mode: BrowserMode,
         exit: Box<dyn ClonableUiPage>,
@@ -135,6 +137,7 @@ impl Browser {
         })
     }
 }
+
 /// The state of a file Browser UI
 pub struct Browser {
     /// The files in the current directory.
@@ -169,6 +172,7 @@ pub enum BrowserMode {
     /// Search the current title list
     TitleList(Option<Box<TitleLister>>),
 }
+
 impl Clone for BrowserMode {
     fn clone(&self) -> Self {
         match self {
@@ -181,16 +185,22 @@ impl Clone for BrowserMode {
         }
     }
 }
+
+/// Tells a "focused" browser what filetype to look for and what to do once it is selected.
+/// 
+/// This struct is mostly a crutch to fulfill borrow checker rules...
 #[derive(Clone)]
 pub struct BrowserSearch {
     pub filter: &'static [FileType],
     pub goal: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>,
 }
 
+/// A struct that scans filesystems for available apps
 pub struct TitleLister {
     folders: Vec<String>,
     current_folder: Option<(fatfs_embedded::fatfs::Directory, String)>,
 }
+
 impl TitleLister {
     pub fn new() -> Self {
         let mut folders = Vec::with_capacity(500);
@@ -201,6 +211,7 @@ impl TitleLister {
             current_folder: None,
         }
     }
+    // Perform one action as part of scanning
     pub fn take_one(&mut self) -> Result<FileEntry, bool> {
         match &mut self.current_folder {
             Some((folder, folder_path)) => {
@@ -272,10 +283,11 @@ impl TitleLister {
 }
 
 impl Browser {
+
     /// Opens a browser that looks for a specific filetype
+    /// 
     /// Once such a file is picked, the `transform` fn is called containing the path of the picked file.
     /// This then lets you open a new UI if you found something interesting.
-
     pub fn search_file(
         format: &'static [FileType],
         start: String,
@@ -302,8 +314,8 @@ impl Browser {
             exit: Box::new(MainMenu),
         }
     }
-    /// Open an item in the browser
 
+    /// Open an item in the browser
     fn open_new(&self, file_name: &str) -> Option<Box<dyn UiPage>> {
         let mut new_folder = self.current_path.clone() + file_name + "/";
         if let Ok(mut f) = fatfs_embedded::opendir(&mut new_folder) {
@@ -320,8 +332,8 @@ impl Browser {
             None
         }
     }
+    
     /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
-
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
         let FileEntry {
             file_name, kind, ..
