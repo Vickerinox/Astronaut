@@ -133,8 +133,6 @@ impl Theme {
         bootable_color: Color::new(100, 200, 100),
         asset_color: Color::new(100, 100, 200),
     };
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub fn load(&mut self, theme_path: &mut String) -> (Assets, Style) {
         let mut assets = Assets {
             music: String::new(),
@@ -169,6 +167,7 @@ impl Theme {
         (assets, style)
     }
 }
+#[derive(Default)]
 pub struct Assets {
     music: String,
     wallpaper: String,
@@ -286,8 +285,71 @@ impl GlobalData {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
         crate::bmp::DecodedBMP::from_reader(file)
     }
-    #[no_mangle]
-    #[link_section = ".text_aux"]
+    unsafe fn load_font(&mut self, font_path: &mut String) -> bool {
+        if self.safe_mode {
+            return false;
+        }
+        if let Some(font) = load_font(font_path) {
+            load_font_real(font).is_some()    
+        } else {
+            false
+        }
+    }
+    unsafe fn load_wall<'a, 'b: 'a>(&'b mut self, mut path: &'a mut String) -> bool {
+        
+
+        if self.safe_mode {
+            return false;
+        }
+        if !self.config.top_wallpaper.is_empty() {
+            path = &mut self.config.top_wallpaper;
+        }
+        {
+            if let Some(wallpaper) = Self::load_wallpaper(path) {
+                VIDEO_HARDWARE
+                    .vram_control_bank_c
+                    .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+                crate::gui::show_wallpaper(wallpaper, 0x06840000 as *mut u16);
+
+                VIDEO_HARDWARE
+                    .vram_control_bank_c
+                    .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
+                VIDEO_HARDWARE
+                    .disp_b_control
+                    .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
+                true
+            } else {
+                false
+            }
+        }
+    }
+    unsafe fn load_bg(&mut self, path: &mut String) {
+        if self.safe_mode {
+            return;
+        }
+        VIDEO_HARDWARE
+            .vram_control_bank_a
+            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+        if let Some(background) = Self::load_wallpaper(path) {
+            crate::gui::show_wallpaper(background, 0x06800000 as *mut u16);
+        } else {
+            for i in 0..(256 * 192) {
+                (0x06800000 as *mut u16).add(i).write(0x8000);
+            }
+        }
+    }
+    
+    unsafe fn load_music<'a, 'b: 'a>(&'b mut self, mut m: &'a mut String) {
+        if !self.safe_mode {    
+            if !self.config.music.is_empty() {
+                m = &mut self.config.music
+            };
+            self.loading_mod_file = Self::play_startup_music(m);    
+        }
+    }
+
     pub unsafe fn load_theme(&mut self, assets: Assets) -> VideoHardwareHandle {
         let Assets {
             mut music,
@@ -295,56 +357,18 @@ impl GlobalData {
             mut background,
             mut font,
         } = assets;
-        if let Some(font) = load_font(&mut font) {
-            if load_font_real(font).is_none() {
-                crate::load_default_font();
-            }
-        } else {
+        if !self.load_font(&mut font) {
             crate::load_default_font();
         }
-        let wp = if self.config.top_wallpaper.is_empty() {
-            &mut wallpaper
-        } else {
-            &mut self.config.top_wallpaper
-        };
-        if let Some(wallpaper) = Self::load_wallpaper(wp) {
-            VIDEO_HARDWARE
-                .vram_control_bank_c
-                .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-
-            crate::gui::show_wallpaper(wallpaper, 0x06840000 as *mut u16);
-
-            VIDEO_HARDWARE
-                .vram_control_bank_c
-                .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
-            VIDEO_HARDWARE
-                .disp_b_control
-                .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
-        } else {
+        if !self.load_wall(&mut wallpaper) {
             VIDEO_HARDWARE
                 .disp_b_control
                 .write(DisplayControl::BG_MODE_5);
         }
-
-        VIDEO_HARDWARE
-            .vram_control_bank_a
-            .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-
-        if let Some(background) = Self::load_wallpaper(&mut background) {
-            crate::gui::show_wallpaper(background, 0x06800000 as *mut u16);
-        } else {
-            for i in 0..(256 * 192) {
-                (0x06800000 as *mut u16).add(i).write(0x8000);
-            }
-        }
+        self.load_bg(&mut background);
 
         let video_context = crate::init_graphics();
-        let m = if self.config.music.is_empty() {
-            &mut music
-        } else {
-            &mut self.config.music
-        };
-        self.loading_mod_file = Self::play_startup_music(m);
+        self.load_music(&mut music);
         video_context
     }
 }

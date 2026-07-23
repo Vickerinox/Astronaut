@@ -5,7 +5,7 @@ pub use micro_imgui_ds::gui::DSMicroGuiBackend;
 
 mod backend;
 pub use frontend::{AppData, GlobalData};
-use micro_imgui_ds::{micro_imgui::InputEvent, Input};
+use micro_imgui_ds::{Input, micro_imgui::{InputEvent, Style}};
 use reboot_lib::Buttons;
 mod browser;
 mod error;
@@ -14,17 +14,19 @@ mod main_menu;
 mod special_thanks;
 pub use main_menu::MainMenu;
 mod settings;
-use crate::Fader;
+use crate::{Fader, configuration::Assets};
 pub use frontend::pop_dir_entry;
 use micro_imgui_ds::micro_imgui::Backend;
 
-#[no_mangle]
-#[link_section = ".text_aux"]
 pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Buttons) {
-    let (assets, style) = app_data
+    let (assets, style) = if app_data.global_data.safe_mode {
+      (Assets::default(), Style::DEFAULT)  
+    } else {
+        app_data
         .global_data
         .theme
-        .load(&mut app_data.global_data.config.theme_path);
+        .load(&mut app_data.global_data.config.theme_path)
+    };
     let video_context = app_data.global_data.load_theme(assets);
     let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
 

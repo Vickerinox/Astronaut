@@ -60,13 +60,9 @@ fn alloc_wav_buf() -> &'static mut [u16] {
     unsafe { core::slice::from_raw_parts_mut(buffer as *mut _, WAV_BUFFER_LEN) }
 }
 impl StreamingWav {
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub fn counter(&self) -> usize {
         self.player_head
     }
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub fn new(mut file: fatfs_embedded::fatfs::File) -> Option<Self> {
         let data_start;
         let mut data_len;
@@ -124,8 +120,6 @@ impl StreamingWav {
             frequency,
         })
     }
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub unsafe fn play(&mut self) {
         unsafe {
             let timer = ((33513982 / 2) / self.frequency) as u16;
@@ -226,8 +220,6 @@ impl StreamingWav {
             ));
         }
     }
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub unsafe fn stop(&mut self) {
         reboot_lib::timers::TIMERS[0]
             .write(reboot_lib::timers::Timer::new(0, TimerControl::empty()));
@@ -250,8 +242,6 @@ impl StreamingWav {
             }
         }
     }
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub unsafe fn fetch_new(&mut self, mut count: usize) {
         pub fn read_all(
             mut buffer: &mut [u8],

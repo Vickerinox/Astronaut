@@ -20,6 +20,7 @@ pub struct GlobalData {
     pub loading_mod_file: MusicPlaying,
     pub config: crate::configuration::Config,
     pub theme: Theme,
+    pub safe_mode: bool,
 }
 
 pub struct AppData {
@@ -78,8 +79,6 @@ impl AppData {
         //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
         crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub fn do_background_tasks(&mut self) {
         match &mut self.global_data.loading_mod_file {
             MusicPlaying::None => (),
@@ -102,8 +101,6 @@ impl AppData {
             },
         }
     }
-    #[no_mangle]
-    #[link_section = ".text_aux"]
     pub fn update(&mut self, f: &mut micro_imgui::Frame<'_, super::DSMicroGuiBackend>) {
         let _mouse = f.last_known_pointer_location();
         f.central_panel(|ui| {

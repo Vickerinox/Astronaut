@@ -10,13 +10,16 @@ use crate::gui::{browser::Browser, frontend::UiPage, special_thanks::SpecialThan
 #[derive(Clone)]
 pub struct MainMenu;
 
-#[no_mangle]
-#[link_section = ".text_aux"]
 fn main_menu_ui(
     ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+    safe_mode: bool,
 ) -> Option<Box<dyn UiPage>> {
     super::focus_default(ui);
-    ui.header("Welcome!");
+    if safe_mode {
+        ui.header("Welcome! (safe mode)");
+    } else {
+        ui.header("Welcome!");
+    }
     ui.add_space(4);
     ui.label("Astronaut made by Vikrinox, 2026");
     ui.header(" ");
@@ -48,8 +51,8 @@ impl UiPage for MainMenu {
     fn ui(
         &mut self,
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
-        _data: &mut super::GlobalData,
+        data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        main_menu_ui(ui)
+        main_menu_ui(ui, data.safe_mode)
     }
 }

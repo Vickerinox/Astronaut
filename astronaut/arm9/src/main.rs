@@ -236,8 +236,6 @@ impl PartialOrd for FileEntry {
         self.display_name.partial_cmp(&other.display_name)
     }
 }
-#[no_mangle]
-#[link_section = ".text_aux"]
 pub fn truncate_name(string: &str, bound: usize) -> String {
     let mut string = string.to_string();
     if string.len() > bound + 3 {
@@ -524,6 +522,7 @@ unsafe fn main() {
             (&raw mut (*ptr).global_data.config).write(Config::default());
             (&raw mut (*ptr).global_data.theme).write(Theme::DEFAULT);
             (&raw mut (*ptr).global_data.blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
+            (&raw mut (*ptr).global_data.safe_mode).write(false);
             app_area.app_data.assume_init_mut()
         };
 
@@ -546,9 +545,18 @@ unsafe fn main() {
             app_data.autoboot();
         }
 
-        // We didn't load anything, load the GUI instead
+        // Failed to load additional code segment
         if !load_aux_segment(&mut app_data.global_data) {
-            early_crash("Failed to load GUI");
+            //Enable safe mode (fill code area with infinite loops instead)
+            VIDEO_HARDWARE
+                .vram_control_bank_e
+                .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+            for i in 0..0x4000 {
+                (0x6880000 as *mut u32)
+                    .add(i)
+                    .write(0xe7fee7fe);
+            }
+            app_data.global_data.safe_mode = true;
         }
         gui::load_gui(app_data, &mut app_area.fader, buttons);
     }
