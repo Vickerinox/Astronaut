@@ -394,14 +394,6 @@ pub fn main_arm7() {
                         console_id,
                     );
 
-                    //AES_HARDWARE.keyslots[1]
-                    //    .load_key_y(&[0x8B5ACCE5, 0x72C9D056, 0xDCE8179C, 0xA9361239]);
-                    //AES_HARDWARE.keyslots[2].load_key_y(&[0, 0, 0, 0]);
-
-
-                    // Fix for GM9i
-                    (0x2FFFD0C as *mut u32).write(0x454D4D43);
-
 
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
