@@ -14,6 +14,6 @@ cc = "1"
 build_tools = {path = "../../tools/building"}
 
 [dependencies]
-reboot_lib = {path = "../../crates/reboot_lib", features = ["arm9i", "standard_arm7"]}
+reboot_lib = {path = "../../crates/reboot_lib", features = ["arm9i", "standard_arm7", "fatfs"]}
 micro_imgui_ds = {path = "../../crates/micro_imgui_ds"}
 common = {path = "../../crates/common"}

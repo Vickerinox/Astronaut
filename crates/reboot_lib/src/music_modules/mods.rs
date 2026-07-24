@@ -20,7 +20,7 @@ pub struct MODHeader {
     pub patterns: *mut [MODPattern],
     pub samples: [*mut [u8]; 31],
 }
-
+#[cfg(feature = "fatfs")]
 pub enum MODAsyncLoader {
     NotStarted(fatfs_embedded::fatfs::File),
     LoadingHeader {
@@ -42,6 +42,7 @@ pub enum MODAsyncLoader {
     },
     Consumed,
 }
+#[cfg(feature = "fatfs")]
 impl MODAsyncLoader {
     pub fn new(reader: fatfs_embedded::fatfs::File) -> Self {
         Self::NotStarted(reader)
@@ -249,6 +250,7 @@ impl MODAsyncLoader {
         None
     }
 }
+#[cfg(feature = "fatfs")]
 impl MODAsyncLoader {
     pub fn progress(&self) -> (usize, usize) {
         match self {

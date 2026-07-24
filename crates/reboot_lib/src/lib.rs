@@ -114,6 +114,7 @@ pub struct Controls {
     touch_x: u8,
     touch_y: u8,
 }
+#[cfg(feature = "fatfs")]
 pub use fatfs_embedded;
 
 #[cfg(feature = "standard_arm7")]
