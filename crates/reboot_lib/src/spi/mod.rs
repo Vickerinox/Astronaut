@@ -7,9 +7,9 @@ use crate::MemoryWrapper;
 
 pub mod firmware;
 pub mod touchscreen;
-pub mod tsc2117;
 ///SPI bus functions
 
+#[cfg(feature = "arm7")]
 pub const SPI_HARDWARE: MemoryWrapper<SerialPeripheralInterface> =
     MemoryWrapper(0x40001C0 as *mut SerialPeripheralInterface);
 #[repr(C)]
@@ -145,6 +145,7 @@ pub enum MicrophoneGain {
     Max = 3,
 }
 
+#[cfg(feature = "arm7")]
 pub unsafe fn write_powerman(reg: PowerRegiser) {
     let (reg, value) = reg.as_reg_and_value();
     crate::critical_function(|| {
@@ -160,7 +161,7 @@ pub unsafe fn write_powerman(reg: PowerRegiser) {
         SPI_HARDWARE.control_and_status.write(SPIControl::DISABLE);
     });
 }
-
+#[cfg(feature = "arm7")]
 unsafe fn write_tsc(reg: u8, value: u8) {
     SPI_HARDWARE.wait_busy();
     SPI_HARDWARE
@@ -173,6 +174,8 @@ unsafe fn write_tsc(reg: u8, value: u8) {
     SPI_HARDWARE.write_value(value);
 }
 static mut CUR_BANK: u8 = 0x63;
+
+#[cfg(feature = "arm7")]
 unsafe fn tsc_switch_bank(bank: u8) {
     if bank != CUR_BANK {
         let reg = match CUR_BANK {
@@ -189,6 +192,7 @@ fn cdc_write_reg(bank: u8, reg: u8, value: u8) {}
 fn cdc_write_reg_mask(bank: u8, reg: u8, mask: u8, value: u8) {}
 
 //master interrupt enable register.
+#[cfg(feature = "arm7")]
 unsafe fn read_firmware(offset: usize, buffer: &mut [u8]) {
     crate::critical_function(|| {
         SPI_HARDWARE.set_control(

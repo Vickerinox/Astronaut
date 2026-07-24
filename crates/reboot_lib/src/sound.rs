@@ -1,13 +1,22 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
+#[cfg(feature = "arm7i")]
 use crate::{
     spi::{
-        touchscreen::{cdc_write_reg, CdcReg, CntReg},
-        write_powerman, Control, SPI_HARDWARE,
+        touchscreen::{cdc_write_reg},
+        write_powerman,
+    },
+};
+
+use crate::{
+    spi::{
+        touchscreen::{ CdcReg, CntReg},
+         Control, 
     },
     MemoryWrapper,
 };
+
 use bitflags::bitflags;
 use volatile_register::*;
 pub const SOUND_HARDWARE: MemoryWrapper<NTRSoundRegisters> =
@@ -65,11 +74,13 @@ impl NTRSoundRegisters {
             self.capture_1.write(0);
             self.bias.write(0x200);
             self.dsi_sound_control.write(4 | (1 << 13));
-            cdc_write_reg(CdcReg::Control(CntReg::PllJ), 15);
-            cdc_write_reg(CdcReg::Control(CntReg::DacNdac), 0x85);
-            cdc_write_reg(CdcReg::Control(CntReg::AdcNadc), 0x85);
-
-            self.dsi_sound_control.modify(|i| i | 0x8000);
+            #[cfg(feature = "arm7i")]
+            {
+                cdc_write_reg(CdcReg::Control(CntReg::PllJ), 15);
+                cdc_write_reg(CdcReg::Control(CntReg::DacNdac), 0x85);
+                cdc_write_reg(CdcReg::Control(CntReg::AdcNadc), 0x85);
+                self.dsi_sound_control.modify(|i| i | 0x8000);
+            }
             //self.master_control.write((1<<15));
         }
         self.clear_channels();

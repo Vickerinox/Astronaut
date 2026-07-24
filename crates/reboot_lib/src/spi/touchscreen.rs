@@ -1,19 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-use crate::spi::{write_powerman, Control, SPI_HARDWARE};
+#[cfg(feature = "arm7")]
+use crate::spi::{write_powerman, SPI_HARDWARE};
 
+use crate::spi::Control;
 use super::SPIControl;
-struct RawTouchData {}
-
-/*
-pub struct TouchReadError;
-unsafe fn touch_read_data() -> Result<RawTouchData, TouchReadError> {
-    crate::critical_function(||{
-
-    });
-}
-*/
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -235,6 +227,8 @@ pub enum SndReg {
     InputSelection = 0x31,
     CmSetting = 0x32,
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn read_tsc_var(command: u8, data: &mut [u16]) {
     let mut iter = data.iter_mut();
     let Some(mut current) = iter.next() else {
@@ -309,6 +303,8 @@ fn find_best_read(mut vals: [u16; 5]) -> u16 {
     sum / 16
 }
 
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn read_tsc_pos_cdc() -> Option<(u16, u16)> {
     let mut raw_data = [0u8; 40];
     crate::critical_function(|| {
@@ -330,6 +326,8 @@ pub unsafe fn read_tsc_pos_cdc() -> Option<(u16, u16)> {
 
     Some((find_best_read(x_values), find_best_read(y_values)))
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn read_tsc_pos_tsc() -> Option<(u16, u16)> {
     //let mut raw_data = [0u8; 20];
     let mut raw_data = [0u16; 20];
@@ -349,6 +347,8 @@ pub unsafe fn read_tsc_pos_tsc() -> Option<(u16, u16)> {
     }
     Some((rawx / 5, rawy / 5))
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn init_tsc_dsi() {
     (0x04004000 as *mut u16).write_volatile(0x101);
     (0x04004004 as *mut u16)
@@ -430,6 +430,8 @@ pub unsafe fn init_tsc_dsi() {
     }
 }
 
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn cdc_write_mask(reg: impl Into<CdcReg>, mask: u8, value: u8) {
     let (bank, reg) = reg.into().as_bank_and_reg();
     bank_switch_tsc(bank);
@@ -438,20 +440,28 @@ pub unsafe fn cdc_write_mask(reg: impl Into<CdcReg>, mask: u8, value: u8) {
     super::SPI_HARDWARE.wait_busy();
 }
 
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn is_pen_down() -> bool {
     (cdc_read_reg(TouchCntReg::Status) & 0x80 > 0) //&&(cdc_read_reg(TouchCntReg::TwlBufferMode) & 2 == 0)
 }
 
+
+#[cfg(feature = "arm7i")]
 unsafe fn bank_switch_tsc(bank: u8) {
     //let write = if CUR_BANK == 0xff { 0x7F } else { 0 };
     write_tsc(0, bank);
 }
+
+#[cfg(feature = "arm7i")]
 unsafe fn cdc_read_reg(reg: impl Into<CdcReg>) -> u8 {
     let (bank, reg) = reg.into().as_bank_and_reg();
     super::SPI_HARDWARE.wait_busy();
     bank_switch_tsc(bank);
     read_tsc(reg)
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn cdc_write_reg(reg: CdcReg, value: u8) {
     let (bank, reg) = reg.as_bank_and_reg();
     super::SPI_HARDWARE.wait_busy();
@@ -460,19 +470,7 @@ pub unsafe fn cdc_write_reg(reg: CdcReg, value: u8) {
     super::SPI_HARDWARE.wait_busy();
 }
 
-/*
-pub unsafe fn cdc_write_array(start_reg: impl Into<CdcRegister>, data: &[u8]) {
-    let (bank, reg) = start_reg.into().as_bank_and_reg();
-    bank_switch_tsc(bank);
-    super::SPI_HARDWARE
-        .set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
-    super::SPI_HARDWARE.write_value(reg << 1);
-    for byte in data {
-        super::SPI_HARDWARE.write_value(*byte);
-    }
-    super::SPI_HARDWARE.set_control(SPIControl::DISABLE);
-}
-    */
+#[cfg(feature = "arm7i")]
 pub unsafe fn cdc_read_array(start_reg: CdcReg, data: &mut [u8]) {
     let mut iter = data.iter_mut();
     let Some(mut current) = iter.next() else {
@@ -492,7 +490,10 @@ pub unsafe fn cdc_read_array(start_reg: CdcReg, data: &mut [u8]) {
     super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC);
     *current = super::SPI_HARDWARE.read_value();
 }
-pub unsafe fn write_tsc(reg: u8, value: u8) {
+
+#[cfg(feature = "arm7i")]
+pub unsafe fn write_tsc(
+    reg: u8, value: u8) {
     super::SPI_HARDWARE.wait_busy();
     super::SPI_HARDWARE
         .set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);
@@ -500,6 +501,8 @@ pub unsafe fn write_tsc(reg: u8, value: u8) {
     super::SPI_HARDWARE.set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC);
     super::SPI_HARDWARE.write_value(value);
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn read_tsc(reg: u8) -> u8 {
     super::SPI_HARDWARE.wait_busy();
     super::SPI_HARDWARE
