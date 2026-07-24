@@ -27,8 +27,8 @@ impl CdcReg {
             Self::TouchCnt(reg) => (3, reg as u8),
             Self::AdcCoefficients(reg) => (4, reg),
             Self::BufferModeData(reg) => (0xFC, reg),
-            CdcReg::UndocumentedReset => (0x63, 0),
-            CdcReg::TSCNDSMode => (0xFF, 5),
+            Self::UndocumentedReset => (0x63, 0),
+            Self::TSCNDSMode => (0xFF, 5),
         }
     }
 }
