@@ -10,9 +10,11 @@ use crate::{swi_delay, MemoryWrapper, StorageSector};
 use volatile_register::*;
 
 pub mod driver;
-pub mod tmio;
 
+#[cfg(feature = "arm7i")]
 pub const MMC_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004800 as *mut MMC);
+
+#[cfg(feature = "arm7i")]
 pub const SDIO_CONTROLLER: MemoryWrapper<MMC> = MemoryWrapper(0x4004A00 as *mut MMC);
 
 bitflags::bitflags! {

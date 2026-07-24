@@ -8,9 +8,11 @@ use bitflags::bitflags;
 use volatile_register::{RO, RW, WO};
 
 ///Public access to the DS video hardware registers
+#[cfg(feature = "arm9")]
 pub const VIDEO_HARDWARE: MemoryWrapper<VideoHardware> =
     MemoryWrapper(0x0400_0000 as *mut VideoHardware);
 
+#[cfg(feature = "arm9")]
 #[allow(const_item_mutation)]
 pub const ENGINE_A_PALETTES: MemoryWrapper<PPUEngine> =
     MemoryWrapper(0x0500_0000 as *mut PPUEngine);
@@ -20,14 +22,20 @@ pub struct PPUEngine {
     pub bg_palettes: [RW<u16>; 256],
     pub obj_palettets: [RW<u16>; 256],
 }
+
+#[cfg(feature = "arm9")]
 pub const ENGINE_B_PALETTES: MemoryWrapper<PPUEngine> =
     MemoryWrapper(0x0500_0400 as *mut PPUEngine);
 
+#[cfg(feature = "arm9")]
 pub const ENGINE_A_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0000 as *mut [u16; 512]);
+
+#[cfg(feature = "arm9")]
 pub const ENGINE_B_OAM: MemoryWrapper<[u16; 512]> = MemoryWrapper(0x0700_0400 as *mut [u16; 512]);
 
 pub struct VideoHardwareHandle;
 pub struct VideoHardwareInUseError;
+#[cfg(feature = "arm9")]
 impl VideoHardwareHandle {
     pub unsafe fn new() -> Self {
         Self
@@ -93,6 +101,7 @@ impl VideoHardwareHandle {
 // VideoHardwareHandle is a ZST since it directly interacts with video hardware. why hold a pointer to
 // it when we can only pretend to for the sake of leveraging rust lifetimes, without wasting memory?
 pub struct VertexListHost<'a>(PhantomData<&'a mut VideoHardwareHandle>);
+#[cfg(feature = "arm9")]
 impl<'a> VertexListHost<'a> {
     pub fn set_vertex_color(&mut self, color: u32) {
         unsafe {

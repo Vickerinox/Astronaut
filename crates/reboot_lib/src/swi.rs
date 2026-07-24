@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
-
+#[cfg(any(feature = "arm9", feature = "arm7"))]
 pub unsafe fn swi_delay(duration: u32) {
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
@@ -18,9 +18,9 @@ pub unsafe fn swi_delay(duration: u32) {
     );
 }
 
-pub struct SHA1State([u32; 25]);
+
+#[cfg(any(feature = "arm9i", feature = "arm7i"))]
 #[allow(unused_variables)]
-//#[instruction_set(arm::a32)]
 pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
@@ -40,8 +40,9 @@ pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
     );
 }
 
-#[allow(unused_variables)]
 
+#[cfg(any(feature = "arm9", feature = "arm7"))]
+#[allow(unused_variables)]
 pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     let mut retu = start;
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
@@ -62,6 +63,8 @@ pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     );
     retu
 }
+
+#[cfg(any(feature = "arm9", feature = "arm7"))]
 pub unsafe fn swi_vblank() {
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
@@ -72,6 +75,8 @@ pub unsafe fn swi_vblank() {
     );
 }
 
+
+#[cfg(any(feature = "arm9", feature = "arm7"))]
 pub unsafe fn swi_halt() {
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     #[instruction_set(arm::t32)]

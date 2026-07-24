@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-mod swi;
-
 use crate::{
     check_sdmmc,
     i2c::I2CRegister,
@@ -17,40 +15,8 @@ use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
 
 pub mod music;
-/*
-unsafe fn update_volume() {
-    match crate::i2c::I2C_HARDWARE.read_register(crate::i2c::PowerRegister::VOL) {
-        Ok(value) => crate::sound::SOUND_HARDWARE
-            .master_control
-            .modify(|i| (i & !0xFF) | (value as u32)),
-        Err(_) => (),
-    }
-}
-    */
-unsafe fn power_button_interrupt() {
-    let irq_cause = unsafe {
-        crate::i2c::I2C_HARDWARE
-            .read_register(crate::i2c::PowerRegister::PWRIF.into())
-            .map(|i| i & 3)
-    };
-    match irq_cause {
-        Ok(1) => {
-            unsafe {
-                //set warmboot
-                crate::i2c::I2C_HARDWARE
-                    .write_register(crate::i2c::PowerRegister::RESETFLAG.into(), 1);
-                //trigger reset
-                crate::i2c::I2C_HARDWARE
-                    .write_register(crate::i2c::PowerRegister::PWRCNT.into(), 1);
-            }
-        }
-        Ok(2) => unsafe {
-            crate::spi::write_powerman(PowerRegiser::Control(Control::SHUT_DOWN_POWER));
-        },
-        _ => { /* unknown, afaik, seems to mean any other i2c interrupt */ }
-    }
-}
 pub mod init;
+
 pub struct Controller {
     last_pen: bool,
     pen_down: bool,
@@ -78,13 +44,6 @@ impl Controller {
         controls |= (controls_2 & 3) << 10;
 
         let mut controls = crate::Buttons::from_bits_truncate(controls);
-
-        /*
-        if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
-            controls ^= crate::Buttons::PEN_DOWN;
-        }
-        */
-        //if core::ptr::read_volatile(0x4000136 as *const u16) & (1<<6) == 0 {
 
         if crate::spi::touchscreen::is_pen_down() {
             if let Some((x, y)) = read_tsc_pos_cdc() {
@@ -231,6 +190,10 @@ impl ModCryptor {
         ModCryptResult::Ok 
     }
 }
+unsafe fn generate_cid_key(buf: &mut [u32; 4]) {
+    crate::swi_sha1_calc(buf as *mut u32 as *mut _, 0x2FFD7BC as *const u8, 0x10);
+}
+
 pub fn main_arm7() {
     unsafe {
         //start talking to the ARM9 ASAP
@@ -246,12 +209,13 @@ pub fn main_arm7() {
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
         let mut key = [0u32; 4];
-        swi::generate_cid_key(&mut key);
+        generate_cid_key(&mut key);
 
         let console_id: [u32; 2] = [
             (0x4004D00 as *const u32).read(),
             (0x4004D04 as *const u32).read(),
         ];
+
         //in a lot of cases, this *will* already be initialized, (for example after bootstage 1 and 2 on DSi) however
         //seing as there are cases where you most definetely want to initialize it *anyway*, its just made optional.
         #[cfg(feature = "init_nand_aes")]
@@ -267,8 +231,11 @@ pub fn main_arm7() {
 
         let mut buffer: *mut [crate::StorageSector] = &mut [];
 
+        // tell the arm9 that were alive
         crate::IPC_FIFO_HARDWARE.set_status(1);
+        // get echo
         while crate::IPC_FIFO_HARDWARE.read_status() != 1 {}
+        // reply to echo (done)
         crate::IPC_FIFO_HARDWARE.set_status(0);
 
         crate::MMC_CONTROLLER.tmio_init();
@@ -521,10 +488,10 @@ pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
     AES_HARDWARE.wait_aes_busy();
 }
 
-pub unsafe fn clear_arm7_regs() {
+unsafe fn clear_arm7_regs() {
     (0x04000004 as *mut u16).write_volatile(0);
 }
-pub unsafe fn firmware_read(data: *mut [crate::StorageSector], offset: u32) {
+unsafe fn firmware_read(data: *mut [crate::StorageSector], offset: u32) {
     let (ptr, len) = data.to_raw_parts();
     let buffer = core::slice::from_raw_parts_mut(ptr as *mut u8, len << 9);
     SPI_HARDWARE.read_firmware(buffer, offset);
@@ -610,17 +577,3 @@ pub unsafe fn sd_read_sectors(
     crate::read_sectors(crate::DeviceSelect::SDCardSlot, sector, data)
 }
 
-pub unsafe fn nocash_write(str: &str) {
-    const NOCASH_OUT_CHR: *mut u8 = 0x4fffa1c as *mut u8;
-    for byte in str.as_bytes() {
-        NOCASH_OUT_CHR.write_volatile(*byte);
-    }
-}
-
-unsafe fn gather_args<const N: usize>() -> Option<[u32; N]> {
-    let mut array = [0u32; N];
-    for data in array.iter_mut() {
-        *data = IPC_FIFO_HARDWARE.recieve_raw_blocking();
-    }
-    Some(array)
-}

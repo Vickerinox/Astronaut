@@ -3,6 +3,8 @@
 
 use crate::MemoryWrapper;
 use volatile_register::*;
+
+#[cfg(any(feature = "arm7i", feature = "arm9i"))]
 pub const NDMA_HARDWARE: MemoryWrapper<NDMA> = MemoryWrapper(0x4004100 as *mut NDMA);
 
 #[repr(C)]

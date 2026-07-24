@@ -5,8 +5,11 @@ use crate::MemoryWrapper;
 use alloc::alloc::Global;
 use bitflags::bitflags;
 use volatile_register::*;
+
+#[cfg(any(feature = "arm7", feature = "arm9"))]
 pub const IPC_FIFO_HARDWARE: MemoryWrapper<IPCFifoHardware> =
     MemoryWrapper(0x4000180 as *mut IPCFifoHardware);
+#[cfg(any(feature = "arm7", feature = "arm9"))]
 const IPC_FIFO_RECIEVE: MemoryWrapper<RO<u32>> = MemoryWrapper(0x4100000 as *mut RO<u32>);
 
 #[repr(C)]

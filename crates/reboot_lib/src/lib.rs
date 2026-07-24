@@ -26,7 +26,10 @@ pub mod interupts;
 mod ipc;
 pub mod mbk;
 mod memory;
+
 pub mod mmc;
+pub use mmc::*;
+
 pub mod music_modules;
 pub mod ndma;
 pub mod scfg;
@@ -40,6 +43,8 @@ mod video;
 pub use bitflags;
 pub mod rtc;
 use core::num::NonZeroU32;
+
+#[cfg(feature = "arm7i")]
 pub mod twl_wifi;
 
 pub use aes::*;
@@ -49,8 +54,6 @@ pub use interupts::*;
 pub use ipc::IPC_FIFO_HARDWARE;
 pub use memory::VRAMCtrl;
 pub use mmc::driver::*;
-pub use mmc::tmio::*;
-pub use mmc::*;
 pub use swi::*;
 pub use video::*;
 pub struct MemoryWrapper<T>(*mut T);

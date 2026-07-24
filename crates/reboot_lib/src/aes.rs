@@ -5,6 +5,7 @@ use crate::MemoryWrapper;
 use common::bootstrap::TWLHeader;
 use volatile_register::*;
 
+#[cfg(feature = "arm7i")]
 pub const AES_HARDWARE: MemoryWrapper<AESEngine> = MemoryWrapper(0x4004400 as *mut AESEngine);
 
 pub const NAND_KEY_Y: [u8; 16] = 0xFFFEFB4E_29590258_2A680F5F_1A4F3E79u128.to_le_bytes();
@@ -210,6 +211,7 @@ impl AESEngine {
     }
 }
 
+#[cfg(feature = "arm7i")]
 pub unsafe fn nand_crypt_init(keyslot: usize) {
     core::ptr::write_volatile(
         0x4004008 as *mut u32,
@@ -225,12 +227,15 @@ pub unsafe fn nand_crypt_init(keyslot: usize) {
     AES_HARDWARE.set_key_slot(keyslot as usize);
     AES_HARDWARE.wait_key_busy();
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn load_nand_key_x(keyslot: usize, console_id: [u32; 2]) {
     AES_HARDWARE.keyslots[keyslot].key_x[0].write(console_id[0]);
     AES_HARDWARE.keyslots[keyslot].key_x[1].write(console_id[0] ^ 0x24EE6906);
     AES_HARDWARE.keyslots[keyslot].key_x[2].write(console_id[1] ^ 0xE65B601D);
     AES_HARDWARE.keyslots[keyslot].key_x[3].write(console_id[1]);
 }
+#[cfg(feature = "arm7i")]
 pub unsafe fn load_nand_key_y(keyslot: usize, key: &[u32; 4]) {
     AES_HARDWARE.keyslots[keyslot].key_y[0].write(key[0]);
     AES_HARDWARE.keyslots[keyslot].key_y[1].write(key[1]);

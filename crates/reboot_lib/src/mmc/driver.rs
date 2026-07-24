@@ -7,7 +7,11 @@ use alloc::rc;
 
 use crate::{Control, StorageSector, MMC};
 
-use super::{ClockCnt, Command, Status, TMIOPort, MMC_CONTROLLER};
+use super::{ClockCnt, Command, Status, TMIOPort};
+
+
+#[cfg(feature = "arm7i")]
+use super::MMC_CONTROLLER;
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -102,7 +106,9 @@ unsafe fn init_sdmmc_general() {
     crate::set_interrupt_function(crate::Interrupt::SDMMC, sdmmc_ignore as _);
     crate::enable_interrupt(crate::Interrupt::SDMMC);
 }
+#[cfg(feature = "arm7i")]
 static mut DEVICES: [Device; 2] = [Device::sd_card(), Device::nand()];
+#[cfg(feature = "arm7i")]
 pub unsafe fn check_sdmmc(device_number: DeviceSelect) -> Status {
     let dev = &mut DEVICES[device_number as u8 as usize];
     MMC_CONTROLLER.send_command(&mut dev.port, Command::SendStatus, 0)
@@ -334,6 +340,8 @@ pub unsafe fn read_sectors(
         Err(res | res2)
     }
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn write_sectors(
     device: DeviceSelect,
     sector: u32,
@@ -356,6 +364,8 @@ pub unsafe fn write_sectors(
         Err(res)
     }
 }
+
+#[cfg(feature = "arm7i")]
 pub unsafe fn write_sd_sectors(
     sector: u32,
     buf: *mut [crate::StorageSector],

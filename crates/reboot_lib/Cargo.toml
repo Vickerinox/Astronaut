@@ -8,15 +8,22 @@ volatile-register = {version = "0.2.2", default-features = false}
 bitflags = {version = "2.6.0", default-features = false}
 linked_list_allocator = {version = "0.10.5", default-features = false}
 common = {path = "../common"}
-fatfs-embedded = {git="https://github.com/Vickerinox/fatfs-embedded.git", rev="c32fb98dd07ad1316a89fb336a37eb09bda3f58e", optional = true}
+fatfs-embedded = {git="https://github.com/Vickerinox/fatfs-embedded.git", rev="daced446f686163568de1d18992758749275e6b4", optional = true}
 bytemuck = {version = "1.25.0", features = ["must_cast"]}
 
 [features]
-fatfs = ["dep:fatfs-embedded"]
 default = []
+# enables the use of fatfs within the crate, (also, enables async .mod loader)
+fatfs = ["dep:fatfs-embedded"]
+# enable arm7 functions
 arm7 = []
+# enable arm9 function
 arm9 = []
+# enable arm7 dsi specific functions
 arm7i = ["arm7"]
+# enable arm9 dsi specific functions
 arm9i = ["arm9"]
+# enable initialization of the aes engine for nand read/write on the standard arm7 binary
 init_nand_aes = []
+# use a standard arm7 binary that can be communicated with using the arm9
 standard_arm7 = []

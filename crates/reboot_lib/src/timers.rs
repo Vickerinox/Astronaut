@@ -6,7 +6,7 @@ use core::ops::Index;
 use volatile_register::RW;
 
 use crate::MemoryWrapper;
-
+#[cfg(any(feature = "arm9", feature = "arm7"))]
 pub const TIMERS: MemoryWrapper<Timers> = MemoryWrapper(0x4000100 as *mut Timers);
 
 #[repr(C)]
