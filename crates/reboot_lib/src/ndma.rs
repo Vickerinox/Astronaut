@@ -102,7 +102,7 @@ pub enum SourceMode {
 }
 
 #[repr(u32)]
-pub enum DestMode {
+pub enum DestinationMode {
     Increment = (0 << 10),
     Decrement = (1 << 10),
     Fixed = (2 << 10),
@@ -136,10 +136,12 @@ bitflags::bitflags! {
         const SRC_MODE_FIXED = (2 << 13);
         const SRC_MODE_FILL = (3 << 13);
         
+
         const DST_MODE_INCREMENT = (0 << 10);
         const DST_MODE_DECREMENT = (1 << 10);
         const DST_MODE_FIXED = (2 << 10);
 
+     
         const ENABLE = (1<<31);
         const TRIGGER_INTERRUPT = (1<<30);
         const INFINITE_REPEAT = (1<<29);
@@ -181,12 +183,37 @@ bitflags::bitflags! {
         const BLOCK_SIZE_8192 = (13<<16);
         const BLOCK_SIZE_16384 = (14<<16);
         const BLOCK_SIZE_32768 = (15<<16);
+    
     }
 
     #[derive(Debug, Clone, Copy)]
     pub struct GlobalControl: u32 {
         const ROUND_ROBIN = (1<<31);
     }
+}
+impl NDMAControl {
+
+    const SRC_MODE_MASK: u32 = (3 << 13);
+    const DST_MODE_MASK: u32 = (3 << 10);
+    const BLOCK_SIZE_MASK: u32 = (0xF<<16);
+    const START_MASK: u32 = (0x1F<<24);
+    
+    pub const fn with_start_mode(mut self, start_mode: NDMAStartMode) -> Self {
+        Self::from_bits_retain((self.bits() & !Self::START_MASK) | start_mode as u32)
+    }
+    
+    pub const fn with_src_mode(mut self, src_mode: SourceMode) -> Self {
+        Self::from_bits_retain((self.bits() & !Self::SRC_MODE_MASK) | src_mode as u32)
+    }
+    
+    pub const fn with_dst_mode(mut self, dst_mode: DestinationMode) -> Self {
+        Self::from_bits_retain((self.bits() & !Self::DST_MODE_MASK) | dst_mode as u32)
+    }
+
+    pub const fn with_block_size(mut self, block_size: BlockSize) -> Self {
+        Self::from_bits_retain((self.bits() & !Self::BLOCK_SIZE_MASK) | block_size as u32)
+    }
+
 }
 impl NDMA {
     pub fn await_channel(&self, channel: usize) {
