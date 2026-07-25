@@ -36,15 +36,8 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
         _ => DeviceFlags::COMBO_TWL_MAIN,
     };
 
-    list_builder
-        .add_drive(DeviceEntry::new(
-            b'I',
-            DeviceFlags::COMBO_SDMC_SLOT,
-            DeviceRights::READ_WRITE,
-            "sdmc",
-            "/",
-        ))
-        .add_drive(DeviceEntry::new(
+    if header.twl_header.access_control & (1<<4) > 0 {
+        list_builder.add_drive(DeviceEntry::new(
             b'A',
             nand_properties,
             DeviceRights::NONE,
@@ -72,21 +65,33 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
             "photo",
             "nand2:/photo",
         ));
+    }
+    if header.twl_header.access_control & (1<<3) > 0 {
+        list_builder.add_drive(DeviceEntry::new(
+            b'I',
+            DeviceFlags::COMBO_SDMC_SLOT,
+            DeviceRights::READ_WRITE,
+            "sdmc",
+            "/",
+        ));
+    }
+    if header.twl_header.access_control & (1<<6) > 0 {
+        list_builder.add_drive(DeviceEntry::new(
+            b'C',
+            DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
+            DeviceRights::READ_WRITE,
+            "share",
+            "nand:/shared2/0000",
+        ));
+    }
+
     if header.twl_header.private_save_size != 0 {
         add_save(&mut list_builder, prv_sav_path, "dataPrv", b'G');
     }
     if header.twl_header.public_save_size != 0 {
         add_save(&mut list_builder, pub_sav_path, "dataPub", b'H');
     }
-    /*
-    list_builder.add_drive(DeviceEntry::new(
-        b'C',
-        DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
-        DeviceRights::READ_WRITE,
-        "share",
-        "nand:/shared2/0000",
-    ));
-    */
+
 }
 pub fn add_save(builder: &mut DeviceListBuilder, path: &str, name: &str, drive: u8) {
     let drive_sort = DeviceFlags::FILEBASED;
