@@ -115,7 +115,7 @@ impl ModCryptor {
                 fill_mode: 0,
                 control: NDMAControl::ENABLE
                     .with_start_mode(NDMAStartMode::Arm7WriteAES)
-                    .with_block_size(BlockSize::Size4)
+                    .with_block_size(BlockSize::Words4)
                     .with_src_mode(SourceMode::Increment)
                     .with_dst_mode(DestinationMode::Fixed),
             };
@@ -127,7 +127,7 @@ impl ModCryptor {
                 fill_mode: 0,
                 control: NDMAControl::ENABLE
                     .with_start_mode(NDMAStartMode::Arm7ReadAES)
-                    .with_block_size(BlockSize::Size4)
+                    .with_block_size(BlockSize::Words4)
                     .with_src_mode(SourceMode::Fixed)
                     .with_dst_mode(DestinationMode::Increment),
             };
