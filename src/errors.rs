@@ -4,9 +4,7 @@
 use crate::mmc::mbr::MBRError;
 use elf::ParseError;
 use fatfs_embedded::fatfs::Error as FatFsError;
-use std::borrow::Cow;
 use std::fmt::Display;
-use std::format;
 use std::io::Error as IoError;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -62,52 +60,50 @@ pub enum CompileError {
     _BinCreationFailure(IoError),
     #[error("bin could not be written {0}")]
     _BinWriteFailute(IoError),
-    #[error("TMD compiling error {0}")]
-    TMD(TMDCompileError),
+    #[error("NAND Injection error {0}")]
+    NANDInject(NANDInjectError),
     #[error("could not run cargo command {0}")]
     Cargo(CargoError),
 }
-impl From<TMDCompileError> for CompileError {
-    fn from(value: TMDCompileError) -> Self {
-        CompileError::TMD(value)
+impl From<NANDInjectError> for CompileError {
+    fn from(value: NANDInjectError) -> Self {
+        CompileError::NANDInject(value)
     }
 }
+
 #[derive(Error, Debug)]
-pub enum TMDCompileError {
-    #[error("tmd file not found at {0:?}")]
-    TMDFileMissing(PathBuf),
+pub enum FileOpError {
+    #[error("Operation couldn't fully complete")]
+    CutShort,
+    #[error("Operation returned error {0:?}")]
+    Fatfs(FatFsError)
+}
+#[derive(Error, Debug)]
+pub enum NANDInjectError {
+    #[error("NAND Image missing {0:?}")]
+    ImageMissing(PathBuf),
+    #[error("Failed reading NAND image {0:?}")]
+    ReadingImage(IoError),
+    #[error("tmd file not found, {0:?}")]
+    TMDFileMissing(FatFsError),
     #[error("missing TMP footer")]
     MissingFooter,
     #[error("could not find mmc {0}")]
-    MMCNotFound(IoError),
-    #[error("could not read mmc {0}")]
-    MMCRead(IoError),
+    ImageNotFound(IoError),
+    #[error("mmc read failed, {0}")]
+    MMCRead(FileOpError),
+    #[error("mmc write failed, {0}")]
+    MMCWrite(FileOpError),
+    #[error("mmc seek failed {0:?}")]
+    MMCSeek(FatFsError),
     #[error("could not read mbr {0:?}")]
     MBR(MBRError),
     #[error("fat fs creation failed {0:?}")]
     FileSystemCreation(FatFsError),
-    #[error("fat fs failed writing {0:?}")]
-    IOWrite(IoError),
-    #[error("fat fs {0:?}")]
-    Fatfs(FatFsError),
     #[error("HWINFO.DAT not found {0:?}, is filesystem corrupted? ")]
     HWINFONotFound(FatFsError),
-    #[error("fat fs file {path} not found {source:?}")]
-    FileNotFound {
-        source: Box<dyn std::error::Error>,
-        path: Cow<'static, str>,
-    },
     #[error("TMD file verification failed")]
     TMDFileVerification,
-}
-impl<C: Into<Cow<'static, str>>> From<(FatFsError, C)> for TMDCompileError {
-    fn from(value: (FatFsError, C)) -> Self {
-        let (source, p) = value;
-        Self::FileNotFound {
-            source: format!("{:?}", source).into(),
-            path: p.into(),
-        }
-    }
 }
 
 #[derive(Error, Debug)]

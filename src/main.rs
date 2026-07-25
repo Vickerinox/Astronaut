@@ -14,7 +14,7 @@ use elf::{endian::AnyEndian, ElfBytes};
 //use rfd::FileDialog;
 use log::{debug, error, info, warn};
 
-use self::errors::{BuildError, CompileError, Crate, TMDCompileError};
+use self::errors::{BuildError, CompileError, Crate, NANDInjectError};
 mod build;
 mod errors;
 mod mmc;
@@ -184,7 +184,7 @@ impl FixedCompilerArgs {
         if let Some(mmc_image_path) = &self.nand_image_file {
             info!("Resolving NAND image... ");
             let mmc_image_path = std::fs::canonicalize(mmc_image_path).map_err(|_| BuildError {
-                compile_error: CompileError::TMD(TMDCompileError::TMDFileMissing(
+                compile_error: CompileError::NANDInject(NANDInjectError::ImageMissing(
                     mmc_image_path.clone(),
                 )),
                 crate_type: Crate::TMD,

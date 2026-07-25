@@ -1,20 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use crate::errors::{CompileError, TMDCompileError};
-use crate::mmc::nandcursor::NandSectorAccess;
-use console::Style;
+use crate::errors::{CompileError, FileOpError, NANDInjectError};
 use fatfs_embedded::fatfs::FileOptions;
 use fatfs_embedded::fatfs::diskio::DiskResult;
 use core::array;
-use log::{debug, error, info};
+use log::{info};
 use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
 use sha1::{Digest, Sha1};
-use similar::{ChangeTag, TextDiff};
-use std::{fs, todo, vec};
+use std::{fs, vec};
 use std::{
-    fs::OpenOptions,
     io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
@@ -28,11 +24,11 @@ const REGULAR_TMD_LEN: usize = 520;
 fn open_main_twl(
     nand_image: &mut [u8],
 ) -> Result<NativeFatFsDriver<&mut [u8]>,
-    TMDCompileError,
+    NANDInjectError,
 > {
     let nocash_footer = &nand_image[(nand_image.len() - 64)..];
     if &nocash_footer[0..16] != b"DSi eMMC CID/CPU" {
-        return Err(TMDCompileError::MissingFooter);
+        return Err(NANDInjectError::MissingFooter);
     }
 
     const KEY_SCRAMBLE: u128 = 0xFFFEFB4E_29590258_2A680F5F_1A4F3E79;
@@ -61,7 +57,7 @@ fn open_main_twl(
         key,
     );
 
-    let mbr = mbr::MBR::from_reads(&mut reader).map_err(TMDCompileError::MBR)?;
+    let mbr = mbr::MBR::from_reads(&mut reader).map_err(NANDInjectError::MBR)?;
     drop(reader);
 
     let start = (mbr.partitions[0].lba * 512) as usize;
@@ -142,6 +138,8 @@ impl<T: AsMut<[u8]>> fatfs_embedded::fatfs::diskio::FatFsDriver for NativeFatFsD
         }
     }
 }
+
+
 static mut FATFS_DRIVER: std::mem::MaybeUninit<NativeFatFsDriver<&mut [u8]>> = std::mem::MaybeUninit::uninit();
 static mut MMC_IMAGE_BUFFER: &mut [u8; 1024 * 1024 * 256] = &mut [0; _];
 static mut NAND_WORK_AREA: fatfs_embedded::fatfs::RawFileSystem = fatfs_embedded::fatfs::RawFileSystem::uninit();
@@ -151,11 +149,12 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     info!("SELECTED MMC: {:?}", mmc_path.as_ref());
     info!("Loading MMC Image... ");
     let mmc_image = fs::read(&mmc_path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => TMDCompileError::MMCNotFound(e),
-        _ => TMDCompileError::MMCRead(e),
+        std::io::ErrorKind::NotFound => NANDInjectError::ImageNotFound(e),
+        _ => NANDInjectError::ReadingImage(e),
     })?;
     let len = mmc_image.len();
 
+    #[allow(static_mut_refs)]
     unsafe {
         let nand_root = std::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:/\0");
         MMC_IMAGE_BUFFER[..len].copy_from_slice(&mmc_image);
@@ -166,44 +165,49 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         let driver = FATFS_DRIVER.write(fs);
 
         fatfs_embedded::fatfs::diskio::install(driver);
-        NAND_WORK_AREA.mount(nand_root).unwrap();
+        NAND_WORK_AREA.mount(nand_root).map_err(|e| NANDInjectError::FileSystemCreation(e))?;
     }
     
     info!("Inspecting HWINFO_S.dat... ");
     let tid = {
-        let mut hwinfo_file = fatfs_embedded::open(&mut std::format!("nand:{HWINFO_PATH}"), FileOptions::Read).unwrap();
-        fatfs_embedded::seek(&mut hwinfo_file, 0xA0).unwrap();
+        let mut hwinfo_file = fatfs_embedded::open(&mut std::format!("nand:{HWINFO_PATH}"), FileOptions::Read).map_err(|e| NANDInjectError::HWINFONotFound(e))?;
+        fatfs_embedded::seek(&mut hwinfo_file, 0xA0).map_err(|e| NANDInjectError::MMCSeek(e))?;
         let mut tid_buffer = [0u8; 4];
-        if fatfs_embedded::read(&mut hwinfo_file, &mut tid_buffer).unwrap() != tid_buffer.len() as u32 {
-            todo!()
+        if fatfs_embedded::read(&mut hwinfo_file, &mut tid_buffer).map_err(|e| NANDInjectError::MMCRead(FileOpError::Fatfs(e)))? != tid_buffer.len() as u32 {
+            return Err(NANDInjectError::MMCRead(FileOpError::CutShort).into());
         }
         u32::from_le_bytes(tid_buffer)
     };
 
     let mut tmd_path = std::format!("nand:/title/00030017/{tid:08x}/content/title.tmd");
 
-    let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Write).unwrap();
-    fatfs_embedded::seek(&mut tmd_file, REGULAR_TMD_LEN as u32).unwrap();
-    if fatfs_embedded::write(&mut tmd_file, &tmd[REGULAR_TMD_LEN..]).unwrap() != tmd[REGULAR_TMD_LEN..].len() as u32 {
-        todo!()
+
+    info!("Opening Title.TMD... ");
+    let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Write).map_err(|e| NANDInjectError::TMDFileMissing(e))?;
+    fatfs_embedded::seek(&mut tmd_file, REGULAR_TMD_LEN as u32).map_err(|e| NANDInjectError::MMCSeek(e))?;
+    
+    info!("Modifying Title.TMD... ");
+    if fatfs_embedded::write(&mut tmd_file, &tmd[REGULAR_TMD_LEN..]).map_err(|e| NANDInjectError::MMCWrite(FileOpError::Fatfs(e)))? != tmd[REGULAR_TMD_LEN..].len() as u32 {
+        return Err(NANDInjectError::MMCWrite(FileOpError::CutShort).into());
     }
     drop(tmd_file);
 
-    let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Read).unwrap();
+    info!("Verifying Title.TMD... ");
+    
+    let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Read).map_err(|_| NANDInjectError::TMDFileVerification)?;
     let size = fatfs_embedded::size(&mut tmd_file) - REGULAR_TMD_LEN as u32;
     let mut buffer = vec![0u8; size as usize];
-    fatfs_embedded::seek(&mut tmd_file, REGULAR_TMD_LEN as u32).unwrap();
-    if fatfs_embedded::read(&mut tmd_file, &mut buffer).unwrap() != buffer.len() as u32 {
-        todo!()
+    fatfs_embedded::seek(&mut tmd_file, REGULAR_TMD_LEN as u32).map_err(|_| NANDInjectError::TMDFileVerification)?;
+    if fatfs_embedded::read(&mut tmd_file, &mut buffer).map_err(|_| NANDInjectError::TMDFileVerification)? != buffer.len() as u32 {
+        return Err(NANDInjectError::TMDFileVerification.into());
     }
     assert!(&buffer == &tmd[REGULAR_TMD_LEN..]);
     drop(tmd_file);
 
+    info!("Writing new MMC Image... ");
     unsafe {
         std::fs::write(&mmc_path, &MMC_IMAGE_BUFFER[..len] ).unwrap();
     }
-    info!("Modifying Title.TMD... ");
-    debug!("Done modifying Title.tmd.");
     Ok(())
     
 }
