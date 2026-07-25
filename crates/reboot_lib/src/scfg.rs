@@ -143,24 +143,24 @@ bitflags::bitflags! {
     }
 }
 
-#[cfg(feature = "arm9i")]
+#[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
 const FIRM_ACCESS_ARM9I: u32 = ExtSCFG::all().bits()
     ^ ExtSCFG::NEW_DMA_ENABLE.bits()
     ^ ExtSCFG::NEW_CART_CIRCUIT_ENABLE.bits();
 
-#[cfg(feature = "arm9i")]
+#[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
 crate::const_assert!(
     FIRM_ACCESS_ARM9I == 0x8307F100,
     "Invalid Definition of ExtSCFG"
 );
 
-#[cfg(feature = "arm7i")]
+#[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
 const FIRM_ACCESS_ARM7I: u32 = ExtSCFG::all().bits()
     ^ ExtSCFG::NEW_DMA_ENABLE.bits()
     ^ ExtSCFG::NEW_CART_CIRCUIT_ENABLE.bits()
     ^ ExtSCFG::EXTENDED_SOUND_DMA_ENABLE.bits();
 
-#[cfg(feature = "arm7i")]
+#[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
 crate::const_assert!(
     FIRM_ACCESS_ARM7I == 0x93FFFB06,
     "Invalid Definition of ExtSCFG"
