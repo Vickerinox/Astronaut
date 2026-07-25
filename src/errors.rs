@@ -3,9 +3,10 @@
 
 use crate::mmc::mbr::MBRError;
 use elf::ParseError;
-use fatfs::Error as FatFsError;
+use fatfs_embedded::fatfs::Error as FatFsError;
 use std::borrow::Cow;
 use std::fmt::Display;
+use std::format;
 use std::io::Error as IoError;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -84,26 +85,26 @@ pub enum TMDCompileError {
     #[error("could not read mbr {0:?}")]
     MBR(MBRError),
     #[error("fat fs creation failed {0:?}")]
-    FileSystemCreation(FatFsError<IoError>),
+    FileSystemCreation(FatFsError),
     #[error("fat fs failed writing {0:?}")]
     IOWrite(IoError),
     #[error("fat fs {0:?}")]
-    Fatfs(FatFsError<IoError>),
+    Fatfs(FatFsError),
     #[error("HWINFO.DAT not found {0:?}, is filesystem corrupted? ")]
-    HWINFONotFound(FatFsError<IoError>),
+    HWINFONotFound(FatFsError),
     #[error("fat fs file {path} not found {source:?}")]
     FileNotFound {
-        source: FatFsError<IoError>,
+        source: Box<dyn std::error::Error>,
         path: Cow<'static, str>,
     },
     #[error("TMD file verification failed")]
     TMDFileVerification,
 }
-impl<C: Into<Cow<'static, str>>> From<(FatFsError<IoError>, C)> for TMDCompileError {
-    fn from(value: (FatFsError<IoError>, C)) -> Self {
+impl<C: Into<Cow<'static, str>>> From<(FatFsError, C)> for TMDCompileError {
+    fn from(value: (FatFsError, C)) -> Self {
         let (source, p) = value;
         Self::FileNotFound {
-            source,
+            source: format!("{:?}", source).into(),
             path: p.into(),
         }
     }
