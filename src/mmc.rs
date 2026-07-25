@@ -73,8 +73,8 @@ fn open_main_twl(
         ctr,
         key,
     );
-    let fs = FileSystem::new(reader, FsOptions::new())
-        .map_err(TMDCompileError::FileSystemCreation)?;
+    let fs =
+        FileSystem::new(reader, FsOptions::new()).map_err(TMDCompileError::FileSystemCreation)?;
     Ok(fs)
 }
 
@@ -118,9 +118,7 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     file.truncate().map_err(TMDCompileError::Fatfs)?;
     debug!("Done modifying Title.tmd.");
     drop(file);
-    let mut file = root
-        .open_file(&tmd_path)
-        .map_err(TMDCompileError::Fatfs)?;
+    let mut file = root.open_file(&tmd_path).map_err(TMDCompileError::Fatfs)?;
 
     let mut vec = vec![0u8; tmd.len()];
     file.read_exact(&mut vec)

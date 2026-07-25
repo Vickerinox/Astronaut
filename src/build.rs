@@ -20,11 +20,7 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
         "Spawning cargo command cargo build -r in {}",
         path.to_str().expect("already checked")
     );
-    if !cwd
-        .wait()
-        .map_err(CargoError::FailedCommand)?
-        .success()
-    {
+    if !cwd.wait().map_err(CargoError::FailedCommand)?.success() {
         error!(
             "failed to run `cargo build -r` in {}`",
             path.to_str().expect("already checked")

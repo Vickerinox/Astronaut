@@ -157,28 +157,37 @@ bitflags::bitflags! {
 }
 
 impl ExtSCFG {
+    /// Standard access mode for a DSi Firmware (such as boot2)
     #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
-    const FIRM_ACCESS_ARM7I: Self = Self::from_bits_retain(
+    pub const FIRM_ACCESS: Self = Self::from_bits_retain(
         Self::all().bits()
             ^ Self::NEW_DMA_ENABLE.bits()
             ^ Self::NEW_CART_CIRCUIT_ENABLE.bits()
             ^ Self::EXTENDED_SOUND_DMA_ENABLE.bits(),
     );
 
+    /// Standard access mode for a DSi Firmware (such as boot2)
     #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
-    const FIRM_ACCESS_ARM9I: Self = Self::from_bits_retain(
+    pub const FIRM_ACCESS: Self = Self::from_bits_retain(
         Self::all().bits() ^ Self::NEW_DMA_ENABLE.bits() ^ Self::NEW_CART_CIRCUIT_ENABLE.bits(),
     );
+
+    /// Currently you're not using the correct target for the DS, so this is a placeholder value.
+    #[cfg(any(
+        all(feature = "arm9i", feature = "arm7i"),
+        not(any(feature = "arm9i", feature = "arm7i"))
+    ))]
+    pub const FIRM_ACCESS: Self = Self::empty();
 }
 #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
 crate::const_assert!(
-    ExtSCFG::FIRM_ACCESS_ARM9I.bits() == 0x8307F100,
+    ExtSCFG::FIRM_ACCESS.bits() == 0x8307F100,
     "Invalid Definition of ExtSCFG"
 );
 
 #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
 crate::const_assert!(
-    ExtSCFG::FIRM_ACCESS_ARM7I.bits() == 0x93FFFB06,
+    ExtSCFG::FIRM_ACCESS.bits() == 0x93FFFB06,
     "Invalid Definition of ExtSCFG"
 );
 

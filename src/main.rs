@@ -27,8 +27,8 @@ fn _inject_elf(
 ) -> Result<(), CompileError> {
     info!("SELECTED ELF: {:?}", &elf_file_path);
     let file = fs::read(elf_file_path).map_err(CompileError::ElfNotFound)?;
-    let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
-        .map_err(CompileError::ElfParseError)?;
+    let parse =
+        ElfBytes::<AnyEndian>::minimal_parse(&file[..]).map_err(CompileError::ElfParseError)?;
     let entrypoint = parse.ehdr.e_entry;
 
     let Some(segments) = parse.segments() else {
