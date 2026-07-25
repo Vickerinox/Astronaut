@@ -5,6 +5,7 @@ use crate::{
     check_sdmmc,
     i2c::I2CRegister,
     ndma::NDMA_HARDWARE,
+    scfg::{ExtSCFG, SCFG_HARDWARE},
     sound::{SoundControl, SoundFormat, SOUND_HARDWARE},
     spi::{touchscreen::read_tsc_pos_cdc, Control, PowerRegiser, SPI_HARDWARE},
     timers::TIMERS,
@@ -201,10 +202,11 @@ unsafe fn generate_cid_key(buf: &mut [u32; 4]) {
 
 pub fn main_arm7() {
     unsafe {
-        //start talking to the ARM9 ASAP
+        // start talking to the ARM9 ASAP
         IPC_FIFO_HARDWARE.enable();
-
-        //start doing hardware init
+        // enable all the hardware stuffs were about to use
+        SCFG_HARDWARE.features.write(ExtSCFG::FIRM_ACCESS);
+        // start doing hardware init
         init::init_power_regs();
         init::init_i2c();
         init::init_ntr_sound();
