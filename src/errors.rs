@@ -32,7 +32,7 @@ pub struct BuildError {
 }
 impl Display for BuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
+        std::writeln!(
             f,
             "Could not build {:?} \n {}",
             self.crate_type, self.compile_error

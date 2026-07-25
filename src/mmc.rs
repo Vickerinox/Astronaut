@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::errors::{CompileError, TMDCompileError};
+use crate::mmc::nandcursor::NandSectorAccess;
 use console::Style;
+use fatfs_embedded::fatfs::diskio::DiskResult;
 use core::array;
 use fatfs::Error as FatFsError;
 use fatfs::{FileSystem, FsOptions, StdIoWrapper};
@@ -73,9 +75,52 @@ fn open_main_twl(
         ctr,
         key,
     );
+    
     let fs =
         FileSystem::new(reader, FsOptions::new()).map_err(TMDCompileError::FileSystemCreation)?;
     Ok(fs)
+}
+
+pub struct NativeFatFsDriver<T: AsMut<[u8]>> {
+    nand: NandSectorCursor<[u8; 512], NandWrapper<T, 9>, 9>,
+}
+
+impl<T: AsMut<[u8]>> fatfs_embedded::fatfs::diskio::FatFsDriver for NativeFatFsDriver<T> {
+    fn disk_status(&mut self, drive: u8) -> u8 {
+        match drive {
+            1 => 1,
+            2 => 0,
+            _ => 2,
+        }
+    }
+
+    fn disk_initialize(&mut self, drive: u8) -> u8 {
+        match drive {
+            1 => 1,
+            2 => 0,
+            _ => 2,
+        }    
+    }
+
+    fn disk_read(&mut self, drive: u8, buffer: &mut [u8], sector: u32) -> DiskResult {
+        match drive {
+            1 => DiskResult::NotReady,
+            2 => DiskResult::Error,
+            _ => DiskResult::ParameterError,
+        }
+    }
+
+    fn disk_write(&mut self, drive: u8, buffer: &[u8], sector: u32) -> DiskResult {
+        match drive {
+            1 => DiskResult::NotReady,
+            2 => DiskResult::Error,
+            _ => DiskResult::ParameterError,
+        }
+    }
+
+    fn disk_ioctl(&mut self, data: &mut fatfs_embedded::fatfs::diskio::IoctlCommand) -> DiskResult {
+        DiskResult::Error
+    }
 }
 
 pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), CompileError> {
