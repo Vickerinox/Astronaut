@@ -1,6 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
+
+#[cfg(any(feature = "arm9i", feature = "arm7i"))]
+pub const SCFG_HARDWARE: MemoryWrapper<SCFGHardware> = MemoryWrapper(0x4004000 as *mut SCFGHardware);
+
+use crate::MemoryWrapper;
+
 bitflags::bitflags! {
 
     #[derive(Clone, Copy)]
