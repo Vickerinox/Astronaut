@@ -109,22 +109,22 @@ pub enum DestinationMode {
 
 #[repr(u32)]
 pub enum BlockSize {
-    Size1 = (0 << 16),
-    Size2 = (1 << 16),
-    Size4 = (2 << 16),
-    Size8 = (3 << 16),
-    Size16 = (4 << 16),
-    Size32 = (5 << 16),
-    Size64 = (6 << 16),
-    Size128 = (7 << 16),
-    Size256 = (8 << 16),
-    Size512 = (9 << 16),
-    Size1KiB = (10 << 16),
-    Size2KiB = (11 << 16),
-    Size4KiB = (12 << 16),
-    Size8KiB = (13 << 16),
-    Size16KiB = (14 << 16),
-    Size32KiB = (15 << 16),
+    Words1 = (0 << 16),
+    Words2 = (1 << 16),
+    Words4 = (2 << 16),
+    Words8 = (3 << 16),
+    Words16 = (4 << 16),
+    Words32 = (5 << 16),
+    Words64 = (6 << 16),
+    Words128 = (7 << 16),
+    Words256 = (8 << 16),
+    Words512 = (9 << 16),
+    Words1K = (10 << 16),
+    Words2K = (11 << 16),
+    Words4K = (12 << 16),
+    Words8K = (13 << 16),
+    Words16K = (14 << 16),
+    Words32K = (15 << 16),
 }
 
 bitflags::bitflags! {
@@ -194,7 +194,7 @@ impl NDMA {
         channel.control.write(
             NDMAControl::ENABLE
                 .with_start_mode(NDMAStartMode::Immediate)
-                .with_block_size(BlockSize::Size1)
+                .with_block_size(BlockSize::Words1)
                 .with_dst_mode(DestinationMode::Increment)
                 .with_src_mode(SourceMode::Increment),
         );

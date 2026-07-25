@@ -125,7 +125,7 @@ impl AESEngine {
                 .with_start_mode(NDMAStartMode::Arm7WriteAES)
                 .with_dst_mode(DestinationMode::Fixed)
                 .with_src_mode(SourceMode::Increment)
-                .with_block_size(BlockSize::Size4),
+                .with_block_size(BlockSize::Words4),
         };
         let out_dma = crate::ndma::ChannelConfig {
             word_count: len,
@@ -136,7 +136,7 @@ impl AESEngine {
                 .with_start_mode(NDMAStartMode::Arm7ReadAES)
                 .with_dst_mode(DestinationMode::Increment)
                 .with_src_mode(SourceMode::Fixed)
-                .with_block_size(BlockSize::Size4),
+                .with_block_size(BlockSize::Words4),
         };
         let ptr = data as *mut [u32] as *mut u32;
         NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
