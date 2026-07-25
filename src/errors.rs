@@ -34,7 +34,8 @@ impl Display for BuildError {
         std::writeln!(
             f,
             "Could not build {:?} \n {}",
-            self.crate_type, self.compile_error
+            self.crate_type,
+            self.compile_error
         )
     }
 }
@@ -76,7 +77,7 @@ pub enum FileOpError {
     #[error("Operation couldn't fully complete")]
     CutShort,
     #[error("Operation returned error {0:?}")]
-    Fatfs(FatFsError)
+    Fatfs(FatFsError),
 }
 #[derive(Error, Debug)]
 pub enum NANDInjectError {

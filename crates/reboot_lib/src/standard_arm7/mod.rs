@@ -113,7 +113,11 @@ impl ModCryptor {
                 block_size: 4,
                 timing: 8,
                 fill_mode: 0,
-                control: NDMAControl::ENABLE.with_start_mode(NDMAStartMode::Arm7WriteAES).with_block_size(BlockSize::Size4).with_src_mode(SourceMode::Increment).with_dst_mode(DestinationMode::Fixed),
+                control: NDMAControl::ENABLE
+                    .with_start_mode(NDMAStartMode::Arm7WriteAES)
+                    .with_block_size(BlockSize::Size4)
+                    .with_src_mode(SourceMode::Increment)
+                    .with_dst_mode(DestinationMode::Fixed),
             };
 
             let out_dma = crate::ndma::ChannelConfig {
@@ -121,7 +125,11 @@ impl ModCryptor {
                 block_size: 4,
                 timing: 8,
                 fill_mode: 0,
-                control: NDMAControl::ENABLE.with_start_mode(NDMAStartMode::Arm7ReadAES).with_block_size(BlockSize::Size4).with_src_mode(SourceMode::Fixed).with_dst_mode(DestinationMode::Increment),
+                control: NDMAControl::ENABLE
+                    .with_start_mode(NDMAStartMode::Arm7ReadAES)
+                    .with_block_size(BlockSize::Size4)
+                    .with_src_mode(SourceMode::Fixed)
+                    .with_dst_mode(DestinationMode::Increment),
             };
             // Setup AES
             AES_HARDWARE.master_control.write(AESCnt::empty());

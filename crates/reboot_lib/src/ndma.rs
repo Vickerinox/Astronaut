@@ -192,7 +192,11 @@ impl NDMA {
         channel.block_size.write(total_word_count as u32 >> 2);
         channel.timing.write(0);
         channel.control.write(
-            NDMAControl::ENABLE.with_start_mode(NDMAStartMode::Immediate).with_block_size(BlockSize::Size1).with_dst_mode(DestinationMode::Increment).with_src_mode(SourceMode::Increment),
+            NDMAControl::ENABLE
+                .with_start_mode(NDMAStartMode::Immediate)
+                .with_block_size(BlockSize::Size1)
+                .with_dst_mode(DestinationMode::Increment)
+                .with_src_mode(SourceMode::Increment),
         );
     }
     pub fn copy_mem(&self, channel: usize, src: &[u32], dst: &mut [u32]) {

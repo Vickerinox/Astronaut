@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-use crate::{MemoryWrapper, ndma::{BlockSize, NDMAStartMode}};
+use crate::{
+    ndma::{BlockSize, NDMAStartMode},
+    MemoryWrapper,
+};
 use common::bootstrap::TWLHeader;
 use volatile_register::*;
 
@@ -107,7 +110,7 @@ impl AESEngine {
     #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
     pub unsafe fn ctr_crypt_block(&self, data: &mut [u32], ctr: &[u32; 4]) {
         let len = data.len() as u32;
-        use crate::ndma::{DestinationMode, NDMA_HARDWARE, NDMAControl, SourceMode};
+        use crate::ndma::{DestinationMode, NDMAControl, SourceMode, NDMA_HARDWARE};
         self.master_control.write(AESCnt::empty());
         self.reset();
         self.load_iv(ctr);
@@ -118,14 +121,22 @@ impl AESEngine {
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control:  NDMAControl::ENABLE.with_start_mode(NDMAStartMode::Arm7WriteAES).with_dst_mode(DestinationMode::Fixed).with_src_mode(SourceMode::Increment).with_block_size(BlockSize::Size4),
+            control: NDMAControl::ENABLE
+                .with_start_mode(NDMAStartMode::Arm7WriteAES)
+                .with_dst_mode(DestinationMode::Fixed)
+                .with_src_mode(SourceMode::Increment)
+                .with_block_size(BlockSize::Size4),
         };
         let out_dma = crate::ndma::ChannelConfig {
             word_count: len,
             block_size: 4,
             timing: 8,
             fill_mode: 0,
-            control: NDMAControl::ENABLE.with_start_mode(NDMAStartMode::Arm7ReadAES).with_dst_mode(DestinationMode::Increment).with_src_mode(SourceMode::Fixed).with_block_size(BlockSize::Size4)
+            control: NDMAControl::ENABLE
+                .with_start_mode(NDMAStartMode::Arm7ReadAES)
+                .with_dst_mode(DestinationMode::Increment)
+                .with_src_mode(SourceMode::Fixed)
+                .with_block_size(BlockSize::Size4),
         };
         let ptr = data as *mut [u32] as *mut u32;
         NDMA_HARDWARE.set_raw_dma(0, out_dma, 0x400440C as _, ptr as _);
