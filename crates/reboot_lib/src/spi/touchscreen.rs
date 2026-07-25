@@ -4,8 +4,8 @@
 #[cfg(feature = "arm7")]
 use crate::spi::{write_powerman, SPI_HARDWARE};
 
-use crate::spi::Control;
 use super::SPIControl;
+use crate::spi::Control;
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -303,7 +303,6 @@ fn find_best_read(mut vals: [u16; 5]) -> u16 {
     sum / 16
 }
 
-
 #[cfg(feature = "arm7i")]
 pub unsafe fn read_tsc_pos_cdc() -> Option<(u16, u16)> {
     let mut raw_data = [0u8; 40];
@@ -430,7 +429,6 @@ pub unsafe fn init_tsc_dsi() {
     }
 }
 
-
 #[cfg(feature = "arm7i")]
 pub unsafe fn cdc_write_mask(reg: impl Into<CdcReg>, mask: u8, value: u8) {
     let (bank, reg) = reg.into().as_bank_and_reg();
@@ -440,12 +438,10 @@ pub unsafe fn cdc_write_mask(reg: impl Into<CdcReg>, mask: u8, value: u8) {
     super::SPI_HARDWARE.wait_busy();
 }
 
-
 #[cfg(feature = "arm7i")]
 pub unsafe fn is_pen_down() -> bool {
     (cdc_read_reg(TouchCntReg::Status) & 0x80 > 0) //&&(cdc_read_reg(TouchCntReg::TwlBufferMode) & 2 == 0)
 }
-
 
 #[cfg(feature = "arm7i")]
 unsafe fn bank_switch_tsc(bank: u8) {
@@ -492,8 +488,7 @@ pub unsafe fn cdc_read_array(start_reg: CdcReg, data: &mut [u8]) {
 }
 
 #[cfg(feature = "arm7i")]
-pub unsafe fn write_tsc(
-    reg: u8, value: u8) {
+pub unsafe fn write_tsc(reg: u8, value: u8) {
     super::SPI_HARDWARE.wait_busy();
     super::SPI_HARDWARE
         .set_control(SPIControl::ENABLE | SPIControl::DEVICE_CODEC | SPIControl::SELECT_HOLD);

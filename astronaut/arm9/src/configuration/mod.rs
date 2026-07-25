@@ -290,14 +290,12 @@ impl GlobalData {
             return false;
         }
         if let Some(font) = load_font(font_path) {
-            load_font_real(font).is_some()    
+            load_font_real(font).is_some()
         } else {
             false
         }
     }
     unsafe fn load_wall<'a, 'b: 'a>(&'b mut self, mut path: &'a mut String) -> bool {
-        
-
         if self.safe_mode {
             return false;
         }
@@ -340,13 +338,13 @@ impl GlobalData {
             }
         }
     }
-    
+
     unsafe fn load_music<'a, 'b: 'a>(&'b mut self, mut m: &'a mut String) {
-        if !self.safe_mode {    
+        if !self.safe_mode {
             if !self.config.music.is_empty() {
                 m = &mut self.config.music
             };
-            self.loading_mod_file = Self::play_startup_music(m);    
+            self.loading_mod_file = Self::play_startup_music(m);
         }
     }
 

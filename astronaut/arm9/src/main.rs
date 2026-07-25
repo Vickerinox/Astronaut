@@ -552,9 +552,7 @@ unsafe fn main() {
                 .vram_control_bank_e
                 .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
             for i in 0..0x4000 {
-                (0x6880000 as *mut u32)
-                    .add(i)
-                    .write(0xe7fee7fe);
+                (0x6880000 as *mut u32).add(i).write(0xe7fee7fe);
             }
             app_data.global_data.safe_mode = true;
         }

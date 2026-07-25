@@ -200,8 +200,6 @@ pub struct ShortNDSHeader {
 
 const_assert!(core::mem::size_of::<ShortNDSHeader>() == 0x160);
 
-
-
 #[repr(C)]
 pub struct TWLHeader {
     pub head: ShortNDSHeader,

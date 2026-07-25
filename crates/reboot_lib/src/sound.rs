@@ -2,23 +2,20 @@
 // SPDX-License-Identifier: MIT
 
 #[cfg(feature = "arm7i")]
-use crate::{
-    spi::{
-        touchscreen::{cdc_write_reg},
-        write_powerman,
-    },
-};
+use crate::spi::{touchscreen::cdc_write_reg, write_powerman};
 
 use crate::{
     spi::{
-        touchscreen::{ CdcReg, CntReg},
-         Control, 
+        touchscreen::{CdcReg, CntReg},
+        Control,
     },
     MemoryWrapper,
 };
 
 use bitflags::bitflags;
 use volatile_register::*;
+
+#[cfg(feature = "arm7")]
 pub const SOUND_HARDWARE: MemoryWrapper<NTRSoundRegisters> =
     MemoryWrapper(0x4000400 as *mut NTRSoundRegisters);
 
@@ -36,10 +33,16 @@ pub struct NTRSoundRegisters {
     pub capture_1_len: RW<u32>,
     _0x120: [u32; 0x38],
     _0x200: [u8; 0x4000],
+
+    #[cfg(feature = "arm7i")]
     pub dsi_mic_control: RW<u16>,
     _0x4202: u16,
+
+    #[cfg(feature = "arm7i")]
     pub dsi_mic_data: RW<u32>,
     _0x4204: [u32; 0x3E],
+
+    #[cfg(feature = "arm7i")]
     pub dsi_sound_control: RW<u16>,
 }
 pub struct TWLSoundRegisters {
@@ -67,24 +70,26 @@ bitflags::bitflags! {
     }
 }
 impl NTRSoundRegisters {
+    // Stop ALL sound hardware and initialize it enough to start making audio.
     pub fn init(&self) {
         unsafe {
             self.master_control.write((1 << 15) | 0x7f);
             self.capture_0.write(0);
             self.capture_1.write(0);
             self.bias.write(0x200);
-            self.dsi_sound_control.write(4 | (1 << 13));
+
             #[cfg(feature = "arm7i")]
             {
+                self.dsi_sound_control.write(4 | (1 << 13));
                 cdc_write_reg(CdcReg::Control(CntReg::PllJ), 15);
                 cdc_write_reg(CdcReg::Control(CntReg::DacNdac), 0x85);
                 cdc_write_reg(CdcReg::Control(CntReg::AdcNadc), 0x85);
                 self.dsi_sound_control.modify(|i| i | 0x8000);
             }
-            //self.master_control.write((1<<15));
         }
         self.clear_channels();
     }
+    // Stop all of the channels on the NTR side of the hardware
     pub fn clear_channels(&self) {
         for channel in &self.channels {
             unsafe {
@@ -105,30 +110,20 @@ pub struct SoundChannel {
     pub loop_start: WO<u16>,
     pub length: WO<u32>,
 }
-impl SoundChannel {
-    pub unsafe fn start_test_beep(&self) {
-        self.timer.write(timer_from_freq(440));
-        self.control
-            .write(SoundControl::new().with_repeat_mode(RepeatMode::Infinite));
-    }
-}
+// convert a frequency to a ds timer value
 pub const fn timer_from_freq(freq: u32) -> u16 {
     0xFFFF - ((33513982 / 2) / freq) as u16
 }
+
+// convert a ds timer value to an audio frequency
 pub const fn timer_to_freq(timer: u16) -> u32 {
     ((33513982 / 2) / (65535 - timer as u32))
 }
+
 bitflags! {
     #[derive(Clone, Copy, Default)]
     pub struct SoundControl: u32 {
         const HOLD = (1<<15);
-        const FORMAT_PCM8 = (0<<29);
-        const FORMAT_PCM16 = (1<<29);
-        const FORMAT_ADPCM = (2<<29);
-        const FORMAT_PSG = (3<<29);
-        const REPEAT_MANUAL = (0<<27);
-        const REPEAT_INFINITE = (1<<27);
-        const REPEAT_ONESHOT = (2<<27);
         const START = (1<<31);
     }
 }

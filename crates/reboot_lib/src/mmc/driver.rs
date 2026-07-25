@@ -9,7 +9,6 @@ use crate::{Control, StorageSector, MMC};
 
 use super::{ClockCnt, Command, Status, TMIOPort};
 
-
 #[cfg(feature = "arm7i")]
 use super::MMC_CONTROLLER;
 

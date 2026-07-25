@@ -5,10 +5,8 @@ use crate::MemoryWrapper;
 use bitflags::bitflags;
 use volatile_register::RW;
 
-
 #[cfg(feature = "arm7i")]
 pub const I2C_HARDWARE: MemoryWrapper<I2CInterface> = MemoryWrapper(0x4004500 as *mut I2CInterface);
-
 
 #[cfg(feature = "arm7i")]
 pub unsafe fn init() {

@@ -45,7 +45,7 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
                 break;
             }
             let is_dir = file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
-            
+
             // Determine file type based on short filename (which is always uppercase)
             let color = if is_dir {
                 FileType::Dir
@@ -58,7 +58,7 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
                 let s_name = if s_name.is_empty() { &name } else { s_name };
                 filetype(s_name)
             };
-            
+
             // Create a displayname that doesn't cause expansion in the GUI
             let dname = truncate_name(&name, 35);
 
@@ -187,7 +187,7 @@ impl Clone for BrowserMode {
 }
 
 /// Tells a "focused" browser what filetype to look for and what to do once it is selected.
-/// 
+///
 /// This struct is mostly a crutch to fulfill borrow checker rules...
 #[derive(Clone)]
 pub struct BrowserSearch {
@@ -205,7 +205,7 @@ impl TitleLister {
     pub fn new() -> Self {
         let mut folders = Vec::with_capacity(500);
         folders.push("sdmc:/".to_string());
-        folders.push("nand:/".to_string()); 
+        folders.push("nand:/".to_string());
         Self {
             folders,
             current_folder: None,
@@ -283,9 +283,8 @@ impl TitleLister {
 }
 
 impl Browser {
-
     /// Opens a browser that looks for a specific filetype
-    /// 
+    ///
     /// Once such a file is picked, the `transform` fn is called containing the path of the picked file.
     /// This then lets you open a new UI if you found something interesting.
     pub fn search_file(
@@ -332,7 +331,7 @@ impl Browser {
             None
         }
     }
-    
+
     /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
         let FileEntry {

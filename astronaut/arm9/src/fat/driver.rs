@@ -23,7 +23,10 @@ impl SDMMCDriver {
         }
     }
 
-    unsafe fn try_mount_sd(&mut self, buffer: &'static mut [reboot_lib::StorageSector]) -> Option<BasicSDMMCCursor<'static>> {
+    unsafe fn try_mount_sd(
+        &mut self,
+        buffer: &'static mut [reboot_lib::StorageSector],
+    ) -> Option<BasicSDMMCCursor<'static>> {
         read_sd_card(&mut buffer[..4], 0).ok()?;
         let lba = {
             let mbr: &mbr::MBR = bytemuck::must_cast_ref(&buffer[0]);
@@ -42,8 +45,10 @@ impl SDMMCDriver {
         }
     }
 
-    unsafe fn try_mount_nand(&mut self, buffer: &'static mut [reboot_lib::StorageSector]) -> Option<BasicSDMMCCursor<'static>> {
-
+    unsafe fn try_mount_nand(
+        &mut self,
+        buffer: &'static mut [reboot_lib::StorageSector],
+    ) -> Option<BasicSDMMCCursor<'static>> {
         read_encrypted_nand(&mut buffer[..4], 0).ok()?;
         let lba = {
             let mbr: &mbr::MBR = bytemuck::must_cast_ref(&buffer[0]);
@@ -75,11 +80,21 @@ impl FatFsDriver for SDMMCDriver {
         match unsafe { arm9_init_sdmmc(drive) } {
             Ok(()) => match drive {
                 1 => {
-                    self.sdmc_controller = unsafe { self.try_mount_sd(core::slice::from_raw_parts_mut(0x2FC0000 as *mut reboot_lib::StorageSector, 8)) };
+                    self.sdmc_controller = unsafe {
+                        self.try_mount_sd(core::slice::from_raw_parts_mut(
+                            0x2FC0000 as *mut reboot_lib::StorageSector,
+                            8,
+                        ))
+                    };
                     self.sdmc_controller.is_none() as u8
                 }
                 2 => {
-                    self.nand_controller = unsafe { self.try_mount_nand(core::slice::from_raw_parts_mut(0x2FD0000 as *mut reboot_lib::StorageSector, 8)) };
+                    self.nand_controller = unsafe {
+                        self.try_mount_nand(core::slice::from_raw_parts_mut(
+                            0x2FD0000 as *mut reboot_lib::StorageSector,
+                            8,
+                        ))
+                    };
                     self.nand_controller.is_none() as u8
                 }
                 _ => 1,

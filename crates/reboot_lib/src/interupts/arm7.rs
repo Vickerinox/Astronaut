@@ -7,14 +7,13 @@
 #[instruction_set(arm::a32)]
 unsafe fn interrupt_handler_arm7() {
     // what you are about to see is probably the most unoxidized code i've ever written -vikrinox
-
     core::arch::asm!(
         // r0-r3, as well as r12 and lr (r14) are saved by the original BIOS IRQ handler (Viewable at 0x0000006C).
         "mov r12, {i_base}",
         "ldr r1, [r12, {i_e}]",
         "ldr r2, [r12, {i_f}]",
         "ands r1, r1, r2", //the interrupt bits to be serviced! (i.e IE & IF)
-        "beq 3f", // MEANING: if there are "no interrupts" to be serviced, it's gotta be the aux ones!
+        "beq 3f", // if there are "no interrupts" to be serviced, it's gotta be the aux ones!
 
             // Get the bit index for the "highest priority" IRQ
             // Manually counting zeroes, as there is no instruction to do so on armv4
@@ -45,18 +44,18 @@ unsafe fn interrupt_handler_arm7() {
             "orr r3, r3, r1",
             "str r3, [r2]",
 
-            // load irq table and jump to funciton pointer
+            // load irq table and jump to function pointer
             "ldr r3, ={irq_table}",
             "add r3, r0, lsl #2",
 
             "b 4f",
 
-        //check AUX irq's
+        //check AUX irq's, in case it wasn't a standard IRQ
         "3:",
             "ldr r1, [r12, {i_ae}]",
             "ldr r2, [r12, {i_af}]",
             "ands r1, r1, r2", //the interrupt bits to be serviced! (i.e IE & IF)
-            "moveq pc, lr", // EARLY RETURN: There are no IRQ's to service!
+            "moveq pc, lr", // EARLY RETURN: There are truly no IRQ's to service!
 
             // Get the bit index for the "highest priority" IRQ
             // Manually counting zeroes
@@ -87,14 +86,14 @@ unsafe fn interrupt_handler_arm7() {
             "orr r3, r3, r1",
             "str r3, [r2]",
 
-            // load irq table and jump to funciton pointer
+            // load irq table and jump to function pointer
             "ldr r3, ={irq_table_aux}",
             "add r3, r0, lsl #2",
         //Dereference the interrupt function pointer
         "4:",
         "ldr r3, [r3]",
         "cmp r3, #0",
-        "beq 2f", //EARLY RETURN: no interrupt handler installed
+        "beq 2f", //EARLY RETURN: no interrupt handler installed, do nothing instead.
             //set IME = 0
             "ldr r1, [r12, {ime}]",
             "str r12, [r12, {ime}]", //HACK: IME only cares about bit 0, so this sets IME = 0
@@ -121,7 +120,7 @@ unsafe fn interrupt_handler_arm7() {
             //Restore IME
             "str r1, [r12, {ime}]",
 
-        //return
+        //Back to business.
         "2:",
 
         i_base = const 0x0400_0000, //register base

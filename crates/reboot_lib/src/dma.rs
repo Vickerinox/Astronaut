@@ -5,7 +5,6 @@ use volatile_register::{RW, WO};
 
 use crate::MemoryWrapper;
 
-
 #[cfg(any(feature = "arm7", feature = "arm9"))]
 pub const DMA_HARDWARE: MemoryWrapper<DMAHardware> = MemoryWrapper(0x400_00B0 as *mut DMAHardware);
 pub struct DMAHardware([DMAChannel; 4]);

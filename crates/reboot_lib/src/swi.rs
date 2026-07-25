@@ -18,7 +18,6 @@ pub unsafe fn swi_delay(duration: u32) {
     );
 }
 
-
 #[cfg(any(feature = "arm9i", feature = "arm7i"))]
 #[allow(unused_variables)]
 pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
@@ -39,7 +38,6 @@ pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
         },
     );
 }
-
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 #[allow(unused_variables)]
@@ -74,7 +72,6 @@ pub unsafe fn swi_vblank() {
         },
     );
 }
-
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 pub unsafe fn swi_halt() {

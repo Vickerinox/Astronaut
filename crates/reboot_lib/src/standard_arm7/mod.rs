@@ -14,8 +14,8 @@ use crate::{
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
 
-pub mod music;
 pub mod init;
+pub mod music;
 
 pub struct Controller {
     last_pen: bool,
@@ -187,7 +187,7 @@ impl ModCryptor {
             };
             Self::decrypt_module_ndma(mem, key);
         }
-        ModCryptResult::Ok 
+        ModCryptResult::Ok
     }
 }
 unsafe fn generate_cid_key(buf: &mut [u32; 4]) {
@@ -360,7 +360,6 @@ pub fn main_arm7() {
                         &(*(common::bootstrap::BOOTINFO_MEM)).twl_header,
                         console_id,
                     );
-
 
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
@@ -576,4 +575,3 @@ pub unsafe fn sd_read_sectors(
 ) -> Result<(), Status> {
     crate::read_sectors(crate::DeviceSelect::SDCardSlot, sector, data)
 }
-
