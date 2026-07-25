@@ -88,6 +88,7 @@ enum ModCryptResult {
     Module2Error = 2,
 }
 impl ModCryptor {
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
     unsafe fn decrypt_module_ndma(mut mem: &mut [u32], mut key: [u32; 4]) {
         AES_HARDWARE.master_control.write(AESCnt::empty());
         AES_HARDWARE.reset();
@@ -104,7 +105,7 @@ impl ModCryptor {
             mem = remainder;
 
             // Create NDMA Config
-            use crate::ndma::NDMAControl;
+            use crate::ndma::{BlockSize, DestinationMode, NDMAControl, NDMAStartMode, SourceMode};
             let ptr = core::ptr::addr_of_mut!(*chunk);
 
             let in_dma = crate::ndma::ChannelConfig {
@@ -112,11 +113,7 @@ impl ModCryptor {
                 block_size: 4,
                 timing: 8,
                 fill_mode: 0,
-                control: NDMAControl::DST_MODE_FIXED
-                    | NDMAControl::SRC_MODE_INCREMENT
-                    | NDMAControl::BLOCK_SIZE_4
-                    | NDMAControl::START_ARM7_WRITE_AES
-                    | NDMAControl::ENABLE,
+                control: NDMAControl::ENABLE.with_start_mode(NDMAStartMode::Arm7WriteAES).with_block_size(BlockSize::Size4).with_src_mode(SourceMode::Increment).with_dst_mode(DestinationMode::Fixed),
             };
 
             let out_dma = crate::ndma::ChannelConfig {
@@ -124,11 +121,7 @@ impl ModCryptor {
                 block_size: 4,
                 timing: 8,
                 fill_mode: 0,
-                control: NDMAControl::SRC_MODE_FIXED
-                    | NDMAControl::DST_MODE_INCREMENT
-                    | NDMAControl::BLOCK_SIZE_4
-                    | NDMAControl::START_ARM7_READ_AES
-                    | NDMAControl::ENABLE,
+                control: NDMAControl::ENABLE.with_start_mode(NDMAStartMode::Arm7ReadAES).with_block_size(BlockSize::Size4).with_src_mode(SourceMode::Fixed).with_dst_mode(DestinationMode::Increment),
             };
             // Setup AES
             AES_HARDWARE.master_control.write(AESCnt::empty());
@@ -146,6 +139,7 @@ impl ModCryptor {
             // repeat for remaining chunks...
         }
     }
+    #[cfg(feature = "arm7i")]
     unsafe fn dewit(&mut self) -> ModCryptResult {
         let Self { console_id } = self;
         let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
@@ -172,6 +166,7 @@ impl ModCryptor {
                 core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2)
             };
 
+            #[cfg(not(feature = "arm9i"))] // Fix for rust-analyzer
             Self::decrypt_module_ndma(mem, key);
         }
         if header.modcrypt2_len > 0 && header.head.ntr_rom_size != header.modcrypt2_offset {
@@ -185,6 +180,8 @@ impl ModCryptor {
 
                 core::slice::from_raw_parts_mut(ptr as *mut u32, len as usize >> 2)
             };
+
+            #[cfg(not(feature = "arm9i"))] // Fix for rust-analyzer
             Self::decrypt_module_ndma(mem, key);
         }
         ModCryptResult::Ok
@@ -505,6 +502,7 @@ fn add_on_key(key: &mut [u32; 4], add: u32) {
     key[3] = key[3].wrapping_add(carry3 as u32);
 }
 /// read and decrypt the given sectors from NAND using NDMA.
+#[cfg(feature = "arm7i")]
 pub unsafe fn mmc_read_decrypt(
     data: *mut [crate::StorageSector],
     ctr_base: &[u32; 4],
@@ -525,12 +523,14 @@ pub unsafe fn mmc_read_decrypt(
     AES_HARDWARE.set_key_slot(3);
     AES_HARDWARE.wait_key_busy();
 
+    #[cfg(not(feature = "arm9i"))] // fix for rust-analyzer
     crate::AES_HARDWARE.ctr_crypt_block(
         core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
         &key,
     );
     Ok(())
 }
+#[cfg(feature = "arm7i")]
 pub unsafe fn mmc_write_encrypt(
     data: *mut [crate::StorageSector],
     ctr_base: &[u32; 4],
@@ -549,6 +549,7 @@ pub unsafe fn mmc_write_encrypt(
     AES_HARDWARE.set_key_slot(3);
     AES_HARDWARE.wait_key_busy();
 
+    #[cfg(not(feature = "arm9i"))] // fix for rust-analyzer
     crate::AES_HARDWARE.ctr_crypt_block(
         core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
         &key,
@@ -561,6 +562,7 @@ pub unsafe fn mmc_write_encrypt(
     AES_HARDWARE.set_key_slot(3);
     AES_HARDWARE.wait_key_busy();
 
+    #[cfg(not(feature = "arm9i"))] // fix for rust-analyzer
     crate::AES_HARDWARE.ctr_crypt_block(
         core::slice::from_raw_parts_mut(ptr as *mut _, len << 7),
         &key,
