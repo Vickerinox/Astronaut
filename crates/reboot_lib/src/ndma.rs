@@ -48,6 +48,86 @@ pub struct ChannelConfig {
     pub control: NDMAControl,
 }
 
+#[repr(u32)]
+pub enum NDMAStartMode {
+    StartTimer0 = (0 <<24),
+    StartTimer1 = (1 <<24),
+    StartTimer2 = (2 <<24),
+    StartTimer3 = (3 <<24),
+    StartCartridge = (4 <<24),
+    StartVBlank = (6<<24),
+
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    StartArm7WiFi = (7<<24),
+
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    StartArm7SDMMC = (8<<24),
+
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    StartArm7DsiWiFi = (9<<24),
+
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    StartArm7WriteAES = (10<<24),
+
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    StartArm7ReadAES = (11<<24),
+
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    StartArm7Microphone = (12<<24),
+    
+    StartImmediate = (16<<24),
+
+
+    #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
+    StartArm9HBlank = (7<<24),
+
+    #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
+    StartArm9Displaysync = (8<<24),
+
+    #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
+    StartArm9Workram = (9<<24),
+
+    #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
+    StartArm9GeometryEngine = (10<<24),
+
+    #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
+    StartArm9Camera = (11<<24),
+}
+#[repr(u32)]
+pub enum SourceMode {
+    Increment = (0 << 13),
+    Decrement = (1 << 13),
+    Fixed = (2 << 13),
+    Fill = (3 << 13),
+}
+
+#[repr(u32)]
+pub enum DestMode {
+    Increment = (0 << 10),
+    Decrement = (1 << 10),
+    Fixed = (2 << 10),
+}
+
+#[repr(u32)]
+pub enum BlockSize {
+    Size1 = (0<<16),
+    Size2 = (1<<16),
+    Size4 = (2<<16),
+    Size8 = (3<<16),
+    Size16 = (4<<16),
+    Size32 = (5<<16),
+    Size64 = (6<<16),
+    Size128 = (7<<16),
+    Size256 = (8<<16),
+    Size512 = (9<<16),
+    Size1KiB= (10<<16),
+    Size2KiB = (11<<16),
+    Size4KiB = (12<<16),
+    Size8KiB = (13<<16),
+    Size16KiB = (14<<16),
+    Size32KiB = (15<<16),
+}
+
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct NDMAControl: u32 {
@@ -55,14 +135,17 @@ bitflags::bitflags! {
         const SRC_MODE_DECREMENT = (1 << 13);
         const SRC_MODE_FIXED = (2 << 13);
         const SRC_MODE_FILL = (3 << 13);
+        
         const DST_MODE_INCREMENT = (0 << 10);
         const DST_MODE_DECREMENT = (1 << 10);
         const DST_MODE_FIXED = (2 << 10);
+
         const ENABLE = (1<<31);
         const TRIGGER_INTERRUPT = (1<<30);
         const INFINITE_REPEAT = (1<<29);
         const DESTINATION_RELOAD = (1<<12);
         const SOURCE_RELOAD = (1<<15);
+        
         const START_TIMER0 = (0 <<24);
         const START_TIMER1 = (1 <<24);
         const START_TIMER2 = (2 <<24);

@@ -19,7 +19,7 @@ pub fn _crc16(mut value: u16, buffer: &[u8]) -> u16 {
         for i in 0..8 {
             value >>= 1;
             if value & 0x1 != 0 {
-                value = value ^ (vals[i] << (7 - i))
+                value ^= vals[i] << (7 - i)
             };
         }
     }

@@ -67,7 +67,7 @@ impl<T: AsMut<[u8]>, const N: usize, I: NandSectorAccess<N>> NandSectorCursor<T,
         if self.flush_on_next {
             self.encrypt_buffer();
             self.interface
-                .write_sector(self.buf_sector, &self.buffer.as_mut());
+                .write_sector(self.buf_sector, self.buffer.as_mut());
             self.flush_on_next = false;
         }
     }
@@ -121,13 +121,13 @@ impl<T: AsMut<[u8]>, const N: usize, I: NandSectorAccess<N>> NandSectorCursor<T,
         let offset = self.pos & (Self::BLOCK_SIZE - 1);
         //find where buf_len or self.buffer runs out.
         let max_len = (Self::BLOCK_SIZE - offset).min(max_len);
-        (offset as usize, max_len)
+        (offset, max_len)
     }
 }
 impl<T: AsMut<[u8]>, const N: usize, I: NandSectorAccess<N>> Read for NandSectorCursor<T, I, N> {
     fn read(&mut self, mut buf: &mut [u8]) -> std::io::Result<usize> {
         let mut reads = 0;
-        while buf.len() > 0 {
+        while !buf.is_empty() {
             let (offset, len) = self.load_sector_and_offsets(buf.len());
             let (data_buf, rest_buf) = buf.split_at_mut(len);
             data_buf.copy_from_slice(&self.buffer.as_mut()[offset..][..len]);
@@ -141,7 +141,7 @@ impl<T: AsMut<[u8]>, const N: usize, I: NandSectorAccess<N>> Read for NandSector
 impl<T: AsMut<[u8]>, const N: usize, I: NandSectorAccess<N>> Write for NandSectorCursor<T, I, N> {
     fn write(&mut self, mut buf: &[u8]) -> std::io::Result<usize> {
         let mut writes = 0;
-        while buf.len() > 0 {
+        while !buf.is_empty() {
             let (offset, len) = self.load_sector_and_offsets(buf.len());
             let (data, rest_buf) = buf.split_at(len);
             self.buffer.as_mut()[offset..][..len].copy_from_slice(data);
@@ -212,7 +212,7 @@ impl<T: AsMut<[u8]>, const N: usize> NandSectorAccess<N> for NandWrapper<T, N> {
     fn write_sector(&mut self, sector: usize, buf: &[u8]) {
         assert_eq!(buf.len(), 1 << N);
         let address = sector << N;
-        self.0.as_mut()[address..][..buf.len()].copy_from_slice(&buf);
+        self.0.as_mut()[address..][..buf.len()].copy_from_slice(buf);
     }
 
     fn size(&mut self) -> usize {

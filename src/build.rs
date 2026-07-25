@@ -15,14 +15,14 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|e| CargoError::SpawnChild(e))?;
+        .map_err(CargoError::SpawnChild)?;
     info!(
         "Spawning cargo command cargo build -r in {}",
         path.to_str().expect("already checked")
     );
     if !cwd
         .wait()
-        .map_err(|e| CargoError::FailedCommand(e))?
+        .map_err(CargoError::FailedCommand)?
         .success()
     {
         error!(
@@ -42,9 +42,9 @@ pub fn _compile_arm7(
     const HEADER_SIZE: usize = 12;
     //const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
-    let file = std::fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
+    let file = std::fs::read(elf_file_path).map_err(CompileError::ElfNotFound)?;
     let parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&file[..])
-        .map_err(|e| CompileError::ElfParseError(e))?;
+        .map_err(CompileError::ElfParseError)?;
     let entrypoint = parse.ehdr.e_entry;
 
     let mut empty_bin = vec![0u8; HEADER_SIZE];
@@ -77,7 +77,7 @@ pub fn _compile_arm7(
         }
         let data = parse
             .segment_data(&segment)
-            .map_err(|e| CompileError::ElfSegmentError(e))?;
+            .map_err(CompileError::ElfSegmentError)?;
         if empty_bin.len() < file_offset_end as usize {
             let extra_len = (file_offset_end as usize) - empty_bin.len();
             empty_bin.append(&mut vec![0; extra_len]);
@@ -90,20 +90,20 @@ pub fn _compile_arm7(
         empty_bin[file_range].copy_from_slice(data);
     }
 
-    while empty_bin.len() % 4 != 0 {
+    while !empty_bin.len().is_multiple_of(4) {
         empty_bin.push(0u8);
     }
     info!("ARM Binary is {:x?} bytes", empty_bin.len());
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)
         .open(&include_file_path)
-        .map_err(|e| CompileError::_BinCreationFailure(e))?;
+        .map_err(CompileError::_BinCreationFailure)?;
     bin_file
         .set_len(empty_bin.len() as _)
-        .map_err(|e| CompileError::_BinWriteFailute(e))?;
+        .map_err(CompileError::_BinWriteFailute)?;
     bin_file
         .write_all(&empty_bin[..])
-        .map_err(|e| CompileError::_BinWriteFailute(e))?;
+        .map_err(CompileError::_BinWriteFailute)?;
 
     info!("MISSION COMPLETE");
     Ok(())
@@ -116,9 +116,9 @@ pub fn _compile_bootstrap(
     const HEADER_SIZE: usize = 12;
     const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
 
-    let arm9_file = std::fs::read(elf9_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
+    let arm9_file = std::fs::read(elf9_file_path).map_err(CompileError::ElfNotFound)?;
     let arm9_parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&arm9_file[..])
-        .map_err(|e| CompileError::ElfParseError(e))?;
+        .map_err(CompileError::ElfParseError)?;
     let arm9_entrypoint = arm9_parse.ehdr.e_entry;
 
     let mut empty_bin = vec![255u8; HEADER_SIZE];
@@ -148,7 +148,7 @@ pub fn _compile_bootstrap(
         arm7_start = arm7_start.max(file_offset_end - HEADER_SIZE as i64);
         let data = arm9_parse
             .segment_data(&segment)
-            .map_err(|e| CompileError::ElfSegmentError(e))?;
+            .map_err(CompileError::ElfSegmentError)?;
         if empty_bin.len() < file_offset_end as usize {
             let extra_len = (file_offset_end as usize) - empty_bin.len();
             empty_bin.append(&mut vec![0; extra_len]);
@@ -206,13 +206,13 @@ pub fn _compile_bootstrap(
     let mut bin_file = std::fs::OpenOptions::new()
         .write(true)
         .open(&bootstrap_file_path)
-        .map_err(|e| CompileError::_BinCreationFailure(e))?;
+        .map_err(CompileError::_BinCreationFailure)?;
     bin_file
         .set_len(empty_bin.len() as _)
-        .map_err(|e| CompileError::_BinWriteFailute(e))?;
+        .map_err(CompileError::_BinWriteFailute)?;
     bin_file
         .write_all(&empty_bin[..])
-        .map_err(|e| CompileError::_BinWriteFailute(e))?;
+        .map_err(CompileError::_BinWriteFailute)?;
 
     info!("MISSION COMPLETE");
     Ok(())

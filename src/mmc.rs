@@ -23,10 +23,10 @@ pub mod nandcursor;
 
 const HWINFO_PATH: &str = "/sys/HWINFO_S.dat";
 const REGULAR_TMD_LEN: usize = 520;
-fn open_main_twl<'a>(
-    nand_image: &'a mut [u8],
+fn open_main_twl(
+    nand_image: &mut [u8],
 ) -> Result<
-    FileSystem<StdIoWrapper<NandSectorCursor<[u8; 512], NandWrapper<&'a mut [u8], 9>>>>,
+    FileSystem<StdIoWrapper<NandSectorCursor<[u8; 512], NandWrapper<&mut [u8], 9>>>>,
     TMDCompileError,
 > {
     let nocash_footer = &nand_image[(nand_image.len() - 64)..];
@@ -60,7 +60,7 @@ fn open_main_twl<'a>(
         key,
     );
 
-    let mbr = mbr::MBR::from_reads(&mut reader).map_err(|e| TMDCompileError::MBR(e))?;
+    let mbr = mbr::MBR::from_reads(&mut reader).map_err(TMDCompileError::MBR)?;
     drop(reader);
 
     let start = (mbr.partitions[0].lba * 512) as usize;
@@ -74,7 +74,7 @@ fn open_main_twl<'a>(
         key,
     );
     let fs = FileSystem::new(reader, FsOptions::new())
-        .map_err(|e| TMDCompileError::FileSystemCreation(e))?;
+        .map_err(TMDCompileError::FileSystemCreation)?;
     Ok(fs)
 }
 
@@ -95,7 +95,7 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         let mut tid_buffer = [0u8; 4];
         let mut hw_info = root
             .open_file(HWINFO_PATH)
-            .map_err(|e| TMDCompileError::HWINFONotFound(e))?;
+            .map_err(TMDCompileError::HWINFONotFound)?;
         hw_info
             .seek(SeekFrom::Start(0xA0))
             .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
@@ -115,19 +115,19 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
     file.write_all(&tmd[REGULAR_TMD_LEN..])
         .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
-    file.truncate().map_err(|e| TMDCompileError::Fatfs(e))?;
+    file.truncate().map_err(TMDCompileError::Fatfs)?;
     debug!("Done modifying Title.tmd.");
     drop(file);
     let mut file = root
         .open_file(&tmd_path)
-        .map_err(|e| TMDCompileError::Fatfs(e))?;
+        .map_err(TMDCompileError::Fatfs)?;
 
     let mut vec = vec![0u8; tmd.len()];
     file.read_exact(&mut vec)
         .map_err(|e| TMDCompileError::Fatfs(FatFsError::Io(e)))?;
     //verify the file
     info!("Verifying TMD... ");
-    if &vec[REGULAR_TMD_LEN..] == &tmd[REGULAR_TMD_LEN..] {
+    if vec[REGULAR_TMD_LEN..] == tmd[REGULAR_TMD_LEN..] {
         info!(
             "Final TMD size: {} bytes ({} KiB)",
             tmd.len(),
@@ -136,7 +136,7 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         drop(root);
         drop(file);
         info!("Unmounting TWL_MAIN... ");
-        fs.unmount().map_err(|e| TMDCompileError::Fatfs(e))?;
+        fs.unmount().map_err(TMDCompileError::Fatfs)?;
 
         let mut file = OpenOptions::new()
             .read(true)
@@ -151,13 +151,13 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         );
         info!("Rewriting NAND image... ");
         file.write_all(&mmc_image)
-            .map_err(|e| TMDCompileError::IOWrite(e))?;
+            .map_err(TMDCompileError::IOWrite)?;
         Ok(())
     } else {
         error!("Failed verifying tmd, aborting...");
 
         let should_be = hexify::format_hex(&vec);
-        let actual = hexify::format_hex(&tmd);
+        let actual = hexify::format_hex(tmd);
         let diff = TextDiff::from_lines(&should_be, &actual);
         for change in diff.iter_all_changes() {
             let (sign, style) = match change.tag() {

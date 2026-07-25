@@ -26,9 +26,9 @@ fn _inject_elf(
     start_addr: usize,
 ) -> Result<(), CompileError> {
     info!("SELECTED ELF: {:?}", &elf_file_path);
-    let file = fs::read(elf_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
+    let file = fs::read(elf_file_path).map_err(CompileError::ElfNotFound)?;
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
-        .map_err(|e| CompileError::ElfParseError(e))?;
+        .map_err(CompileError::ElfParseError)?;
     let entrypoint = parse.ehdr.e_entry;
 
     let Some(segments) = parse.segments() else {
@@ -49,7 +49,7 @@ fn _inject_elf(
         }
         let data = parse
             .segment_data(&segment)
-            .map_err(|e| CompileError::ElfSegmentError(e))?;
+            .map_err(CompileError::ElfSegmentError)?;
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
         end = file_offset_end.max(end);
         debug!(
