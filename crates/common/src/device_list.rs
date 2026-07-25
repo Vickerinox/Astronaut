@@ -36,15 +36,29 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
         _ => DeviceFlags::COMBO_TWL_MAIN,
     };
 
-    if header.twl_header.access_control & (1<<4) > 0 {
+    if header.twl_header.access_control & (1<<3) > 0 || pub_sav_path.starts_with("sdmc:/") || prv_sav_path.starts_with("sdmc:/") {
+        list_builder.add_drive(DeviceEntry::new(
+            b'I',
+            DeviceFlags::COMBO_SDMC_SLOT,
+            DeviceRights::READ_WRITE,
+            "sdmc",
+            "/",
+        ));
+    }
+    
+    if header.twl_header.access_control & (1<<4) > 0 || pub_sav_path.starts_with("nand:/") || prv_sav_path.starts_with("nand:/") {
         list_builder.add_drive(DeviceEntry::new(
             b'A',
             nand_properties,
             DeviceRights::NONE,
             "nand",
             "/",
-        ))
-        .add_drive(DeviceEntry::new(
+        ));
+    }
+
+    if header.twl_header.access_control & (1<<4) > 0 {
+    
+        list_builder.add_drive(DeviceEntry::new(
             b'B',
             DeviceFlags::COMBO_TWL_PHOTO,
             DeviceRights::NONE,
@@ -66,15 +80,7 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
             "nand2:/photo",
         ));
     }
-    if header.twl_header.access_control & (1<<3) > 0 {
-        list_builder.add_drive(DeviceEntry::new(
-            b'I',
-            DeviceFlags::COMBO_SDMC_SLOT,
-            DeviceRights::READ_WRITE,
-            "sdmc",
-            "/",
-        ));
-    }
+
     if header.twl_header.access_control & (1<<6) > 0 {
         list_builder.add_drive(DeviceEntry::new(
             b'C',
