@@ -1,9 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-
 #[cfg(any(feature = "arm9i", feature = "arm7i"))]
-pub const SCFG_HARDWARE: MemoryWrapper<SCFGHardware> = MemoryWrapper(0x4004000 as *mut SCFGHardware);
+pub const SCFG_HARDWARE: MemoryWrapper<SCFGHardware> =
+    MemoryWrapper(0x4004000 as *mut SCFGHardware);
+
+#[cfg(feature = "arm9i")]
+use volatile_register::RO;
+use volatile_register::RW;
 
 use crate::MemoryWrapper;
 
@@ -146,36 +150,46 @@ bitflags::bitflags! {
 
         #[cfg(any(feature = "arm9i", feature = "arm7i"))]
         const ACCESS_SCFG = (1<<31);
+
+
+
     }
 }
 
-#[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
-const FIRM_ACCESS_ARM9I: u32 = ExtSCFG::all().bits()
-    ^ ExtSCFG::NEW_DMA_ENABLE.bits()
-    ^ ExtSCFG::NEW_CART_CIRCUIT_ENABLE.bits();
+impl ExtSCFG {
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    const FIRM_ACCESS_ARM7I: Self = Self::from_bits_retain(
+        Self::all().bits()
+            ^ Self::NEW_DMA_ENABLE.bits()
+            ^ Self::NEW_CART_CIRCUIT_ENABLE.bits()
+            ^ Self::EXTENDED_SOUND_DMA_ENABLE.bits(),
+    );
 
+    #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
+    const FIRM_ACCESS_ARM9I: Self = Self::from_bits_retain(
+        Self::all().bits() ^ Self::NEW_DMA_ENABLE.bits() ^ Self::NEW_CART_CIRCUIT_ENABLE.bits(),
+    );
+}
 #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
 crate::const_assert!(
-    FIRM_ACCESS_ARM9I == 0x8307F100,
+    ExtSCFG::FIRM_ACCESS_ARM9I.bits() == 0x8307F100,
     "Invalid Definition of ExtSCFG"
 );
 
 #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
-const FIRM_ACCESS_ARM7I: u32 = ExtSCFG::all().bits()
-    ^ ExtSCFG::NEW_DMA_ENABLE.bits()
-    ^ ExtSCFG::NEW_CART_CIRCUIT_ENABLE.bits()
-    ^ ExtSCFG::EXTENDED_SOUND_DMA_ENABLE.bits();
-
-#[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
 crate::const_assert!(
-    FIRM_ACCESS_ARM7I == 0x93FFFB06,
+    ExtSCFG::FIRM_ACCESS_ARM7I.bits() == 0x93FFFB06,
     "Invalid Definition of ExtSCFG"
 );
 
 #[repr(C)]
 pub struct SCFGHardware {
-    roms: ROMSCFG,
-    clock: ClockSCFG,
-    reset: ResetSCFG,
-    features: ExtSCFG,
+    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    pub roms: RW<ROMSCFG>,
+    #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
+    pub roms: RO<ROMSCFG>,
+
+    pub clock: RW<ClockSCFG>,
+    pub reset: RW<ResetSCFG>,
+    pub features: RW<ExtSCFG>,
 }
