@@ -4,7 +4,7 @@
 use crate::errors::{CompileError, FileOpError, NANDInjectError};
 use core::array;
 use fatfs_embedded::fatfs::diskio::DiskResult;
-use fatfs_embedded::fatfs::FileOptions;
+use fatfs_embedded::fatfs::{FileAttributes, FileOptions};
 use log::info;
 use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
@@ -192,11 +192,15 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
 
     let mut tmd_path = std::format!("nand:/title/00030017/{tid:08x}/content/title.tmd");
 
+
+    fatfs_embedded::chmod(&mut tmd_path, FileAttributes::empty(), FileAttributes::ReadOnly).unwrap();
+
     info!("Opening Title.TMD... ");
     let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Write)
         .map_err(|e| NANDInjectError::TMDFileMissing(e))?;
     fatfs_embedded::seek(&mut tmd_file, REGULAR_TMD_LEN as u32)
         .map_err(|e| NANDInjectError::MMCSeek(e))?;
+
 
     info!("Modifying Title.TMD... ");
     if fatfs_embedded::write(&mut tmd_file, &tmd[REGULAR_TMD_LEN..])
@@ -207,6 +211,8 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     }
     drop(tmd_file);
 
+    fatfs_embedded::chmod(&mut tmd_path, FileAttributes::ReadOnly, FileAttributes::ReadOnly).unwrap();
+    
     info!("Verifying Title.TMD... ");
 
     let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Read)

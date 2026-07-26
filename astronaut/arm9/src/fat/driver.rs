@@ -130,7 +130,7 @@ impl FatFsDriver for SDMMCDriver {
     fn disk_read(&mut self, drive: u8, mut buffer: &mut [u8], sector: u32) -> DiskResult {
         let Some(controller) = (match drive {
             1 => &mut self.sdmc_controller,
-            2 => &mut self.nand_controller,
+            2 => &mut self.nand_controller, 
             _ => return DiskResult::ParameterError,
         }) else {
             return DiskResult::NotReady;

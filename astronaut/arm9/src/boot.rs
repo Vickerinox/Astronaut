@@ -29,15 +29,12 @@ use crate::{
 };
 
 pub fn read_all(
-    mut buffer: &mut [u8],
+    buffer: &mut [u8],
     file: &mut fatfs_embedded::fatfs::File,
 ) -> Result<(), fatfs_embedded::fatfs::Error> {
-    while !buffer.is_empty() {
-        let bytes = fatfs_embedded::read(file, buffer)?;
-        let Some(remaining) = buffer.get_mut((bytes as usize)..) else {
-            return Err(fatfs_embedded::fatfs::Error::InternalLogicError);
-        };
-        buffer = remaining;
+    let bytes = fatfs_embedded::read(file, buffer)?;
+    if bytes as usize != buffer.len() {
+        return Err(fatfs_embedded::fatfs::Error::InternalLogicError);   
     }
     Ok(())
 }

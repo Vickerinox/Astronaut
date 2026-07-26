@@ -130,7 +130,7 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
     Ok(empty_tmd)
 }
-#[derive(Parser)]
+#[derive(Parser, Default)]
 struct CompilerArgs {
     export_tmd: Option<PathBuf>,
     nand_image_file: Option<PathBuf>,
@@ -139,6 +139,7 @@ impl TryFrom<CompilerArgs> for FixedCompilerArgs {
     type Error = &'static str;
 
     fn try_from(value: CompilerArgs) -> Result<Self, Self::Error> {
+    
         Ok(Self {
             nand_image_file: value.nand_image_file,
             export_tmd: value.export_tmd,
