@@ -206,8 +206,9 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
         return 5;
     };
 
-    let data_base = interest_area.get();
-
+    (0x200_05E4 as *mut [u8; 12]).write(interest_area.clone());
+    let Some(a) = interest_area.first_chunk().cloned() else { return 5 };
+    let data_base = u32::from_le_bytes(a);
     // Upload segment D (bootstub data)
     let Some((part_d, dest)) = get_wifi_part(firmware, FirmwarePart::PartD) else {
         return 6;
@@ -281,16 +282,16 @@ fn find_firmware_for_card(version: u8, firmware: &mut [u8]) -> Option<&mut [u8]>
     let firmware = firmware.get_mut(offset..)?;
     Some(firmware)
 }
-fn find_interest_addr(firmware: &[u8]) -> Option<NonZeroU32> {
+fn find_interest_addr(firmware: &[u8]) -> Option<&[u8; 12]> {
     let first = firmware.first_chunk::<4>()?.clone();
     let id_count = first[1];
     let offset = u16::from_le_bytes([first[2], first[3]]);
     let offset = offset as usize + 4 + (id_count as usize * 8);
     let chunk = firmware
         .get(offset..)
-        .map(|i| i.first_chunk::<4>())
+        .map(|i| i.first_chunk::<12>())
         .flatten()?;
-    NonZeroU32::new(u32::from_le_bytes(chunk.clone()))
+    Some(chunk)
 }
 unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &[u8], interest_area: u32) -> u32 {
     0

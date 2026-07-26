@@ -2,9 +2,16 @@
 // SPDX-License-Identifier: MIT
 
 use crate::bootstrap::BootInfoTWL;
-
 #[repr(C)]
-pub struct Config {
+pub struct WifiConfig {
+    pub version: u16,
+    pub crc: u16,
+    pub data_segment: u32,
+    pub base_address: u32,
+    pub length: u32,
+}
+#[repr(C)]
+pub struct TWLCfg {
     //flags
     pub config_flags: u32,
     _0x4: u8,
@@ -53,6 +60,9 @@ pub struct Config {
     _0x9f: [u8; 2],
     pub pc_pin: [u8; 5],
     pub pc_secret_answer: [u16; 65],
+    _0x128: [u8; 0xD8],
+    _0x200: [u8; 0xE0],
+    pub wifi_data: WifiConfig,
 }
 
 #[repr(u8)]
@@ -100,10 +110,10 @@ impl Region {
         }
     }
 }
-pub unsafe fn init(header: &BootInfoTWL) {
-    let gamecode = Region::from_gamecode(header.twl_header.head.tid);
+pub unsafe fn init(header: &mut BootInfoTWL) {
+    let region = Region::from_gamecode(header.twl_header.head.tid);
     let common = &header.ntr.firmware_data.bytes;
-    let config = &mut *(0x2000400 as *mut Config);
+    let config = &mut *(0x200_0400 as *mut TWLCfg);
     config.config_flags = 0x0100000F;
     config.country = 0x4E;
     config.language = 1;
@@ -125,7 +135,8 @@ pub unsafe fn init(header: &BootInfoTWL) {
     config.message.copy_from_slice(&common[0x1C..0x1C + 0x36]);
     config.rtc_offset.copy_from_slice(&common[0x68..0x70]);
 
-    (0x2FFFD68 as *mut u32).write_volatile(gamecode.lang_bitmask());
+    (0x2FFFD68 as *mut u32).write_volatile(region.lang_bitmask());
     (0x2FFFD6C as *mut u32).write_volatile(0);
-    (0x2FFFD70 as *mut u8).write_volatile(gamecode as u8);
+    (0x2FFFD70 as *mut u8).write_volatile(region as u8);
+    (0x2FFFDFC as *mut u32).write_volatile(0x200_0400);
 }

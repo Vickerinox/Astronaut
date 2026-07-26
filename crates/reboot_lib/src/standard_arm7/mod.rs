@@ -367,6 +367,7 @@ pub fn main_arm7() {
                         &(*(common::bootstrap::BOOTINFO_MEM)).twl_header,
                         console_id,
                     );
+                    AES_HARDWARE.master_control.write(AESCnt::empty());                    
 
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
