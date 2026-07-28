@@ -279,9 +279,9 @@ impl StreamingWav {
                 count -= final_slice.len();
                 match &mut self.stream_type {
                     StreamType::MonoU8 => {
-                        for val in reboot_lib::bytemuck::must_cast_slice_mut::<u16, u8>(final_slice)
+                        for val in final_slice
                         {
-                            *val = val.wrapping_add(0x80);
+                            *val ^= 0x8080;
                         }
                     }
                     StreamType::MonoI16 => (),
@@ -291,8 +291,9 @@ impl StreamingWav {
                                 .split_at_mut(WAV_BUFFER_LEN);
                         let br = break_point / 2;
                         for (i, val) in final_slice.iter().enumerate() {
-                            left[br + i] = ((val >> 0) as u8).wrapping_add(0x80);
-                            right[br + i] = ((val >> 8) as u8).wrapping_add(0x80);
+                            let val = val ^ 0x8080;
+                            left[br + i] = (val >> 0) as u8;
+                            right[br + i] = (val >> 8) as u8;
                         }
                     }
                     StreamType::StereoI16 { audio } => {
