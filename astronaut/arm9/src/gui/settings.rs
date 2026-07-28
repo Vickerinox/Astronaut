@@ -171,9 +171,14 @@ impl Settings {
     ) -> Option<Box<dyn UiPage>> {
         const PAGE_SIZE: usize = 4;
         ui.label("default boot option:");
-        if path_button(ui, &data.config.boot_combos.default, 35).clicked() {
-            *self = Self::SelectedCombo(Buttons::empty(), 999)
-        }
+        ui.horizontal(|ui| {
+            if ui.button("reset").clicked() {
+                data.config.boot_combos.default = String::new();
+            }
+            if path_button(ui, &data.config.boot_combos.default, 25).clicked() {
+                *self = Self::SelectedCombo(Buttons::empty(), 999)
+            }
+        });
         let mut delete = None;
         let total_pages = data
             .config
