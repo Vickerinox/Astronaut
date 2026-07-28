@@ -196,8 +196,8 @@ impl ModCryptor {
         ModCryptResult::Ok
     }
 }
-unsafe fn generate_cid_key(buf: &mut [u32; 4]) {
-    crate::swi_sha1_calc(buf as *mut u32 as *mut _, 0x2FFD7BC as *const u8, 0x10);
+unsafe fn generate_cid_key(buf: &mut [u32; 4], cid: &[u32; 4]) {
+    crate::swi_sha1_calc(buf as *mut u32 as *mut _, core::ptr::addr_of!(*cid) as *const u8, 0x10);
 }
 
 pub fn main_arm7() {
@@ -216,7 +216,6 @@ pub fn main_arm7() {
         (0x4004C02 as *mut u16).write((1 << 6) << 8);
 
         let mut key = [0u32; 4];
-        generate_cid_key(&mut key);
 
         let console_id: [u32; 2] = [
             (0x4004D00 as *const u32).read(),
@@ -228,7 +227,7 @@ pub fn main_arm7() {
         #[cfg(feature = "init_nand_aes")]
         {
             crate::load_nand_key_x(3, console_id);
-            crate::load_nand_key_y(3, &[0x0AB9DC76, 0xBD4DC4D3, 0x202DDD1D, 0xE1A00005]);
+            AES_HARDWARE.keyslots[3].key_y[3].write(0xE1A00005);
             crate::nand_crypt_init(3);
         }
 
@@ -366,8 +365,7 @@ pub fn main_arm7() {
                     AES_HARDWARE.init_from_header(
                         &(*(common::bootstrap::BOOTINFO_MEM)).twl_header,
                         console_id,
-                    );
-                    AES_HARDWARE.master_control.write(AESCnt::empty());                    
+                    );                 
 
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
@@ -385,7 +383,11 @@ pub fn main_arm7() {
                             Err(err) => err as u16 as u32,
                         },
                         2 => match crate::init_sdmmc(crate::DeviceSelect::EMMC) {
-                            Ok(_) => 0,
+                            Ok(_) =>  {
+                                // NOTE: must be done to put CID on the stack, which is readable from swi.
+                                generate_cid_key(&mut key, crate::get_cid(crate::DeviceSelect::EMMC));
+                                0
+                            },
                             Err(err) => err as u16 as u32,
                         },
                         _ => 0x8000_0000,

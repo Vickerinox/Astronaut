@@ -145,6 +145,11 @@ pub enum InitSDMMCError {
     StatusVerify = 22,
 }
 #[cfg(feature = "arm7i")]
+pub unsafe fn get_cid<'a>(device: DeviceSelect) -> &'a [u32; 4] {
+    let dev = &mut DEVICES[device as u8 as usize];
+    &dev.cid
+}
+#[cfg(feature = "arm7i")]
 pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCError> {
     if device_number == DeviceSelect::SDCardSlot {}
     let dev = &mut DEVICES[device_number as u8 as usize];
@@ -239,6 +244,7 @@ pub unsafe fn init_sdmmc(device_number: DeviceSelect) -> Result<(), InitSDMMCErr
         Status::EMPTY => (),
         err => return Err(InitSDMMCError::CID),
     }
+    dev.cid = dev.port.response.clone();
     let rca = if kind.is_mmc() {
         match MMC_CONTROLLER.send_command(&mut dev.port, Command::Test, 0x10000) {
             Status::EMPTY => (),
