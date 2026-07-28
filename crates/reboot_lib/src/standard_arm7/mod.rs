@@ -384,7 +384,6 @@ pub fn main_arm7() {
                         },
                         2 => match crate::init_sdmmc(crate::DeviceSelect::EMMC) {
                             Ok(_) =>  {
-                                // NOTE: must be done to put CID on the stack, which is readable from swi.
                                 generate_cid_key(&mut key, crate::get_cid(crate::DeviceSelect::EMMC));
                                 0
                             },
