@@ -346,7 +346,42 @@ pub unsafe fn read_tsc_pos_tsc() -> Option<(u16, u16)> {
     }
     Some((rawx / 5, rawy / 5))
 }
+/// Switch from DSi touchscreen mode to NTR (you must have run [`init_tsc_dsi`] first!)
+#[cfg(feature = "arm7i")]
+pub unsafe fn switch_tsc_ntr() {
+const INIT_LIST: &[(CdcReg, Option<u8>)] = &[
+        
+        (CdcReg::Sound(SndReg::VolumeSPL), Some(0xA7)), //Route channel L to amp and set volume gain
+        (CdcReg::Sound(SndReg::VolumeSPR), Some(0xA7)), //Route channel R to amp and set volume gain
+        (CdcReg::Sound(SndReg::MicBias), Some(0x03)),
+        
+        (CdcReg::TouchCnt(TouchCntReg::SarAdcCnt2),Some( 0x0)),
+        
+        (CdcReg::Sound(SndReg::PopRemovalSetting), Some(0x20)),
+        (CdcReg::Sound(SndReg::RampDownPeriod), Some(0xF0)),
+        (CdcReg::Sound(SndReg::RampDownPeriod), None),
+        (CdcReg::Sound(SndReg::RampDownPeriod), Some(0x00)),
+        
+        (CdcReg::Control(CntReg::AdcVolFine), Some(0x80)),
+        (CdcReg::Control(CntReg::AdcMic), Some(0x00)),
 
+        (CdcReg::Sound(SndReg::RampDownPeriod), Some(0x70)),
+        (CdcReg::Sound(SndReg::DriverCnt), Some(0x20)),
+
+
+        (CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1), None), 
+        (CdcReg::TouchCnt(TouchCntReg::SarAdcCnt1), Some(0x98)),
+
+        (CdcReg::TSCNDSMode,Some( 0x0)),
+    ];
+    for (reg, value) in INIT_LIST {
+        if let Some(value) = value {
+            cdc_write_reg(reg.clone(), *value);
+        } else {
+            cdc_read_reg(reg.clone());
+        }
+    }
+}
 #[cfg(feature = "arm7i")]
 pub unsafe fn init_tsc_dsi() {
     (0x04004000 as *mut u16).write_volatile(0x101);

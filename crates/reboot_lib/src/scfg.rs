@@ -14,12 +14,12 @@ use crate::MemoryWrapper;
 bitflags::bitflags! {
 
     #[derive(Clone, Copy)]
-    pub struct ROMSCFG: u32 {
+    pub struct ROMSCFG: u16 {
 
-        #[cfg(feature = "arm9i")]
+        #[cfg(any(feature = "arm9i", feature = "arm7i"))]
         const ARM9_UPPER_BIOS_HALF = (1<<0);
 
-        #[cfg(feature = "arm9i")]
+        #[cfg(any(feature = "arm9i", feature = "arm7i"))]
         const ARM9_NDS_MODE_BIOS = (1<<1);
 
 
@@ -166,6 +166,15 @@ impl ExtSCFG {
             ^ Self::EXTENDED_SOUND_DMA_ENABLE.bits(),
     );
 
+    /// Standard access mode for a DS mode game
+    #[cfg(feature = "arm7i")]
+    pub const DS_MODE_ACCESS: Self = Self::from_bits_retain(
+        Self::ACCESS_UNKNOWN.bits() |
+        Self::ACCESS_NWRAM.bits() |
+        Self::ACCESS_NEW_SOUND.bits() |
+        Self::ACCESS_GPIO.bits()
+    );
+
     /// Standard access mode for a DSi Firmware (such as boot2)
     #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
     pub const FIRM_ACCESS: Self = Self::from_bits_retain(
@@ -193,11 +202,11 @@ crate::const_assert!(
 
 #[repr(C)]
 pub struct SCFGHardware {
-    #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+    #[cfg(all(any(feature = "arm7i", feature = "arm9i"), not(all(feature = "arm9i", not(feature = "arm7i")))))]
     pub roms: RW<ROMSCFG>,
     #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
     pub roms: RO<ROMSCFG>,
-
+    _0x2: u16,
     pub clock: RW<ClockSCFG>,
     pub reset: RW<ResetSCFG>,
     pub features: RW<ExtSCFG>,

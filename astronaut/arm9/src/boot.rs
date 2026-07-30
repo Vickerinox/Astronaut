@@ -6,12 +6,12 @@ use core::fmt::Debug;
 use alloc::string::{String, ToString};
 use common::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
+use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
 use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
 
 pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
     BadEntrypoint(u32),
-    NdsModeNotSupported,
     FileReadError,
 }
 impl Debug for BootError {
@@ -20,7 +20,6 @@ impl Debug for BootError {
             Self::BadBinaryLocation(arg0) => write!(f, "BadBinaryLocation {arg0:#10X?}"),
             Self::BadEntrypoint(arg0) => write!(f, "BadEntrypoint {arg0:#10X}"),
             Self::FileReadError => write!(f, "FileReadErr"),
-            BootError::NdsModeNotSupported => write!(f, "Only DSi mode apps are supported"),
         }
     }
 }
@@ -250,6 +249,9 @@ unsafe fn boot_unreturnable(
 
         crate::set_bright(0);
     }
+    if !boot_info.twl_header.is_dsi_mode() {
+        nds_mode_switch();
+    }
     reboot_lib::flush_mmc();
     reboot_lib::flush_mmc();
     reboot_lib::arm9_send_arm7_boot().unwrap();
@@ -257,7 +259,10 @@ unsafe fn boot_unreturnable(
     (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
     loop {}
 }
-
+pub unsafe fn nds_mode_switch() {
+    SCFG_HARDWARE.clock.write(ClockSCFG::empty());
+    SCFG_HARDWARE.features.write(ExtSCFG::FIRM_ACCESS ^ ExtSCFG::ACCESS_CAMERA ^ ExtSCFG::ACCESS_CART_SLOT2 ^ ExtSCFG::ACCESS_DSP);
+}
 pub unsafe fn boot_app(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
@@ -279,9 +284,6 @@ pub unsafe fn boot_app(
         return BootError::FileReadError;
     }
     reboot_lib::nocash_write("> Loaded Header");
-    if !header.is_dsi_mode() {
-        return BootError::NdsModeNotSupported;
-    }
     if header.is_dsi_mode() {
         if header.arm9i_size != 0 {
             let arm9_range = (header.arm9i_load)..(header.arm9i_load + header.arm9i_size);

@@ -2,15 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    check_sdmmc,
-    i2c::I2CRegister,
-    ndma::NDMA_HARDWARE,
-    scfg::{ExtSCFG, SCFG_HARDWARE},
-    sound::{SoundControl, SoundFormat, SOUND_HARDWARE},
-    spi::{touchscreen::read_tsc_pos_cdc, Control, PowerRegiser, SPI_HARDWARE},
-    timers::TIMERS,
-    write_sd_sectors, AESCnt, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
-    MMC_CONTROLLER, SDIO_CONTROLLER,
+    AES_HARDWARE, AESCnt, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, scfg::{ExtSCFG, ROMSCFG, SCFG_HARDWARE}, sound::{SOUND_HARDWARE, SoundControl, SoundFormat}, spi::{Control, PowerRegiser, SPI_HARDWARE, touchscreen::{CdcReg, CntReg, read_tsc_pos_cdc}}, timers::TIMERS, write_sd_sectors,
 };
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
@@ -352,6 +344,7 @@ pub fn main_arm7() {
                     crate::disable_all_interrupts();
                     SOUND_HARDWARE.init();
 
+                    let header = &(*(common::bootstrap::BOOTINFO_MEM)).twl_header;
                     /*
                     AES_HARDWARE.keyslots[0].load_key_x(&[0, 0, 0, 0]);
                     AES_HARDWARE.keyslots[1].load_key_x(&[0, 0, 0, 0]);
@@ -363,7 +356,7 @@ pub fn main_arm7() {
                     */
 
                     AES_HARDWARE.init_from_header(
-                        &(*(common::bootstrap::BOOTINFO_MEM)).twl_header,
+                        header,
                         console_id,
                     );                 
 
@@ -372,6 +365,27 @@ pub fn main_arm7() {
                     NDMA_HARDWARE.reset();
                     MMC_CONTROLLER.reset();
                     SDIO_CONTROLLER.reset();
+                    if !header.is_dsi_mode() {
+                         
+                        
+                        
+                        
+                         
+                        (*(0x04004C04 as *mut volatile_register::RW<u16>)).modify(|i| i | (1 << 8));
+                        SCFG_HARDWARE.roms.write(ROMSCFG::ARM7_NDS_MODE_BIOS | ROMSCFG::ARM9_NDS_MODE_BIOS | ROMSCFG::ARM7_UPPER_BIOS_HALF | ROMSCFG::ARM9_UPPER_BIOS_HALF);
+                        
+                        (0x4004700 as *mut u16).write_volatile( 8);
+                        crate::spi::touchscreen::cdc_write_reg(CdcReg::Control(CntReg::DacNdac), 0x87);
+                        crate::spi::touchscreen::cdc_write_reg(CdcReg::Control(CntReg::AdcNadc), 0x87);
+                        crate::spi::touchscreen::cdc_write_reg(CdcReg::Control(CntReg::PllJ), 0x15);
+                        (0x4004700 as *mut u16).write_volatile((1<<15) | 8 | (1<<13));
+                        crate::spi::touchscreen::switch_tsc_ntr();
+                        SOUND_HARDWARE.master_control.write((1<<15) | 0x7f);
+                        
+
+                        SCFG_HARDWARE.features.write(ExtSCFG::DS_MODE_ACCESS);
+                        
+                    }
                     bootstrap::boot_arm7();
                 }
 
