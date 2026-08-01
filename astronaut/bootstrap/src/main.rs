@@ -2,7 +2,7 @@
 #![no_main]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start() {
-    unsafe { common::bootstrap::boot_arm9() };
+    unsafe { common::bootstrap::boot_arm9(false) };
 }
 
 #[cfg(target_arch = "arm")]

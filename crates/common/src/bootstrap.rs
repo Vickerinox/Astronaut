@@ -3,11 +3,14 @@
 
 use crate::device_list::DeviceList;
 
+#[link_section = ".text_itcm"]
 #[cfg(not(target_arch = "arm"))]
-pub unsafe fn boot_arm9() -> ! {
+#[inline(always)]
+pub unsafe fn boot_arm9(is_twl: bool) -> ! {
     loop {}
 }
 #[cfg(not(target_arch = "arm"))]
+#[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
     loop {}
 }
@@ -18,57 +21,97 @@ use core::ptr::read_volatile as r;
 #[cfg(target_arch = "arm")]
 const HEADER_MEM: *const TWLHeader = 0x2FFE000 as *const TWLHeader;
 #[cfg(target_arch = "arm")]
-const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
+const VCOUNT_REG: *const u16 = 0x4000006 as *const u16; 
 
+
+#[inline(always)]
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
-pub unsafe fn boot_arm9() -> ! {
-    //disable interrupts
-    w(0x4004040 as *mut u32, 0);
-    w(0x4000208 as *mut u32, 0);
-    w(0x4000210 as *mut u32, 0);
-    //Setup local MBKS
-    let is_twl = (*HEADER_MEM).is_dsi_mode();
-    if is_twl {
-        w(0x4004054 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
-        w(0x4004058 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
-        w(0x400405C as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
-    } else {
-        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[0]);
-        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[1]);
-        w(0x0 as *mut u32, (*HEADER_MEM).arm9_mbks[2]);
-    }
-    //clear all interrupts
-    (0x4000214 as *mut u32).write_volatile(!0);
+pub unsafe fn boot_arm9(is_twl: bool) -> ! {
+    const DSI_REGS: usize = 0x4004000;
+    const NTR_REGS: usize = 0x4000000;
+    const HEADER: usize = 0x2FFE000;
+    const PROGRESS: usize = 0x2FFF000;
+    // This function must be ASM to be completely sure we don't call anything in NWRAM
+    core::arch::asm!(
+        // Use R4 as scratch
+        "mov r4, 0",
+        
+        // Clear IRQ's, main MBK
+        "str r4, [r1, 0x40]",
 
-    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 1 {}
+        "str r4, [r2, 0x208]",
+        "str r4, [r2, 0x210]",
+        
+        // Check if DSi or NTR flag
+        "orrs r0, 0",
+        // if DSi, write local MBK's, if NTR, write 0's
+        "ldrne r4, [r3, 0x194]",
+        "str r4,   [r1, 0x054]",
+        "ldrne r4, [r3, 0x198]",
+        "str r4,   [r1, 0x058]",
+        "ldrne r4, [r3, 0x19C]",
+        "str r4,   [r1, 0x05C]",
+        "movne r4, 0",
 
-    //Setup global MBKS (at this point both the arm9 and arm7 should have setup local MBKS)
-    if is_twl {
-        let gmbks = &(*HEADER_MEM).global_mbks;
-        //NTR mbk
-        w(0x4000247 as *mut u8, (*HEADER_MEM).wram_cnt);
-        //TWL mbk
-        w(0x4004040 as *mut u32, gmbks[0]);
-        w(0x4004044 as *mut u32, gmbks[1]);
-        w(0x4004048 as *mut u32, gmbks[2]);
-        w(0x400404C as *mut u32, gmbks[3]);
-        w(0x4004050 as *mut u32, gmbks[4]);
-    } else {
-        w(0x4000247 as *mut u8, 3);
-        w(0x4004040 as *mut u32, 0);
-        w(0x4004044 as *mut u32, 0);
-        w(0x4004048 as *mut u32, 0);
-        w(0x400404C as *mut u32, 0);
-        w(0x4004050 as *mut u32, 0);
-    }
+        // Clear all interrups
+        "sub r4, 1",
+        "str r4, [r2, 0x214]",
+        
+        // Wait for ARM7 to do it's side of MBK setup
+        "3: ldr r4, [r5]",
+        "cmp r4, 1",
+        "bne 3b",
 
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 2);
-    let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
-    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 3 {}
-    (*(entry as *mut unsafe extern "C" fn()))();
+        // Write the global MBKS
+        // re-generate DSi/NTR flag
+        "orrs r0, 0",
+
+        // NTR WRAM MBK
+        "moveq r4, 3",
+        "ldrne r4, [r3, 0x1af]",
+        "strb r4, [r2, 0x247]",
+        // DSi NWRAM MBK
+        "moveq r4, 0",
+        "ldrne r4, [r3, 0x180]",
+        "str r4,  [r1, 0x040]",
+        "ldrne r4, [r3, 0x184]",
+        "str r4,  [r1, 0x044]",
+        "ldrne r4, [r3, 0x188]",
+        "str r4,  [r1, 0x048]",
+        "ldrne r4, [r3, 0x18C]",
+        "str r4,  [r1, 0x04C]",
+        "ldrne r4, [r3, 0x190]",
+        "str r4,  [r1, 0x050]",
+
+        // Tell ARM7 that NWRAM is available
+        "mov r4, 2",
+        "str r4, [r5]",
+
+        // Load our entry point while we wait
+        "ldr r0, [r3, 0x24]",
+        
+        // Wait for ARM7 to finish
+        "4: ldr r4, [r5]",
+        "cmp r4, 3",
+        "bne 4b",
+        
+        // LEAP OF FAITH
+        "blx r0",
+        in("r1") DSI_REGS,
+        in("r2") NTR_REGS,
+        in("r3") HEADER,
+        in("r5") PROGRESS,
+        in("r0") is_twl as u32,
+        lateout("r2") _, 
+        lateout("r3") _, 
+        lateout("r5") _, 
+        lateout("r0") _, 
+        out("r4") _,
+    );
     loop {}
 }
+
 #[cfg(target_arch = "arm")]
 pub unsafe fn boot_arm7() -> ! {
     //disable all interrupts

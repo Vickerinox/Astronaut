@@ -73,6 +73,19 @@ impl Settings {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
+        if data.safe_mode {
+            Some(Box::new(MainMenu))
+        } else {
+            self.main_settings_unsafe(ui, data)
+        }   
+    }
+    #[inline(never)]
+    #[link_section = ".text_aux"]
+    fn main_settings_unsafe(
+        &mut self,
+        ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+        data: &mut super::GlobalData,
+    ) -> Option<Box<dyn UiPage>> {
         let mut result: Option<Box<dyn UiPage>> = None;
 
         ui.header("Settings");

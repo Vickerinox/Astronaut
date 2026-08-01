@@ -242,7 +242,7 @@ unsafe fn boot_unreturnable(
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
 
-    inject_bootstrap();
+    //inject_bootstrap();
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(boot_info.twl_header.head.arm9_entry);
     reboot_lib::flush_mmc();
 
@@ -269,9 +269,23 @@ unsafe fn boot_unreturnable(
     reboot_lib::flush_mmc();
     reboot_lib::arm9_send_arm7_boot().unwrap();
     //jump into the bootstrap function put in VRAM
-    (*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
+    //(*(&common::bootstrap::ARM9_EN as *const usize as *const unsafe extern "C" fn()))();
+    #[cfg(target_arch = "arm")]
+    bootstrap();
+    #[cfg(not(target_arch = "arm"))]
     loop {}
 }
+
+
+#[inline(never)]
+#[link_section = ".text_itcm"]
+#[cfg(target_arch = "arm")]
+#[instruction_set(arm::a32)]
+unsafe fn bootstrap() -> ! {
+    let is_twl = (*BOOTINFO_MEM).twl_header.is_dsi_mode();
+    common::bootstrap::boot_arm9(is_twl)
+}
+
 pub unsafe fn nds_mode_switch() {
     SCFG_HARDWARE.clock.write(ClockSCFG::empty());
     SCFG_HARDWARE.features.write(ExtSCFG::FIRM_ACCESS ^ ExtSCFG::ACCESS_CAMERA ^ ExtSCFG::ACCESS_CART_SLOT2 ^ ExtSCFG::ACCESS_DSP);

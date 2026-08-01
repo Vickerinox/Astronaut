@@ -3,10 +3,7 @@
 
 #![no_main]
 #![no_std]
-#![feature(ptr_metadata)]
-#![feature(str_from_utf16_endian)]
 #![feature(str_from_raw_parts)]
-#![feature(str_split_remainder)]
 
 pub mod bmp;
 pub mod music;
@@ -336,12 +333,19 @@ unsafe fn find_wifi_firmware_path() -> Option<String> {
     };
     Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
 }
+extern "C" {
+    static mut _itcm_addr: u32;
+    static _itcm_len: u8;
+    static _aux_off: u8;
+    static _aux_len: u8;
+}
 /// Loads the code thats within the ".text_aux" segment into memory
 unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
+    
     let Ok(mut file) = fatfs_embedded::open(&mut data.our_path, FileOptions::Read) else {
         return false;
     };
-    if fatfs_embedded::seek(&mut file, 0x13800 + 520).is_err() {
+    if fatfs_embedded::seek(&mut file, core::ptr::addr_of!(_aux_off) as u32).is_err() {
         return false;
     }
     let remaining_size = fatfs_embedded::size(&mut file) - file.fptr;
@@ -432,6 +436,13 @@ const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 use reboot_lib::fatfs_embedded;
 unsafe fn main() {
     unsafe {
+        {
+            let itcm = core::ptr::addr_of!(_itcm_addr);
+            let len = 0x2000 as usize;
+            for i in 0..len {
+                (0x100_0000 as *mut u32).add(i).write(itcm.add(i).read())
+            }
+        }
         reboot_lib::nocash_write("> Welcome to astronaut!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
@@ -453,6 +464,8 @@ unsafe fn main() {
 
         // Take over ARM7
         arm7_exploit::takeover_arm7();
+
+        
 
         // Steal the 16MB of main mem to use most of it as a heap
         steal_main_mem();
@@ -482,6 +495,8 @@ unsafe fn main() {
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         reboot_lib::interupts::init_interrupts();
+        
+        
 
         IPC_FIFO_HARDWARE.enable_recv_irq();
 
