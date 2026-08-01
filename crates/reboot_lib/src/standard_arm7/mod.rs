@@ -385,6 +385,10 @@ pub fn main_arm7() {
 
                         SCFG_HARDWARE.features.write(ExtSCFG::DS_MODE_ACCESS);
                         
+                    } else {
+                        let mask = ExtSCFG::from_bits_retain(7 | (1 << 10) | (1 << 18));
+                        let setting = ExtSCFG::from_bits_retain(header.arm7_scfg) & mask;
+                        SCFG_HARDWARE.features.modify(|i| (i & !mask) | setting);
                     }
                     bootstrap::boot_arm7();
                 }
