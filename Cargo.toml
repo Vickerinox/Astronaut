@@ -8,7 +8,6 @@ edition = "2021"
 members = [
     "astronaut/arm7",
     "astronaut/arm9",
-    "astronaut/bootstrap",
     "crates/common",
     "crates/micro_imgui",
     "crates/reboot_lib"

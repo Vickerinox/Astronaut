@@ -30,9 +30,3 @@ reboot_lib::const_assert!(
     ARM7_BINARY.len() > 0,
     "Please build the ARM7 binary before building the ARM9 Binary"
 );
-
-pub const BOOTSTRAP_BINARY: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bootstrap.bin"));
-reboot_lib::const_assert!(
-    BOOTSTRAP_BINARY.len() > 0,
-    "Please build the Bootstrap binary before building the ARM9 Binary"
-);

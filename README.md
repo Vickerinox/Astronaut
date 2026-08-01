@@ -12,17 +12,17 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 * Patching of the DSi menu to nullify any anti-tampering and region locking checks. (Currently required)
 
 ## Limitations
-* ROMS that don't use the main RAM for their binaries (address 0x2000000 to 0x2ffffff) can't be loaded.
-* ROMS that are not DSi mode compatible (i.e NDS mode only) can't be loaded.
-* Wifi initialization is slow and unstable. (`Wifi Firmware Upload` option)
+* ROMS may only occupy address 0x2000000 to 0x2ffffff and the arm 7 may additionally use 0x37F8000 to 0x3790000, any other binary locations can't be loaded.
+* DS Mode roms have no audio, as the codec chip isn't initialized for them yet.
+* Wifi initialization is slow and unstable. (Use the `Wifi Firmware Upload` option to toggle it)
 
 ## State of the project (Last updated 2026-07-15)
 Currently, while astronaut is adequate to recreate the basic functionality of unlaunch i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now. Instead, i've choosen to make this first proof of concept public. 
 
 ## Compiling yourself
-When compiling Astronaut yourself you will need Cargo as well as the armv5/armv4 rust targets installed. You will also need access to the `lld` linker and possibly the `arm-gcc-none-eabi` compiler for fatfs bindings. Due to the complexity of building DS binaries from rust, the main crate of this repository is actually a builder program, as opposed to the actual code. (which you will instead find in the `astronaut` folder)
+When compiling Astronaut yourself you will need the rust programming lanugage installed as well as a suitable C/C++ compiler for the fatfs dependency. You will also need access to the `lld` linker and the `arm-none-eabi-gcc` compiler. Due to the complexity of building DS binaries from rust, the main crate of this repository is actually a builder program, as opposed to the actual code. (which you will instead find in the `astronaut` folder)
 
-In effect, this means that once cargo and your dependencies are installed, compiling *should* be as simple as running `cargo run`. Optionally, you can provide 2 paths as command line arguments. The first is a custom path for the `astronaut.bin` file which is the final binary. The second is a path for a NAND image (`nand.bin`) file for the DSi which you wish to install astronaut onto (WARNING; PLEASE ONLY DO THIS ON A NAND IMAGE WHERE UNLAUNCH OR ASTRONAUT HAS ALREADY BEEN INSTALLED WITH AN OFFICIAL INSTALLER. AS THIS METHOD OF INSTALLING DOES NOT DISABLE THE STANDARD FIRMWARE FROM DELETING ITSELF AND OR ASTRONAUT WHEN DETECTING THE FILE TAMPERING.)
+Once rust and the other dependencies are installed, compiling *should* be as simple as running `cargo run`. Optionally, you can provide 2 paths as command line arguments. The first is a custom path for the `astronaut.bin` file which is the final binary. The second is a path for a NAND image (`nand.bin`) file for the DSi which you wish to install astronaut onto (WARNING; PLEASE ONLY DO THIS ON A NAND IMAGE WHERE UNLAUNCH OR ASTRONAUT HAS ALREADY BEEN INSTALLED WITH AN OFFICIAL INSTALLER. AS THIS METHOD HAS NOT BEEN PROPERLY TESTED TO PREVENT THE DSI FIRMWARE FROM TRIPPING ITS ANTI TAMPERING CHECKS AND DELETING ITSELF.)
 
 
 ## Compatability with Unlaunch (and the a+b combo)

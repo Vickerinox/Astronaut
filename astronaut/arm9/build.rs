@@ -17,18 +17,6 @@ fn main() {
     };
     std::fs::write(dest_path, compressed_font).unwrap();
 
-    // include the bootstrap binary in the arm9 binary
-    let bootstrap_path = std::path::Path::new(&out_dir).join("bootstrap.bin");
-    let bootstrap_bin = {
-        let bootstrap_file_path = std::path::PathBuf::from(
-            "../../target-bootstrap/armv5te-none-eabi/release/arm9_bootstrap",
-        );
-        build_tools::build_binaries::compile_bootstrap(bootstrap_file_path.clone())
-            .unwrap_or(Vec::new())
-    }; //.expect("Please Compile the bootstrap binary before the main binary");
-
-    std::fs::write(bootstrap_path, bootstrap_bin).unwrap();
-
     // include the arm7 binary in the arm9 binary
     let arm7_path = std::path::Path::new(&out_dir).join("arm7.bin");
     let arm7_bin = {
@@ -39,9 +27,6 @@ fn main() {
 
     std::fs::write(arm7_path, arm7_bin).unwrap();
 
-    println!(
-        "cargo::rerun-if-changed=../../target-bootstrap/armv5te-none-eabi/release/arm9_bootstrap"
-    );
     println!("cargo::rerun-if-changed=../../target-subbinary/thumbv4t-none-eabi/release/arm7");
     println!("cargo::rerun-if-changed=./src/resources/font.bmp");
 }

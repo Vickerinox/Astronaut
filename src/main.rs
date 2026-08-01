@@ -156,14 +156,11 @@ impl FixedCompilerArgs {
         let arm9_path = env_us.clone().join("astronaut/arm9");
         let arm7_path = env_us.clone().join("astronaut/arm7");
 
-        let arm9_bootstrap_path = env_us.clone().join("astronaut/bootstrap");
 
         let arm9_elf = env_us
             .clone()
             .join("target-binary/thumbv5te-none-eabi/release/arm9");
 
-        info!("Compiling bootstrap binary... ");
-        build::build_crate(arm9_bootstrap_path).map_err(|e| (e, Crate::Arm9BootStrap))?;
         info!("Compiling ARM7 binary... ");
         build::build_crate(arm7_path).map_err(|e| (e, Crate::Arm7))?;
         info!("Compiling ARM9 binary... ");

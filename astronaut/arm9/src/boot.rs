@@ -26,7 +26,7 @@ impl Debug for BootError {
     }
 }
 use crate::{
-    gui::GlobalData, resources::BOOTSTRAP_BINARY, set_background, AppArea, APP_AREA_START,
+    gui::GlobalData, set_background, AppArea, APP_AREA_START,
 };
 
 pub fn read_all(
@@ -360,14 +360,4 @@ pub unsafe fn boot_app(
     }
     let header = &mut *(BOOTINFO_MEM);
     boot_unreturnable(r, file_path, header, app_data, relocation);
-}
-
-
-/// Copies the function for bootstrapping to ITCM memory
-pub unsafe fn inject_bootstrap() {
-    for (i, byte) in BOOTSTRAP_BINARY.iter().enumerate() {
-        (common::bootstrap::BOOTLOADER_MEM as *mut u8)
-            .add(i)
-            .write_volatile(*byte);
-    }
 }
