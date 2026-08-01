@@ -32,7 +32,7 @@ In order to make sure there is not a sea of chaos within the DSi Modding communi
 There is no support for launching the cartridge inserted into slot-1 from the astronaut gui. Instead, it is recommended to autoboot the DSi Menu or a homebrew slot-1 launcher to get this functionality. 
 
 ## Configuration
-Astronaut currently looks for the settings in two locations; ``sdmc:/_nds/astronaut/settings.ini``, and ``nand:/astronaut.ini``. If none of these are found, a default is selected. The GUI currently only saves to the location on the SD card, as nand writes have not been tested.
+Astronaut currently looks for the settings in two locations; ``sdmc:/_nds/astronaut/settings.ini``, and ``nand:/astronaut.ini``. If none of these are found, a default is selected. The GUI currently saves to both locations when available, prefering to use the settings on the SD card when possible.
 
 ## Themes
 It is possible to style the astronaut GUI with the help of themes. These are centered around arbitrarily placed `.ini` file. Once selected from the gui and saved, it will act as the theme upon next reboot.
