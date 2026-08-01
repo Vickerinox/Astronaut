@@ -69,7 +69,7 @@ pub unsafe fn boot_arm9(is_twl: bool) -> ! {
 
         // NTR WRAM MBK
         "moveq r4, 3",
-        "ldrne r4, [r3, 0x1af]",
+        "ldrbne r4, [r3, 0x1af]",
         "strb r4, [r2, 0x247]",
         // DSi NWRAM MBK
         "moveq r4, 0",
@@ -97,6 +97,8 @@ pub unsafe fn boot_arm9(is_twl: bool) -> ! {
         "bne 4b",
         
         // LEAP OF FAITH
+        "5: subs r4, 1",
+        "bne 5b",
         "blx r0",
         in("r1") DSI_REGS,
         in("r2") NTR_REGS,
