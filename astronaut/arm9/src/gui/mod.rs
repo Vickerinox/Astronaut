@@ -58,6 +58,7 @@ pub fn focus_default(
         ui.focus_prev();
     }
 }
+#[link_section = ".text_aux"]
 pub fn show_wallpaper(bmp: crate::bmp::DecodedBMP, destination: *mut u16) {
     if bmp.height() != 192 {
         return;

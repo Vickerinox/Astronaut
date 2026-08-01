@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use core::fmt::Debug;
+use core::num::{NonZeroU32, NonZeroUsize};
+
 
 use alloc::string::{String, ToString};
 use common::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
@@ -83,6 +85,7 @@ unsafe fn boot_unreturnable(
     file_path: &str,
     header: &mut BootInfoTWL,
     app_data: &mut crate::gui::GlobalData,
+    arm7_relocation: bool,
 ) -> ! {
     crate::music::stop_mod_file();
     let boot_info = header;
@@ -152,10 +155,20 @@ unsafe fn boot_unreturnable(
 
     reboot_lib::nocash_write("> ARM9 binary loaded \n");
 
-    let arm9_ram = core::slice::from_raw_parts_mut(
-        boot_info.twl_header.head.arm7_load as *mut u8,
-        boot_info.twl_header.head.arm7_size as usize,
-    );
+    boot_info.ntr.unofficial_arm7i_relocation = 0;
+    let arm9_ram =  if arm7_relocation {
+        boot_info.ntr.unofficial_arm7_relocation = 0x2F0_0000;
+        core::slice::from_raw_parts_mut(
+            0x2F0_0000 as *mut u8,
+            boot_info.twl_header.head.arm7_size as usize,
+        )
+        } else {
+        boot_info.ntr.unofficial_arm7_relocation = 0;
+        core::slice::from_raw_parts_mut(
+            boot_info.twl_header.head.arm7_load as *mut u8,
+            boot_info.twl_header.head.arm7_size as usize,
+        )
+    };
     fatfs_embedded::seek(r, boot_info.twl_header.head.arm7_offset).unwrap();
     read_all(arm9_ram, r).unwrap();
 
@@ -301,10 +314,13 @@ pub unsafe fn boot_app(
                 return BootError::BadBinaryLocation(arm7_range);
             }
         }
+    } else {
+        
     }
 
     let arm9_range = (header.head.arm9_load)..(header.head.arm9_load + header.head.arm9_size);
     let arm7_range = (header.head.arm7_load)..(header.head.arm7_load + header.head.arm7_size);
+    let mut relocation = false;
     if (!(0x200_0000..0x2FC_0000).contains(&arm9_range.start))
         || (!(0x200_0000..0x2FC_0000).contains(&arm9_range.end))
     {
@@ -313,7 +329,17 @@ pub unsafe fn boot_app(
     if (!(0x200_0000..0x2FC_0000).contains(&arm7_range.start))
         || (!(0x200_0000..0x2FC_0000).contains(&arm7_range.end))
     {
-        return BootError::BadBinaryLocation(arm7_range);
+        if (!(0x37f_8000..0x381_0000).contains(&arm7_range.start))
+            || (!(0x37f_8000..0x381_0000).contains(&arm7_range.end))
+        {
+            return BootError::BadBinaryLocation(arm7_range);
+        } else {
+            if arm9_range.start < 0x2F0_0000 && arm9_range.end < 0x2F0_0000 {
+                relocation = true;
+            } else {
+                return BootError::BadBinaryLocation(arm7_range);
+            }
+        }
     }
     if !arm7_range.contains(&header.head.arm7_entry) {
         return BootError::BadEntrypoint(header.head.arm7_entry);
@@ -322,11 +348,12 @@ pub unsafe fn boot_app(
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
     let header = &mut *(BOOTINFO_MEM);
-    boot_unreturnable(r, file_path, header, app_data);
+    boot_unreturnable(r, file_path, header, app_data, relocation);
 }
+
+
+/// Copies the function for bootstrapping to ITCM memory
 pub unsafe fn inject_bootstrap() {
-    //inject bootstrap into VRAM BANK I
-    core::ptr::write_volatile(0x04000249 as *mut u8, 0x80); //enable VRAM bank I
     for (i, byte) in BOOTSTRAP_BINARY.iter().enumerate() {
         (common::bootstrap::BOOTLOADER_MEM as *mut u8)
             .add(i)

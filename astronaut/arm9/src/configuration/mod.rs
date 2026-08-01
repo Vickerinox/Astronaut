@@ -258,6 +258,7 @@ fn read_ini(path: &mut String) -> Option<String> {
     read_whole_file_to_string(path)
 }
 impl GlobalData {
+    #[link_section = ".text_aux"]
     fn play_startup_music(path: &mut String) -> MusicPlaying {
         let Ok(file) = fatfs_embedded::open(path, FileOptions::Read) else {
             return MusicPlaying::None;
@@ -281,6 +282,7 @@ impl GlobalData {
             _ => MusicPlaying::None,
         }
     }
+    #[link_section = ".text_aux"]
     fn load_wallpaper(path: &mut String) -> Option<crate::bmp::DecodedBMP> {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
         crate::bmp::DecodedBMP::from_reader(file)
@@ -373,6 +375,7 @@ impl GlobalData {
 fn load_font(path: &mut String) -> Option<Vec<u8>> {
     read_whole_file(path)
 }
+#[link_section = ".text_aux"]
 unsafe fn load_font_real(font: Vec<u8>) -> Option<()> {
     if !(0x806..0x814).contains(&font.len()) {
         return None;

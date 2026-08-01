@@ -14,6 +14,8 @@ pub unsafe fn boot_arm7() -> ! {
 #[cfg(target_arch = "arm")]
 use core::ptr::write_volatile as w;
 #[cfg(target_arch = "arm")]
+use core::ptr::read_volatile as r;
+#[cfg(target_arch = "arm")]
 const HEADER_MEM: *const TWLHeader = 0x2FFE000 as *const TWLHeader;
 #[cfg(target_arch = "arm")]
 const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
@@ -62,13 +64,8 @@ pub unsafe fn boot_arm9() -> ! {
     }
 
     core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 2);
-    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 3 {}
-
-    //Sync to ARM9
-    while VCOUNT_REG.read_volatile() != 192 {}
     let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm9_entry);
-    while VCOUNT_REG.read_volatile() == 192 {}
-    //Jump to Entrypoint
+    while core::ptr::read_volatile(&(*BOOTINFO_MEM).other[0]) != 3 {}
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
@@ -111,17 +108,38 @@ pub unsafe fn boot_arm7() -> ! {
             }
         }
     }
-    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 3);
+    unsafe fn relocate_bin(relocated_address: *const u32, target_address: *mut u32, size: usize) {
+        if relocated_address.is_null() {
+            return;
+        }
+        for i in 0..(size >> 2) as usize {
+            w(
+                target_address.add(i), 
+                r(relocated_address.add(i))
+            )
+        }
+    }
 
-    //Sync to ARM9
+    relocate_bin(
+        (*BOOTINFO_MEM).ntr.unofficial_arm7_relocation as *mut u32, 
+        (*BOOTINFO_MEM).twl_header.head.arm7_load as *mut u32, 
+        (*BOOTINFO_MEM).twl_header.head.arm7_size as usize 
+    );
+    /* 
+    relocate_bin(
+        (*BOOTINFO_MEM).ntr.unofficial_arm7i_relocation as *mut u32, 
+        (*BOOTINFO_MEM).twl_header.arm7i_load as *mut u32, 
+        (*BOOTINFO_MEM).twl_header.arm7i_size as usize 
+    );
+    */
     while VCOUNT_REG.read_volatile() != 192 {}
-    let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
     while VCOUNT_REG.read_volatile() == 192 {}
-    //jump to entrypoint
+    core::ptr::write_volatile(&mut (*BOOTINFO_MEM).other[0], 3);
+    let entry = core::ptr::addr_of!((*HEADER_MEM).head.arm7_entry);
     (*(entry as *mut unsafe extern "C" fn()))();
     loop {}
 }
-pub const BOOTSTRAP_LOCATION: usize = 0x068A0000; //0x2FFD000;
+pub const BOOTSTRAP_LOCATION: usize = 0x100_0000; //0x2FFD000;
 pub const BOOTLOADER_MEM: *mut u8 = BOOTSTRAP_LOCATION as *mut u8;
 pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
@@ -505,7 +523,11 @@ pub struct BootInfoNTR {
     pub mac_address: [u8; 6],
     pub wifi_channels: [u8; 2],
     pub wifi_other: [u8; 4],
-    _0x500: [u8; 0x68],
+    _0x500: [u8; 0x58],
+    pub unofficial_arm9_relocation: u32,
+    pub unofficial_arm7_relocation: u32,
+    pub unofficial_arm9i_relocation: u32,
+    pub unofficial_arm7i_relocation: u32,
     pub hardware_info: [u8; 0x18],
     _0x580: [u8; 0xC],
     pub arm9_debug_exceptions: [u8; 0x10],
