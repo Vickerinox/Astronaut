@@ -437,7 +437,6 @@ unsafe fn set_bright(factor: u16) {
 const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 
 use reboot_lib::fatfs_embedded;
-#[link_section = ".text_itcm"]
 unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to astronaut!\n");
@@ -611,7 +610,7 @@ pub unsafe extern "C" fn _start() {
         // Load ITCM segment
         "ldr r0, ={itcm}",
         "mov r1, #0x01000000",
-        "mov r2, #0x2000",
+        "mov r2, #0x1000",
 
         "3: subs r2, 1",
         "ldr r3, [r0, r2, LSL #2]",
