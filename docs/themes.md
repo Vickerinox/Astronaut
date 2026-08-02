@@ -27,3 +27,4 @@ This section contains the styling for the GUI's widgets. There is also the `widg
 
 * `outline`: color of the outline on the widget
 * `fill`: color of the fill in boxes on the widget
+* `text`: color of the text for the widget, overrides the widgets default text color if supplied.
