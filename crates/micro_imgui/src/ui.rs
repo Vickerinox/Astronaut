@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    context::Frame,
-    primitives::{Id, Rect, Vec2},
-    response::{self, Response, Sense},
-    widgets::{button::Button, label::Label},
-    Backend, LayerId,
+    Backend, ColorSet, LayerId, context::Frame, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::{button::Button, label::Label},
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -65,14 +61,16 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     /// 2. the id of the widget hasn't importantly changed in the last frame
     ///
     /// if you meet these conditions, you now have premature response that assumes you want EVERYTHING
-    pub fn prepare_complication(&self, size: Vec2) -> (Rect, Sense) {
+    pub fn prepare_complication(&self, size: Vec2) -> (Rect, Sense, &ColorSet) {
         let Layout(direction, _) = self.layout;
         let rect_min = match direction {
             Direction::TopDown => self.clip_rect.min,
             Direction::LeftRight => self.clip_rect.min,
         };
         let response = self.ctx.id_statistics(unsafe { self.id.current() });
-        (Rect::from_two_pos(rect_min, rect_min + size), response)
+        let set = self.style_for_sense(&response);
+        let rect = Rect::from_two_pos(rect_min, rect_min + size);
+        (rect, response, set)
     }
 
     /// Start a horizontal layout in the middle of the ui

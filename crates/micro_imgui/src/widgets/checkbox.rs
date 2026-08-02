@@ -19,15 +19,17 @@ impl<'t> AutoAdd for Checkbox<'t> {
     fn ui<'a, 'b, B: Backend>(self, ui: &mut Ui<'a, 'b, B>) -> Response {
         let Self { text, option } = self;
         let prep_size = Vec2::new(0, 8);
-        let bounds = ui
-            .prepare_complication(prep_size)
-            .0
+
+        let (b,_,c) = ui
+            .prepare_complication(prep_size);
+        let color = c.override_text_color.unwrap_or(ui.style().text_color);
+        let bounds = b
             .translate(Vec2::new(11, 1))
             .include_point(ui.clip_rect().max);
         let rect = ui.draw(Shape::Text {
             bounds,
             str: &text,
-            color: ui.style().text_color,
+            color,
             size: 8,
         });
         let wanted_size = rect.size();

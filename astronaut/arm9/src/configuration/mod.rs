@@ -370,7 +370,7 @@ impl GlobalData {
         self.load_wall(&mut wallpaper);
         self.load_bg(&mut background);
         let video_context = crate::init_graphics();
-        
+
         // Audio stuff
         self.load_music(&mut music);
         video_context
@@ -403,6 +403,7 @@ fn handlecolorset(set: &mut ColorSet, key: &str, value: &str) {
     match key {
         "fill" => parse_color(value, &mut set.frame_fill),
         "outline" => parse_color(value, &mut set.frame_outline),
+        "text" => parse_color(value, set.override_text_color.get_or_insert_default()),
         _ => (),
     }
 }

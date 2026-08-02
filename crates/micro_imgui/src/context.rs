@@ -26,20 +26,24 @@ pub struct Style {
 pub struct ColorSet {
     pub frame_fill: Color,
     pub frame_outline: Color,
+    pub override_text_color: Option<Color>,
 }
 impl Style {
     pub const DEFAULT: Self = Self {
         default: ColorSet {
             frame_fill: Color::new(100, 100, 100),
             frame_outline: Color::new(20, 20, 20),
+            override_text_color: None,
         },
         focused: ColorSet {
             frame_fill: Color::new(100, 100, 100),
             frame_outline: Color::new(200, 200, 200),
+            override_text_color: None,
         },
         pressed: ColorSet {
             frame_fill: Color::new(32, 32, 32),
             frame_outline: Color::new(10, 10, 10),
+            override_text_color: None,
         },
         background_color: Color::new(32, 32, 32),
         text_color: Color::new(200, 200, 200),
@@ -73,19 +77,24 @@ pub struct Frame<'a, B: Backend> {
     focus_dir: i8,
 }
 impl<B> Ctx<B> {
+    
     pub fn style_for(&self, resp: &Response) -> &ColorSet {
-        if resp.stats.intersects(Sense::PRESSED) {
+        self.style_for_sense(&resp.stats)
+    }
+    pub fn style(&self) -> &Style {
+        &self.style
+    }
+    pub(super) fn style_for_sense(&self, sense: &Sense) -> &ColorSet {
+        if sense.intersects(Sense::PRESSED) {
             &self.style.pressed
-        } else if resp.stats.intersects(Sense::FOCUSED | Sense::HOVERED) {
+        } else if sense.intersects(Sense::FOCUSED | Sense::HOVERED) {
             &self.style.focused
         } else {
             &self.style.default
         }
     }
-    pub fn style(&self) -> &Style {
-        &self.style
-    }
 }
+
 impl<B> core::ops::Deref for Ctx<B> {
     type Target = B;
     fn deref(&self) -> &Self::Target {
@@ -139,6 +148,10 @@ impl<'a, B: Backend> Frame<'a, B> {
             stats |= Sense::HOVERED;
         }
         stats
+    }
+
+    pub fn style_for_id(&self, id: Id) -> &ColorSet {
+        self.style_for_sense(&self.id_statistics(id))
     }
 
     pub fn has_focus_anywhere(&mut self) -> bool {
