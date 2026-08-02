@@ -56,7 +56,8 @@ SECTIONS
   PROVIDE(_aux_off = LOADADDR(.text_aux));
   PROVIDE(_aux_len = aux_end - aux_start);
   PROVIDE(_itcm_addr = itcm_start);
-  PROVIDE(_itcm_len = itcm_end - itcm_start);
+  PROVIDE(_itcm_len = SIZEOF(.itcm));
+  PROVIDE(_itcm_len_words = (SIZEOF(.itcm) + 3) / 4);
 
   /DISCARD/ :
   {

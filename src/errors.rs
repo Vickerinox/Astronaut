@@ -13,7 +13,6 @@ use thiserror::Error;
 pub enum Crate {
     Arm9,
     Arm7,
-    Arm9BootStrap,
     TMD,
 }
 impl Crate {

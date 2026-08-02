@@ -4,6 +4,7 @@
 #![no_main]
 #![no_std]
 #![feature(str_from_raw_parts)]
+#![feature(asm_const_ptr)]
 
 pub mod bmp;
 pub mod music;
@@ -335,7 +336,7 @@ unsafe fn find_wifi_firmware_path() -> Option<String> {
 }
 extern "C" {
     static mut _itcm_addr: u32;
-    static _itcm_len: u8;
+    static _itcm_len_words: u8;
     static _aux_off: u8;
     static _aux_len: u8;
 }
@@ -436,13 +437,6 @@ const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 use reboot_lib::fatfs_embedded;
 unsafe fn main() {
     unsafe {
-        {
-            let itcm = core::ptr::addr_of!(_itcm_addr);
-            let len = 0x2000 as usize;
-            for i in 0..len {
-                (0x100_0000 as *mut u32).add(i).write(itcm.add(i).read())
-            }
-        }
         reboot_lib::nocash_write("> Welcome to astronaut!\n");
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
@@ -611,6 +605,15 @@ pub unsafe extern "C" fn _start() {
         "msr cpsr, r0",
         "ldr sp, ={stack_sys}",
 
+        // Load ITCM segment
+        "ldr r0, ={itcm}",
+        "mov r1, #0x01000000",
+        "mov r2, #0x2000",
+
+        "3: subs r2, 1",
+        "ldr r3, [r0, r2, LSL #2]",
+        "str r3, [r1, r2, LSL #2]",
+        "bne 3b",
 
         // Call the main function
         "bl {main}",
@@ -620,9 +623,11 @@ pub unsafe extern "C" fn _start() {
         stack_irq = const DSI_WRAM_START + 0x2000, // 8KB IRQ Stack
         stack_svc = const DSI_WRAM_START + 0x4000, // 8KB SVC Stack
         stack_sys = const DSI_WRAM_START + 0x8000, // 16KB System/User Stack
+        itcm = const ITCM,
         main = sym main, // Link the `main` symbol
         options(noreturn) // No return possible from this function
     );
+    const ITCM: *const u32 = core::ptr::addr_of!(_itcm_addr);
 }
 #[no_mangle]
 #[cfg(not(target_arch = "arm"))]
