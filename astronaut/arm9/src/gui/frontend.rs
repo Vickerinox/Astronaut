@@ -79,6 +79,8 @@ impl AppData {
         //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
         crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
+    #[inline(never)]
+    #[link_section = ".text_aux"]
     pub fn do_background_tasks(&mut self) {
         match &mut self.global_data.loading_mod_file {
             MusicPlaying::None => (),

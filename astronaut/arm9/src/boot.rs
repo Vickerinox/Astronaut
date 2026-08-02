@@ -28,7 +28,7 @@ impl Debug for BootError {
 use crate::{
     gui::GlobalData, set_background, AppArea, APP_AREA_START,
 };
-
+#[link_section = ".text_itcm"]
 pub fn read_all(
     buffer: &mut [u8],
     file: &mut fatfs_embedded::fatfs::File,
@@ -39,7 +39,7 @@ pub fn read_all(
     }
     Ok(())
 }
-
+#[link_section = ".text_itcm"]
 pub fn setup_shared_mem(mem: &mut BootInfoTWL) {
     mem.ntr.header_again = mem.twl_header.head.clone();
     mem.ntr.header = mem.twl_header.head.clone();
@@ -275,7 +275,6 @@ unsafe fn boot_unreturnable(
 }
 
 
-#[inline(never)]
 #[link_section = ".text_itcm"]
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
@@ -287,6 +286,8 @@ pub unsafe fn nds_mode_switch() {
     SCFG_HARDWARE.clock.write(ClockSCFG::empty());
     SCFG_HARDWARE.features.write(ExtSCFG::FIRM_ACCESS ^ ExtSCFG::ACCESS_CAMERA ^ ExtSCFG::ACCESS_CART_SLOT2 ^ ExtSCFG::ACCESS_DSP);
 }
+
+#[link_section = ".text_itcm"]
 pub unsafe fn boot_app(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,

@@ -287,19 +287,28 @@ impl GlobalData {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
         crate::bmp::DecodedBMP::from_reader(file)
     }
-    unsafe fn load_font(&mut self, font_path: &mut String) -> bool {
+    unsafe fn load_font(&mut self, font_path: &mut String) {
         if self.safe_mode {
-            return false;
+            return crate::load_default_font();
         }
         if let Some(font) = load_font(font_path) {
-            load_font_real(font).is_some()
+            if load_font_real(font).is_none() {
+                crate::load_default_font();
+            }
         } else {
-            false
+            crate::load_default_font()
         }
     }
-    unsafe fn load_wall<'a, 'b: 'a>(&'b mut self, mut path: &'a mut String) -> bool {
+    unsafe fn load_wall<'a, 'b: 'a>(&'b mut self, mut path: &'a mut String) {
+        fn abort_loading() {
+            unsafe { 
+                VIDEO_HARDWARE
+                .disp_b_control
+                .write(DisplayControl::BG_MODE_5);
+            }
+        }
         if self.safe_mode {
-            return false;
+            return abort_loading();
         }
         if !self.config.top_wallpaper.is_empty() {
             path = &mut self.config.top_wallpaper;
@@ -318,9 +327,8 @@ impl GlobalData {
                 VIDEO_HARDWARE
                     .disp_b_control
                     .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
-                true
             } else {
-                false
+                abort_loading();
             }
         }
     }
@@ -357,17 +365,13 @@ impl GlobalData {
             mut background,
             mut font,
         } = assets;
-        if !self.load_font(&mut font) {
-            crate::load_default_font();
-        }
-        if !self.load_wall(&mut wallpaper) {
-            VIDEO_HARDWARE
-                .disp_b_control
-                .write(DisplayControl::BG_MODE_5);
-        }
+        // Video stuff
+        self.load_font(&mut font);
+        self.load_wall(&mut wallpaper);
         self.load_bg(&mut background);
-
         let video_context = crate::init_graphics();
+        
+        // Audio stuff
         self.load_music(&mut music);
         video_context
     }

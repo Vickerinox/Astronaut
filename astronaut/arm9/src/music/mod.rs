@@ -13,7 +13,7 @@ pub enum MusicPlaying {
     Mod(MODAsyncLoader),
     Wav(StreamingWav),
 }
-
+#[link_section = ".text_itcm"]
 unsafe fn uptick_wav() {
     (*(APP_AREA_START as *mut AppArea))
         .wav_counter

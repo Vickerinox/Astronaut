@@ -416,6 +416,7 @@ unsafe fn load_wifi_firmware(wifi_ver: u8) -> u32 {
     alloc::alloc::dealloc(firmware_ptr, layout);
     ret
 }
+#[link_section = ".text_itcm"]
 unsafe fn fade_out() {
     let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
     let read = area.current.read();
@@ -428,6 +429,7 @@ unsafe fn fade_out() {
     area.current.write(new);
     set_bright(new as u16 | (1 << 14));
 }
+#[link_section = ".text_itcm"]
 unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
@@ -435,6 +437,7 @@ unsafe fn set_bright(factor: u16) {
 const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 
 use reboot_lib::fatfs_embedded;
+#[link_section = ".text_itcm"]
 unsafe fn main() {
     unsafe {
         reboot_lib::nocash_write("> Welcome to astronaut!\n");

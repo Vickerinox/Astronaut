@@ -55,6 +55,7 @@ impl Drop for StreamType {
         };
     }
 }
+#[link_section = ".text_itcm"]
 fn alloc_wav_buf() -> &'static mut [u16] {
     let buffer = unsafe { alloc::alloc::alloc(WAV_BUFFER_LAYOUT) };
     unsafe { core::slice::from_raw_parts_mut(buffer as *mut _, WAV_BUFFER_LEN) }
@@ -63,6 +64,7 @@ impl StreamingWav {
     pub fn counter(&self) -> usize {
         self.player_head
     }
+    #[link_section = ".text_itcm"]
     pub fn new(mut file: fatfs_embedded::fatfs::File) -> Option<Self> {
         let data_start;
         let mut data_len;
@@ -120,6 +122,7 @@ impl StreamingWav {
             frequency,
         })
     }
+    #[link_section = ".text_itcm"]
     pub unsafe fn play(&mut self) {
         unsafe {
             let timer = ((33513982 / 2) / self.frequency) as u16;

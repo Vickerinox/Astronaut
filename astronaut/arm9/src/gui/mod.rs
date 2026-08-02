@@ -20,7 +20,9 @@ mod settings;
 use crate::{configuration::Assets, Fader};
 pub use frontend::pop_dir_entry;
 use micro_imgui_ds::micro_imgui::Backend;
-
+fn goto_end(ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>) {
+    ui.add_space(ui.clip_rect().height() - 14);
+}
 pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Buttons) {
     let (assets, style) = if app_data.global_data.safe_mode {
         (Assets::default(), Style::DEFAULT)
@@ -43,7 +45,9 @@ pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Butto
             app_data.update(&mut f);
         },
         |app_data| {
-            app_data.do_background_tasks();
+            if !app_data.global_data.safe_mode {
+                app_data.do_background_tasks();
+            }
         },
     );
 }

@@ -43,7 +43,7 @@ fn main_menu_ui(
     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
         res = Some(Box::new(SpecialThanks));
     }
-    ui.add_space(ui.clip_rect().height() - 14);
+    super::goto_end(ui);
     ui.label(concat!("version ", env!("CARGO_PKG_VERSION")));
     res
 }

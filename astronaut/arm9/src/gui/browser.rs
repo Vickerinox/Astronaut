@@ -28,7 +28,7 @@ use crate::{
     music::{stop_mod_file, MusicPlaying, StreamingWav},
     truncate_name, FileEntry, FileType,
 };
-
+#[link_section = ".text_itcm"]
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
 
@@ -76,7 +76,7 @@ pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<Fil
     sort_files(&mut vec);
     vec
 }
-
+#[link_section = ".text_itcm"]
 fn sort_files(vec: &mut Vec<FileEntry>) {
     // sort all the entries using insertion sort
     for i in 1..vec.len() {
@@ -333,6 +333,7 @@ impl Browser {
     }
 
     /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
+    #[link_section = ".text_itcm"]
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
         let FileEntry {
             file_name, kind, ..
@@ -344,28 +345,32 @@ impl Browser {
                 Some(Box::new(AppBooter { path }))
             }
             FileType::Mod => {
-                let mut path = self.current_path.clone() + file_name;
-                match fatfs_embedded::open(&mut path, FileOptions::Read) {
-                    Ok(module) => {
-                        data.loading_mod_file = MusicPlaying::None;
-                        data.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(module));
+                if !data.safe_mode {
+                    let mut path = self.current_path.clone() + file_name;
+                    match fatfs_embedded::open(&mut path, FileOptions::Read) {
+                        Ok(module) => {
+                            data.loading_mod_file = MusicPlaying::None;
+                            data.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(module));
+                        }
+                        Err(_abort) => (),
                     }
-                    Err(_abort) => (),
                 }
                 None
             }
             FileType::Wav => {
-                let _ = stop_mod_file();
-                let mut path = self.current_path.clone() + file_name;
-                match fatfs_embedded::open(&mut path, FileOptions::Read) {
-                    Ok(module) => {
-                        if let Some(mut wav) = StreamingWav::new(module) {
-                            data.loading_mod_file = MusicPlaying::None;
-                            unsafe { wav.play() };
-                            data.loading_mod_file = MusicPlaying::Wav(wav);
+                if !data.safe_mode {
+                    let _ = stop_mod_file();
+                    let mut path = self.current_path.clone() + file_name;
+                    match fatfs_embedded::open(&mut path, FileOptions::Read) {
+                        Ok(module) => {
+                            if let Some(mut wav) = StreamingWav::new(module) {
+                                data.loading_mod_file = MusicPlaying::None;
+                                unsafe { wav.play() };
+                                data.loading_mod_file = MusicPlaying::Wav(wav);
+                            }
                         }
+                        Err(_abort) => (),
                     }
-                    Err(_abort) => (),
                 }
                 None
             }

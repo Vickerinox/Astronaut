@@ -22,7 +22,7 @@ impl UiPage for Error {
         super::focus_default(ui);
         ui.header("ERROR:");
         ui.label(&self.error_string);
-        ui.add_space(ui.clip_rect().height() - 24);
+        super::goto_end(ui);
         if ui.button("oh... okay").clicked() {
             Some(Box::new(MainMenu))
         } else {

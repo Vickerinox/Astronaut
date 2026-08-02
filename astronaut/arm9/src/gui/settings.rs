@@ -24,24 +24,25 @@ use crate::{
 pub enum Settings {
     Main,
     BootCombos(usize),
-    SelectedCombo(Buttons, u32),
+    SelectedCombo(Buttons, SelectorState),
     SavedSettings { nand: bool, sd: bool },
 }
-fn save_settings(config: &Config) -> Settings {
-    let mut new_ini = config.into_ini();
-
-    let sd = if let Ok(mut file) = fatfs_embedded::open(
-        &mut "sdmc:/_nds/astronaut/settings.ini".to_string(),
+fn save_file(mut path: String, bytes: &[u8]) -> bool {
+    if let Ok(mut file) = fatfs_embedded::open(
+        &mut path,
         FileOptions::Write | FileOptions::CreateAlways,
     ) {
-        let bytes = new_ini.as_bytes();
         match fatfs_embedded::write(&mut file, bytes) {
             Ok(len) => len == bytes.len() as _,
             Err(_) => false,
         }
     } else {
         false
-    };
+    }
+}
+fn save_settings(config: &Config) -> Settings {
+    let mut new_ini = config.into_ini();
+    let sd = save_file("sdmc:/_nds/astronaut/settings.ini".to_string(), new_ini.as_bytes());
 
     let nand = if new_ini.len() > 0x4000 {
         false
@@ -50,38 +51,13 @@ fn save_settings(config: &Config) -> Settings {
         for _ in 0..(0x4000 - new_ini.len()) {
             new_ini.push('\0');
         }
-
-        match fatfs_embedded::open(
-            &mut "nand:/astronaut.ini".to_string(),
-            FileOptions::Write | FileOptions::OpenAlways,
-        ) {
-            Ok(mut file) => {
-                let bytes = new_ini.as_bytes();
-                match fatfs_embedded::write(&mut file, bytes) {
-                    Ok(len) => len == bytes.len() as _,
-                    Err(_) => false,
-                }
-            }
-            Err(_) => false,
-        }
+        save_file("nand:/astronaut.ini".to_string(), new_ini.as_bytes())
     };
     Settings::SavedSettings { nand, sd }
 }
+
 impl Settings {
     fn main_settings(
-        &mut self,
-        ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
-        data: &mut super::GlobalData,
-    ) -> Option<Box<dyn UiPage>> {
-        if data.safe_mode {
-            Some(Box::new(MainMenu))
-        } else {
-            self.main_settings_unsafe(ui, data)
-        }   
-    }
-    #[inline(never)]
-    #[link_section = ".text_aux"]
-    fn main_settings_unsafe(
         &mut self,
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
@@ -164,8 +140,7 @@ impl Settings {
                 .map(into_ui);
             }
         });
-
-        ui.add_space(ui.clip_rect().height() - 14);
+        super::goto_end(ui);
         ui.horizontal(|ui| {
             if ui.button("exit").clicked() {
                 result = Some(Box::new(MainMenu));
@@ -189,7 +164,7 @@ impl Settings {
                 data.config.boot_combos.default = String::new();
             }
             if path_button(ui, &data.config.boot_combos.default, 25).clicked() {
-                *self = Self::SelectedCombo(Buttons::empty(), 999)
+                *self = Self::SelectedCombo(Buttons::empty(), SelectorState::Selected)
             }
         });
         let mut delete = None;
@@ -218,11 +193,11 @@ impl Settings {
                     delete = Some(i);
                 }
                 if path_button(ui, path, 28).clicked() {
-                    *self = Self::SelectedCombo(*buttons, 999)
+                    *self = Self::SelectedCombo(*buttons, SelectorState::Selected)
                 }
             })
         }
-        ui.add_space(ui.clip_rect().height() - 24);
+        super::goto_end(ui);
         ui.label(&format!(
             "page {}/{} (l or r dpad/buttons)",
             page + 1,
@@ -252,12 +227,96 @@ impl Settings {
                 *self = Self::Main;
             }
             if ui.button("new combo").clicked() {
-                *self = Self::SelectedCombo(Buttons::empty(), 0);
+                *self = Self::SelectedCombo(Buttons::empty(), SelectorState::WaitingInput);
             }
         });
 
         None
     }
+    fn combo_maker(
+        &mut self,
+        ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+        data: &mut super::GlobalData,
+        combo: Buttons,
+        timer: SelectorState,
+    ) -> Option<Box<dyn UiPage>> {
+        let buttons = ui.backend().held_buttons();
+        match timer {
+            SelectorState::WaitingInput => {
+                if !buttons.is_empty() {
+                    *self = Settings::SelectedCombo(buttons, SelectorState::Holding(0));
+                    ui.request_repaint();
+                }
+                ui.label("hold a button combo to start, or A+B to cancel.");
+                None
+            },
+            SelectorState::Holding(timer) => {
+                ui.label(&format_combo(buttons));
+                if buttons == Buttons::empty() {
+                    *self = Settings::SelectedCombo(combo, SelectorState::WaitingInput);
+                } else if buttons == combo {
+                    *self = Settings::SelectedCombo(buttons, SelectorState::Holding(timer+1));
+                } else if timer > 90 {
+                    *self = Settings::SelectedCombo(buttons, SelectorState::Selected);
+                } else {
+                    *self = Settings::SelectedCombo(buttons, SelectorState::Holding(0));
+                }
+                ui.request_repaint();
+                None
+            },
+            SelectorState::Selected => {
+               
+                if combo == Buttons::BUTTON_A | Buttons::BUTTON_B {
+                    *self = Self::BootCombos(0);
+                    ui.request_repaint();
+                    None
+                } else {
+                    let mut ret: Option<Box<dyn UiPage>> = None;
+                    ui.label(&format!("you've chosen: {}", format_combo(combo)));
+                    let buttons = combo;
+                    let a =
+                        &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+                            data.config.boot_combos.finish(path);
+                            Some(Box::new(Settings::BootCombos(0)))
+                        };
+                    if ui.button("Launch something from SD").clicked() {
+                        let b = Browser::search_file(
+                            &[FileType::Rom],
+                            String::from("sdmc:/"),
+                            Box::new(Self::BootCombos(0)),
+                            a,
+                        );
+                        if let Some(b) = b {
+                            data.config.boot_combos.start(buttons);
+                            ret = Some(Box::new(b))
+                        }
+                    }
+                    if ui.button("Launch something from NAND").clicked() {
+                        let b = Browser::search_file(
+                            &[FileType::Rom],
+                            String::from("nand:/"),
+                            Box::new(Self::BootCombos(0)),
+                            a,
+                        );
+                        if let Some(b) = b {
+                            data.config.boot_combos.start(buttons);
+                            ret = Some(Box::new(b))
+                        }
+                    }
+                    if ui.button("cancel").clicked() {
+                        *self = Self::BootCombos(0);
+                    }
+                    ret
+                }  
+            },
+        }
+    }
+}
+#[derive(Clone)]
+enum SelectorState {
+    WaitingInput,
+    Holding(u8),
+    Selected,
 }
 fn into_ui(b: Browser) -> Box<dyn UiPage> {
     Box::new(b)
@@ -273,6 +332,7 @@ fn path_button(
         ui.button(&truncate_name(&text, limit))
     }
 }
+
 impl UiPage for Settings {
     fn ui(
         &mut self,
@@ -280,82 +340,15 @@ impl UiPage for Settings {
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
         super::focus_default(ui);
-        match self {
+        match self.clone() {
             Settings::Main => self.main_settings(ui, data),
             Settings::BootCombos(page) => {
-                let a = *page;
-                self.boot_combo_settings(a, ui, data)
+                self.boot_combo_settings(page, ui, data)
             }
             Settings::SelectedCombo(combo, timer) => {
-                let buttons = ui.backend().held_buttons();
-                if *timer > 0 {
-                    if *timer > 90 {
-                        if *combo == Buttons::BUTTON_A | Buttons::BUTTON_B {
-                            *self = Self::BootCombos(0);
-                            ui.request_repaint();
-                            None
-                        } else {
-                            let mut ret: Option<Box<dyn UiPage>> = None;
-                            ui.label(&format!("you've chosen: {}", format_combo(*combo)));
-                            let buttons = *combo;
-                            let a =
-                                &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
-                                    data.config.boot_combos.finish(path);
-                                    Some(Box::new(Settings::BootCombos(0)))
-                                };
-                            if ui.button("Launch something from SD").clicked() {
-                                let b = Browser::search_file(
-                                    &[FileType::Rom],
-                                    String::from("sdmc:/"),
-                                    Box::new(Self::BootCombos(0)),
-                                    a,
-                                );
-                                if let Some(b) = b {
-                                    data.config.boot_combos.start(buttons);
-                                    ret = Some(Box::new(b))
-                                }
-                            }
-                            if ui.button("Launch something from NAND").clicked() {
-                                let b = Browser::search_file(
-                                    &[FileType::Rom],
-                                    String::from("nand:/"),
-                                    Box::new(Self::BootCombos(0)),
-                                    a,
-                                );
-                                if let Some(b) = b {
-                                    data.config.boot_combos.start(buttons);
-                                    ret = Some(Box::new(b))
-                                }
-                            }
-                            if ui.button("cancel").clicked() {
-                                *self = Self::BootCombos(0);
-                            }
-                            ret
-                        }
-                    } else {
-                        ui.label(&format_combo(buttons));
-                        if buttons != *combo {
-                            *combo = buttons;
-                            *timer = 1;
-                        } else if buttons == Buttons::empty() {
-                            *timer = 0;
-                        } else {
-                            *timer += 1;
-                        }
-                        ui.request_repaint();
-                        None
-                    }
-                } else {
-                    if !buttons.is_empty() {
-                        *combo = buttons;
-                        *timer = 1;
-                        ui.request_repaint();
-                    }
-                    ui.label("hold a button combo to start, or A+B to cancel.");
-                    None
-                }
+                self.combo_maker(ui, data, combo, timer)
             }
-            Self::SavedSettings { nand, sd } => {
+            Settings::SavedSettings { nand, sd } => {
                 let message = match (nand, sd) {
                     (true, true) => "Settings saved to SD Card and System!",
                     (true, false) => "Settings saved on system memory!",
