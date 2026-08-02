@@ -39,6 +39,7 @@ fn main() {
     let mut color = Color32::WHITE;
     let mut background_color = Color32::GRAY;
     let mut palette_2 = false;
+    let mut palette: Option<[Color32; 8]> = None;
     eframe::run_ui_native("Simple Font Converter", NativeOptions::default(), move |ui, _frame| {
         eframe::egui::CentralPanel::default().show_inside(ui, |ui| {
             match &state {
@@ -66,19 +67,35 @@ fn main() {
                 }
                 Toolstate::Loaded(image, bmp_path) => {
                     ui.heading("Preview");
-                    let (default, alternative) = preview_texture.get_or_insert_with(|| {
-                        let (texture, texture2) = {
-                            let colors = image.palette_table();
-                            let pixel_split_fn = |i: &u8| {
-                                [(i&0xF0) >> 4,i&0xF]
-                            };
-                            let color_map_fn = |i: u8| {
+                    let color_get_fn = || {
+                        let colors = image.palette_table();
+                        let color_map_fn = |i: u8| {
                                 if i & 3 == 0 {
                                     return Color32::TRANSPARENT;
                                 }
                                 let [r,g,b,_] = colors.get(i as usize).cloned().unwrap_or_default();
                                 Color32::from_rgba_premultiplied(r, g, b, 255)
                             };
+                        let mut palette = [Color32::WHITE; 8];
+                        for (i, color) in palette.iter_mut().enumerate() {
+                            *color = color_map_fn(i as u8);
+                        }
+                        palette
+                    };
+                    let color_palette = palette.get_or_insert_with(color_get_fn);
+                    let (default, alternative) = preview_texture.get_or_insert_with(|| {
+                        let (texture, texture2) = {
+                            
+                            
+                            let pixel_split_fn = |i: &u8| {
+                                [(i&0xF0) >> 4,i&0xF]
+                            };
+                            let cloned_palette = color_palette.clone();
+                            let color_map_fn = move |i: u8| -> Color32 {
+                                cloned_palette.get(i as usize).copied().unwrap_or(Color32::WHITE)
+                            };
+                            
+                            
                             let bitmap: Vec<_> = image
                                     .bitmap().iter()
                                     .map(pixel_split_fn).flatten().map(color_map_fn)
@@ -86,7 +103,7 @@ fn main() {
 
                             let bitmap2: Vec<_> = image
                                     .bitmap().iter()
-                                    .map(pixel_split_fn).flatten().map(color_map_fn)
+                                    .map(pixel_split_fn).flatten().map(|i| i+4).map(color_map_fn)
                                     .collect();
                             (eframe::egui::ColorImage::new([1024, 8], bitmap),
                             eframe::egui::ColorImage::new([1024, 8], bitmap2))
@@ -106,6 +123,15 @@ fn main() {
                         ui.checkbox(&mut palette_2, "");
                         ui.label("Background color:");
                         ui.color_edit_button_srgba(&mut background_color)
+                    });
+                    ui.heading("Color Palette:");
+                    let mut recalculate_textures = false;
+                    ui.horizontal(|ui| {
+                        for color in color_palette.iter_mut() {
+                            if ui.color_edit_button_srgba(color).changed() {
+                                recalculate_textures = true;
+                            }
+                        }
                     });
                     eframe::egui::Frame::new().fill(background_color).inner_margin(8.0).show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
@@ -131,7 +157,20 @@ fn main() {
                         });
                     });
                     if ui.button("Convert to font").clicked() {
-                        if let Some(font) = build_tools::convert_font(image) {
+                        if let Some(mut font) = build_tools::convert_font(image) {
+                            font.truncate(2048);
+                            font.insert(0, 0);
+                            font.insert(0, 0);
+                            font.extend(color_palette
+                            .iter()
+                            .map(|i| {
+                                let [b, g, r, _] = i.to_array();
+                                let r = ((r >> 3) as u16) << 0;
+                                let g = ((g >> 3) as u16) << 5;
+                                let b = ((b >> 3) as u16) << 10;
+                                (r | g | b).to_le_bytes()
+                                //0xffffu16.to_le_bytes()
+                            }).flatten());
                             let mut a = bmp_path.clone();
                             a.pop();
                             let a = a.join("font.bin");
@@ -142,6 +181,9 @@ fn main() {
                         } else {
                             state = Toolstate::Error(format!("An error occured while converting the font...").into());
                         }
+                    }
+                    if recalculate_textures {
+                        preview_texture = None;
                     }
                 }
                 Toolstate::Error(err) => {
