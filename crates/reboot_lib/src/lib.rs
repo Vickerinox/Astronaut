@@ -272,13 +272,14 @@ pub unsafe fn flush_mmc() {
     core::arch::asm!(
         "MCR p15, 0, r0, c7, c10, 4", //drain write buffer
         in("r0") 0,
+        lateout("r0") _,
     );
     for i in 0..4 {
         for j in 0..0x20 {
-            let arg = (i << 30) | (j << 5);
+            let mut arg = (i << 30) | (j << 5);
             core::arch::asm!(
                 "MCR p15, 0, r0, c7, c10, 2", //clean dcache entry
-                in("r0") arg,
+                inout("r0") arg,
             );
         }
     }
@@ -287,5 +288,6 @@ pub unsafe fn flush_mmc() {
         "MCR p15, 0, r0, c7, c5, 0", //Flush ICache
         "MCR p15, 0, r0, c7, c6, 0", //Flush DCache
         in("r0") 0,
+        lateout("r0") _,
     );
 }

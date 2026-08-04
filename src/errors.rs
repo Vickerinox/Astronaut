@@ -86,7 +86,7 @@ pub enum NANDInjectError {
     ReadingImage(IoError),
     #[error("tmd file not found, {0:?}")]
     TMDFileMissing(FatFsError),
-    #[error("missing TMP footer")]
+    #[error("missing Nocash footer")]
     MissingFooter,
     #[error("could not find mmc {0}")]
     ImageNotFound(IoError),

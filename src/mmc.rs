@@ -22,9 +22,12 @@ const HWINFO_PATH: &str = "/sys/HWINFO_S.dat";
 const REGULAR_TMD_LEN: usize = 520;
 
 fn open_main_twl(nand_image: &mut [u8]) -> Result<NativeFatFsDriver<&mut [u8]>, NANDInjectError> {
-    let nocash_footer = &nand_image[(nand_image.len() - 64)..];
+    let mut nocash_footer = &nand_image[(nand_image.len() - 64)..];
     if &nocash_footer[0..16] != b"DSi eMMC CID/CPU" {
-        return Err(NANDInjectError::MissingFooter);
+        nocash_footer = &nand_image[0xFF800..][..64];
+        if &nocash_footer[0..16] != b"DSi eMMC CID/CPU" {
+            return Err(NANDInjectError::MissingFooter);
+        }
     }
 
     const KEY_SCRAMBLE: u128 = 0xFFFEFB4E_29590258_2A680F5F_1A4F3E79;
