@@ -14,7 +14,7 @@ fn main_menu_ui(
     ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
     safe_mode: bool,
 ) -> Option<Box<dyn UiPage>> {
-    super::focus_default(ui);
+    super::focus_default(ui, false);
     if safe_mode {
         ui.header("Welcome! (safe mode)");
     } else {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #![no_std]
-use core::num::NonZeroU16;
+use core::num::{NonZeroU16, NonZeroU32};
 pub use micro_imgui;
 
 use micro_imgui::{LayerId, Rect, Vec2};
@@ -18,7 +18,7 @@ use crate::gui::VideoTextPass;
 pub struct DSMicroGuiBackend {
     input: Inputs,
     video: reboot_lib::VideoHardwareHandle,
-    layer: u16,
+    layer: u32,
 }
 impl DSMicroGuiBackend {
     pub fn held_buttons(&self) -> Buttons {
@@ -74,7 +74,7 @@ impl DSMicroGuiBackend {
     }
     fn advance_layer(&mut self) -> LayerId {
         unsafe {
-            let layer = LayerId(NonZeroU16::new_unchecked(self.layer));
+            let layer = LayerId(NonZeroU32::new_unchecked(self.layer));
             reboot_lib::VIDEO_HARDWARE
                 .geometry_commands
                 .translate_matrix(0, 0, 1 << 3);

@@ -528,7 +528,7 @@ impl UiPage for Browser {
                         self.scroll_offset = self.scroll_offset.saturating_add(ITEM_SPACING);
                     }
                 } else {
-                    ui.focus_next();
+                    ui.focus_down();
                 }
                 self.scroll_offset -= in_step;
             } else {
@@ -537,7 +537,7 @@ impl UiPage for Browser {
                         self.scroll_offset = self.scroll_offset.wrapping_sub(ITEM_SPACING).max(0);
                     }
                 } else {
-                    ui.focus_prev();
+                    ui.focus_up();
                 }
                 self.scroll_offset -= in_step;
             }

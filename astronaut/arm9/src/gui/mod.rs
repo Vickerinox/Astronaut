@@ -53,13 +53,18 @@ pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Butto
 }
 pub fn focus_default(
     ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+    use_left_right: bool,
 ) {
-    if ui.input_pressed(Input::FOCUS_NEXT)
+    if (ui.input_pressed(Input::FOCUS_RIGHT) && use_left_right)
         || (!ui.has_focus_anywhere() && !ui.input_pressed(Input::FOCUSED_PRESS))
     {
-        ui.focus_next();
-    } else if ui.input_pressed(Input::FOCUS_PREVIOUS) {
-        ui.focus_prev();
+        ui.focus_right();
+    } else if use_left_right && ui.input_pressed(Input::FOCUS_LEFT) {
+        ui.focus_left();
+    } else if ui.input_pressed(Input::FOCUS_UP) {
+        ui.focus_up();
+    } else if ui.input_pressed(Input::FOCUS_DOWN) {
+        ui.focus_down();
     }
 }
 #[link_section = ".text_aux"]

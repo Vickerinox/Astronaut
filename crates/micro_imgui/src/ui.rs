@@ -67,7 +67,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             Direction::TopDown => self.clip_rect.min,
             Direction::LeftRight => self.clip_rect.min,
         };
-        let response = self.ctx.id_statistics(unsafe { self.id.current() });
+        let response = self.ctx.id_statistics(unsafe { self.id.upcoming(self.layout.0)});
         let set = self.style_for_sense(&response);
         let rect = Rect::from_two_pos(rect_min, rect_min + size);
         (rect, response, set)
@@ -79,10 +79,13 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
     pub fn horizontal(&mut self, closure: impl FnOnce(&mut Ui<'a, 'b, B>)) {
         let old_clip_rect = self.clip_rect();
         let old_layout = self.layout.clone();
+        let old_id = self.id.clone();
         self.layout = Layout(Direction::LeftRight, Align::Min);
         closure(self);
         self.layout = old_layout;
         self.clip_rect = old_clip_rect;
+        self.id = old_id;
+        self.id.advance(old_layout.0);
         self.add_space(16);
     }
 
@@ -119,7 +122,7 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             (Direction::LeftRight, Align::Justified) => rect.set_height(self.clip_rect.height()),
             _ => rect,
         };
-        let id = self.id.next();
+        let id = self.id.advance(self.layout.0);
         let response = self.ctx.interact(rect, self.clip_rect, id, sense);
         self.clip_rect = remaining_space;
         return response;

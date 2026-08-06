@@ -1,30 +1,38 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-use core::num::NonZeroU16;
+use core::num::{NonZeroU16, NonZeroU32};
 
-pub struct LayerId(pub NonZeroU16);
+use crate::ui::Direction;
+
+pub struct LayerId(pub NonZeroU32);
 
 #[derive(Clone, Copy, Hash, PartialEq)]
-pub struct Id(NonZeroU16);
+pub struct Id(NonZeroU32);
 
 impl Id {
-    pub const START: Self = Self(unsafe { NonZeroU16::new_unchecked(1) });
+    pub const START: Self = Self(unsafe { NonZeroU32::new_unchecked(1) });
     pub const fn from_layer(layer: u8) -> Self {
-        Self(unsafe { NonZeroU16::new_unchecked(1 + ((layer as u16) << 12)) })
+        Self(unsafe { NonZeroU32::new_unchecked(1 + ((layer as u32) << 24)) })
     }
-    pub fn next(&mut self) -> Self {
+    pub fn get(&self) -> u32 {
+        self.0.get()
+    }
+    pub fn advance(&mut self, dir: Direction) -> Self {
+        let ret = self.clone();
         unsafe {
-            self.0 = self.0.unchecked_add(1);
+            match dir {
+                Direction::TopDown => self.0 = self.0.unchecked_add(0x100),
+                Direction::LeftRight => self.0 = self.0.unchecked_add(1),
+            }
         }
+        ret
+    }
+    pub unsafe fn upcoming(&self, dir: Direction) -> Self {
         self.clone()
     }
-    pub unsafe fn current(&self) -> Self {
-        Self(self.0.unchecked_add(1))
-    }
     pub fn child(&mut self) -> Self {
-        self.next();
-        return Self(unsafe { self.0.unchecked_add(0x100) });
+        return Self(unsafe { self.0.unchecked_add(0x10000) });
     }
 }
 

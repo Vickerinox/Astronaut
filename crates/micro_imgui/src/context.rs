@@ -72,9 +72,18 @@ pub struct Frame<'a, B: Backend> {
     focused_response: Option<Id>,
     released_response: Option<Id>,
 
-    prev_focus: Option<Id>,
-    next_focus: Option<Id>,
-    focus_dir: i8,
+    left_focus: Option<Id>,
+    right_focus: Option<Id>,
+    up_focus: Option<Id>,
+    down_focus: Option<Id>,
+    focus_dir: FocusDirection,
+}
+pub enum FocusDirection {
+    None,
+    Up,
+    Down,
+    Left,
+    Right,
 }
 impl<B> Ctx<B> {
     
@@ -160,16 +169,21 @@ impl<'a, B: Backend> Frame<'a, B> {
     pub fn focus_on(&mut self, id: Option<Id>) {
         self.focused_response = id;
     }
-    pub fn focus_next(&mut self) {
-        self.focus_dir = 1;
+    pub fn focus_right(&mut self) {
+        self.focus_dir = FocusDirection::Right;
     }
-    pub fn focus_prev(&mut self) {
-        self.focus_dir = -1;
+    pub fn focus_left(&mut self) {
+        self.focus_dir = FocusDirection::Left;
+    }
+    pub fn focus_up(&mut self) {
+        self.focus_dir = FocusDirection::Up;
+    }
+    pub fn focus_down(&mut self) {
+        self.focus_dir = FocusDirection::Down;
     }
     pub fn cancel_refocus(&mut self) {
-        self.focus_dir = 0;
+        self.focus_dir = FocusDirection::None;
     }
-
     pub fn request_repaint(&mut self) {
         self.ctx.wants_repaint = true;
     }
@@ -179,8 +193,10 @@ impl<'a, B: Backend> Frame<'a, B> {
             pressed_response,
             focused_response,
             released_response,
-            prev_focus,
-            next_focus,
+            left_focus,
+            right_focus,
+            up_focus,
+            down_focus,
             ..
         } = self;
 
@@ -204,16 +220,30 @@ impl<'a, B: Backend> Frame<'a, B> {
             *focused_response = Some(id)
         } else {
             if sense.contains(Sense::FOCUSED) {
-                if ctx.focused_response.is_none() {
-                    next_focus.get_or_insert(id);
-                    *prev_focus = Some(id)
-                } else {
-                    match focused_response.is_some() {
-                        true => {
-                            next_focus.get_or_insert(id);
+                let [h,v,_,_] = id.get().to_le_bytes();
+                match (ctx.focused_response, focused_response) {
+                    (None, _) => {
+                        down_focus.get_or_insert(id);
+                        right_focus.get_or_insert(id);
+                        *left_focus = Some(id);
+                        *up_focus = Some(id);
+                    },
+                    (Some(f), a) => {
+                        let [fh,fv,_,_] = f.get().to_le_bytes();
+                        if a.is_some() {
+                            if v == fv {
+                                right_focus.get_or_insert(id);
+                            } else if h == fh {
+                                down_focus.get_or_insert(id);
+                            }
+                        } else {
+                            if v == fv {
+                                *left_focus = Some(id);
+                            } else if h == fh {
+                                *up_focus = Some(id);
+                            }
                         }
-                        false => *prev_focus = Some(id),
-                    }
+                    },
                 }
             }
         }
@@ -289,17 +319,19 @@ impl<B: Backend> Ctx<B> {
         if self.backend.input_pressed(B::InputQuery::POINTER_DOWN) {
             self.touchdown_pos = TouchDown::Touch(self.backend.last_known_pointer_location());
         }
-        let focus_dir = 0;
+        let focus_dir = FocusDirection::None;
         Frame {
             ctx: self,
             pressed_response: None,
             hovered_response: None,
             focused_response: None,
             released_response: None,
-            prev_focus: None,
-            next_focus: None,
+            left_focus: None,
+            right_focus: None,
             availble_ground_space,
             focus_dir,
+            up_focus: None,
+            down_focus: None,
         }
     }
     pub fn end_frame(&mut self) {
@@ -324,15 +356,19 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
             hovered_response,
             mut focused_response,
             released_response,
-            prev_focus,
-            next_focus,
+            left_focus,
+            right_focus,
+            up_focus,
+            down_focus,
             ..
         } = self;
         if !ctx.backend.input_down(B::InputQuery::FOCUSED_PRESS) {
-            match self.focus_dir.cmp(&0) {
-                core::cmp::Ordering::Less => focused_response = *prev_focus,
-                core::cmp::Ordering::Equal => (),
-                core::cmp::Ordering::Greater => focused_response = *next_focus,
+            match self.focus_dir {
+                FocusDirection::None => (),
+                FocusDirection::Up => focused_response = *up_focus,
+                FocusDirection::Down => focused_response = *down_focus,
+                FocusDirection::Left => focused_response = *left_focus,
+                FocusDirection::Right => focused_response = *right_focus,
             }
         }
         ctx.end_frame();
