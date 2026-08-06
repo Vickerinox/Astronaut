@@ -365,10 +365,10 @@ impl<'a, B: Backend> Drop for Frame<'a, B> {
         if !ctx.backend.input_down(B::InputQuery::FOCUSED_PRESS) {
             match self.focus_dir {
                 FocusDirection::None => (),
-                FocusDirection::Up => focused_response = *up_focus,
-                FocusDirection::Down => focused_response = *down_focus,
-                FocusDirection::Left => focused_response = *left_focus,
-                FocusDirection::Right => focused_response = *right_focus,
+                FocusDirection::Up => focused_response = (*up_focus).or(focused_response),
+                FocusDirection::Down => focused_response = (*down_focus).or(focused_response),
+                FocusDirection::Left => focused_response = (*left_focus).or(focused_response),
+                FocusDirection::Right => focused_response = (*right_focus).or(focused_response),
             }
         }
         ctx.end_frame();
