@@ -1,6 +1,6 @@
 cargo-features = ["trim-paths"]
 [package]
-name = "reboot"
+name = "astronaut-builder"
 version = "0.1.0"
 edition = "2021"
 
