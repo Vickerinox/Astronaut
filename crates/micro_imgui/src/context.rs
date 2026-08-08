@@ -237,9 +237,10 @@ impl<'a, B: Backend> Frame<'a, B> {
                                 down_focus.get_or_insert(id);
                             }
                         } else {
-                            if v == fv {
+                            if v <= fv && h < fh {
                                 *left_focus = Some(id);
-                            } else if h == fh {
+                            }
+                            if h <= fh && v < fv {
                                 *up_focus = Some(id);
                             }
                         }
