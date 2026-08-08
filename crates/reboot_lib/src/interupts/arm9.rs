@@ -82,7 +82,7 @@ pub unsafe fn init_interrupts() {
     INTERUPT_HARDWARE.master.write(0);
     INTERUPT_HARDWARE.enable.write(0);
     INTERUPT_HARDWARE.request.write(!0);
-    use crate::INTERUPT_HARDWARE;
+    use crate::INTERRUPT_HARDWARE;
     let dtcm: u32;
     {
         // Read location of DTCM

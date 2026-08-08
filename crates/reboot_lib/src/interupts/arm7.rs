@@ -141,17 +141,17 @@ unsafe fn interrupt_handler_arm7() {
 unsafe fn interrupt_handler_arm7() {
     panic!()
 }
-
+/// Initialize the interrupt hardware such as that no interrupts are enabled and all interrupts are cleared.
 #[cfg(feature = "arm7")]
 pub unsafe fn init_interrupts() {
-    use crate::INTERUPT_HARDWARE;
-    INTERUPT_HARDWARE.master.write(0);
-    INTERUPT_HARDWARE.enable.write(0);
-    INTERUPT_HARDWARE.request.write(!0);
-    INTERUPT_HARDWARE.enable2.write(0);
-    INTERUPT_HARDWARE.request2.write(!0);
+    use crate::INTERRUPT_HARDWARE;
+    INTERRUPT_HARDWARE.master.write(0);
+    INTERRUPT_HARDWARE.enable.write(0);
+    INTERRUPT_HARDWARE.request.write(!0);
+    INTERRUPT_HARDWARE.enable2.write(0);
+    INTERRUPT_HARDWARE.request2.write(!0);
     (0x0380_FFFC as *mut unsafe fn()).write(interrupt_handler_arm7);
-    INTERUPT_HARDWARE.master.write(1);
+    INTERRUPT_HARDWARE.master.write(1);
 }
 use crate::interupts::INTERRUPT_INDEX_MASK;
 use crate::interupts::INTERRUPT_TABLE;
@@ -160,6 +160,7 @@ use crate::Interrupt;
 #[cfg(feature = "arm7i")]
 use crate::interupts::INTERRUPT_TABLE_AUX;
 
+/// Bind a function to a given [`Interrupt`]
 pub unsafe fn set_interrupt_function(interrupt: Interrupt, function: unsafe fn()) {
     crate::critical_function(|| {
         let interrupt = interrupt as u8;
@@ -178,6 +179,12 @@ pub unsafe fn set_interrupt_function(interrupt: Interrupt, function: unsafe fn()
         }
     });
 }
+/// Enable a given [`Interrupt`].
+/// 
+/// This will cause the function which is binded with [`set_interrupt_function`] to be called any time an 
+/// [`Interrupt`] of this type is fired. If the interrupt has no bound function, this will do nothing*.
+/// 
+/// \* functions such as [`swi_halt`](crate::swi::swi_halt) are awoken by any interrupt firing, even when theres no binding function.
 pub unsafe fn enable_interrupt(interrupt: Interrupt) {
     let interrupt = interrupt as u8;
     #[cfg(feature = "arm7i")]
@@ -185,37 +192,39 @@ pub unsafe fn enable_interrupt(interrupt: Interrupt) {
         let index = interrupt & INTERRUPT_INDEX_MASK;
         let fun = if interrupt > INTERRUPT_INDEX_MASK {
             crate::critical_function(|| {
-                super::INTERUPT_HARDWARE
+                super::INTERRUPT_HARDWARE
                     .enable2
                     .modify(|i| i | (1 << index))
             });
         } else {
             crate::critical_function(|| {
-                super::INTERUPT_HARDWARE.enable.modify(|i| i | (1 << index))
+                super::INTERRUPT_HARDWARE.enable.modify(|i| i | (1 << index))
             });
         };
     }
     #[cfg(not(feature = "arm7i"))]
     {
         crate::critical_function(|| {
-            super::INTERUPT_HARDWARE
+            super::INTERRUPT_HARDWARE
                 .enable
                 .modify(|i| i | (1 << interrupt))
         });
     }
 }
+/// Disables all interrupts via the master interrupt enable register.
 pub unsafe fn disable_all_interrupts() {
     (0x400_0208 as *mut u32).write_volatile(0);
 }
+/// Disable a given [`Interrupt`] from firing.
 pub unsafe fn disable_interrupt(interrupt: Interrupt) {
     let interrupt = interrupt as u8;
     let index = interrupt & INTERRUPT_INDEX_MASK;
     if interrupt > INTERRUPT_INDEX_MASK {
-        super::INTERUPT_HARDWARE
+        super::INTERRUPT_HARDWARE
             .enable2
             .modify(|i| i & !(1 << index));
     } else {
-        super::INTERUPT_HARDWARE
+        super::INTERRUPT_HARDWARE
             .enable
             .modify(|i| i & !(1 << index));
     }

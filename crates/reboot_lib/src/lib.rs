@@ -1,39 +1,72 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
+//! # Reboot-lib
+//! 
+//! This crate contains code for writing to the hardware on DS/DSi consoles. 
+//! Similar to those found in the popular libnds and other associated libraries.
+//! Everything is also written with explicitly these targets in mind, (i.e armv4t and armv5te) 
+//! such as that various assertions will likely fail if compiled for any other target.
+//! 
+//! In order to use the crate correctly and gain access to the various functions related to the hardware, one must enable the features they wish to use:
+//! arm9 - hardware used by the armv5te core in the DS/DSi
+//! arm7 - hardware used by the armv4t core in the DS/DSi
+//! arm9i - hardware used by the armv5te core in the DSi exclusively
+//! arm7i - hardware used by the armv4t core in the DSi exclusively
+//! 
+//! Other extra features are provided to support auxiliary functions:
+//! standard_arm7 - expose a main function for a standardized arm7 binary that can be interacted with from the arm9.
+//! init_nand_aes - re-initialize the AES hardware found in the DSi for NAND access, in the vast majority of cases (even for astronaut) this is not needed.
+//! fatfs - bundle bindings to elm-chan's fatfs library in order to interact with filesystems.
+//! 
+
 #![no_std]
 #![feature(allocator_api)]
 #![feature(ptr_metadata)]
 #![allow(unused)]
+
+
 extern crate alloc;
 
+/// Assert a constant item at compile time, used to e.g validate the size of various system related structs.
 #[macro_export]
 macro_rules! const_assert {
     ($($tt:tt)*) => {
         const _: () = assert!($($tt)*);
     }
 }
+
 pub use bytemuck;
 pub use volatile_register;
-mod aes;
-mod allocator;
-pub mod autoboot_info;
-pub mod dma;
-
-pub mod i2c;
-pub mod interupts;
-mod ipc;
-pub mod mbk;
-mod memory;
-
-pub mod mmc;
 pub use mmc::*;
 
+/// Structs for handling Autoboot parameters
+/// 
+/// [related GBATEK page](https://problemkaputt.de/gbatek-dsi-autoload-on-warmboot.htm)
+pub mod autoboot_info; 
+
+/// DMA hardware functions and structs
+/// 
+/// [related GBATEK page 1](https://problemkaputt.de/gbatek-ds-dma-transfers.htm)
+/// [related GBATEK page 2](https://problemkaputt.de/gbatek-gba-dma-transfers.htm)
+pub mod dma;
+
+/// Functions to interact with devices on the I2C bus of the DSi 
+/// 
+/// [related GBATEK page](https://problemkaputt.de/gbatek-dsi-i2c-bus.htm)
+pub mod i2c;
+pub mod interupts;
+pub mod mbk;
+pub mod mmc;
 pub mod music_modules;
 pub mod ndma;
 pub mod scfg;
 pub mod sound;
 pub mod spi;
+mod ipc;
+mod memory;
+mod aes;
+mod allocator;
 #[cfg(all(feature = "arm7i", feature = "standard_arm7"))]
 pub mod standard_arm7;
 mod swi;
@@ -50,6 +83,7 @@ pub use aes::*;
 pub use allocator::ALLOCATOR;
 pub use dma::*;
 pub use interupts::*;
+#[cfg(any(feature = "arm7", feature = "arm9"))]
 pub use ipc::IPC_FIFO_HARDWARE;
 pub use memory::VRAMCtrl;
 pub use mmc::driver::*;
@@ -70,10 +104,10 @@ impl<T> core::ops::DerefMut for MemoryWrapper<T> {
 }
 
 pub unsafe fn critical_function<F: FnOnce()>(closure: F) {
-    let mut ime = INTERUPT_HARDWARE.master.read();
-    INTERUPT_HARDWARE.master.write(0);
+    let mut ime = INTERRUPT_HARDWARE.master.read();
+    INTERRUPT_HARDWARE.master.write(0);
     closure();
-    INTERUPT_HARDWARE.master.write(ime);
+    INTERRUPT_HARDWARE.master.write(ime);
 }
 pub unsafe fn nocash_write(str: &str) {
     nocash_write_bytes(str.as_bytes());
