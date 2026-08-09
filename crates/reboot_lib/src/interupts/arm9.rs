@@ -79,9 +79,9 @@ unsafe fn interrupt_handler() {}
 #[cfg(all(feature = "arm9", target_arch = "arm"))]
 #[instruction_set(arm::a32)]
 pub unsafe fn init_interrupts() {
-    INTERUPT_HARDWARE.master.write(0);
-    INTERUPT_HARDWARE.enable.write(0);
-    INTERUPT_HARDWARE.request.write(!0);
+    INTERRUPT_HARDWARE.master.write(0);
+    INTERRUPT_HARDWARE.enable.write(0);
+    INTERRUPT_HARDWARE.request.write(!0);
     use crate::INTERRUPT_HARDWARE;
     let dtcm: u32;
     {
@@ -93,7 +93,7 @@ pub unsafe fn init_interrupts() {
     }
     //mask out the address and location
     (((dtcm & !0xFFF) + 0x3FFC) as *mut unsafe fn()).write(interrupt_handler);
-    INTERUPT_HARDWARE.master.write(1);
+    INTERRUPT_HARDWARE.master.write(1);
 }
 #[cfg(not(target_arch = "arm"))]
 pub unsafe fn init_interrupts() {

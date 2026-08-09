@@ -24,11 +24,9 @@ pub struct InteruptRegisters {
     pub request: RW<u32>,
     
     /// Auxiliary interrupt enable (flags) register
-    #[cfg(feature = "arm7i")]
     pub enable2: RW<u32>,
 
     /// Auxiliary interrupt request (flags) register
-    #[cfg(feature = "arm7i")]
     pub request2: RW<u32>,
 }
 
