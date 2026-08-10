@@ -198,11 +198,7 @@ impl Settings {
             })
         }
         super::goto_end(ui);
-        ui.label(&format!(
-            "page {}/{} (l or r dpad/buttons)",
-            page + 1,
-            total_pages + 1
-        ));
+        
         ui.add_space(2);
 
         if let Some(del) = delete {
@@ -210,14 +206,12 @@ impl Settings {
         }
         if page < total_pages {
             if ui.input_pressed(Input(Buttons::BUTTON_R))
-                || ui.input_pressed(Input(Buttons::DIRECTION_RIGHT))
             {
                 *self = Self::BootCombos(page + 1)
             }
         }
         if page > 0 {
             if ui.input_pressed(Input(Buttons::BUTTON_L))
-                || ui.input_pressed(Input(Buttons::DIRECTION_LEFT))
             {
                 *self = Self::BootCombos(page - 1)
             }
@@ -229,6 +223,11 @@ impl Settings {
             if ui.button("new combo").clicked() {
                 *self = Self::SelectedCombo(Buttons::empty(), SelectorState::WaitingInput);
             }
+            ui.label(&format!(
+                " page {}/{} (use L or R)",
+                page + 1,
+                total_pages + 1
+            ));
         });
 
         None
@@ -254,10 +253,10 @@ impl Settings {
                 ui.label(&format_combo(buttons));
                 if buttons == Buttons::empty() {
                     *self = Settings::SelectedCombo(combo, SelectorState::WaitingInput);
-                } else if buttons == combo {
-                    *self = Settings::SelectedCombo(buttons, SelectorState::Holding(timer+1));
                 } else if timer > 90 {
                     *self = Settings::SelectedCombo(buttons, SelectorState::Selected);
+                } else if buttons == combo {
+                    *self = Settings::SelectedCombo(buttons, SelectorState::Holding(timer+1));
                 } else {
                     *self = Settings::SelectedCombo(buttons, SelectorState::Holding(0));
                 }
@@ -265,7 +264,6 @@ impl Settings {
                 None
             },
             SelectorState::Selected => {
-               
                 if combo == Buttons::BUTTON_A | Buttons::BUTTON_B {
                     *self = Self::BootCombos(0);
                     ui.request_repaint();
