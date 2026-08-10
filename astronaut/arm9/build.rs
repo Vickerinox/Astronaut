@@ -39,7 +39,7 @@ fn main() {
     } else {
         println!("cargo:rustc-env=GIT_HASH= ");
     }
-
+    println!("cargo::rerun-if-env-changed=ASTRONAUT_RELEASE");
     println!("cargo::rerun-if-changed=../../target-subbinary/thumbv4t-none-eabi/release/arm7");
     println!("cargo::rerun-if-changed=./src/resources/font.bmp");
 }
