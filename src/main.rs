@@ -134,6 +134,7 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
 struct CompilerArgs {
     export_tmd: Option<PathBuf>,
     nand_image_file: Option<PathBuf>,
+    release_flag: Option<String>,
 }
 impl TryFrom<CompilerArgs> for FixedCompilerArgs {
     type Error = &'static str;
@@ -143,12 +144,14 @@ impl TryFrom<CompilerArgs> for FixedCompilerArgs {
         Ok(Self {
             nand_image_file: value.nand_image_file,
             export_tmd: value.export_tmd,
+            release_flag: value.release_flag.map(|i| !i.is_empty()).unwrap_or(false),
         })
     }
 }
 struct FixedCompilerArgs {
     nand_image_file: Option<PathBuf>,
     export_tmd: Option<PathBuf>,
+    release_flag: bool,
 }
 impl FixedCompilerArgs {
     fn build(self) -> Result<(), BuildError> {
@@ -161,10 +164,11 @@ impl FixedCompilerArgs {
             .clone()
             .join("target-binary/thumbv5te-none-eabi/release/arm9");
 
+            
         info!("Compiling ARM7 binary... ");
-        build::build_crate(arm7_path).map_err(|e| (e, Crate::Arm7))?;
+        build::build_crate(arm7_path, false).map_err(|e| (e, Crate::Arm7))?;
         info!("Compiling ARM9 binary... ");
-        build::build_crate(arm9_path).map_err(|e| (e, Crate::Arm9))?;
+        build::build_crate(arm9_path, self.release_flag).map_err(|e| (e, Crate::Arm9))?;
         debug!("Done building ARM9!");
         info!("Creating final binary...");
         let exploited_tmd = construct_tmd(arm9_elf)?;

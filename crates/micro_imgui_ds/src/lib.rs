@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #![no_std]
-use core::num::{NonZeroU16, NonZeroU32};
+use core::num::{NonZeroU32};
 pub use micro_imgui;
 
 use micro_imgui::{LayerId, Rect, Vec2};

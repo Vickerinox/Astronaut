@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use core::fmt::Debug;
-use core::num::{NonZeroU32, NonZeroUsize};
-
 
 use alloc::string::{String, ToString};
 use common::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};

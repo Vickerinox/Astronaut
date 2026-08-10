@@ -41,7 +41,7 @@ fn main() {
     let mut palette_2 = false;
     let mut palette: Option<[Color32; 8]> = None;
     eframe::run_ui_native("Simple Font Converter", NativeOptions::default(), move |ui, _frame| {
-        eframe::egui::CentralPanel::default().show_inside(ui, |ui| {
+        eframe::egui::CentralPanel::default().show(ui, |ui| {
             match &state {
                 Toolstate::None => {
                     ui.vertical_centered(|ui| {
@@ -144,7 +144,7 @@ fn main() {
                                     let char_size = Vec2::new(7.0, 8.0);
                                     let char_rect = rect.transform_rect(Rect::from_min_size(Pos2::new((7 * char as u32) as f32, 0.), Vec2::new(7.0, 8.0)));
 
-                                    let (mut a,b) = ui.allocate_exact_size((char_size-Vec2::new(1.0, 0.0))*2., Sense::empty());
+                                    let (mut a,_b) = ui.allocate_exact_size((char_size-Vec2::new(1.0, 0.0))*2., Sense::empty());
                                     a.extend_with_x(a.max.x+2.0);
                                     let texture = if palette_2 {
                                         alternative.id()

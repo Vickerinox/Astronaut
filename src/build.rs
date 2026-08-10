@@ -7,14 +7,21 @@ use log::{debug, error, info};
 
 use crate::errors::{CargoError, CompileError};
 
-pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
-    let mut cwd = std::process::Command::new("cargo")
-        .arg("build")
+pub fn build_crate(path: PathBuf, is_release: bool) -> Result<(), CargoError> {
+    let mut cwd = std::process::Command::new("cargo");
+        cwd.arg("build")
         .arg("-r")
         .current_dir(&path)
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()
+        .stderr(Stdio::inherit());
+
+        if is_release {
+            cwd.env("ASTRONAUT_RELEASE", "hell yeah");
+            println!("RELEASE FUCKER");
+        }
+
+
+        let mut cwd = cwd.spawn()
         .map_err(CargoError::SpawnChild)?;
     info!(
         "Spawning cargo command cargo build -r in {}",

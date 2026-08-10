@@ -44,7 +44,7 @@ fn main_menu_ui(
         res = Some(Box::new(SpecialThanks));
     }
     super::goto_end(ui);
-    ui.label(concat!("version ", env!("CARGO_PKG_VERSION")));
+    ui.label(concat!(concat!("version ", env!("CARGO_PKG_VERSION")), env!("GIT_HASH")));
     res
 }
 impl UiPage for MainMenu {

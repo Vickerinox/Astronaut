@@ -6,7 +6,7 @@ use crate::device_list::DeviceList;
 #[link_section = ".text_itcm"]
 #[cfg(not(target_arch = "arm"))]
 #[inline(always)]
-pub unsafe fn boot_arm9(is_twl: bool) -> ! {
+pub unsafe fn boot_arm9(_is_twl: bool) -> ! {
     loop {}
 }
 #[cfg(not(target_arch = "arm"))]

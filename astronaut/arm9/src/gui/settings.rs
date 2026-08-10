@@ -313,7 +313,7 @@ impl Settings {
     }
 }
 #[derive(Clone)]
-enum SelectorState {
+pub enum SelectorState {
     WaitingInput,
     Holding(u8),
     Selected,

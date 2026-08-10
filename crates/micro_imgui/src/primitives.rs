@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-use core::num::{NonZeroU16, NonZeroU32};
+use core::num::{NonZeroU32};
 
 use crate::ui::Direction;
 
@@ -28,7 +28,7 @@ impl Id {
         }
         ret
     }
-    pub unsafe fn upcoming(&self, dir: Direction) -> Self {
+    pub unsafe fn upcoming(&self, _dir: Direction) -> Self {
         self.clone()
     }
     pub fn child(&mut self) -> Self {
