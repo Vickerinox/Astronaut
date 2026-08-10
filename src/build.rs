@@ -17,10 +17,8 @@ pub fn build_crate(path: PathBuf, is_release: bool) -> Result<(), CargoError> {
 
         if is_release {
             cwd.env("ASTRONAUT_RELEASE", "hell yeah");
-            println!("RELEASE FUCKER");
         } else {
             cwd.env_remove("ASTRONAUT_RELEASE");
-            println!("NO RELEASE FUCKER");
         }
 
 
