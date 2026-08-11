@@ -145,7 +145,7 @@ impl<T: AsMut<[u8]>> fatfs_embedded::fatfs::diskio::FatFsDriver for NativeFatFsD
         }
     }
 }
-
+ 
 static mut FATFS_DRIVER: std::mem::MaybeUninit<NativeFatFsDriver<&mut [u8]>> =
     std::mem::MaybeUninit::uninit();
 static mut MMC_IMAGE_BUFFER: &mut [u8; 1024 * 1024 * 256] = &mut [0; _];

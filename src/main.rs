@@ -13,6 +13,7 @@ use clap::Parser;
 use elf::{endian::AnyEndian, ElfBytes};
 //use rfd::FileDialog;
 use log::{debug, error, info, warn};
+use sha1::Digest;
 
 use self::errors::{BuildError, CompileError, Crate, NANDInjectError};
 mod build;
@@ -61,7 +62,7 @@ fn _inject_elf(
     Ok(())
 }
 
-fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
+fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, BuildError> {
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
     const M_STATE_OVERWRITE: &[u8] = &[
         84, 72, 73, 83, 32, 73, 83, 0, 0, 0, 0, 0, 223, 0, 0, 0, 87, 72, 69, 82, 69, 32, 84, 72,
@@ -128,6 +129,14 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     empty_tmd[M_STATE_OFFSET..][..M_STATE_OVERWRITE.len()].copy_from_slice(M_STATE_OVERWRITE);
     let values = entry_value.to_le_bytes();
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
+
+    let hash = {
+        let mut hasher = sha1::Sha1::new();
+        hasher.update(&empty_tmd[520..]);
+        let result = hasher.finalize();
+        result.to_vec()
+    };
+    empty_tmd.extend_from_slice(&hash);
     Ok(empty_tmd)
 }
 #[derive(Parser, Default)]
@@ -171,7 +180,7 @@ impl FixedCompilerArgs {
         build::build_crate(arm9_path, self.release_flag).map_err(|e| (e, Crate::Arm9))?;
         debug!("Done building ARM9!");
         info!("Creating final binary...");
-        let exploited_tmd = construct_tmd(arm9_elf)?;
+        let exploited_tmd = construct_tmd(arm9_elf, !self.release_flag)?;
         debug!("Done building stuff!");
 
         let path = self.export_tmd.unwrap_or(env_us.join("astronaut.bin"));

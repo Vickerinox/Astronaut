@@ -27,7 +27,6 @@ fn main() {
 
     std::fs::write(arm7_path, arm7_bin).unwrap();
 
-
     if std::env::var("ASTRONAUT_RELEASE").unwrap_or(String::new()).is_empty() {
         // add git commit hash to env
         let output = std::process::Command::new("git")
