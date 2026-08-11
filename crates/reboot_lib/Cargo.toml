@@ -8,7 +8,7 @@ volatile-register = {version = "0.2.2", default-features = false}
 bitflags = {version = "2.6.0", default-features = false}
 linked_list_allocator = {version = "0.10.5", default-features = false}
 common = {path = "../common"}
-fatfs-embedded = {git="https://github.com/Vickerinox/fatfs-embedded.git", rev="401f29fb2700bff923dd7d78d6147a432cdf74e5", optional = true}
+fatfs-embedded = {git="https://github.com/Vickerinox/fatfs-embedded.git", rev="3217a5b4ee64a7e06f13c2c5f49ce417679b3f88", optional = true}
 bytemuck = {version = "1.25.0", features = ["must_cast"]}
 
 [features]
