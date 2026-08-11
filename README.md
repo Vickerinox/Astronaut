@@ -22,7 +22,7 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 * DSi Sound - Randomly doesn't boot, has a chance of deleting it's save if it does
 * Rayman (DSiWare) - Crashes on save points, show corrupted graphics on title screen
 * Mario VS DK minis march again - top screen while loading is messed up
-* Sudoku (DSiWare) - Shows garbage on bottom screen during ESRB splash
+* Brain Age Express: Sudoku - Shows garbage on bottom screen during ESRB splash
 
 
 ## State of the project (Last updated 2026-07-15)
