@@ -24,7 +24,7 @@ pub fn build_crate(path: PathBuf, is_release: bool) -> Result<(), CargoError> {
 
         let mut cwd = cwd.spawn()
         .map_err(CargoError::SpawnChild)?;
-    info!(
+    debug!(
         "Spawning cargo command cargo build -r in {}",
         path.to_str().expect("already checked")
     );

@@ -25,7 +25,7 @@ fn _inject_elf(
     memory: &mut [u8],
     start_addr: usize,
 ) -> Result<(), CompileError> {
-    info!("SELECTED ELF: {:?}", &elf_file_path);
+    debug!("SELECTED ELF: {:?}", &elf_file_path);
     let file = fs::read(elf_file_path).map_err(CompileError::ElfNotFound)?;
     let parse =
         ElfBytes::<AnyEndian>::minimal_parse(&file[..]).map_err(CompileError::ElfParseError)?;
@@ -36,7 +36,7 @@ fn _inject_elf(
     };
     let entry_point = entrypoint - start_addr as u64;
     let entry_value = (entrypoint as u32) + 4;
-    info!(
+    debug!(
         "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
         entrypoint, entry_point, entry_value
     );
@@ -75,7 +75,7 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     const USED_EXPLOIT_LEN: usize = 0x16000;
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
-    info!("SELECTED ELF: {:?}", &elf_file_path);
+    debug!("SELECTED ELF: {:?}", &elf_file_path);
     let file =
         fs::read(elf_file_path).map_err(|e| Crate::TMD.err()(CompileError::ElfNotFound(e)))?;
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
@@ -91,7 +91,7 @@ fn construct_tmd(elf_file_path: PathBuf) -> Result<Vec<u8>, BuildError> {
     };
     //let entry_point = entrypoint - (MAGIC_START_POINT as u64);
     let entry_value = (entrypoint as u32) + 4;
-    info!(
+    debug!(
         "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
         entrypoint, entry_value, entry_value
     );
@@ -208,7 +208,7 @@ impl FixedCompilerArgs {
 
 fn main() {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .init();
 
     let args: FixedCompilerArgs = match CompilerArgs::parse()

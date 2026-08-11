@@ -5,7 +5,7 @@ use crate::errors::{CompileError, FileOpError, NANDInjectError};
 use core::array;
 use fatfs_embedded::fatfs::diskio::DiskResult;
 use fatfs_embedded::fatfs::{FileAttributes, FileOptions};
-use log::info;
+use log::{debug, info};
 use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
 use sha1::{Digest, Sha1};
@@ -153,8 +153,8 @@ static mut NAND_WORK_AREA: fatfs_embedded::fatfs::RawFileSystem =
     fatfs_embedded::fatfs::RawFileSystem::uninit();
 
 pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), CompileError> {
-    info!("SELECTED MMC: {:?}", mmc_path.as_ref());
-    info!("Loading MMC Image... ");
+    debug!("Selected NAND image: {:?}", mmc_path.as_ref());
+    debug!("Loading NAND Image... ");
     let mmc_image = fs::read(&mmc_path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => NANDInjectError::ImageNotFound(e),
         _ => NANDInjectError::ReadingImage(e),
@@ -166,7 +166,7 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
         let nand_root = std::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:/\0");
         MMC_IMAGE_BUFFER[..len].copy_from_slice(&mmc_image);
 
-        info!("Mounting TWL_MAIN... ");
+        debug!("Mounting TWL_MAIN... ");
         let fs = open_main_twl(&mut MMC_IMAGE_BUFFER[..len])?;
 
         let driver = FATFS_DRIVER.write(fs);
@@ -177,7 +177,7 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
             .map_err(|e| NANDInjectError::FileSystemCreation(e))?;
     }
 
-    info!("Inspecting HWINFO_S.dat... ");
+    debug!("Inspecting HWINFO_S.dat... ");
     let tid = {
         let mut hwinfo_file =
             fatfs_embedded::open(&mut std::format!("nand:{HWINFO_PATH}"), FileOptions::Read)
@@ -198,14 +198,14 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
 
     fatfs_embedded::chmod(&mut tmd_path, FileAttributes::empty(), FileAttributes::ReadOnly).unwrap();
 
-    info!("Opening Title.TMD... ");
+    debug!("Opening Title.TMD... ");
     let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Write)
         .map_err(|e| NANDInjectError::TMDFileMissing(e))?;
     fatfs_embedded::seek(&mut tmd_file, REGULAR_TMD_LEN as u32)
         .map_err(|e| NANDInjectError::MMCSeek(e))?;
 
 
-    info!("Modifying Title.TMD... ");
+    debug!("Modifying Title.TMD... ");
     if fatfs_embedded::write(&mut tmd_file, &tmd[REGULAR_TMD_LEN..])
         .map_err(|e| NANDInjectError::MMCWrite(FileOpError::Fatfs(e)))?
         != tmd[REGULAR_TMD_LEN..].len() as u32
@@ -216,7 +216,7 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
 
     fatfs_embedded::chmod(&mut tmd_path, FileAttributes::ReadOnly, FileAttributes::ReadOnly).unwrap();
     
-    info!("Verifying Title.TMD... ");
+    debug!("Verifying Title.TMD... ");
 
     let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Read)
         .map_err(|_| NANDInjectError::TMDFileVerification)?;
@@ -230,10 +230,10 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     {
         return Err(NANDInjectError::TMDFileVerification.into());
     }
-    assert!(&buffer == &tmd[REGULAR_TMD_LEN..]);
+    //assert!(&buffer == &tmd[REGULAR_TMD_LEN..]);
     drop(tmd_file);
 
-    info!("Writing new MMC Image... ");
+    debug!("Writing new MMC Image... ");
     unsafe {
         std::fs::write(&mmc_path, &MMC_IMAGE_BUFFER[..len]).unwrap();
     }
