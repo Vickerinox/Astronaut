@@ -16,6 +16,15 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 * DS Mode roms have no audio, as the codec chip isn't initialized for them yet.
 * Wifi initialization is slow and unstable. (Use the `Wifi Firmware Upload` option to toggle it)
 
+### Known problematic titles
+* DSi System Settings - Shows ``An Error Has Occured.`` (can be booted from the DSi menu)
+* DSi Shop - Shows ``An Error Has Occured.`` (can be booted from the DSi menu)
+* DSi Sound - Randomly doesn't boot, has a chance of deleting it's save if it does
+* Rayman (DSiWare) - Crashes on save points, show corrupted graphics on title screen
+* Mario VS DK minis march again - top screen while loading is messed up
+* Sudoku (DSiWare) - Shows garbage on bottom screen during ESRB splash
+
+
 ## State of the project (Last updated 2026-07-15)
 Currently, while astronaut is adequate to recreate the basic functionality of unlaunch i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now. Instead, i've choosen to make this first proof of concept public. 
 
