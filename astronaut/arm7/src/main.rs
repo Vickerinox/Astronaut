@@ -27,20 +27,40 @@ pub unsafe extern "C" fn _start() {
         "msr cpsr, r0",
         "ldr sp, ={stack_sys}",
 
+        // Load Exception vector
+        "ldr r0, =9f",
+        "ldr r1, =0x380FFDC",
+        "str r0, [r1]",
+
         // Call the main function
         "bl {main}",
 
         // Halt the CPU after main returns (if it does)
-        "2: b 2b", // Infinite loop
+        "10: b 10b", // Infinite loop
+        "1: bl {exception}",
+        "9:",
+        "bl 1b",
+        "bl 1b",
+        "bl 1b",
+        "bl 1b",
+        "bl 1b",
+        "bl 1b",
+        "bl 1b",
+        "bl 1b",
 
         stack_irq = const DSI_WRAM_START + 0x1000,
         stack_svc = const DSI_WRAM_START + 0x2000,
         stack_sys = const DSI_WRAM_START + 0x3000,
-
+        exception = sym exception,
         main = sym main, // Link the `main` symbol
         options(noreturn) // No return possible from this function
     );
 }
+#[no_mangle]
+unsafe extern "C" fn exception() {
+    panic!("");
+}
+
 #[no_mangle]
 #[cfg(not(target_arch = "arm"))]
 pub unsafe extern "C" fn _start() {

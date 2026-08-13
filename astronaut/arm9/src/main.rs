@@ -612,25 +612,67 @@ pub unsafe extern "C" fn _start() {
         "mov r1, #0x01000000",
         "mov r2, #0x1000",
 
-        "3: subs r2, 1",
+        "10: subs r2, 1",
         "ldr r3, [r0, r2, LSL #2]",
         "str r3, [r1, r2, LSL #2]",
-        "bne 3b",
+        "bne 10b",
 
+        // Load Exception vector
+        "ldr r0, =9f",
+        "ldr r1, =0x2FFFD9C",
+        "str r0, [r1]",
+        
         // Call the main function
         "bl {main}",
 
         // Halt the CPU after main returns (if it does)
-        "2: b 2b", // Infinite loop
+        "11: b 11b", // Infinite loop
+        
+        // Exception vector
+        "1: mov r0, #1","bl {exception}",
+        "2: mov r0, #2","bl {exception}",
+        "3: mov r0, #3","bl {exception}",
+        "4: mov r0, #4","bl {exception}",
+        "5: mov r0, #5","bl {exception}",
+        "6: mov r0, #6","bl {exception}",
+        "7: mov r0, #7","bl {exception}",
+        "8: mov r0, #8","bl {exception}",
+        "9:",
+        "bl 1b",
+        "bl 2b",
+        "bl 3b",
+        "bl 4b",
+        "bl 5b",
+        "bl 6b",
+        "bl 7b",
+        "bl 8b",
+
         stack_irq = const DSI_WRAM_START + 0x2000, // 8KB IRQ Stack
         stack_svc = const DSI_WRAM_START + 0x4000, // 8KB SVC Stack
         stack_sys = const DSI_WRAM_START + 0x8000, // 16KB System/User Stack
         itcm = const ITCM,
         main = sym main, // Link the `main` symbol
+        exception = sym exception,
         options(noreturn) // No return possible from this function
     );
     const ITCM: *const u32 = core::ptr::addr_of!(_itcm_addr);
 }
+#[no_mangle]
+unsafe extern "C" fn exception(kind: u32) {
+    let a = match kind {
+        1 => "RESET",
+        2 => "UNDEFINED INSTRUCTION",
+        3 => "SVC CALL",
+        4 => "PREFETCH ABORT",
+        5 => "DATA ABORT",
+        6 => "RESERVED",
+        7 => "IRQ",
+        8 => "FIQ",
+        _ => "UNKNOWN",
+    };
+    panic!("EXCEPTION {a}");
+}
+
 #[no_mangle]
 #[cfg(not(target_arch = "arm"))]
 pub unsafe extern "C" fn _start() {
