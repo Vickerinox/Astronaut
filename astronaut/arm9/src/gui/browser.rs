@@ -170,7 +170,7 @@ pub enum BrowserMode {
     /// Look for a specific type of file, and then do something with it once picked (used in the settings gui)
     Searching(BrowserSearch),
     /// Search the current title list
-    TitleList(Option<Box<TitleLister>>),
+    TitleList(Option<Box<TitleLister>>, &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>),
 }
 
 impl Clone for BrowserMode {
@@ -181,7 +181,7 @@ impl Clone for BrowserMode {
                 filter: search.filter,
                 goal: search.goal,
             }),
-            BrowserMode::TitleList(_list) => BrowserMode::TitleList(None),
+            BrowserMode::TitleList(_list, goal) => BrowserMode::TitleList(None, *goal),
         }
     }
 }
@@ -302,16 +302,19 @@ impl Browser {
             start,
         )
     }
-    pub fn title_list() -> Browser {
+    pub fn custom_title_list(transform: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>, exit: Box<dyn ClonableUiPage>) -> Browser {
         Browser {
             immediate_files: Vec::with_capacity(500),
             current_path: String::from("Scanning..."),
             scroll_offset: 0,
             drag_start: 0,
             hold_timer: 0,
-            mode: BrowserMode::TitleList(Some(Box::new(TitleLister::new()))),
-            exit: Box::new(MainMenu),
+            mode: BrowserMode::TitleList(Some(Box::new(TitleLister::new())), transform),
+            exit,
         }
+    }
+    pub fn title_list() -> Browser {
+        Self::custom_title_list(&|_data, path| Some(Box::new(AppBooter {path})), Box::new(MainMenu))
     }
 
     /// Open an item in the browser
@@ -331,7 +334,32 @@ impl Browser {
             None
         }
     }
-
+    #[link_section = ".text_aux"]
+    fn handle_mod(&self, file_name: &str, data: &mut GlobalData) {
+        let mut path = self.current_path.clone() + file_name;
+        match fatfs_embedded::open(&mut path, FileOptions::Read) {
+            Ok(module) => {
+                data.loading_mod_file = MusicPlaying::None;
+                data.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(module));
+            }
+            Err(_abort) => (),
+        }
+    }
+    #[link_section = ".text_aux"]
+    fn handle_wav(&self, file_name: &str, data: &mut GlobalData) {
+        let _ = stop_mod_file();
+        let mut path = self.current_path.clone() + file_name;
+        match fatfs_embedded::open(&mut path, FileOptions::Read) {
+            Ok(module) => {
+                if let Some(mut wav) = StreamingWav::new(module) {
+                    data.loading_mod_file = MusicPlaying::None;
+                    unsafe { wav.play() };
+                    data.loading_mod_file = MusicPlaying::Wav(wav);
+                }
+            }
+            Err(_abort) => (),
+        }
+    }
     /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
     #[link_section = ".text_itcm"]
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
@@ -346,31 +374,13 @@ impl Browser {
             }
             FileType::Mod => {
                 if !data.safe_mode {
-                    let mut path = self.current_path.clone() + file_name;
-                    match fatfs_embedded::open(&mut path, FileOptions::Read) {
-                        Ok(module) => {
-                            data.loading_mod_file = MusicPlaying::None;
-                            data.loading_mod_file = MusicPlaying::Mod(MODAsyncLoader::new(module));
-                        }
-                        Err(_abort) => (),
-                    }
+                    self.handle_mod(file_name, data);
                 }
                 None
             }
             FileType::Wav => {
                 if !data.safe_mode {
-                    let _ = stop_mod_file();
-                    let mut path = self.current_path.clone() + file_name;
-                    match fatfs_embedded::open(&mut path, FileOptions::Read) {
-                        Ok(module) => {
-                            if let Some(mut wav) = StreamingWav::new(module) {
-                                data.loading_mod_file = MusicPlaying::None;
-                                unsafe { wav.play() };
-                                data.loading_mod_file = MusicPlaying::Wav(wav);
-                            }
-                        }
-                        Err(_abort) => (),
-                    }
+                    self.handle_wav(file_name, data);
                 }
                 None
             }
@@ -483,10 +493,8 @@ impl UiPage for Browser {
                             None
                         }
                     }
-                    BrowserMode::TitleList(_) => {
-                        new_state = Some(Box::new(AppBooter {
-                            path: item.file_name.clone(),
-                        }));
+                    BrowserMode::TitleList(_, transform) => {
+                        new_state = transform(data, item.file_name.clone());
                     }
                 }
             }
@@ -542,7 +550,7 @@ impl UiPage for Browser {
                 self.scroll_offset -= in_step;
             }
         }
-        if let BrowserMode::TitleList(list) = &mut self.mode {
+        if let BrowserMode::TitleList(list, t) = &mut self.mode {
             if ui.input_pressed(Input(Buttons::BUTTON_B)) {
                 new_state = Some(self.exit.clone_ui());
             } else {
@@ -551,7 +559,7 @@ impl UiPage for Browser {
                         ui.request_repaint();
                     } else {
                         self.current_path = format!("Found {} titles", self.immediate_files.len());
-                        self.mode = BrowserMode::TitleList(None);
+                        self.mode = BrowserMode::TitleList(None, *t);
                     }
                 }
             }

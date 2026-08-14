@@ -44,9 +44,10 @@ impl<'a> TextLayoutHandle<'a> {
     pub fn layout_str(&mut self, str: &str, size: u8) {
         for byte in str.as_bytes() {
             if !byte.is_ascii() {
-                continue;
+                self.layout_char(b'?', size);
+            } else {
+                self.layout_char(*byte, size);
             }
-            self.layout_char(*byte, size);
         }
     }
     pub fn set_position(&mut self, x: u8, y: u8) {

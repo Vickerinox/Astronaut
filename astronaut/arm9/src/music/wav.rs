@@ -64,7 +64,7 @@ impl StreamingWav {
     pub fn counter(&self) -> usize {
         self.player_head
     }
-    #[link_section = ".text_itcm"]
+    #[link_section = ".text_aux"]
     pub fn new(mut file: fatfs_embedded::fatfs::File) -> Option<Self> {
         let data_start;
         let mut data_len;

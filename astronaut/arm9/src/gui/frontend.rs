@@ -52,10 +52,12 @@ impl UiPage for AppBooter {
         let error_string = alloc::format!("Failed to boot file: {error:?}");
         Some(Box::new(super::error::Error::new(error_string)))
     }
+
 }
 pub trait ClonableUiPage: UiPage {
     fn clone_ui(&self) -> Box<dyn ClonableUiPage>;
 }
+
 pub trait UiPage {
     fn ui(
         &mut self,
@@ -63,6 +65,7 @@ pub trait UiPage {
         data: &mut GlobalData,
     ) -> Option<Box<dyn UiPage>>;
 }
+
 impl<T: Clone + UiPage + 'static> ClonableUiPage for T {
     fn clone_ui(&self) -> Box<dyn ClonableUiPage> {
         Box::new(self.clone())

@@ -277,7 +277,12 @@ impl Settings {
                             data.config.boot_combos.finish(path);
                             Some(Box::new(Settings::BootCombos(0)))
                         };
-                    if ui.button("Launch something from SD").clicked() {
+                    if ui.button("Pick from title list").clicked() {
+                        let b = Browser::custom_title_list(a, Box::new(Self::BootCombos(0)));
+                        data.config.boot_combos.start(buttons);
+                        ret = Some(Box::new(b))
+                    }
+                    if ui.button("Pick from SD card").clicked() {
                         let b = Browser::search_file(
                             &[FileType::Rom],
                             String::from("sdmc:/"),
@@ -289,7 +294,7 @@ impl Settings {
                             ret = Some(Box::new(b))
                         }
                     }
-                    if ui.button("Launch something from NAND").clicked() {
+                    if ui.button("Pick from NAND").clicked() {
                         let b = Browser::search_file(
                             &[FileType::Rom],
                             String::from("nand:/"),
