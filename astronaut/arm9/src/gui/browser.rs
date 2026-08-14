@@ -170,7 +170,10 @@ pub enum BrowserMode {
     /// Look for a specific type of file, and then do something with it once picked (used in the settings gui)
     Searching(BrowserSearch),
     /// Search the current title list
-    TitleList(Option<Box<TitleLister>>, &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>),
+    TitleList(
+        Option<Box<TitleLister>>,
+        &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>,
+    ),
 }
 
 impl Clone for BrowserMode {
@@ -302,7 +305,10 @@ impl Browser {
             start,
         )
     }
-    pub fn custom_title_list(transform: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>, exit: Box<dyn ClonableUiPage>) -> Browser {
+    pub fn custom_title_list(
+        transform: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>,
+        exit: Box<dyn ClonableUiPage>,
+    ) -> Browser {
         Browser {
             immediate_files: Vec::with_capacity(500),
             current_path: String::from("Scanning..."),
@@ -314,7 +320,10 @@ impl Browser {
         }
     }
     pub fn title_list() -> Browser {
-        Self::custom_title_list(&|_data, path| Some(Box::new(AppBooter {path})), Box::new(MainMenu))
+        Self::custom_title_list(
+            &|_data, path| Some(Box::new(AppBooter { path })),
+            Box::new(MainMenu),
+        )
     }
 
     /// Open an item in the browser

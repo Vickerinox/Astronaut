@@ -16,13 +16,13 @@ pub struct InteruptRegisters {
     /// Master interrupt enable register
     pub master: RW<u32>,
     _unused: u32,
-    
+
     /// Interrupt enable (flags) register
     pub enable: RW<u32>,
-    
+
     /// Interrupt request (flags) register
     pub request: RW<u32>,
-    
+
     /// Auxiliary interrupt enable (flags) register
     pub enable2: RW<u32>,
 
@@ -66,7 +66,7 @@ pub enum Interrupt {
 
     /// Fire when controller buttons are pressed
     Keypad = 12,
-    
+
     Slot2 = 13,
     /// Fire on IPC sync signal
     IPCSync = 16,
@@ -74,7 +74,7 @@ pub enum Interrupt {
     IPCEmpty = 17,
     /// Fire when IPC FIFO nonempty
     IPCNonEmpty = 18,
-    
+
     Slot1TransferComplete = 19,
     Slot1IREQMC = 20,
 

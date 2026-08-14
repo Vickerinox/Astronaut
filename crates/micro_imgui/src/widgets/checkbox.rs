@@ -20,8 +20,7 @@ impl<'t> AutoAdd for Checkbox<'t> {
         let Self { text, option } = self;
         let prep_size = Vec2::new(0, 8);
 
-        let (b,_,c) = ui
-            .prepare_complication(prep_size);
+        let (b, _, c) = ui.prepare_complication(prep_size);
         let color = c.override_text_color.unwrap_or(ui.style().text_color);
         let bounds = b
             .translate(Vec2::new(11, 1))

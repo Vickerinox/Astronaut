@@ -9,21 +9,19 @@ use crate::errors::{CargoError, CompileError};
 
 pub fn build_crate(path: PathBuf, is_release: bool) -> Result<(), CargoError> {
     let mut cwd = std::process::Command::new("cargo");
-        cwd.arg("build")
+    cwd.arg("build")
         .arg("-r")
         .current_dir(&path)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
-        if is_release {
-            cwd.env("ASTRONAUT_RELEASE", "hell yeah");
-        } else {
-            cwd.env_remove("ASTRONAUT_RELEASE");
-        }
+    if is_release {
+        cwd.env("ASTRONAUT_RELEASE", "hell yeah");
+    } else {
+        cwd.env_remove("ASTRONAUT_RELEASE");
+    }
 
-
-        let mut cwd = cwd.spawn()
-        .map_err(CargoError::SpawnChild)?;
+    let mut cwd = cwd.spawn().map_err(CargoError::SpawnChild)?;
     debug!(
         "Spawning cargo command cargo build -r in {}",
         path.to_str().expect("already checked")

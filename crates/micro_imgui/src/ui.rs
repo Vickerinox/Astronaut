@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    Backend, ColorSet, LayerId, context::Frame, primitives::{Id, Rect, Vec2}, response::{self, Response, Sense}, widgets::{button::Button, label::Label},
+    context::Frame,
+    primitives::{Id, Rect, Vec2},
+    response::{self, Response, Sense},
+    widgets::{button::Button, label::Label},
+    Backend, ColorSet, LayerId,
 };
 
 pub struct Ui<'a, 'b: 'a, B: Backend> {
@@ -67,7 +71,9 @@ impl<'a, 'b: 'a, B: Backend> Ui<'a, 'b, B> {
             Direction::TopDown => self.clip_rect.min,
             Direction::LeftRight => self.clip_rect.min,
         };
-        let response = self.ctx.id_statistics(unsafe { self.id.upcoming(self.layout.0)});
+        let response = self
+            .ctx
+            .id_statistics(unsafe { self.id.upcoming(self.layout.0) });
         let set = self.style_for_sense(&response);
         let rect = Rect::from_two_pos(rect_min, rect_min + size);
         (rect, response, set)

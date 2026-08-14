@@ -2,7 +2,18 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    AES_HARDWARE, AESCnt, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, Status, StorageSector, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, scfg::{ExtSCFG, ROMSCFG, SCFG_HARDWARE}, sound::{SOUND_HARDWARE, SoundControl, SoundFormat}, spi::{Control, PowerRegiser, SPI_HARDWARE, touchscreen::{CdcReg, CntReg, read_tsc_pos_cdc}}, timers::TIMERS, write_sd_sectors,
+    check_sdmmc,
+    i2c::I2CRegister,
+    ndma::NDMA_HARDWARE,
+    scfg::{ExtSCFG, ROMSCFG, SCFG_HARDWARE},
+    sound::{SoundControl, SoundFormat, SOUND_HARDWARE},
+    spi::{
+        touchscreen::{read_tsc_pos_cdc, CdcReg, CntReg},
+        Control, PowerRegiser, SPI_HARDWARE,
+    },
+    timers::TIMERS,
+    write_sd_sectors, AESCnt, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
+    MMC_CONTROLLER, SDIO_CONTROLLER,
 };
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
@@ -189,7 +200,11 @@ impl ModCryptor {
     }
 }
 unsafe fn generate_cid_key(buf: &mut [u32; 4], cid: &[u32; 4]) {
-    crate::swi_sha1_calc(buf as *mut u32 as *mut _, core::ptr::addr_of!(*cid) as *const u8, 0x10);
+    crate::swi_sha1_calc(
+        buf as *mut u32 as *mut _,
+        core::ptr::addr_of!(*cid) as *const u8,
+        0x10,
+    );
 }
 
 pub fn main_arm7() {
@@ -355,10 +370,7 @@ pub fn main_arm7() {
                     AES_HARDWARE.keyslots[2].load_key_y(&[0, 0, 0, 0]);
                     */
 
-                    AES_HARDWARE.init_from_header(
-                        header,
-                        console_id,
-                    );                 
+                    AES_HARDWARE.init_from_header(header, console_id);
 
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
@@ -366,25 +378,29 @@ pub fn main_arm7() {
                     MMC_CONTROLLER.reset();
                     SDIO_CONTROLLER.reset();
                     if !header.is_dsi_mode() {
-                         
-                        
-                        
-                        
-                         
                         (*(0x04004C04 as *mut volatile_register::RW<u16>)).modify(|i| i | (1 << 8));
-                        SCFG_HARDWARE.roms.write(ROMSCFG::ARM7_NDS_MODE_BIOS | ROMSCFG::ARM9_NDS_MODE_BIOS | ROMSCFG::ARM7_UPPER_BIOS_HALF | ROMSCFG::ARM9_UPPER_BIOS_HALF);
-                        
-                        (0x4004700 as *mut u16).write_volatile( 8);
-                        crate::spi::touchscreen::cdc_write_reg(CdcReg::Control(CntReg::DacNdac), 0x87);
-                        crate::spi::touchscreen::cdc_write_reg(CdcReg::Control(CntReg::AdcNadc), 0x87);
+                        SCFG_HARDWARE.roms.write(
+                            ROMSCFG::ARM7_NDS_MODE_BIOS
+                                | ROMSCFG::ARM9_NDS_MODE_BIOS
+                                | ROMSCFG::ARM7_UPPER_BIOS_HALF
+                                | ROMSCFG::ARM9_UPPER_BIOS_HALF,
+                        );
+
+                        (0x4004700 as *mut u16).write_volatile(8);
+                        crate::spi::touchscreen::cdc_write_reg(
+                            CdcReg::Control(CntReg::DacNdac),
+                            0x87,
+                        );
+                        crate::spi::touchscreen::cdc_write_reg(
+                            CdcReg::Control(CntReg::AdcNadc),
+                            0x87,
+                        );
                         crate::spi::touchscreen::cdc_write_reg(CdcReg::Control(CntReg::PllJ), 0x15);
-                        (0x4004700 as *mut u16).write_volatile((1<<15) | 8 | (1<<13));
+                        (0x4004700 as *mut u16).write_volatile((1 << 15) | 8 | (1 << 13));
                         crate::spi::touchscreen::switch_tsc_ntr();
-                        SOUND_HARDWARE.master_control.write((1<<15) | 0x7f);
-                        
+                        SOUND_HARDWARE.master_control.write((1 << 15) | 0x7f);
 
                         SCFG_HARDWARE.features.write(ExtSCFG::DS_MODE_ACCESS);
-                        
                     } else {
                         let mask = ExtSCFG::from_bits_retain(7 | (1 << 10) | (1 << 18));
                         let setting = ExtSCFG::from_bits_retain(header.arm7_scfg) & mask;
@@ -401,10 +417,13 @@ pub fn main_arm7() {
                             Err(err) => err as u16 as u32,
                         },
                         2 => match crate::init_sdmmc(crate::DeviceSelect::EMMC) {
-                            Ok(_) =>  {
-                                generate_cid_key(&mut key, crate::get_cid(crate::DeviceSelect::EMMC));
+                            Ok(_) => {
+                                generate_cid_key(
+                                    &mut key,
+                                    crate::get_cid(crate::DeviceSelect::EMMC),
+                                );
                                 0
-                            },
+                            }
                             Err(err) => err as u16 as u32,
                         },
                         _ => 0x8000_0000,

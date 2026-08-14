@@ -169,10 +169,10 @@ impl ExtSCFG {
     /// Standard access mode for a DS mode game
     #[cfg(feature = "arm7i")]
     pub const DS_MODE_ACCESS: Self = Self::from_bits_retain(
-        Self::ACCESS_UNKNOWN.bits() |
-        Self::ACCESS_NWRAM.bits() |
-        Self::ACCESS_NEW_SOUND.bits() |
-        Self::ACCESS_GPIO.bits()
+        Self::ACCESS_UNKNOWN.bits()
+            | Self::ACCESS_NWRAM.bits()
+            | Self::ACCESS_NEW_SOUND.bits()
+            | Self::ACCESS_GPIO.bits(),
     );
 
     /// Standard access mode for a DSi Firmware (such as boot2)
@@ -202,7 +202,10 @@ crate::const_assert!(
 
 #[repr(C)]
 pub struct SCFGHardware {
-    #[cfg(all(any(feature = "arm7i", feature = "arm9i"), not(all(feature = "arm9i", not(feature = "arm7i")))))]
+    #[cfg(all(
+        any(feature = "arm7i", feature = "arm9i"),
+        not(all(feature = "arm9i", not(feature = "arm7i")))
+    ))]
     pub roms: RW<ROMSCFG>,
     #[cfg(all(feature = "arm9i", not(feature = "arm7i")))]
     pub roms: RO<ROMSCFG>,

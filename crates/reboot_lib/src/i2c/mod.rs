@@ -168,7 +168,7 @@ pub enum PowerRegister {
 
     /// Power button behavior
     MMCPWR = 0x12,
-    
+
     /// Battery charge state
     BATTERY = 0x20,
 

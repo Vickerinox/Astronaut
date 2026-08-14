@@ -282,8 +282,7 @@ impl StreamingWav {
                 count -= final_slice.len();
                 match &mut self.stream_type {
                     StreamType::MonoU8 => {
-                        for val in final_slice
-                        {
+                        for val in final_slice {
                             *val ^= 0x8080;
                         }
                     }

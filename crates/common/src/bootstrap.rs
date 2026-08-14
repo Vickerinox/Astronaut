@@ -15,14 +15,13 @@ pub unsafe fn boot_arm7() -> ! {
     loop {}
 }
 #[cfg(target_arch = "arm")]
-use core::ptr::write_volatile as w;
-#[cfg(target_arch = "arm")]
 use core::ptr::read_volatile as r;
+#[cfg(target_arch = "arm")]
+use core::ptr::write_volatile as w;
 #[cfg(target_arch = "arm")]
 const HEADER_MEM: *const TWLHeader = 0x2FFE000 as *const TWLHeader;
 #[cfg(target_arch = "arm")]
-const VCOUNT_REG: *const u16 = 0x4000006 as *const u16; 
-
+const VCOUNT_REG: *const u16 = 0x4000006 as *const u16;
 
 #[inline(always)]
 #[cfg(target_arch = "arm")]
@@ -36,13 +35,13 @@ pub unsafe fn boot_arm9(is_twl: bool) -> ! {
     core::arch::asm!(
         // Use R4 as scratch
         "mov r4, 0",
-        
+
         // Clear IRQ's, main MBK
         "str r4, [r1, 0x40]",
 
         "str r4, [r2, 0x208]",
         "str r4, [r2, 0x210]",
-        
+
         // Check if DSi or NTR flag
         "orrs r0, 0",
         // if DSi, write local MBK's, if NTR, write 0's
@@ -57,7 +56,7 @@ pub unsafe fn boot_arm9(is_twl: bool) -> ! {
         // Clear all interrups
         "sub r4, 1",
         "str r4, [r2, 0x214]",
-        
+
         // Wait for ARM7 to do it's side of MBK setup
         "3: ldr r4, [r5]",
         "cmp r4, 1",
@@ -90,12 +89,12 @@ pub unsafe fn boot_arm9(is_twl: bool) -> ! {
 
         // Load our entry point while we wait
         "ldr r0, [r3, 0x24]",
-        
+
         // Wait for ARM7 to finish
         "4: ldr r4, [r5]",
         "cmp r4, 3",
         "bne 4b",
-        
+
         // LEAP OF FAITH
         "5: subs r4, 1",
         "bne 5b",
@@ -105,10 +104,10 @@ pub unsafe fn boot_arm9(is_twl: bool) -> ! {
         in("r3") HEADER,
         in("r5") PROGRESS,
         in("r0") is_twl as u32,
-        lateout("r2") _, 
-        lateout("r3") _, 
-        lateout("r5") _, 
-        lateout("r0") _, 
+        lateout("r2") _,
+        lateout("r3") _,
+        lateout("r5") _,
+        lateout("r0") _,
         out("r4") _,
     );
     loop {}
@@ -158,23 +157,20 @@ pub unsafe fn boot_arm7() -> ! {
             return;
         }
         for i in 0..(size >> 2) as usize {
-            w(
-                target_address.add(i), 
-                r(relocated_address.add(i))
-            )
+            w(target_address.add(i), r(relocated_address.add(i)))
         }
     }
 
     relocate_bin(
-        (*BOOTINFO_MEM).ntr.unofficial_arm7_relocation as *mut u32, 
-        (*BOOTINFO_MEM).twl_header.head.arm7_load as *mut u32, 
-        (*BOOTINFO_MEM).twl_header.head.arm7_size as usize 
+        (*BOOTINFO_MEM).ntr.unofficial_arm7_relocation as *mut u32,
+        (*BOOTINFO_MEM).twl_header.head.arm7_load as *mut u32,
+        (*BOOTINFO_MEM).twl_header.head.arm7_size as usize,
     );
-    /* 
+    /*
     relocate_bin(
-        (*BOOTINFO_MEM).ntr.unofficial_arm7i_relocation as *mut u32, 
-        (*BOOTINFO_MEM).twl_header.arm7i_load as *mut u32, 
-        (*BOOTINFO_MEM).twl_header.arm7i_size as usize 
+        (*BOOTINFO_MEM).ntr.unofficial_arm7i_relocation as *mut u32,
+        (*BOOTINFO_MEM).twl_header.arm7i_load as *mut u32,
+        (*BOOTINFO_MEM).twl_header.arm7i_size as usize
     );
     */
     while VCOUNT_REG.read_volatile() != 192 {}

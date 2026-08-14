@@ -23,9 +23,7 @@ impl Debug for BootError {
         }
     }
 }
-use crate::{
-    gui::GlobalData, set_background, AppArea, APP_AREA_START,
-};
+use crate::{gui::GlobalData, set_background, AppArea, APP_AREA_START};
 #[link_section = ".text_itcm"]
 pub fn read_all(
     buffer: &mut [u8],
@@ -33,7 +31,7 @@ pub fn read_all(
 ) -> Result<(), fatfs_embedded::fatfs::Error> {
     let bytes = fatfs_embedded::read(file, buffer)?;
     if bytes as usize != buffer.len() {
-        return Err(fatfs_embedded::fatfs::Error::InternalLogicError);   
+        return Err(fatfs_embedded::fatfs::Error::InternalLogicError);
     }
     Ok(())
 }
@@ -154,13 +152,13 @@ unsafe fn boot_unreturnable(
     reboot_lib::nocash_write("> ARM9 binary loaded \n");
 
     boot_info.ntr.unofficial_arm7i_relocation = 0;
-    let arm9_ram =  if arm7_relocation {
+    let arm9_ram = if arm7_relocation {
         boot_info.ntr.unofficial_arm7_relocation = 0x2F0_0000;
         core::slice::from_raw_parts_mut(
             0x2F0_0000 as *mut u8,
             boot_info.twl_header.head.arm7_size as usize,
         )
-        } else {
+    } else {
         boot_info.ntr.unofficial_arm7_relocation = 0;
         core::slice::from_raw_parts_mut(
             boot_info.twl_header.head.arm7_load as *mut u8,
@@ -272,7 +270,6 @@ unsafe fn boot_unreturnable(
     loop {}
 }
 
-
 #[link_section = ".text_itcm"]
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
@@ -282,7 +279,12 @@ unsafe fn bootstrap(is_twl: bool) -> ! {
 
 pub unsafe fn nds_mode_switch() {
     SCFG_HARDWARE.clock.write(ClockSCFG::empty());
-    SCFG_HARDWARE.features.write(ExtSCFG::FIRM_ACCESS ^ ExtSCFG::ACCESS_CAMERA ^ ExtSCFG::ACCESS_CART_SLOT2 ^ ExtSCFG::ACCESS_DSP);
+    SCFG_HARDWARE.features.write(
+        ExtSCFG::FIRM_ACCESS
+            ^ ExtSCFG::ACCESS_CAMERA
+            ^ ExtSCFG::ACCESS_CART_SLOT2
+            ^ ExtSCFG::ACCESS_DSP,
+    );
 }
 
 #[link_section = ".text_itcm"]
@@ -325,7 +327,6 @@ pub unsafe fn boot_app(
             }
         }
     } else {
-        
     }
 
     let arm9_range = (header.head.arm9_load)..(header.head.arm9_load + header.head.arm9_size);

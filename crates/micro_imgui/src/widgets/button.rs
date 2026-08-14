@@ -33,12 +33,9 @@ impl<'t> AutoAdd for Button<'t> {
             Sizing::Cropped(vec2) => vec2.max(Vec2::new(0, 8)),
             Sizing::Padded(vec2) => vec2.max(Vec2::new(0, 8)),
         };
-        let (b, _, c) = ui
-            .prepare_complication(prep_size); 
+        let (b, _, c) = ui.prepare_complication(prep_size);
 
-        let bounds = b
-            .translate(Vec2::unit(3))
-            .include_point(ui.clip_rect().max);
+        let bounds = b.translate(Vec2::unit(3)).include_point(ui.clip_rect().max);
         let color = c.override_text_color.unwrap_or(text_color);
         let box_shaper = ui.reserve_shape();
         let rect = ui.draw(Shape::Text {

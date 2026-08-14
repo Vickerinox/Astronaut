@@ -28,10 +28,9 @@ pub enum Settings {
     SavedSettings { nand: bool, sd: bool },
 }
 fn save_file(mut path: String, bytes: &[u8]) -> bool {
-    if let Ok(mut file) = fatfs_embedded::open(
-        &mut path,
-        FileOptions::Write | FileOptions::CreateAlways,
-    ) {
+    if let Ok(mut file) =
+        fatfs_embedded::open(&mut path, FileOptions::Write | FileOptions::CreateAlways)
+    {
         match fatfs_embedded::write(&mut file, bytes) {
             Ok(len) => len == bytes.len() as _,
             Err(_) => false,
@@ -42,7 +41,10 @@ fn save_file(mut path: String, bytes: &[u8]) -> bool {
 }
 fn save_settings(config: &Config) -> Settings {
     let mut new_ini = config.into_ini();
-    let sd = save_file("sdmc:/_nds/astronaut/settings.ini".to_string(), new_ini.as_bytes());
+    let sd = save_file(
+        "sdmc:/_nds/astronaut/settings.ini".to_string(),
+        new_ini.as_bytes(),
+    );
 
     let nand = if new_ini.len() > 0x4000 {
         false
@@ -198,21 +200,19 @@ impl Settings {
             })
         }
         super::goto_end(ui);
-        
+
         ui.add_space(2);
 
         if let Some(del) = delete {
             data.config.boot_combos.additionals.remove(del);
         }
         if page < total_pages {
-            if ui.input_pressed(Input(Buttons::BUTTON_R))
-            {
+            if ui.input_pressed(Input(Buttons::BUTTON_R)) {
                 *self = Self::BootCombos(page + 1)
             }
         }
         if page > 0 {
-            if ui.input_pressed(Input(Buttons::BUTTON_L))
-            {
+            if ui.input_pressed(Input(Buttons::BUTTON_L)) {
                 *self = Self::BootCombos(page - 1)
             }
         }
@@ -248,7 +248,7 @@ impl Settings {
                 }
                 ui.label("hold a button combo to start, or A+B to cancel.");
                 None
-            },
+            }
             SelectorState::Holding(timer) => {
                 ui.label(&format_combo(buttons));
                 if buttons == Buttons::empty() {
@@ -256,13 +256,13 @@ impl Settings {
                 } else if timer > 90 {
                     *self = Settings::SelectedCombo(buttons, SelectorState::Selected);
                 } else if buttons == combo {
-                    *self = Settings::SelectedCombo(buttons, SelectorState::Holding(timer+1));
+                    *self = Settings::SelectedCombo(buttons, SelectorState::Holding(timer + 1));
                 } else {
                     *self = Settings::SelectedCombo(buttons, SelectorState::Holding(0));
                 }
                 ui.request_repaint();
                 None
-            },
+            }
             SelectorState::Selected => {
                 if combo == Buttons::BUTTON_A | Buttons::BUTTON_B {
                     *self = Self::BootCombos(0);
@@ -272,11 +272,10 @@ impl Settings {
                     let mut ret: Option<Box<dyn UiPage>> = None;
                     ui.label(&format!("you've chosen: {}", format_combo(combo)));
                     let buttons = combo;
-                    let a =
-                        &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
-                            data.config.boot_combos.finish(path);
-                            Some(Box::new(Settings::BootCombos(0)))
-                        };
+                    let a = &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+                        data.config.boot_combos.finish(path);
+                        Some(Box::new(Settings::BootCombos(0)))
+                    };
                     if ui.button("Pick from title list").clicked() {
                         let b = Browser::custom_title_list(a, Box::new(Self::BootCombos(0)));
                         data.config.boot_combos.start(buttons);
@@ -310,8 +309,8 @@ impl Settings {
                         *self = Self::BootCombos(0);
                     }
                     ret
-                }  
-            },
+                }
+            }
         }
     }
 }
@@ -345,12 +344,8 @@ impl UiPage for Settings {
         super::focus_default(ui, true);
         match self.clone() {
             Settings::Main => self.main_settings(ui, data),
-            Settings::BootCombos(page) => {
-                self.boot_combo_settings(page, ui, data)
-            }
-            Settings::SelectedCombo(combo, timer) => {
-                self.combo_maker(ui, data, combo, timer)
-            }
+            Settings::BootCombos(page) => self.boot_combo_settings(page, ui, data),
+            Settings::SelectedCombo(combo, timer) => self.combo_maker(ui, data, combo, timer),
             Settings::SavedSettings { nand, sd } => {
                 let message = match (nand, sd) {
                     (true, true) => "Settings saved to SD Card and System!",

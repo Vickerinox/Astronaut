@@ -301,10 +301,10 @@ impl GlobalData {
     }
     unsafe fn load_wall<'a, 'b: 'a>(&'b mut self, mut path: &'a mut String) {
         fn abort_loading() {
-            unsafe { 
+            unsafe {
                 VIDEO_HARDWARE
-                .disp_b_control
-                .write(DisplayControl::BG_MODE_5);
+                    .disp_b_control
+                    .write(DisplayControl::BG_MODE_5);
             }
         }
         if self.safe_mode {

@@ -36,7 +36,10 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
         _ => DeviceFlags::COMBO_TWL_MAIN,
     };
 
-    if header.twl_header.access_control & (1<<3) > 0 || pub_sav_path.starts_with("sdmc:/") || prv_sav_path.starts_with("sdmc:/") {
+    if header.twl_header.access_control & (1 << 3) > 0
+        || pub_sav_path.starts_with("sdmc:/")
+        || prv_sav_path.starts_with("sdmc:/")
+    {
         list_builder.add_drive(DeviceEntry::new(
             b'I',
             DeviceFlags::COMBO_SDMC_SLOT,
@@ -45,8 +48,11 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
             "/",
         ));
     }
-    
-    if header.twl_header.access_control & (1<<4) > 0 || pub_sav_path.starts_with("nand:/") || prv_sav_path.starts_with("nand:/") {
+
+    if header.twl_header.access_control & (1 << 4) > 0
+        || pub_sav_path.starts_with("nand:/")
+        || prv_sav_path.starts_with("nand:/")
+    {
         list_builder.add_drive(DeviceEntry::new(
             b'A',
             nand_properties,
@@ -56,32 +62,32 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
         ));
     }
 
-    if header.twl_header.access_control & (1<<4) > 0 {
-    
-        list_builder.add_drive(DeviceEntry::new(
-            b'B',
-            DeviceFlags::COMBO_TWL_PHOTO,
-            DeviceRights::NONE,
-            "nand2",
-            "/",
-        ))
-        .add_drive(DeviceEntry::new(
-            b'D',
-            DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_ONE,
-            DeviceRights::WRITE,
-            "shared1",
-            "nand:/shared1",
-        ))
-        .add_drive(DeviceEntry::new(
-            b'F',
-            DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_TWO,
-            DeviceRights::READ_WRITE,
-            "photo",
-            "nand2:/photo",
-        ));
+    if header.twl_header.access_control & (1 << 4) > 0 {
+        list_builder
+            .add_drive(DeviceEntry::new(
+                b'B',
+                DeviceFlags::COMBO_TWL_PHOTO,
+                DeviceRights::NONE,
+                "nand2",
+                "/",
+            ))
+            .add_drive(DeviceEntry::new(
+                b'D',
+                DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_ONE,
+                DeviceRights::WRITE,
+                "shared1",
+                "nand:/shared1",
+            ))
+            .add_drive(DeviceEntry::new(
+                b'F',
+                DeviceFlags::FOLDERBASED | DeviceFlags::DRIVE_NAND | DeviceFlags::PARTITION_TWO,
+                DeviceRights::READ_WRITE,
+                "photo",
+                "nand2:/photo",
+            ));
     }
 
-    if header.twl_header.access_control & (1<<6) > 0 {
+    if header.twl_header.access_control & (1 << 6) > 0 {
         list_builder.add_drive(DeviceEntry::new(
             b'C',
             DeviceFlags::FILEBASED | DeviceFlags::DRIVE_NAND,
@@ -97,7 +103,6 @@ pub fn init(header: &mut BootInfoTWL, app_path: &str, pub_sav_path: &str, prv_sa
     if header.twl_header.public_save_size != 0 {
         add_save(&mut list_builder, pub_sav_path, "dataPub", b'H');
     }
-
 }
 pub fn add_save(builder: &mut DeviceListBuilder, path: &str, name: &str, drive: u8) {
     let drive_sort = DeviceFlags::FILEBASED;

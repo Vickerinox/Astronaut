@@ -13,7 +13,7 @@ use reboot_lib::Buttons;
 mod browser;
 mod error;
 mod frontend;
-mod main_menu; 
+mod main_menu;
 mod special_thanks;
 pub use main_menu::MainMenu;
 mod settings;

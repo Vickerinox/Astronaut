@@ -145,7 +145,7 @@ impl<T: AsMut<[u8]>> fatfs_embedded::fatfs::diskio::FatFsDriver for NativeFatFsD
         }
     }
 }
- 
+
 static mut FATFS_DRIVER: std::mem::MaybeUninit<NativeFatFsDriver<&mut [u8]>> =
     std::mem::MaybeUninit::uninit();
 static mut MMC_IMAGE_BUFFER: &mut [u8; 1024 * 1024 * 256] = &mut [0; _];
@@ -195,15 +195,18 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
 
     let mut tmd_path = std::format!("nand:/title/00030017/{tid:08x}/content/title.tmd");
 
-
-    fatfs_embedded::chmod(&mut tmd_path, FileAttributes::empty(), FileAttributes::ReadOnly).unwrap();
+    fatfs_embedded::chmod(
+        &mut tmd_path,
+        FileAttributes::empty(),
+        FileAttributes::ReadOnly,
+    )
+    .unwrap();
 
     debug!("Opening Title.TMD... ");
     let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Write)
         .map_err(|e| NANDInjectError::TMDFileMissing(e))?;
     fatfs_embedded::seek(&mut tmd_file, REGULAR_TMD_LEN as u32)
         .map_err(|e| NANDInjectError::MMCSeek(e))?;
-
 
     debug!("Modifying Title.TMD... ");
     if fatfs_embedded::write(&mut tmd_file, &tmd[REGULAR_TMD_LEN..])
@@ -214,8 +217,13 @@ pub fn write_tmd_to_image(mmc_path: impl AsRef<Path>, tmd: &[u8]) -> Result<(), 
     }
     drop(tmd_file);
 
-    fatfs_embedded::chmod(&mut tmd_path, FileAttributes::ReadOnly, FileAttributes::ReadOnly).unwrap();
-    
+    fatfs_embedded::chmod(
+        &mut tmd_path,
+        FileAttributes::ReadOnly,
+        FileAttributes::ReadOnly,
+    )
+    .unwrap();
+
     debug!("Verifying Title.TMD... ");
 
     let mut tmd_file = fatfs_embedded::open(&mut tmd_path, FileOptions::Read)

@@ -207,7 +207,9 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     };
 
     (0x200_05E4 as *mut [u8; 12]).write(interest_area.clone());
-    let Some(a) = interest_area.first_chunk().cloned() else { return 5 };
+    let Some(a) = interest_area.first_chunk().cloned() else {
+        return 5;
+    };
     let data_base = u32::from_le_bytes(a);
     // Upload segment D (bootstub data)
     let Some((part_d, dest)) = get_wifi_part(firmware, FirmwarePart::PartD) else {

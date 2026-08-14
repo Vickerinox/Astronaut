@@ -86,7 +86,6 @@ pub enum FocusDirection {
     Right,
 }
 impl<B> Ctx<B> {
-    
     pub fn style_for(&self, resp: &Response) -> &ColorSet {
         self.style_for_sense(&resp.stats)
     }
@@ -220,16 +219,16 @@ impl<'a, B: Backend> Frame<'a, B> {
             *focused_response = Some(id)
         } else {
             if sense.contains(Sense::FOCUSED) {
-                let [h,v,_,_] = id.get().to_le_bytes();
+                let [h, v, _, _] = id.get().to_le_bytes();
                 match (ctx.focused_response, focused_response) {
                     (None, _) => {
                         down_focus.get_or_insert(id);
                         right_focus.get_or_insert(id);
                         *left_focus = Some(id);
                         *up_focus = Some(id);
-                    },
+                    }
                     (Some(f), a) => {
-                        let [fh,fv,_,_] = f.get().to_le_bytes();
+                        let [fh, fv, _, _] = f.get().to_le_bytes();
                         if a.is_some() {
                             if v == fv {
                                 right_focus.get_or_insert(id);
@@ -244,7 +243,7 @@ impl<'a, B: Backend> Frame<'a, B> {
                                 *up_focus = Some(id);
                             }
                         }
-                    },
+                    }
                 }
             }
         }

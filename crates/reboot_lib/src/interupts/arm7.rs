@@ -180,10 +180,10 @@ pub unsafe fn set_interrupt_function(interrupt: Interrupt, function: unsafe fn()
     });
 }
 /// Enable a given [`Interrupt`].
-/// 
-/// This will cause the function which is binded with [`set_interrupt_function`] to be called any time an 
+///
+/// This will cause the function which is binded with [`set_interrupt_function`] to be called any time an
 /// [`Interrupt`] of this type is fired. If the interrupt has no bound function, this will do nothing*.
-/// 
+///
 /// \* functions such as [`swi_halt`](crate::swi::swi_halt) are awoken by any interrupt firing, even when theres no binding function.
 pub unsafe fn enable_interrupt(interrupt: Interrupt) {
     let interrupt = interrupt as u8;
@@ -198,7 +198,9 @@ pub unsafe fn enable_interrupt(interrupt: Interrupt) {
             });
         } else {
             crate::critical_function(|| {
-                super::INTERRUPT_HARDWARE.enable.modify(|i| i | (1 << index))
+                super::INTERRUPT_HARDWARE
+                    .enable
+                    .modify(|i| i | (1 << index))
             });
         };
     }

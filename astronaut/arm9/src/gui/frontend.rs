@@ -52,7 +52,6 @@ impl UiPage for AppBooter {
         let error_string = alloc::format!("Failed to boot file: {error:?}");
         Some(Box::new(super::error::Error::new(error_string)))
     }
-
 }
 pub trait ClonableUiPage: UiPage {
     fn clone_ui(&self) -> Box<dyn ClonableUiPage>;

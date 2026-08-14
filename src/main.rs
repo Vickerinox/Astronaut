@@ -137,27 +137,42 @@ fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, 
             let result = hasher.finalize();
             result.to_vec()
         };
-        empty_tmd.extend_from_slice(&hash);    
+        empty_tmd.extend_from_slice(&hash);
     }
     Ok(empty_tmd)
 }
 #[derive(Parser, Default)]
 #[command(version, about, long_about = None)]
 struct CompilerArgs {
-    #[arg(short, long, help = "Path to output astronaut.bin file (default: astronaut_nightly.bin for debug builds and astronaut.bin for release builds)")]
+    #[arg(
+        short,
+        long,
+        help = "Path to output astronaut.bin file (default: astronaut_nightly.bin for debug builds and astronaut.bin for release builds)"
+    )]
     output: Option<PathBuf>,
-    #[arg(short, long, help = "Optional path to NAND image, which astronaut can be installed to")]
+    #[arg(
+        short,
+        long,
+        help = "Optional path to NAND image, which astronaut can be installed to"
+    )]
     nand_inject: Option<PathBuf>,
-    #[arg(long, default_value_t = false, help = "Create a release build of astronaut (removes sha-1 footer from binary and commit text from main menu)")]
+    #[arg(
+        long,
+        default_value_t = false,
+        help = "Create a release build of astronaut (removes sha-1 footer from binary and commit text from main menu)"
+    )]
     release: bool,
-    #[arg(long, default_value_t = false, help = "Show debug info about the build process in the console of the build program")]
+    #[arg(
+        long,
+        default_value_t = false,
+        help = "Show debug info about the build process in the console of the build program"
+    )]
     show_build_debug_info: bool,
 }
 impl TryFrom<CompilerArgs> for FixedCompilerArgs {
     type Error = &'static str;
 
     fn try_from(value: CompilerArgs) -> Result<Self, Self::Error> {
-    
         Ok(Self {
             nand_image_file: value.nand_inject,
             export_tmd: value.output,
@@ -178,12 +193,10 @@ impl FixedCompilerArgs {
         let arm9_path = env_us.clone().join("astronaut/arm9");
         let arm7_path = env_us.clone().join("astronaut/arm7");
 
-
         let arm9_elf = env_us
             .clone()
             .join("target-binary/thumbv5te-none-eabi/release/arm9");
 
-            
         info!("Compiling ARM7 binary... ");
         build::build_crate(arm7_path, false).map_err(|e| (e, Crate::Arm7))?;
         info!("Compiling ARM9 binary... ");
@@ -193,7 +206,13 @@ impl FixedCompilerArgs {
         let exploited_tmd = construct_tmd(arm9_elf, !self.release_flag)?;
         debug!("Done building stuff!");
 
-        let path = self.export_tmd.unwrap_or_else(|| if self.release_flag { env_us.join("astronaut.bin") } else { env_us.join("astronaut_nightly.bin")});
+        let path = self.export_tmd.unwrap_or_else(|| {
+            if self.release_flag {
+                env_us.join("astronaut.bin")
+            } else {
+                env_us.join("astronaut_nightly.bin")
+            }
+        });
         match fs::write(&path, &exploited_tmd[520..]) {
             Ok(()) => info!("Final binary written to {:?}", &path),
             Err(e) => error!(
@@ -226,8 +245,6 @@ impl FixedCompilerArgs {
 }
 
 fn main() {
-    
-
     let args: FixedCompilerArgs = match CompilerArgs::parse()
         .try_into()
         .map_err(|e: &'static str| e.to_owned())
@@ -244,11 +261,9 @@ fn main() {
     } else {
         tracing::Level::INFO
     };
-    
-    tracing_subscriber::fmt()
-        .with_max_level(trace_level)
-        .init();
-    
+
+    tracing_subscriber::fmt().with_max_level(trace_level).init();
+
     match args.build() {
         Ok(()) => info!("Done"),
         Err(e) => error!("Failed to build {}", e),

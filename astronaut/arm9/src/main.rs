@@ -342,7 +342,6 @@ extern "C" {
 }
 /// Loads the code thats within the ".text_aux" segment into memory
 unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
-    
     let Ok(mut file) = fatfs_embedded::open(&mut data.our_path, FileOptions::Read) else {
         return false;
     };
@@ -461,8 +460,6 @@ unsafe fn main() {
         // Take over ARM7
         arm7_exploit::takeover_arm7();
 
-        
-
         // Steal the 16MB of main mem to use most of it as a heap
         steal_main_mem();
 
@@ -491,8 +488,6 @@ unsafe fn main() {
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         reboot_lib::interupts::init_interrupts();
-        
-        
 
         IPC_FIFO_HARDWARE.enable_irqs();
 
@@ -621,14 +616,14 @@ pub unsafe extern "C" fn _start() {
         "ldr r0, =9f",
         "ldr r1, =0x2FFFD9C",
         "str r0, [r1]",
-        
+
         // Call the main function
         "bl {main}",
 
         // Halt the CPU after main returns (if it does)
         "11: b 11b", // Infinite loop
-        
-        
+
+
         // Exception manifold
         "1: mov r0, #1","bl {exception}",
         "2: mov r0, #2","bl {exception}",

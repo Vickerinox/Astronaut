@@ -6,7 +6,7 @@ use core::{
     ops::{BitAndAssign, BitOrAssign, Not},
 };
 
-use crate::{ MemoryWrapper, StorageSector};
+use crate::{MemoryWrapper, StorageSector};
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 use crate::swi_delay;

@@ -2,29 +2,28 @@
 // SPDX-License-Identifier: MIT
 
 //! # Reboot-lib
-//! 
-//! This crate contains code for writing to the hardware on DS/DSi consoles. 
+//!
+//! This crate contains code for writing to the hardware on DS/DSi consoles.
 //! Similar to those found in the popular libnds and other associated libraries.
-//! Everything is also written with explicitly these targets in mind, (i.e armv4t and armv5te) 
+//! Everything is also written with explicitly these targets in mind, (i.e armv4t and armv5te)
 //! such as that various assertions will likely fail if compiled for any other target.
-//! 
+//!
 //! In order to use the crate correctly and gain access to the various functions related to the hardware, one must enable the features they wish to use:
 //! arm9 - hardware used by the armv5te core in the DS/DSi
 //! arm7 - hardware used by the armv4t core in the DS/DSi
 //! arm9i - hardware used by the armv5te core in the DSi exclusively
 //! arm7i - hardware used by the armv4t core in the DSi exclusively
-//! 
+//!
 //! Other extra features are provided to support auxiliary functions:
 //! standard_arm7 - expose a main function for a standardized arm7 binary that can be interacted with from the arm9.
 //! init_nand_aes - re-initialize the AES hardware found in the DSi for NAND access, in the vast majority of cases (even for astronaut) this is not needed.
 //! fatfs - bundle bindings to elm-chan's fatfs library in order to interact with filesystems.
-//! 
+//!
 
 #![no_std]
 #![feature(allocator_api)]
 #![feature(ptr_metadata)]
 #![allow(unused)]
-
 
 extern crate alloc;
 
@@ -37,36 +36,36 @@ macro_rules! const_assert {
 }
 
 pub use bytemuck;
-pub use volatile_register;
 pub use mmc::*;
+pub use volatile_register;
 
 /// Structs for handling Autoboot parameters
-/// 
+///
 /// [related GBATEK page](https://problemkaputt.de/gbatek-dsi-autoload-on-warmboot.htm)
-pub mod autoboot_info; 
+pub mod autoboot_info;
 
 /// DMA hardware functions and structs
-/// 
+///
 /// [related GBATEK page 1](https://problemkaputt.de/gbatek-ds-dma-transfers.htm)
 /// [related GBATEK page 2](https://problemkaputt.de/gbatek-gba-dma-transfers.htm)
 pub mod dma;
 
-/// Functions to interact with devices on the I2C bus of the DSi 
-/// 
+mod aes;
+mod allocator;
+/// Functions to interact with devices on the I2C bus of the DSi
+///
 /// [related GBATEK page](https://problemkaputt.de/gbatek-dsi-i2c-bus.htm)
 pub mod i2c;
 pub mod interupts;
+mod ipc;
 pub mod mbk;
+mod memory;
 pub mod mmc;
 pub mod music_modules;
 pub mod ndma;
 pub mod scfg;
 pub mod sound;
 pub mod spi;
-mod ipc;
-mod memory;
-mod aes;
-mod allocator;
 #[cfg(all(feature = "arm7i", feature = "standard_arm7"))]
 pub mod standard_arm7;
 mod swi;
@@ -157,14 +156,17 @@ unsafe fn watchdog_trigger() {
     panic!("Watchdog triggered, code: {WD_CODE}");
 }
 static mut WD_CODE: u8 = 0;
-use crate::timers::{TIMERS, Timer, TimerControl};
+use crate::timers::{Timer, TimerControl, TIMERS};
 unsafe fn start_watchdog() {
     TIMERS[3].write(Timer::new(0, TimerControl::empty()));
     interupts::set_interrupt_function(Interrupt::Timer3, watchdog_trigger);
     interupts::enable_interrupt(Interrupt::Timer3);
 }
 unsafe fn kick_watchdog(reason: u8) {
-    TIMERS[3].write(Timer::new(0x1, TimerControl::START | TimerControl::PRESCALE_1024 | TimerControl::ENABLE_IRQ));
+    TIMERS[3].write(Timer::new(
+        0x1,
+        TimerControl::START | TimerControl::PRESCALE_1024 | TimerControl::ENABLE_IRQ,
+    ));
     WD_CODE = reason;
 }
 unsafe fn stop_watchdog() {
@@ -175,10 +177,9 @@ unsafe fn stop_watchdog() {
 
 #[cfg(feature = "standard_arm7")]
 unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
-    
     start_watchdog();
     kick_watchdog(opcode);
-    crate::critical_function(||{
+    crate::critical_function(|| {
         IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
         for data in data_out.into_iter().copied() {
             IPC_FIFO_HARDWARE.send_raw_blocking(data);
@@ -186,7 +187,7 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
     });
     loop {
         let mut value = Err(ipc::RecieveFifoError::QueueEmpty);
-        critical_function(|| {value = IPC_FIFO_HARDWARE.recieve_value_raw()});
+        critical_function(|| value = IPC_FIFO_HARDWARE.recieve_value_raw());
         if let Ok(value) = value {
             critical_function(|| assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err()));
             stop_watchdog();
@@ -198,7 +199,6 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
             panic!("ARM7 crashed during command {opcode}");
         }
     }
-    
 }
 
 #[cfg(feature = "standard_arm7")]
