@@ -5,7 +5,7 @@ use crate::errors::{CompileError, FileOpError, NANDInjectError};
 use core::array;
 use fatfs_embedded::fatfs::diskio::DiskResult;
 use fatfs_embedded::fatfs::{FileAttributes, FileOptions};
-use log::{debug, info};
+use log::debug;
 use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
 use sha1::{Digest, Sha1};

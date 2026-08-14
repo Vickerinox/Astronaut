@@ -130,13 +130,15 @@ fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, 
     let values = entry_value.to_le_bytes();
     empty_tmd[M_ENTRYPOINT_LOCATION..][..values.len()].copy_from_slice(&values);
 
-    let hash = {
-        let mut hasher = sha1::Sha1::new();
-        hasher.update(&empty_tmd[520..]);
-        let result = hasher.finalize();
-        result.to_vec()
-    };
-    empty_tmd.extend_from_slice(&hash);
+    if include_hash {
+        let hash = {
+            let mut hasher = sha1::Sha1::new();
+            hasher.update(&empty_tmd[520..]);
+            let result = hasher.finalize();
+            result.to_vec()
+        };
+        empty_tmd.extend_from_slice(&hash);    
+    }
     Ok(empty_tmd)
 }
 #[derive(Parser, Default)]
