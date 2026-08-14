@@ -85,8 +85,6 @@ fn main() {
                     let color_palette = palette.get_or_insert_with(color_get_fn);
                     let (default, alternative) = preview_texture.get_or_insert_with(|| {
                         let (texture, texture2) = {
-                            
-                            
                             let pixel_split_fn = |i: &u8| {
                                 [(i&0xF0) >> 4,i&0xF]
                             };
@@ -94,8 +92,6 @@ fn main() {
                             let color_map_fn = move |i: u8| -> Color32 {
                                 cloned_palette.get(i as usize).copied().unwrap_or(Color32::WHITE)
                             };
-                            
-                            
                             let bitmap: Vec<_> = image
                                     .bitmap().iter()
                                     .map(pixel_split_fn).flatten().map(color_map_fn)
