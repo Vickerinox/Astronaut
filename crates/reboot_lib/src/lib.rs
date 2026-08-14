@@ -152,24 +152,53 @@ pub struct Controls {
 }
 #[cfg(feature = "fatfs")]
 pub use fatfs_embedded;
+#[allow(static_mut_refs)]
+unsafe fn watchdog_trigger() {
+    panic!("Watchdog triggered, code: {WD_CODE}");
+}
+static mut WD_CODE: u8 = 0;
+use crate::timers::{TIMERS, Timer, TimerControl};
+unsafe fn start_watchdog() {
+    TIMERS[3].write(Timer::new(0, TimerControl::empty()));
+    interupts::set_interrupt_function(Interrupt::Timer3, watchdog_trigger);
+    interupts::enable_interrupt(Interrupt::Timer3);
+}
+unsafe fn kick_watchdog(reason: u8) {
+    TIMERS[3].write(Timer::new(0x1, TimerControl::START | TimerControl::PRESCALE_1024 | TimerControl::ENABLE_IRQ));
+    WD_CODE = reason;
+}
+unsafe fn stop_watchdog() {
+    TIMERS[3].write(Timer::new(0, TimerControl::empty()));
+    interupts::disable_interrupt(Interrupt::Timer3);
+    WD_CODE = 255;
+}
 
 #[cfg(feature = "standard_arm7")]
 unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
-    IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
-    for data in data_out.into_iter().copied() {
-        IPC_FIFO_HARDWARE.send_raw_blocking(data);
-    }
+    
+    start_watchdog();
+    kick_watchdog(opcode);
+    crate::critical_function(||{
+        IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
+        for data in data_out.into_iter().copied() {
+            IPC_FIFO_HARDWARE.send_raw_blocking(data);
+        }
+    });
     loop {
-        if let Ok(value) = IPC_FIFO_HARDWARE.recieve_value_raw() {
-            assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+        let mut value = Err(ipc::RecieveFifoError::QueueEmpty);
+        critical_function(|| {value = IPC_FIFO_HARDWARE.recieve_value_raw()});
+        if let Ok(value) = value {
+            critical_function(|| assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err()));
+            stop_watchdog();
             match NonZeroU32::new(value) {
                 Some(value) => return Err(value),
                 None => return Ok(()),
             }
         } else if IPC_FIFO_HARDWARE.read_status() == 7 {
-            panic!("ARM7 crashed while sending command {opcode}");
+            panic!("ARM7 crashed during command {opcode}");
         }
     }
+    
 }
 
 #[cfg(feature = "standard_arm7")]

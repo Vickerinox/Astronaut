@@ -43,7 +43,7 @@ impl IPCFifoHardware {
     pub unsafe fn read_status(&self) -> u8 {
         (self.sync.read().bits() as u8) & 0xF
     }
-    pub unsafe fn enable_recv_irq(&self) {
+    pub unsafe fn enable_irqs(&self) {
         self.control
             .modify(|i| i | IPCCNT::ENABLE_RECV_FIFO_IRQ | IPCCNT::ENABLE_SEND_FIFO_IRQ);
     }

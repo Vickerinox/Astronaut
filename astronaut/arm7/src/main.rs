@@ -38,6 +38,8 @@ pub unsafe extern "C" fn _start() {
         // Halt the CPU after main returns (if it does)
         "10: b 10b", // Infinite loop
         "1: bl {exception}",
+
+        // Exception Vector
         "9:",
         "bl 1b",
         "bl 1b",

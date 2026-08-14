@@ -494,7 +494,7 @@ unsafe fn main() {
         
         
 
-        IPC_FIFO_HARDWARE.enable_recv_irq();
+        IPC_FIFO_HARDWARE.enable_irqs();
 
         reboot_lib::set_interrupt_function(Interrupt::VBlank, fade_out);
         reboot_lib::enable_interrupt(Interrupt::IPCNonEmpty);
@@ -628,7 +628,8 @@ pub unsafe extern "C" fn _start() {
         // Halt the CPU after main returns (if it does)
         "11: b 11b", // Infinite loop
         
-        // Exception vector
+        
+        // Exception manifold
         "1: mov r0, #1","bl {exception}",
         "2: mov r0, #2","bl {exception}",
         "3: mov r0, #3","bl {exception}",
@@ -637,6 +638,7 @@ pub unsafe extern "C" fn _start() {
         "6: mov r0, #6","bl {exception}",
         "7: mov r0, #7","bl {exception}",
         "8: mov r0, #8","bl {exception}",
+        // Exception vector
         "9:",
         "bl 1b",
         "bl 2b",
