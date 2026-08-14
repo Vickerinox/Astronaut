@@ -23,19 +23,28 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 * Rayman (DSiWare) - Crashes on save points, show corrupted graphics on title screen
 * Mario VS DK minis march again - top screen while loading is messed up
 * Brain Age Express: Sudoku - Shows garbage on bottom screen during ESRB splash
+* GodMode9i - NAND drive fails to mount (relaunch godmode9i from within itself and the problem is fixed) 
 
 
-## State of the project (Last updated 2026-07-15)
-Currently, while astronaut is adequate to recreate the basic functionality of unlaunch i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now. Instead, i've choosen to make this first proof of concept public. 
+## State of the project (Last updated 2026-08-14)
+Currently, while astronaut is adequate to recreate the basic functionality of unlaunch, i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now.
 
 ## Compiling yourself
-When compiling Astronaut yourself you will need the rust programming lanugage installed as well as a suitable C/C++ compiler for the fatfs dependency. You will also need access to the `lld` linker and the `arm-none-eabi-gcc` compiler. Due to the complexity of building DS binaries from rust, the main crate of this repository is actually a builder program, as opposed to the actual code. (which you will instead find in the `astronaut` folder)
+Due to the complexity of building DS binaries from rust, the main crate of this repository is actually a builder program, as opposed to the actual code (which you will instead find in the `astronaut` folder). 
 
-Once rust and the other dependencies are installed, compiling *should* be as simple as running `cargo run`. Optionally, you can provide 2 paths as command line arguments. The first is a custom path for the `astronaut.bin` file which is the final binary. The second is a path for a NAND image (`nand.bin`) file for the DSi which you wish to install astronaut onto (WARNING; PLEASE ONLY DO THIS ON A NAND IMAGE WHERE UNLAUNCH OR ASTRONAUT HAS ALREADY BEEN INSTALLED WITH AN OFFICIAL INSTALLER. AS THIS METHOD HAS NOT BEEN PROPERLY TESTED TO PREVENT THE DSI FIRMWARE FROM TRIPPING ITS ANTI TAMPERING CHECKS AND DELETING ITSELF.)
+When compiling Astronaut yourself you will need the following installed:
 
+* the rust programming language (rustc, cargo, etc.) and the ``rust-src`` component
+* a suitable C/C++ compiler for the fatfs dependency. (this will be searched for by the build program)
+* the `lld` linker 
+* the `arm-none-eabi-gcc` compiler.  
+
+Once rust and the other dependencies are installed, compiling *should* be as simple as running `cargo run`. Optionally, you can provide a number of command line arguments to change how astronaut is compiled. For information, use ``cargo run -- --help``. (NOTE: the first set of ``--`` means we're finished providing command line arguments for cargo, and everything thereafter goes to the compiled build program.)
 
 ## Compatability with Unlaunch (and the a+b combo)
 In order to make sure there is not a sea of chaos within the DSi Modding community, the `a+b` button combo is fixed to start astronauts gui.
+
+Astronaut also supports unlaunch's "autoload" API. Meaning that options for loading DS homebrew with unlaunch will (in most cases) be redirected to astronaut accordingly.
 
 ## Compatability with slot-1
 There is no support for launching the cartridge inserted into slot-1 from the astronaut gui. Instead, it is recommended to autoboot the DSi Menu or a homebrew slot-1 launcher to get this functionality. 
