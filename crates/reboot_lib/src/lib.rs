@@ -174,13 +174,48 @@ unsafe fn stop_watchdog() {
     interupts::disable_interrupt(Interrupt::Timer3);
     WD_CODE = 255;
 }
-
+#[repr(u8)]
+#[derive(Debug, Clone, Copy)]
+enum TransactionCode {
+    ReadControls = Self::READ_CONTROLLER as u8,
+    SetBuffer = Self::SET_BUFFER as u8,
+    ReadNandEncrypted = Self::READ_NAND_ENCRYPTED as u8,
+    ReadNandRaw = Self::READ_NAND_RAW as u8,
+    ReadSD = Self::READ_SD as u8,
+    WriteSD = Self::WRITE_SD as u8,
+    WriteNand = Self::WRITE_NAND as u8,
+    Boot = Self::BOOT as u8,
+    DoModcrypt = Self::DO_MODCRYPT as u8,
+    GenericSend = Self::GENERIC_SEND as u8,
+    InitSDMMCDevice = Self::INIT_SDMMCDEVICE as u8,
+    CheckSDMMCDevice = Self::CHECK_SDMMCDEVICE as u8,
+    InitWifi = Self::INIT_WIFI as u8,
+    SetWarmboot = Self::SET_WARMBOOT as u8,
+    SetSoundChannel = Self::SET_SOUND_CHANNEL as u8,
+}
+impl TransactionCode {
+    pub const READ_CONTROLLER: u32 = 1;
+    pub const SET_BUFFER: u32 = 2;
+    pub const READ_NAND_ENCRYPTED: u32 = 3;
+    pub const READ_NAND_RAW: u32 = 4;
+    pub const READ_SD: u32 = 5;
+    pub const WRITE_SD: u32 = 10;
+    pub const WRITE_NAND: u32 = 15;
+    pub const BOOT: u32 = 6;
+    pub const DO_MODCRYPT: u32 = 12;
+    pub const GENERIC_SEND: u32 = 9;
+    pub const INIT_SDMMCDEVICE: u32 = 8;
+    pub const CHECK_SDMMCDEVICE: u32 = 11;
+    pub const INIT_WIFI: u32 = 13;
+    pub const SET_SOUND_CHANNEL: u32 = 14;
+    pub const SET_WARMBOOT: u32 = 16;
+}
 #[cfg(feature = "standard_arm7")]
-unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
-    start_watchdog();
-    kick_watchdog(opcode);
+unsafe fn com_arm9(opcode: TransactionCode, data_out: &[u32]) -> Result<(), NonZeroU32> {
+    //start_watchdog();
+    //kick_watchdog(opcode);
     crate::critical_function(|| {
-        IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u32);
+        IPC_FIFO_HARDWARE.send_raw_blocking(opcode as u8 as u32);
         for data in data_out.into_iter().copied() {
             IPC_FIFO_HARDWARE.send_raw_blocking(data);
         }
@@ -190,20 +225,20 @@ unsafe fn com_arm9(opcode: u8, data_out: &[u32]) -> Result<(), NonZeroU32> {
         critical_function(|| value = IPC_FIFO_HARDWARE.recieve_value_raw());
         if let Ok(value) = value {
             critical_function(|| assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err()));
-            stop_watchdog();
+            //stop_watchdog();
             match NonZeroU32::new(value) {
                 Some(value) => return Err(value),
                 None => return Ok(()),
             }
         } else if IPC_FIFO_HARDWARE.read_status() == 7 {
-            panic!("ARM7 crashed during command {opcode}");
+            panic!("ARM7 crashed during command {opcode:?}");
         }
     }
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
-    let value = com_arm9(1, &[])
+    let value = com_arm9(TransactionCode::ReadControls, &[])
         .map_err(|i| u32::from(i))
         .err()
         .unwrap_or(0);
@@ -217,64 +252,69 @@ pub unsafe fn arm9_send_controller_read() -> (Buttons, u8, u8) {
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_set_buffer(slice: *mut [StorageSector]) -> Result<(), NonZeroU32> {
     let (ptr, len) = slice.to_raw_parts();
-    com_arm9(2, &[ptr as u32, len as u32])
+    com_arm9(TransactionCode::SetBuffer, &[ptr as u32, len as u32])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_read_nand_sector_encrypted(start_sector: u32) -> Result<(), NonZeroU32> {
-    com_arm9(3, &[start_sector])
+    com_arm9(TransactionCode::ReadNandEncrypted, &[start_sector])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_read_nand_sector_unencrypted(start_sector: u32) -> Result<(), NonZeroU32> {
-    com_arm9(4, &[start_sector])
+    com_arm9(TransactionCode::ReadNandRaw, &[start_sector])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_read_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
-    com_arm9(5, &[start_sector])
+    com_arm9(TransactionCode::ReadSD, &[start_sector])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_write_sd_sector(start_sector: u32) -> Result<(), NonZeroU32> {
-    com_arm9(10, &[start_sector])
+    com_arm9(TransactionCode::WriteSD, &[start_sector])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_write_nand_sector(start_sector: u32) -> Result<(), NonZeroU32> {
-    com_arm9(15, &[start_sector])
+    com_arm9(TransactionCode::WriteNand, &[start_sector])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_arm7_boot() -> Result<(), NonZeroU32> {
-    com_arm9(6, &[])
+    com_arm9(TransactionCode::Boot, &[])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_decrypt_modcrypt() -> Result<(), NonZeroU32> {
-    com_arm9(12, &[])
+    com_arm9(TransactionCode::DoModcrypt, &[])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_send_arm7(user_type: u32, pointer: *mut ()) -> Result<(), NonZeroU32> {
-    com_arm9(9, &[user_type, pointer as u32])
+    com_arm9(TransactionCode::GenericSend, &[user_type, pointer as u32])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_init_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
-    com_arm9(8, &[drive as u32])
+    com_arm9(TransactionCode::InitSDMMCDevice, &[drive as u32])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_check_sdmmc(drive: u8) -> Result<(), NonZeroU32> {
-    com_arm9(11, &[drive as u32])
+    com_arm9(TransactionCode::CheckSDMMCDevice, &[drive as u32])
 }
 
 #[cfg(feature = "standard_arm7")]
 pub unsafe fn arm9_init_nwifi(firmware_file: &mut [u8]) -> Result<(), NonZeroU32> {
     let ptr = firmware_file.as_mut_ptr();
     let len = firmware_file.len();
-    com_arm9(13, &[ptr as u32, len as u32])
+    com_arm9(TransactionCode::InitWifi, &[ptr as u32, len as u32])
+}
+
+#[cfg(feature = "standard_arm7")]
+pub unsafe fn arm9_set_warmboot() -> Result<(), NonZeroU32> {
+    com_arm9(TransactionCode::SetWarmboot, &[])
 }
 
 #[cfg(feature = "standard_arm7")]
@@ -288,7 +328,10 @@ pub unsafe fn arm9_manual_sound_write(
     let ptr = buffer.as_mut_ptr();
     let len = ((buffer.len() as u32) << 4) | channel as u32;
     let timer = timer as u32 | ((loop_start as u32) << 16);
-    com_arm9(14, &[ptr as u32, len as u32, timer, control.bits()])
+    com_arm9(
+        TransactionCode::SetSoundChannel,
+        &[ptr as u32, len as u32, timer, control.bits()],
+    )
 }
 unsafe impl bytemuck::NoUninit for StorageSector {}
 #[derive(Clone, Copy)]

@@ -12,8 +12,8 @@ use crate::{
         Control, PowerRegiser, SPI_HARDWARE,
     },
     timers::TIMERS,
-    write_sd_sectors, AESCnt, Status, StorageSector, AES_HARDWARE, DMA_HARDWARE, IPC_FIFO_HARDWARE,
-    MMC_CONTROLLER, SDIO_CONTROLLER,
+    write_sd_sectors, AESCnt, Status, StorageSector, TransactionCode, AES_HARDWARE, DMA_HARDWARE,
+    IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
 };
 use common::bootstrap::{self, BOOTINFO_MEM};
 use core::arch::asm;
@@ -325,17 +325,17 @@ pub fn main_arm7() {
             while IPC_FIFO_HARDWARE.recv_fifo_empty() {}
             let mut response = 0;
             match IPC_FIFO_HARDWARE.recieve_raw_blocking() {
-                1 => {
+                TransactionCode::READ_CONTROLLER => {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = controller.next_fetch();
                 }
-                2 => {
+                TransactionCode::SET_BUFFER => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     buffer = core::slice::from_raw_parts_mut(ptr as *mut _, len as usize);
                 }
-                3 => {
+                TransactionCode::READ_NAND_ENCRYPTED => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match mmc_read_decrypt(buffer, &key, arg) {
@@ -343,8 +343,7 @@ pub fn main_arm7() {
                         Err(e) => 0x8000_0000 | e.bits(),
                     };
                 }
-
-                5 => {
+                TransactionCode::READ_SD => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match sd_read_sectors(buffer, arg) {
@@ -353,7 +352,7 @@ pub fn main_arm7() {
                     }
                 }
 
-                6 => {
+                TransactionCode::BOOT => {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     IPC_FIFO_HARDWARE.send_raw_blocking(0);
                     crate::disable_all_interrupts();
@@ -409,7 +408,7 @@ pub fn main_arm7() {
                     bootstrap::boot_arm7();
                 }
 
-                8 => {
+                TransactionCode::INIT_SDMMCDEVICE => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     response = match arg {
                         1 => match crate::init_sdmmc(crate::DeviceSelect::SDCardSlot) {
@@ -429,7 +428,7 @@ pub fn main_arm7() {
                         _ => 0x8000_0000,
                     }
                 }
-                9 => {
+                TransactionCode::GENERIC_SEND => {
                     let module_type = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let pointer = IPC_FIFO_HARDWARE.recieve_raw_blocking();
 
@@ -441,7 +440,7 @@ pub fn main_arm7() {
                         _ => response = 0x8000_0000,
                     }
                 }
-                10 => {
+                TransactionCode::WRITE_SD => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match write_sd_sectors(arg, buffer) {
@@ -449,7 +448,7 @@ pub fn main_arm7() {
                         Err(e) => e.bits(),
                     }
                 }
-                11 => {
+                TransactionCode::CHECK_SDMMCDEVICE => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match arg {
@@ -459,18 +458,18 @@ pub fn main_arm7() {
                     }
                 }
 
-                12 => {
+                TransactionCode::DO_MODCRYPT => {
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = modcryptor.dewit() as _;
                 }
-                13 => {
+                TransactionCode::INIT_WIFI => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     let firmware = core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize);
                     response = crate::twl_wifi::nwifi_init_complete(wifi_ver, firmware);
                 }
-                14 => {
+                TransactionCode::SET_SOUND_CHANNEL => {
                     let ptr = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let len = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     let timer = IPC_FIFO_HARDWARE.recieve_raw_blocking();
@@ -488,12 +487,22 @@ pub fn main_arm7() {
                     }
                     response = 0;
                 }
-                15 => {
+                TransactionCode::WRITE_NAND => {
                     let arg = IPC_FIFO_HARDWARE.recieve_raw_blocking();
                     assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
                     response = match mmc_write_encrypt(buffer, &key, arg) {
                         Ok(_) => 0,
                         Err(e) => e.bits(),
+                    }
+                }
+                TransactionCode::SET_WARMBOOT => {
+                    assert!(IPC_FIFO_HARDWARE.recieve_value_raw().is_err());
+                    match crate::i2c::I2C_HARDWARE.write_register(
+                        I2CRegister::I2cPower(crate::i2c::PowerRegister::RESETFLAG),
+                        1,
+                    ) {
+                        Ok(_) => response = 0,
+                        Err(_) => response = 1,
                     }
                 }
                 _ => response = 0x8000_0000,

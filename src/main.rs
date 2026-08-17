@@ -256,13 +256,21 @@ fn main() {
         }
     };
 
-    let trace_level = if args.debug_info {
-        tracing::Level::DEBUG
+    let log_level = if args.debug_info {
+        log::LevelFilter::Debug
     } else {
-        tracing::Level::INFO
+        log::LevelFilter::Info
     };
 
-    tracing_subscriber::fmt().with_max_level(trace_level).init();
+    env_logger::Builder::new()
+        .target(env_logger::Target::Stdout)
+        .default_format()
+        .format_module_path(false)
+        .format_target(false)
+        .format_timestamp(None)
+        .filter_level(log_level)
+        .try_init()
+        .expect("Failed to initialize (supposedly infallible) log");
 
     match args.build() {
         Ok(()) => info!("Done"),
