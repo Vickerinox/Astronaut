@@ -15,18 +15,19 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::Buttons;
 
 use crate::{
-    configuration::{BootCombo, Config},
-    gui::{browser::Browser, frontend::UiPage, GlobalData, MainMenu},
-    truncate_name, FileType,
+    FileType, configuration::{BootCombo, Config}, fat, gui::{GlobalData, MainMenu, browser::Browser, frontend::UiPage}, truncate_name,
 };
 
 #[derive(Clone)]
 pub enum Settings {
     Main,
+    Overrides,
     BootCombos(usize),
     SelectedCombo(Buttons, SelectorState),
     SavedSettings { nand: bool, sd: bool },
 }
+#[inline(never)]
+#[link_section = ".text_aux"]
 fn save_file(mut path: String, bytes: &[u8]) -> bool {
     if let Ok(mut file) =
         fatfs_embedded::open(&mut path, FileOptions::Write | FileOptions::CreateAlways)
@@ -39,12 +40,26 @@ fn save_file(mut path: String, bytes: &[u8]) -> bool {
         false
     }
 }
+#[inline(never)]
+#[link_section = ".text_aux"]
 fn save_settings(config: &Config) -> Settings {
     let mut new_ini = config.into_ini();
-    let sd = save_file(
-        "sdmc:/_nds/astronaut/settings.ini".to_string(),
-        new_ini.as_bytes(),
-    );
+
+    let sd = match fatfs_embedded::mkdir(&mut format!("sd:/_nds/")) {
+        Ok(()) | Err(fatfs_embedded::fatfs::Error::Exists) => {
+            match fatfs_embedded::mkdir(&mut format!("sd:/_nds/astronaut")) {
+                Ok(()) | Err(fatfs_embedded::fatfs::Error::Exists) => {
+                    save_file(
+                        "sdmc:/_nds/astronaut/settings.ini".to_string(),
+                        new_ini.as_bytes(),
+                    )
+                }
+                _ => false,
+            }
+        },
+        _ => false,
+    };
+
 
     let nand = if new_ini.len() > 0x4000 {
         false
@@ -57,8 +72,57 @@ fn save_settings(config: &Config) -> Settings {
     };
     Settings::SavedSettings { nand, sd }
 }
-
+fn override_string(
+    ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+    data: &mut super::GlobalData,
+    label: &str,
+    format: &'static [FileType],
+    transform: &'static dyn Fn(&mut GlobalData, String) -> Option<Box<dyn UiPage>>,
+) -> Option<Box<dyn UiPage>> {
+    let mut result = None;
+    ui.add_space(4);
+    ui.label(label);
+    ui.horizontal(|ui| {
+        if ui.button("reset").clicked() {
+            transform(data, String::new());
+        }
+        if path_button(ui, &data.config.music, 28).clicked() {
+            result = Browser::search_file(
+                format,
+                String::from("sdmc:/"),
+                Box::new(Settings::Main),
+                transform,
+            )
+            .map(into_ui);
+        }
+    });
+    result
+}
 impl Settings {
+    fn override_settings(
+        &mut self,
+        ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+        data: &mut super::GlobalData,
+    ) -> Option<Box<dyn UiPage>> {
+        let a = &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+            data.config.music = path;
+            Some(Box::new(Settings::Main))
+        };
+        let b = &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+            data.config.top_wallpaper = path;
+            Some(Box::new(Self::Main))
+        };
+
+        let c = &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
+            data.config.ext_blowfish_main = path;
+            Some(Box::new(Self::Main))
+        };
+        let result = override_string(ui, data, "Override Music:", &[FileType::Wav, FileType::Mod], a)
+            .or(override_string(ui, data, "Override Wallpaper", &[FileType::Bmp], b))
+            .or(override_string(ui, data, "Override Blowfish key", &[FileType::Bin], c));
+        super::goto_end(ui);
+        result.or(ui.button("Go Back").clicked().then_some(Box::new(Self::Main)))
+    }
     fn main_settings(
         &mut self,
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
@@ -70,16 +134,17 @@ impl Settings {
 
         ui.label(" "); //optimizes better than `add_space`, lmao.
         ui.label("Boot Options:");
-        if ui.button("Change Boot Combos").clicked() {
-            *self = Self::BootCombos(0);
-        }
         ui.add(Checkbox::new(
             &mut data.config.patch_flag,
             "DSi Menu patching",
         ));
         ui.add(Checkbox::new(
-            &mut data.config.wifi_firmware_upload,
+            &mut data.config.wifi_init,
             "WiFi Firmware upload",
+        ));
+        ui.add(Checkbox::new(
+            &mut data.config.force_warmboot,
+            "Force Warmboot",
         ));
 
         ui.add_space(4);
@@ -103,56 +168,35 @@ impl Settings {
         });
 
         ui.add_space(4);
-        ui.label("Override Music:");
-        ui.horizontal(|ui| {
-            if ui.button("reset").clicked() {
-                data.config.music = String::new();
-            }
-            if path_button(ui, &data.config.music, 28).clicked() {
-                result = Browser::search_file(
-                    &[FileType::Wav, FileType::Mod],
-                    String::from("sdmc:/"),
-                    Box::new(Self::Main),
-                    &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
-                        data.config.music = path;
-                        Some(Box::new(Self::Main))
-                    },
-                )
-                .map(into_ui);
-            }
-        });
+        ui.label("Overrides:");
+        
+        if ui.button("change override settings").clicked() {
+            *self = Self::Overrides
+        }
 
-        ui.add_space(4);
+        if !data.safe_mode {
+            ui.add_space(4);
+            ui.label("Boot Combos:");
+            if ui.button("Change Boot Combos").clicked() {
+                *self = Self::BootCombos(0);
+            }   
+        }
 
-        ui.label("Override Wallpaper:");
-        ui.horizontal(|ui| {
-            if ui.button("reset").clicked() {
-                data.config.top_wallpaper = String::new();
-            }
-            if path_button(ui, &data.config.top_wallpaper, 28).clicked() {
-                result = Browser::search_file(
-                    &[FileType::Wav, FileType::Mod],
-                    String::from("sdmc:/"),
-                    Box::new(Self::Main),
-                    &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
-                        data.config.top_wallpaper = path;
-                        Some(Box::new(Self::Main))
-                    },
-                )
-                .map(into_ui);
-            }
-        });
         super::goto_end(ui);
         ui.horizontal(|ui| {
             if ui.button("exit").clicked() {
                 result = Some(Box::new(MainMenu));
             }
-            if ui.button("save").clicked() {
-                *self = save_settings(&data.config);
+            if !data.safe_mode {
+                if ui.button("save").clicked() {
+                    *self = save_settings(&data.config);
+                }
             }
         });
         result
     }
+    #[inline(never)]
+    #[link_section = ".text_aux"]
     fn boot_combo_settings(
         &mut self,
         page: usize,
@@ -357,6 +401,7 @@ impl UiPage for Settings {
                 ui.add_space(ui.clip_rect().height() - 14);
                 ui.button("Ok").clicked().then_some(Box::new(MainMenu))
             }
+            Settings::Overrides => self.override_settings(ui, data),
         }
     }
 }

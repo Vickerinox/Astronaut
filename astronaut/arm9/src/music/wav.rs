@@ -55,7 +55,7 @@ impl Drop for StreamType {
         };
     }
 }
-#[link_section = ".text_itcm"]
+#[link_section = ".text_aux"]
 fn alloc_wav_buf() -> &'static mut [u16] {
     let buffer = unsafe { alloc::alloc::alloc(WAV_BUFFER_LAYOUT) };
     unsafe { core::slice::from_raw_parts_mut(buffer as *mut _, WAV_BUFFER_LEN) }
@@ -122,7 +122,7 @@ impl StreamingWav {
             frequency,
         })
     }
-    #[link_section = ".text_itcm"]
+    #[link_section = ".text_aux"]
     pub unsafe fn play(&mut self) {
         unsafe {
             let timer = ((33513982 / 2) / self.frequency) as u16;

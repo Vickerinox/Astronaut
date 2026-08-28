@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 volatile-register = {version = "0.2.2", default-features = false}
+bytemuck = {version = "1.25.0", features = ["must_cast"]}

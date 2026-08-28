@@ -15,7 +15,7 @@ use crate::{
     write_sd_sectors, AESCnt, Status, StorageSector, TransactionCode, AES_HARDWARE, DMA_HARDWARE,
     IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
 };
-use common::bootstrap::{self, BOOTINFO_MEM};
+use common::bootstrap::{self, BOOTINFO_MEM, FirmwareData};
 use core::arch::asm;
 
 pub mod init;
@@ -206,7 +206,6 @@ unsafe fn generate_cid_key(buf: &mut [u32; 4], cid: &[u32; 4]) {
         0x10,
     );
 }
-
 pub fn main_arm7() {
     unsafe {
         // start talking to the ARM9 ASAP

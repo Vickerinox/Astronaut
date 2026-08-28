@@ -4,6 +4,7 @@
 use core::fmt::Debug;
 
 use alloc::string::{String, ToString};
+use common::blowfish::BFCTX;
 use common::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
@@ -13,6 +14,7 @@ pub enum BootError {
     BadBinaryLocation(core::ops::Range<u32>),
     BadEntrypoint(u32),
     FileReadError,
+    InvalidBlowfishKey,
 }
 impl Debug for BootError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -20,6 +22,7 @@ impl Debug for BootError {
             Self::BadBinaryLocation(arg0) => write!(f, "BadBinaryLocation {arg0:#10X?}"),
             Self::BadEntrypoint(arg0) => write!(f, "BadEntrypoint {arg0:#10X}"),
             Self::FileReadError => write!(f, "FileReadErr"),
+            Self::InvalidBlowfishKey => write!(f, "Failed to load Blowfish key"),
         }
     }
 }
@@ -83,10 +86,11 @@ unsafe fn boot_unreturnable(
     app_data: &mut crate::gui::GlobalData,
     arm7_relocation: bool,
 ) -> ! {
+    
     crate::music::stop_mod_file();
     let boot_info = header;
 
-    if app_data.config.wifi_firmware_upload {
+    if app_data.config.wifi_init {
         //Launcher and hiyaCFW can skip wifi firmware load since they do it themselves
         if ![0x00030017_484E4100, 0x00030004_49485900]
             .contains(&(boot_info.twl_header.title_id & !0xFF))
@@ -296,6 +300,19 @@ pub unsafe fn boot_app(
     reboot_lib::nocash_write("> booting ");
     reboot_lib::nocash_write(file_path);
     reboot_lib::nocash_write("\n");
+    
+    if !app_data.config.ext_blowfish_main.is_empty() {
+        if let Ok(mut fil) = fatfs_embedded::open(&mut app_data.config.ext_blowfish_main.clone(), FileOptions::Read) {
+            if fatfs_embedded::size(&mut fil) as usize == core::mem::size_of::<BFCTX>() {
+                const BLOWFISH_LEN: usize = core::mem::size_of::<BFCTX>();
+                let slice = app_data.blowfish.bytes_mut();
+                if fatfs_embedded::read(&mut fil, slice) != Ok(BLOWFISH_LEN as u32) {
+                    return BootError::InvalidBlowfishKey;
+                }
+            }
+        }
+    }
+
     let mem = BOOTINFO_MEM as *mut () as *mut u32;
     for i in 0..0xE00 {
         mem.add(i).write_volatile(0);

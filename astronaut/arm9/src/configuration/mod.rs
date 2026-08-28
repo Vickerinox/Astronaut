@@ -75,47 +75,47 @@ impl BootCombos {
 }
 pub struct Config {
     pub patch_flag: bool,
-    pub wifi_firmware_upload: bool,
+    pub wifi_init: bool,
+    pub force_warmboot: bool,
     pub autoboot: String,
     pub music: String,
     pub top_wallpaper: String,
     pub theme_path: String,
     pub boot_combos: BootCombos,
+    pub ext_blowfish_main: String,
+    pub ext_blowfish_sub: String,
 }
-
+fn push_boolean(string: &mut String, name: &str, value: bool) {
+    string.push_str(name);
+    if value {
+        string.push_str("=on\n");
+    } else {
+        string.push_str("=off\n");
+    }
+}
+fn push_path(string: &mut String, name: &str, value: &str) {
+    if !name.is_empty() {
+        string.push_str(&format!("{}={}\n", name, value));
+    }
+}
 impl Config {
     pub fn into_ini(&self) -> String {
         let mut ini = String::new();
+
         ini.push_str("[options]\n");
-        ini.push_str("wifi_firm_upload");
-        if self.wifi_firmware_upload {
-            ini.push_str("=on\n");
-        } else {
-            ini.push_str("=off\n");
-        }
-        ini.push_str("patching");
-        if self.patch_flag {
-            ini.push_str("=on\n");
-        } else {
-            ini.push_str("=off\n");
-        }
+        push_boolean(&mut ini, "wifi_firm_upload", self.wifi_init);
+        push_boolean(&mut ini, "patching", self.patch_flag);
+        push_boolean(&mut ini, "force_warmboot", self.force_warmboot);
+        push_path(&mut ini, "blowfish", &self.ext_blowfish_main);
+        push_path(&mut ini, "blowfish_fallback", &self.ext_blowfish_sub);
 
         ini.push_str("\n[style]\n");
-        if !self.theme_path.is_empty() {
-            ini.push_str(&format!("theme={}\n", &self.theme_path));
-        }
-        if !self.music.is_empty() {
-            ini.push_str(&format!("music={}\n", &self.music));
-        }
-        if !self.top_wallpaper.is_empty() {
-            ini.push_str(&format!("wallpaper={}\n", &self.top_wallpaper));
-        }
+        push_path(&mut ini, "theme", &self.theme_path);
+        push_path(&mut ini, "music", &self.music);
+        push_path(&mut ini, "wallpaper", &self.top_wallpaper);
 
         ini.push_str("\n[boot]\n");
-
-        if !self.boot_combos.default.is_empty() {
-            ini.push_str(&format!("default={}\n", &self.boot_combos.default));
-        }
+        push_path(&mut ini, "default", &self.boot_combos.default);
         for combo in &self.boot_combos.additionals {
             ini.push_str(&format!("h{:04x}={}\n", combo.buttons.bits(), &combo.path));
         }
@@ -188,12 +188,15 @@ impl Config {
     pub const fn default() -> Self {
         Self {
             patch_flag: true,
-            wifi_firmware_upload: true,
+            wifi_init: true,
             autoboot: String::new(),
             music: String::new(),
             top_wallpaper: String::new(),
             theme_path: String::new(),
             boot_combos: BootCombos::default(),
+            force_warmboot: false,
+            ext_blowfish_main: String::new(),
+            ext_blowfish_sub: String::new(),
         }
     }
 
@@ -207,50 +210,48 @@ impl Config {
         ini::Ini::new(
             &str,
             Some(&mut |segment, key, value| match (segment, key, value) {
-                ("[boot]", key, value) => {
-                    if self.autoboot.is_empty() && key == "default" {
-                        self.autoboot = value.to_string();
-                        self.boot_combos.default = value.to_string();
-                    } else {
-                        let combo_parse = key
-                            .split_at_checked(1)
-                            .and_then(|(i, j)| (i == "h").then_some(j))
-                            .and_then(|j| u32::from_str_radix(j, 16).ok());
-                        let Some(combo) = combo_parse else {
-                            return;
-                        };
-                        let combo = Buttons::from_bits_truncate(combo as u16);
-                        self.boot_combos
-                            .add(BootCombo::new(combo, value.to_string()));
-                        if held_buttons == combo {
-                            self.autoboot = value.to_string();
-                        }
-                    }
+                ("[boot]", key, value) => self.handle_boot_entry(key, value, held_buttons),
+                ("[options]", "wifi_firm_upload", key) => handle_bool(&mut self.wifi_init, key),
+                ("[options]", "patching", key) => handle_bool(&mut self.patch_flag, key),
+                ("[options]", "force_warmboot", key) => handle_bool(&mut self.force_warmboot, key),
+                ("[options]", "blowfish", value) => self.ext_blowfish_main = value.to_string(),
+                ("[options]", "blowfish_fallback", value) => {
+                    self.ext_blowfish_sub = value.to_string()
                 }
-                ("[options]", "wifi_firm_upload", "on") => {
-                    self.wifi_firmware_upload = true;
-                }
-                ("[options]", "wifi_firm_upload", "off") => {
-                    self.wifi_firmware_upload = false;
-                }
-                ("[options]", "patching", "on") => {
-                    self.patch_flag = true;
-                }
-                ("[options]", "patching", "off") => {
-                    self.patch_flag = false;
-                }
-                ("[style]", "wallpaper", value) => {
-                    self.top_wallpaper = value.to_string();
-                }
-                ("[style]", "music", value) => {
-                    self.music = value.to_string();
-                }
-                ("[style]", "theme", value) => {
-                    self.theme_path = value.to_string();
-                }
+                ("[style]", "wallpaper", value) => self.top_wallpaper = value.to_string(),
+                ("[style]", "music", value) => self.music = value.to_string(),
+                ("[style]", "theme", value) => self.theme_path = value.to_string(),
                 _ => (),
             }),
         );
+    }
+    pub fn handle_boot_entry(&mut self, key: &str, value: &str, held_buttons: Buttons) {
+        if self.autoboot.is_empty() && key == "default" {
+            self.autoboot = value.to_string();
+            self.boot_combos.default = value.to_string();
+        } else {
+            let combo_parse = key
+                .split_at_checked(1)
+                .and_then(|(i, j)| (i == "h").then_some(j))
+                .and_then(|j| u32::from_str_radix(j, 16).ok());
+            let Some(combo) = combo_parse else {
+                return;
+            };
+            let combo = Buttons::from_bits_truncate(combo as u16);
+            self.boot_combos
+                .add(BootCombo::new(combo, value.to_string()));
+            if held_buttons == combo {
+                self.autoboot = value.to_string();
+            }
+        }
+    }
+}
+
+fn handle_bool(bool: &mut bool, key: &str) {
+    if key == "on" {
+        *bool = true;
+    } else if key == "off" {
+        *bool = false;
     }
 }
 fn read_ini(path: &mut String) -> Option<String> {

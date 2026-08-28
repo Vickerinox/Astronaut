@@ -194,11 +194,13 @@ pub enum FileType {
     Wav,
     Bmp,
     Ini,
+    Bin,
     None,
 }
 
 pub fn filetype(extension: &str) -> FileType {
     const ASSOCIATION_LIST: &[(&str, FileType)] = &[
+        (".BIN", FileType::Bin),
         (".WAV", FileType::Wav),
         (".MOD", FileType::Mod),
         (".INI", FileType::Ini),
@@ -505,13 +507,13 @@ unsafe fn main() {
         let _ = app_area
             .filesystems
             .nand_fs
-            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"nand:\0"));
+            .mount(c"nand:");
 
         // Mount SD/MMC Card Slot
         let _ = app_area
             .filesystems
             .sdmc_fs
-            .mount(core::ffi::CStr::from_bytes_with_nul_unchecked(b"sdmc:\0"));
+            .mount(c"sdmc:");
 
         // Find the TMD we were launched from (if any, string left over by stage 2)
         let tmd_path = core::ffi::CStr::from_ptr(0x02FE34C4 as *const _)
@@ -532,10 +534,14 @@ unsafe fn main() {
             app_area.app_data.assume_init_mut()
         };
 
+        if app_data.global_data.config.force_warmboot {
+            let _ = reboot_lib::arm9_set_warmboot();
+        }
         // Figure out what to start
         let (buttons, _, _) = read_controller();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
         app_data.global_data.config.load(buttons);
+
         if !force_menu {
             // Chainload by other homebrew
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {

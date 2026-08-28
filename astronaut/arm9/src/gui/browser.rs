@@ -28,7 +28,7 @@ use crate::{
     music::{stop_mod_file, MusicPlaying, StreamingWav},
     truncate_name, FileEntry, FileType,
 };
-#[link_section = ".text_itcm"]
+
 pub fn populate_fs_vec(folder: &mut fatfs_embedded::fatfs::Directory) -> Vec<FileEntry> {
     let mut vec: Vec<_> = alloc::vec::Vec::new();
 
@@ -370,7 +370,6 @@ impl Browser {
         }
     }
     /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
-    #[link_section = ".text_itcm"]
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {
         let FileEntry {
             file_name, kind, ..
@@ -470,12 +469,9 @@ impl UiPage for Browser {
         // Show all the items
         for (i, item) in shown_items.iter().take(max_items).enumerate() {
             let color = match item.kind {
-                FileType::None => ui.style().text_color,
+                FileType::None | FileType::Bin | FileType::Ini | FileType::Bmp => ui.style().text_color,
                 FileType::Rom => data.theme.bootable_color,
-                FileType::Mod => data.theme.asset_color,
-                FileType::Wav => data.theme.asset_color,
-                FileType::Bmp => data.theme.asset_color,
-                FileType::Ini => data.theme.asset_color,
+                FileType::Mod | FileType::Wav => data.theme.asset_color,
                 FileType::Dir => data.theme.folder_color,
             };
             let response = ui.add(Button::new(
