@@ -7,8 +7,8 @@ use crate::MemoryWrapper;
 
 #[repr(C)]
 pub struct BootMethods {
-    pub optional: core::mem::MaybeUninit<OptBoot>,
-    pub official: core::mem::MaybeUninit<OfficialBoot>,
+    pub optional: OptBoot,
+    pub official: OfficialBoot,
     _0x400: [u8; 0x400],
     pub unlaunch: UnlaunchBoot,
 }
@@ -16,17 +16,32 @@ pub struct BootMethods {
 #[repr(C)]
 pub struct OptBoot {
     title_id: u64,
-    _0x8: u8,
+    unk0x8: u8,
     flags: u8,
     old_dev: u16,
     unknown: u16,
-    _0xe: u16,
+    unk0xe: u16,
     crc: u16,
     unknown2: u16,
     unknown_buffer: [u8; 0x2EC],
 }
 const_assert!(core::mem::size_of::<OptBoot>() == 0x300);
-
+impl OptBoot {
+    pub fn reset(&mut self) {
+        *self = Self {
+            title_id: 0,
+            unk0x8: 0,
+            flags: 0,
+            old_dev: 0,
+            unknown: 0,
+            unk0xe: 0,
+            crc: 0,
+            unknown2: 0,
+            unknown_buffer: [0; _],
+        };
+        self.flags = 0x17;
+    }
+}
 #[repr(C)]
 pub struct OfficialBoot {
     gamecode: u32,
@@ -38,6 +53,21 @@ pub struct OfficialBoot {
     flags: u32,
     unknown2: u32,
     unknown_buffer: [u8; 0xE0],
+}
+impl OfficialBoot {
+    pub fn reset(&mut self) {
+        *self = Self {
+            gamecode: 0,
+            unknown: 0,
+            crc_length: 0,
+            crc: 0,
+            old_title_id: 0,
+            new_title_id: 0,
+            flags: 0,
+            unknown2: 0,
+            unknown_buffer: [0; _],
+        };
+    }
 }
 const_assert!(core::mem::size_of::<OfficialBoot>() == 0x100);
 

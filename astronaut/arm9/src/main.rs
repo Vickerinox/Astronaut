@@ -534,9 +534,6 @@ unsafe fn main() {
             app_area.app_data.assume_init_mut()
         };
 
-        if app_data.global_data.config.force_warmboot {
-            let _ = reboot_lib::arm9_set_warmboot();
-        }
         // Figure out what to start
         let (buttons, _, _) = read_controller();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);

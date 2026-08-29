@@ -5,7 +5,8 @@ use core::fmt::Debug;
 
 use alloc::string::{String, ToString};
 use common::blowfish::BFCTX;
-use common::bootstrap::{BootInfoTWL, TWLHeader, BOOTINFO_MEM};
+use common::bootstrap::{BOOTINFO_MEM, BootInfoNTR, BootInfoTWL, TWLHeader};
+use reboot_lib::autoboot_info::BOOT_INFO;
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
 use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
@@ -314,14 +315,15 @@ pub unsafe fn boot_app(
     }
 
     let mem = BOOTINFO_MEM as *mut () as *mut u32;
-    for i in 0..0xE00 {
+    
+    const CLEAR_WORDS: usize = (size_of::<BootInfoTWL>()-size_of::<BootInfoNTR>())/size_of::<u32>();
+    
+    for i in 0..CLEAR_WORDS {
         mem.add(i).write_volatile(0);
     }
+    
     let header = &mut (*common::bootstrap::BOOTINFO_MEM).twl_header;
-    let head_buf = core::slice::from_raw_parts_mut(
-        header as *mut TWLHeader as *mut () as *mut u8,
-        size_of::<TWLHeader>(),
-    );
+    let head_buf = reboot_lib::bytemuck::bytes_of_mut(header);
     if read_all(head_buf, r).is_err() {
         return BootError::FileReadError;
     }
@@ -375,6 +377,12 @@ pub unsafe fn boot_app(
     if !arm9_range.contains(&header.head.arm9_entry) {
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
+    if app_data.config.force_warmboot {
+        let _ = reboot_lib::arm9_set_warmboot();
+        BOOT_INFO.official.reset();
+        BOOT_INFO.optional.reset();
+    }
+
     let header = &mut *(BOOTINFO_MEM);
     boot_unreturnable(r, file_path, header, app_data, relocation);
 }

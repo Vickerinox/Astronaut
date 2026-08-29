@@ -1,19 +1,25 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
+use bytemuck::AnyBitPattern;
+use bytemuck::NoUninit;
+use bytemuck::Zeroable;
+
 use crate::device_list::DeviceList;
 
-#[link_section = ".text_itcm"]
+
 #[cfg(not(target_arch = "arm"))]
 #[inline(always)]
 pub unsafe fn boot_arm9(_is_twl: bool) -> ! {
     loop {}
 }
+
 #[cfg(not(target_arch = "arm"))]
 #[inline(always)]
 pub unsafe fn boot_arm7() -> ! {
     loop {}
 }
+
 #[cfg(target_arch = "arm")]
 use core::ptr::read_volatile as r;
 #[cfg(target_arch = "arm")]
@@ -186,12 +192,12 @@ pub const ARM9_EN: usize = BOOTSTRAP_LOCATION;
 pub const ARM9_JUMP: usize = BOOTSTRAP_LOCATION + 4;
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct NDSHeader {
     short: ShortNDSHeader,
 }
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ShortNDSHeader {
     pub title: [u8; 12],
     pub tid: u32,
@@ -259,7 +265,12 @@ pub struct ShortNDSHeader {
 
 const_assert!(core::mem::size_of::<ShortNDSHeader>() == 0x160);
 
+unsafe impl Zeroable for TWLHeader {}
+unsafe impl AnyBitPattern for TWLHeader {}
+unsafe impl NoUninit for TWLHeader {}
+
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct TWLHeader {
     pub head: ShortNDSHeader,
     pub debug_rom_offset: u32,

@@ -49,17 +49,17 @@ fn save_settings(config: &Config) -> Settings {
         Ok(()) | Err(fatfs_embedded::fatfs::Error::Exists) => {
             match fatfs_embedded::mkdir(&mut format!("sd:/_nds/astronaut")) {
                 Ok(()) | Err(fatfs_embedded::fatfs::Error::Exists) => {
-                    save_file(
-                        "sdmc:/_nds/astronaut/settings.ini".to_string(),
-                        new_ini.as_bytes(),
-                    )
+                    true
                 }
                 _ => false,
             }
         },
         _ => false,
     };
-
+    let sd = save_file(
+                        "sdmc:/_nds/astronaut/settings.ini".to_string(),
+                        new_ini.as_bytes(),
+                    );
 
     let nand = if new_ini.len() > 0x4000 {
         false
