@@ -5,15 +5,35 @@ use alloc::string::String;
 
 use crate::MemoryWrapper;
 
+
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct BootMethods {
     pub optional: OptBoot,
     pub official: OfficialBoot,
     _0x400: [u8; 0x400],
     pub unlaunch: UnlaunchBoot,
 }
+unsafe impl bytemuck::AnyBitPattern for BootMethods {}
+unsafe impl bytemuck::Zeroable for BootMethods {}
+unsafe impl bytemuck::NoUninit for BootMethods {}
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BootMethodWords([u32; size_of::<BootMethods>()/size_of::<u32>()]);
+unsafe impl bytemuck::AnyBitPattern for BootMethodWords {}
+unsafe impl bytemuck::Zeroable for BootMethodWords {}
+unsafe impl bytemuck::NoUninit for BootMethodWords {}
+
+impl BootMethods {
+    pub fn clear(&mut self) {
+        let words = bytemuck::must_cast_mut::<BootMethods, BootMethodWords>(self);
+        words.0 = [0; _];
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
 pub struct OptBoot {
     title_id: u64,
     unk0x8: u8,
@@ -43,6 +63,7 @@ impl OptBoot {
     }
 }
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct OfficialBoot {
     gamecode: u32,
     unknown: u8,
@@ -72,6 +93,7 @@ impl OfficialBoot {
 const_assert!(core::mem::size_of::<OfficialBoot>() == 0x100);
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 /// The parameters passed to "Unlaunch" in order to override the default boot option.
 pub struct UnlaunchParams {
     /// Flags used to boot the title
@@ -89,6 +111,7 @@ pub struct UnlaunchParams {
 }
 bitflags::bitflags! {
     /// Flags for "Unlaunch" to use when booting a new app
+    #[derive(Clone, Copy)]
     pub struct UnlaunchBootFlags: u32 {
         /// Boot the application immediately
         const BOOT = (1<<0);
@@ -98,6 +121,7 @@ bitflags::bitflags! {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 /// The Boot structure for starting an app via the "Unlaunch" method
 pub struct UnlaunchBoot {
     /// Boot signature "AutoLoadInfo"

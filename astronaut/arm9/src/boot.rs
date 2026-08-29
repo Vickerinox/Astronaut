@@ -377,12 +377,11 @@ pub unsafe fn boot_app(
     if !arm9_range.contains(&header.head.arm9_entry) {
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
+    
     if app_data.config.force_warmboot {
         let _ = reboot_lib::arm9_set_warmboot();
-        BOOT_INFO.official.reset();
-        BOOT_INFO.optional.reset();
+        (0x2FFFDFA as *mut u8).write(81);
     }
-
     let header = &mut *(BOOTINFO_MEM);
     boot_unreturnable(r, file_path, header, app_data, relocation);
 }
