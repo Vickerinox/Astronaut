@@ -380,7 +380,7 @@ pub unsafe fn boot_app(
     
     if app_data.config.force_warmboot {
         let _ = reboot_lib::arm9_set_warmboot();
-        (0x2FFFDFA as *mut u8).write(81);
+        (0x2FFFDFA as *mut u8).write(0x81);
     }
     let header = &mut *(BOOTINFO_MEM);
     boot_unreturnable(r, file_path, header, app_data, relocation);
