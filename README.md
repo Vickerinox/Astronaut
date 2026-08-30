@@ -38,6 +38,7 @@ When compiling Astronaut yourself you will need the following installed:
 * a suitable C/C++ compiler for the fatfs dependency. (this will be searched for by the build program)
 * the `lld` linker 
 * the `arm-none-eabi-gcc` compiler.  
+* ``git`` version control.
 
 Once rust and the other dependencies are installed, compiling *should* be as simple as running `cargo run`. Optionally, you can provide a number of command line arguments to change how astronaut is compiled. For information, use ``cargo run -- --help``. (NOTE: the first set of ``--`` means we're finished providing command line arguments for cargo, and everything thereafter goes to the compiled build program.)
 
