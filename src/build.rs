@@ -15,10 +15,17 @@ pub fn build_crate(path: PathBuf, is_release: bool) -> Result<(), CargoError> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
+        
     if is_release {
-        cwd.env("ASTRONAUT_RELEASE", "hell yeah");
+        cwd.env_remove("ASTRONAUT_DEBUG");
     } else {
-        cwd.env_remove("ASTRONAUT_RELEASE");
+        // add git commit hash to env
+        let output = std::process::Command::new("git")
+            .args(&["rev-parse", "HEAD"])
+            .output()
+            .expect("You must have git installed to your default path in order to compile a non-release version of astronaut");
+        let git_hash = String::from_utf8(output.stdout).unwrap();
+        cwd.env("ASTRONAUT_DEBUG", &git_hash);
     }
 
     let mut cwd = cwd.spawn().map_err(CargoError::SpawnChild)?;

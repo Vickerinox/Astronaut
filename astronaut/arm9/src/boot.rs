@@ -206,12 +206,20 @@ unsafe fn boot_unreturnable(
         }
     }
 
+    // Check if the secure area is used within the rom
     if (0x4000..0x8000).contains(&boot_info.twl_header.head.arm9_offset) {
+        
         let bf = &mut app_data.blowfish;
         let tmp = boot_info.twl_header.head.arm9_load as *mut u32;
+
+        // Skip decrypting it if were already working with a decrypted rom
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
+            
+            // build an initial key from the game tid
             let gamecode = boot_info.twl_header.head.tid;
             let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
+        
+            //Initialize the blowfish context/keys
             bf.init2(&mut arg);
             bf.init2(&mut arg);
             bf.decrypt(&mut *tmp.add(1), &mut *tmp);
@@ -220,20 +228,26 @@ unsafe fn boot_unreturnable(
             bf.init2(&mut arg);
             bf.decrypt(&mut *tmp.add(1), &mut *tmp);
 
+            // decrypt the secure area
             for i in (2..0x200).step_by(2) {
                 bf.decrypt(&mut *tmp.add(i + 1), &mut *tmp.add(i));
             }
+
+            // flag it as finished if it was successful
             if tmp.read() == 0x72636E65 && tmp.add(1).read() == 0x6A624F79 {
                 tmp.write(0xE7FFDEFF);
                 tmp.add(1).write(0xE7FFDEFF);
             }
+            
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
 
+    // Apply patches (only applies to DSi menu, has option in config)
     if app_data.config.patch_flag {
         common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
+
     reboot_lib::nocash_write("> Inserted Device List \n");
     {
         common::config::init(boot_info);
@@ -382,6 +396,7 @@ pub unsafe fn boot_app(
         let _ = reboot_lib::arm9_set_warmboot();
         (0x2FFFDFA as *mut u8).write(0x81);
     }
+
     let header = &mut *(BOOTINFO_MEM);
     boot_unreturnable(r, file_path, header, app_data, relocation);
 }

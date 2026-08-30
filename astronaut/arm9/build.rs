@@ -27,21 +27,15 @@ fn main() {
 
     std::fs::write(arm7_path, arm7_bin).unwrap();
 
-    if std::env::var("ASTRONAUT_RELEASE")
-        .unwrap_or(String::new())
-        .is_empty()
-    {
-        // add git commit hash to env
-        let output = std::process::Command::new("git")
-            .args(&["rev-parse", "HEAD"])
-            .output()
-            .expect("You must have git installed to your default path in order to compile a non-release version of astronaut");
-        let git_hash = String::from_utf8(output.stdout).unwrap();
-        println!("cargo:rustc-env=GIT_HASH= (commit {})", &git_hash[..8]);
+    if let Ok(commit) = std::env::var("ASTRONAUT_DEBUG") {
+        // Debug build
+        println!("cargo:rustc-env=GIT_HASH= (commit {})", &commit[..8]);
     } else {
+        // Release build
         println!("cargo:rustc-env=GIT_HASH= ");
     }
-    println!("cargo::rerun-if-env-changed=ASTRONAUT_RELEASE");
+
+    println!("cargo::rerun-if-env-changed=ASTRONAUT_DEBUG");
     println!("cargo::rerun-if-changed=../../target-subbinary/thumbv4t-none-eabi/release/arm7");
     println!("cargo::rerun-if-changed=./src/resources/font.bmp");
 }
