@@ -5,8 +5,7 @@ use core::fmt::Debug;
 
 use alloc::string::{String, ToString};
 use common::blowfish::BFCTX;
-use common::bootstrap::{BOOTINFO_MEM, BootInfoNTR, BootInfoTWL, TWLHeader};
-use reboot_lib::autoboot_info::BOOT_INFO;
+use common::bootstrap::{BOOTINFO_MEM, BootInfoNTR, BootInfoTWL };
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
 use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
@@ -312,6 +311,7 @@ pub unsafe fn boot_app(
     file_path: &str,
     app_data: &mut GlobalData,
 ) -> BootError {
+
     reboot_lib::nocash_write("> booting ");
     reboot_lib::nocash_write(file_path);
     reboot_lib::nocash_write("\n");

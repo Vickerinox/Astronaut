@@ -574,13 +574,13 @@ pub unsafe fn set_background(color: u16) {
     ENGINE_B_PALETTES.bg_palettes[0].write(color);
 }
 
-// Where NWRAM Starts
+// Where the NWRAM bank for this code start
 const DSI_WRAM_START: usize = 0x037C0000;
-// Where the TMD code starts
+// Where the TMD code is actually placed
 const BINARY_START: usize = 0x037DF27C;
-// Where to put the app area (arbitrary, memory before this used as stack space)
+// Where to put the app area (arbitrary, memory before this is used as stack space)
 const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
-// How long the app area may theorhetically be as to not collide with code
+// How long the app area may theorhetically be as to not collide with the TMD
 const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
 
 #[no_mangle]

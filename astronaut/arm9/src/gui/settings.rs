@@ -15,7 +15,7 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::Buttons;
 
 use crate::{
-    FileType, configuration::{BootCombo, Config}, fat, gui::{GlobalData, MainMenu, browser::Browser, frontend::UiPage}, truncate_name,
+    FileType, configuration::{BootCombo, Config}, gui::{GlobalData, MainMenu, browser::Browser, frontend::UiPage}, truncate_name,
 };
 
 #[derive(Clone)]
