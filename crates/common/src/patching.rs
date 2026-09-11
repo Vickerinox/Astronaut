@@ -3,6 +3,11 @@
 
 use crate::bootstrap::TWLHeader;
 
+/// The main patch for the launcher, applied to the decrypted ARM9 binary.
+/// 
+/// This will disable the RSA checks, cart whitelist, and other checks that prevent unwanted games/apps from running.
+/// 
+/// NOTE: while the format is slightly different, this has the same effect on the binary as unlaunch*.
 const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
     blocks: &[
         VBlock {
@@ -86,6 +91,7 @@ const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
             offset: 0x14,
         },
     ],
+    // All match data (0xAAAA is a wildcard, accepting any word)
     originals: &[
         0x1000, 0xe3a0, 0xa4, 0xe59f, 0x2b01, 0xe3a0, 0xaaaa, 0xeb00, 0x4b0e, 0xa800, 0xa903,
         0x1c2a, 0x3380, 0x4b09, 0xa812, 0xa90d, 0x1c32, 0x47a0, 0x2201, 0x1c11, 0x4081, 0x9802,
@@ -102,6 +108,7 @@ const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
         0xd302, 0xaaaa, 0x4285, 0xd905, 0x2201, 0x312, 0xaaaa, 0xaaaa, 0x4809, 0x4b0c, 0x6802,
         0x480a, 0xa900, 0x1810,
     ],
+    // All patch data
     patches: &[
         0x00, 0xe1a0, 0x46c0, 0x2001, 0x46c0, 0x46c0, 0x46c0, 0x46c0, 0x2001, 0x2001, 0x4770,
         0x46c0, 0x2001, 0x46c0, 0x2001, 0x46c0, 0x2001, 0x46c0, 0x2001, 0x2000, 0x4770, 0x2000,
@@ -110,44 +117,74 @@ const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
 };
 #[derive(Debug)]
 pub struct VPatch<'a> {
+    /// Paths the walker should take to apply the patch, 1 block = 1 patch
     blocks: &'a [VBlock],
+    /// The data to match against (making sure we don't just patch random offsets)
     originals: &'a [u16],
+    /// The data that will be written as patches
     patches: &'a [u16],
 }
+
 #[derive(Debug)]
 pub struct VBlock {
+    /// Length within the originals pool this patch occupies
     original_len: u16,
+    /// Length within the patch pool this patch occupies
     patch_len: u16,
+    /// Offset the walker should jump once it finds the match to apply the patch
     offset: i16,
 }
+
 #[derive(Debug, PartialEq)]
 pub enum VPatchResult {
+    /// Patch went ok!
     Ok,
+
+    // the following are signs of a bad rom
+    
+    /// Binary ran out before a match could be found
     BinaryRanOut,
+    /// Internal logic error
     BadPatch,
+
+    // the following are signs of a bad patch (should never be the case, but better safe than sorry)
+
+    /// The originals pool ran out before all VBlocks were walked
     MatchRanOut,
+    /// The patch pool ran out before all VBlocks were walked
     PatchRanOut,
+    /// Data in the pools was left over despite the whole patch being applied
     MalformedPatch,
 }
+
 fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
     let VPatch {
         blocks,
         mut originals,
         mut patches,
     } = patch;
+    // make a walker
     let mut l_cursor = 0;
+
+    // walk each block in the patch
     for block in blocks.iter() {
+        
+        // Trim the pool of match words
         let Some((orig, remainder)) = originals.split_at_checked(block.original_len as usize)
         else {
             return VPatchResult::MatchRanOut;
         };
         originals = remainder;
+
+        // Trim the pool of patch words
         let Some((patch, remainder)) = patches.split_at_checked(block.patch_len as usize) else {
             return VPatchResult::PatchRanOut;
         };
         patches = remainder;
 
+        // Find a match for this block
         loop {
+            // Look for first matching word
             loop {
                 let Some(word) = l_words.get(l_cursor) else {
                     return VPatchResult::BinaryRanOut;
@@ -161,22 +198,31 @@ fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
                     l_cursor += 1;
                 }
             }
+        
+            // Look if all words match
             let match_length = l_words[l_cursor..]
                 .iter()
                 .zip(orig.iter())
                 .filter(|(a, b)| (**b == 0xAAAA) || (**b == **a))
                 .count();
+
             if match_length == orig.len() {
+                // Match found!
                 break;
             } else {
+                // False alarm, continue searching
                 l_cursor += match_length
             }
+        
         }
+        // Apply the patch for this block
         let patch_cursor = l_cursor.wrapping_add_signed((block.offset as isize) / 2);
         for (src, dst) in patch.iter().zip(&mut l_words[patch_cursor..]) {
             *dst = *src
         }
     }
+
+    // Make sure the binary and patch ran out at the same time
     if originals.is_empty() && patches.is_empty() {
         VPatchResult::Ok
     } else {
