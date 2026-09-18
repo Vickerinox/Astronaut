@@ -77,6 +77,7 @@ pub struct Config {
     pub patch_flag: bool,
     pub wifi_init: bool,
     pub force_warmboot: bool,
+    pub skip_health_safety: bool,
     pub autoboot: String,
     pub music: String,
     pub top_wallpaper: String,
@@ -106,6 +107,7 @@ impl Config {
         push_boolean(&mut ini, "wifi_firm_upload", self.wifi_init);
         push_boolean(&mut ini, "patching", self.patch_flag);
         push_boolean(&mut ini, "force_warmboot", self.force_warmboot);
+        push_boolean(&mut ini, "skip_health_safety", self.skip_health_safety);
         push_path(&mut ini, "blowfish", &self.ext_blowfish_main);
         push_path(&mut ini, "blowfish_fallback", &self.ext_blowfish_sub);
 
@@ -195,6 +197,7 @@ impl Config {
             theme_path: String::new(),
             boot_combos: BootCombos::default(),
             force_warmboot: false,
+            skip_health_safety: false,
             ext_blowfish_main: String::new(),
             ext_blowfish_sub: String::new(),
         }
@@ -214,6 +217,9 @@ impl Config {
                 ("[options]", "wifi_firm_upload", key) => handle_bool(&mut self.wifi_init, key),
                 ("[options]", "patching", key) => handle_bool(&mut self.patch_flag, key),
                 ("[options]", "force_warmboot", key) => handle_bool(&mut self.force_warmboot, key),
+                ("[options]", "skip_health_safety", key) => {
+                    handle_bool(&mut self.skip_health_safety, key)
+                }
                 ("[options]", "blowfish", value) => self.ext_blowfish_main = value.to_string(),
                 ("[options]", "blowfish_fallback", value) => {
                     self.ext_blowfish_sub = value.to_string()

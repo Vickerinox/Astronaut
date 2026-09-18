@@ -10,6 +10,7 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 * A tiny file explorer GUI with touchscreen support and themeing
 * Selective Autobooting via button combos during reset/startup
 * Patching of the DSi menu to nullify any anti-tampering and region locking checks. (Currently required)
+* Optionally skipping the DSi menu's Health & Safety screen. (`skip_health_safety`, off by default)
 
 ## Limitations
 * ROMS may only occupy address 0x2000000 to 0x2ffffff and the arm 7 may additionally use 0x37F8000 to 0x3790000, any other binary locations can't be loaded.

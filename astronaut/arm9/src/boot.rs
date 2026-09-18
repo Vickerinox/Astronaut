@@ -246,6 +246,9 @@ unsafe fn boot_unreturnable(
     if app_data.config.patch_flag {
         common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
+    if app_data.config.skip_health_safety {
+        common::patching::look_for_launcher_hs_patch(&boot_info.twl_header);
+    }
 
     reboot_lib::nocash_write("> Inserted Device List \n");
     {

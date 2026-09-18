@@ -139,6 +139,10 @@ impl Settings {
             &mut data.config.force_warmboot,
             "Force Warmboot",
         ));
+        ui.add(Checkbox::new(
+            &mut data.config.skip_health_safety,
+            "Skip Health & Safety",
+        ));
 
         ui.add_space(4);
         ui.label("Theme:");

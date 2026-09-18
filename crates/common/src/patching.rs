@@ -115,6 +115,22 @@ const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
         0x4770, 0x2001, 0x2582, 0xad, 0x46c0, 0x46c0, 0x46c0, 0x46c0, 0x46c0, 0x2001,
     ],
 };
+/// The Health & Safety patch for the launcher, applied to the decrypted ARM7i binary.
+///
+/// This will skip the Health & Safety screen by making the launcher always see a warmboot.
+///
+/// NOTE: this has the same effect on the binary as unlaunch's own H&S patch (documented by edo9300).
+const LAUNCHER_ARM7I_HS_PATCH: VPatch<'static> = VPatch {
+    blocks: &[VBlock {
+        original_len: 0x08,
+        patch_len: 0x02,
+        offset: 0xfffcu16 as i16,
+    }],
+    // lsl r0, r0, #0x1f / lsrs r0, r0, #0x1f / moveq r0, #0 / streq r0, [r4]
+    originals: &[0xf80, 0xe1a0, 0xfa0, 0xe1b0, 0x00, 0x3a0, 0x00, 0x584],
+    // mov r0, #1 (replaces the `ldrb r0, [r0]` right before the match)
+    patches: &[0x01, 0xe3a0],
+};
 #[derive(Debug)]
 pub struct VPatch<'a> {
     /// Paths the walker should take to apply the patch, 1 block = 1 patch
@@ -236,5 +252,14 @@ pub unsafe fn look_for_launcher_patch(header: &TWLHeader) {
             header.head.arm9_size as usize / 2,
         );
         if app_vlaunch_patch(binary, &LAUNCHER_ARM9_PATCH) != VPatchResult::Ok {};
+    }
+}
+pub unsafe fn look_for_launcher_hs_patch(header: &TWLHeader) {
+    if header.title_id & !0xFF == 0x00030017_484E4100 {
+        let binary = core::slice::from_raw_parts_mut(
+            header.arm7i_load as *mut u16,
+            header.arm7i_size as usize / 2,
+        );
+        if app_vlaunch_patch(binary, &LAUNCHER_ARM7I_HS_PATCH) != VPatchResult::Ok {};
     }
 }
