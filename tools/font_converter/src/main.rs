@@ -1,13 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+pub mod panels;
+
 use std::{error::Error, fs, path::PathBuf};
 
 use build_tools::DecodedBMP;
-use eframe::{
-    NativeOptions, egui::{self, Color32, Pos2, Rect, Sense, TextureHandle, TextureOptions, Vec2}, emath::RectTransform,
-};
+use eframe::{NativeOptions, egui::{self, Color32, RichText, Sense, TextureHandle, Vec2}, wgpu::naga::CooperativeRole::A};
 use egui_dock::{LeafNode, NodePath};
+
+use crate::panels::{ColorPalettePanel, Panel, PanelType, PreviewControlsPanel, PreviewPanel};
 
 fn read_bmp(path: PathBuf) -> Result<DecodedBMP, Box<dyn Error>> {
     let file = fs::OpenOptions::new()
@@ -31,188 +33,7 @@ enum Toolstate {
     Loaded(DecodedBMP, PathBuf),
     Error(Box<dyn Error>),
 }
-pub struct Panel {
-    id: u64,
-    ui: PanelType,
-}
-pub enum PanelType {
-    Always(Box<dyn AlwaysUi>),
-    Loaded(Box<dyn LoadedUi>),
-}
 
-pub trait AlwaysUi: PanelUi {
-    fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData);
-}
-pub trait LoadedUi: PanelUi {
-    fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData, image: &DecodedBMP, bmp_path: &PathBuf);
-}
-pub trait PanelUi {
-    fn name(&mut self) -> &str;
-}
-
-
-pub struct PreviewPanel;
-pub struct ColorPalettePanel;
-pub struct PreviewControlsPanel;
-
-
-pub trait AsPanel {
-    fn as_panel(self) -> PanelType;
-}
-impl Panel {
-    pub fn new(panel: impl AsPanel, id: u64) -> Panel {
-        Panel { id, ui: panel.as_panel() }
-    }
-}
-
-impl<T: AlwaysUi + 'static> AsPanel for T {
-    fn as_panel(self) -> PanelType {
-        PanelType::Always(Box::new(self))
-    }
-}
-impl AsPanel for PreviewPanel {
-    fn as_panel(self) -> PanelType {
-        PanelType::Loaded(Box::new(self))
-    }
-}
-
-impl LoadedUi for PreviewPanel {
-    fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData, image: &DecodedBMP, bmp_path: &PathBuf) {
-        let ToolData { preview_texture, preview_text, color, background_color, palette_2, palette , recalculate_textures} = data;
-        ui.heading("Preview");
-        let color_get_fn = || {
-            let colors = image.palette_table();
-            let color_map_fn = |i: u8| {
-                    if i & 3 == 0 {
-                        return Color32::TRANSPARENT;
-                    }
-                    let [r,g,b,_] = colors.get(i as usize).cloned().unwrap_or_default();
-                    Color32::from_rgba_premultiplied(r, g, b, 255)
-                };
-            let mut palette = [Color32::WHITE; 8];
-            for (i, color) in palette.iter_mut().enumerate() {
-                *color = color_map_fn(i as u8);
-            }
-            palette
-        };
-        let color_palette = palette.get_or_insert_with(color_get_fn);
-        let (default, alternative) = preview_texture.get_or_insert_with(|| {
-            *recalculate_textures = false;
-            let (texture, texture2) = {
-                let pixel_split_fn = |i: &u8| {
-                    [(i&0xF0) >> 4,i&0xF]
-                };
-                let cloned_palette = color_palette.clone();
-                let color_map_fn = move |i: u8| -> Color32 {
-                    cloned_palette.get(i as usize).copied().unwrap_or(Color32::WHITE)
-                };
-                let bitmap: Vec<_> = image
-                        .bitmap().iter()
-                        .map(pixel_split_fn).flatten().map(color_map_fn)
-                        .collect();
-
-                let bitmap2: Vec<_> = image
-                        .bitmap().iter()
-                        .map(pixel_split_fn).flatten().map(|i| i+4).map(color_map_fn)
-                        .collect();
-                (eframe::egui::ColorImage::new([1024, 8], bitmap),
-                eframe::egui::ColorImage::new([1024, 8], bitmap2))
-            };
-            (
-            ui.load_texture("font", texture, TextureOptions::NEAREST),    
-            ui.load_texture("font_alt", texture2, TextureOptions::NEAREST)
-            )
-        });
-        
-        
-        eframe::egui::Frame::new().fill(*background_color).inner_margin(8.0).show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                let style = ui.spacing_mut();
-                style.item_spacing = Vec2::new(0., 0.);
-                for char in preview_text.chars() {
-                    if char as u32 <= 0x80 {
-                        let rect = RectTransform::from_to(Rect::from_min_size(Pos2::new(0.0, 1.0), Vec2::new(1.0, -1.0)), Rect::from_min_size(Pos2::ZERO, Vec2::new(1024., 8.))).inverse();
-
-                        let char_size = Vec2::new(7.0, 8.0);
-                        let char_rect = rect.transform_rect(Rect::from_min_size(Pos2::new((7 * char as u32) as f32, 0.), Vec2::new(7.0, 8.0)));
-
-                        let (mut a,_b) = ui.allocate_exact_size((char_size-Vec2::new(1.0, 0.0))*2., Sense::empty());
-                        a.extend_with_x(a.max.x+2.0);
-                        let texture = if *palette_2 {
-                            alternative.id()
-                        } else {
-                            default.id()
-                        };
-                        ui.painter().image(texture, a, char_rect, *color);
-                    }
-                }
-            });
-        });
-
-       
-        ui.label("Preview text:");
-        ui.text_edit_multiline(preview_text);
-    
-        
-        if *recalculate_textures {
-            *preview_texture = None;
-        }
-    }
-}
-impl PanelUi for PreviewPanel {
-    fn name(&mut self) -> &str {
-        "Preview"
-    }
-}
-impl PanelUi for ColorPalettePanel {
-    fn name(&mut self) -> &str {
-        "Color Palette"
-    }
-}
-impl PanelUi for PreviewControlsPanel {
-    fn name(&mut self) -> &str {
-        "Preview Controls"
-    }
-}
-impl AlwaysUi for PreviewControlsPanel {
-    fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData) {
-        ui.horizontal(|ui| {
-            ui.label("Text Color: ");
-            ui.color_edit_button_srgba(&mut data.color);
-            ui.label("Background color:");
-            ui.color_edit_button_srgba(&mut data.background_color);
-            ui.label("Use alternative palette:");
-            ui.checkbox(&mut data.palette_2, "");
-        });
-    }
-}
-impl AlwaysUi for ColorPalettePanel {
-    fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData) {
-        let Some(color_palette) = &mut data.palette else { ui.centered_and_justified(|ui| ui.label("No Palette available")); return; };
-        ui.heading("Color Palette:");
-        ui.group(|ui| {
-            ui.label("Palette 1:");
-            ui.horizontal_wrapped(|ui| {
-                
-                for color in color_palette[..4].iter_mut() {
-                    if ui.color_edit_button_srgba(color).changed() {
-                        data.recalculate_textures = true;
-                    }
-                }
-            }); 
-        });
-        ui.group(|ui| {
-            ui.label("Palette 2:");
-            ui.horizontal_wrapped(|ui| {
-                for color in color_palette[4..].iter_mut() {
-                    if ui.color_edit_button_srgba(color).changed() {
-                        data.recalculate_textures = true;
-                    }
-                }
-            }); 
-        });
-    }
-}
 
 pub struct ToolData {
     preview_texture: Option<(TextureHandle, TextureHandle)>,
@@ -222,6 +43,7 @@ pub struct ToolData {
     palette_2: bool,
     palette: Option<[Color32; 8]>,
     recalculate_textures: bool,
+    last_operation: Option<RichText>,
 }
 pub struct Tool {
     state: Toolstate,
@@ -277,10 +99,6 @@ impl ToolData {
         });
         state
     }
-    fn preview(&mut self, ui: &mut eframe::egui::Ui, image: &DecodedBMP, bmp_path: &PathBuf) -> Option<Toolstate> {
-        let mut state = None;
-        state
-    }
     fn error(&mut self, ui: &mut eframe::egui::Ui, err: &Box<dyn Error>) -> Option<Toolstate> {
         eframe::egui::Modal::new("banan2".into()).show(ui.ctx(), |ui| {
             let error_text = format!("{}", err);
@@ -306,7 +124,7 @@ impl Tool {
         dock.split(
             NodePath::MAIN_ROOT, 
             egui_dock::Split::Below, 
-            0.3, 
+            0.8, 
             egui_dock::Node::Leaf(LeafNode::new(vec![Panel::new(PreviewControlsPanel, 1)]))
         );
 
@@ -325,7 +143,8 @@ impl Tool {
             let palette_2 = false;
             let palette: Option<[Color32; 8]> = None;    
             let recalculate_textures = false;
-            ToolData { preview_texture, preview_text, color, background_color, palette_2, palette, recalculate_textures }
+            let last_operation = None;
+            ToolData { preview_texture, preview_text, color, background_color, palette_2, palette, recalculate_textures, last_operation }
         };
         let id_generator = 10;
         Tool {
@@ -369,13 +188,14 @@ impl eframe::App for Tool {
     fn ui(&mut self, ui: &mut eframe::egui::Ui, _frame: &mut eframe::Frame) {
         egui::Panel::top("toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
+                ui.style_mut().visuals.button_frame = false;
                 ui.menu_button("File", |ui| {
                     if ui.button("Open Font BMP").clicked() {
                         load_font(&mut self.state, &mut self.data);
                     }
 
                     if let (Toolstate::Loaded(image, bmp_path), Some(color_palette)) = (&self.state, &self.data.palette) {
-                        if ui.button("Export Font").clicked() {
+                        if ui.button("Export font.bin").clicked() {
                             if let Some(mut font) = build_tools::convert_font(image) {
                                 font.truncate(2048);
                                 font.insert(0, 0);
@@ -389,13 +209,17 @@ impl eframe::App for Tool {
                                     let b = ((b >> 3) as u16) << 10;
                                     (r | g | b).to_le_bytes()
                                 }).flatten());
-                                let mut a = bmp_path.clone();
-                                a.pop();
-                                let a = a.join("font.bin");
-                                match fs::write(&a, font) {
-                                    Ok(()) => self.data.preview_text = format!("Font saved to {:?}", a),
-                                    Err(e) => (), //state = Some(Toolstate::Error(format!("Failed to write font to path {:?}, {}", &a, e).into()))
-                                }
+                                let d = rfd::FileDialog::new()
+                                .add_filter("Astronaut font Binary", &["bin"])
+                                .set_title("Select Location to export font.bin")
+                                .set_file_name("font.bin")
+                                .save_file();
+                                if let Some(a) = d {
+                                    self.data.last_operation = match fs::write(&a, font) {
+                                        Ok(()) => Some(RichText::new(format!("Font exported to {:?}", &a)).color(Color32::GREEN)),
+                                        Err(e) => Some(RichText::new(format!("Error: {}", e)).color(Color32::RED)),
+                                    };
+                                } 
                             } else {
                                 //state = Some(Toolstate::Error(format!("An error occured while converting the font...").into()));
                             }
@@ -416,6 +240,16 @@ impl eframe::App for Tool {
                         self.dock.push_to_first_leaf(Panel::new(PreviewControlsPanel, self.id_generator));
                     }
                 });
+            });
+        });
+        eframe::egui::Panel::bottom("Status Bar").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Astronaut Font Builder");
+                ui.label(env!("CARGO_PKG_VERSION"));
+                ui.separator();
+                if let Some(operation) = &self.data.last_operation {
+                    ui.label(operation.clone());
+                }
             });
         });
         let mut tab_viewer = TabViewer { data: &mut self.data, state: &mut self.state};
