@@ -3,7 +3,7 @@ Astronaut is a custom stage2 firmware made exclusively for DSi consoles. Which i
 It uses the same primary exploit as unlaunch, wherein it hijacks the console while loading the TMD data for the DSi Menu. Unlocking all features of the console for homebrew use.
 
 ## Licensing
-Astronaut is primarily licensed under the GPL version 3 license, with exception to the cargo crates found in the `crates` directory on the root of this repository. These crates instead use the MIT license. For specifics, please check the top of a given source file to know it's licensing.
+Astronaut is primarily licensed under the GPL version 3 license, with exception to the cargo crates found in the `crates` directory on the root of this repository. These crates instead use the MIT license. For specifics, please check the top of a given source file to know it's licensing. Or the ``Cargo.toml`` file for the respective crate.
 
 ## Features
 * Launch DSi Compatible Homebrew and DSiWare software from the DSi SD card and DSi NAND

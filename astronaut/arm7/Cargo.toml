@@ -2,6 +2,7 @@
 name = "arm7_bin"
 version = "0.2.0"
 edition = "2021"
+license = "GPL-3.0-or-later"
 
 [[bin]]
 name = "arm7"

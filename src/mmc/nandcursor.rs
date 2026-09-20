@@ -3,12 +3,6 @@
 
 use std::io::{Read, Seek, Write};
 
-use crypto::{
-    aes,
-    aes::KeySize,
-    blockmodes::NoPadding,
-    buffer::{RefReadBuffer, RefWriteBuffer},
-};
 pub struct NandSectorCursor<T: AsMut<[u8]>, I: NandSectorAccess<N>, const N: usize = 9> {
     ctr_base: u128,
     aes_key: u128,
@@ -224,14 +218,8 @@ impl<T: AsMut<[u8]>, const N: usize> NandSectorAccess<N> for NandWrapper<T, N> {
 fn crypt_block(data: &mut [u8], key: &u128, ctr: u128) {
     assert_eq!(data.len(), 16);
     let keystream = {
-        let mut scratch = [0u8; 16];
-        aes::ecb_encryptor(KeySize::KeySize128, &key.to_be_bytes(), NoPadding)
-            .encrypt(
-                &mut RefReadBuffer::new(&ctr.to_be_bytes()),
-                &mut RefWriteBuffer::new(&mut scratch),
-                true,
-            )
-            .expect("keys and data are already always 16 bytes.");
+        let mut scratch = ctr.to_be_bytes();
+        super::aes_ecb::Encryptor::new(&key).aes_ecb_encrypt(&mut scratch);
         scratch.reverse();
         scratch
     };
@@ -239,15 +227,4 @@ fn crypt_block(data: &mut [u8], key: &u128, ctr: u128) {
     for (data, crypt) in data.iter_mut().zip(keystream) {
         *data ^= crypt
     }
-}
-
-#[test]
-fn test_dsi() {
-    let mut data = 0x00000000_00000000_00000000_00000000u128.to_le_bytes();
-    crypt_block(
-        &mut data,
-        &0xb6da239c6b70c527dfefaba404120fe0,
-        0xef23fa604ed21410c19229e9_95af8837 + 1,
-    );
-    println!("{data:02x?} {}", true as u32);
 }

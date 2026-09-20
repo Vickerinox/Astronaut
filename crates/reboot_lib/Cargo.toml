@@ -2,6 +2,7 @@
 name = "reboot_lib"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 volatile-register = {version = "0.2.2", default-features = false}

@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use tracing::{debug, info};
 
 const PRECOMPUTED_SBOX: [u8; 256] = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -45,20 +44,22 @@ const RCON: [u8; 11] = [
 pub struct Encryptor {
     rkeys: [[u8; 16]; 11],
 }
-fn xtime(x: u8) -> u8 {
+fn _xtime(x: u8) -> u8 {
     (x << 1) ^ (((x >> 7) & 1) * 0x1b)
 }
 #[test]
 fn xtime_table() {
-    let x_table: [u8; 256] = core::array::from_fn(|i| xtime(i as u8));
+    use log::debug;
+    let x_table: [u8; 256] = core::array::from_fn(|i| _xtime(i as u8));
     debug!("{x_table:#04x?}");
 }
 
 #[test]
 fn test_le_be_operations() {
+    use log::debug;
     let key = u128::from_be_bytes(b"WhyAreYuLikeThis".to_vec().try_into().unwrap());
     let be_encryptor = Encryptor::new(&key);
-    let le_encryptor = Encryptor::new_le(&key);
+    let le_encryptor = Encryptor::_new_le(&key);
     debug!(
         "{:#34x?} {:#34x?} {}",
         u128::from_be_bytes(be_encryptor.rkeys[1]),
@@ -70,7 +71,7 @@ fn test_le_be_operations() {
     let mut le = val.to_le_bytes();
 
     Encryptor::subrot(&mut be, 8);
-    Encryptor::subrot_le(&mut le, 8);
+    Encryptor::_subrot_le(&mut le, 8);
     debug!(
         "{:#10x?} {:#10x?}",
         u32::from_be_bytes(be),
@@ -90,7 +91,7 @@ impl Encryptor {
             temp[0] ^= RCON[i >> 2];
         }
     }
-    fn subrot_le(temp: &mut [u8; 4], i: usize) {
+    fn _subrot_le(temp: &mut [u8; 4], i: usize) {
         let e_t = temp[3];
         temp[3] = PRECOMPUTED_SBOX[temp[2] as usize];
         temp[2] = PRECOMPUTED_SBOX[temp[1] as usize];
@@ -126,7 +127,7 @@ impl Encryptor {
         }
         Self { rkeys }
     }
-    pub fn new_le(key: &u128) -> Self {
+    pub fn _new_le(key: &u128) -> Self {
         let mut rkeys = [[0u8; 16]; 11];
 
         let key = key.to_le_bytes();
@@ -146,7 +147,7 @@ impl Encryptor {
                     temp[1] = rks[j - 27];
                     temp[2] = rks[j - 26];
                     temp[3] = rks[j - 25];
-                    Self::subrot_le(&mut temp, i);
+                    Self::_subrot_le(&mut temp, i);
                 } else {
                     temp[0] = rks[j + 4];
                     temp[1] = rks[j + 5];
@@ -161,7 +162,7 @@ impl Encryptor {
         }
         Self { rkeys }
     }
-    fn aes_ecb_encrypt(&self, block: &mut [u8]) {
+    pub fn aes_ecb_encrypt(&self, block: &mut [u8]) {
         self.add_round_key(0, block);
         for i in 1.. {
             self.sub_bytes(block);
@@ -216,7 +217,7 @@ impl Encryptor {
         }
     }
 
-    fn mix_columns_le(&self, block: &mut [u8]) {
+    fn _mix_columns_le(&self, block: &mut [u8]) {
         for i in (0..16).step_by(4) {
             let t = block[i];
             let tmp = block[i] ^ block[i + 1] ^ block[i + 2] ^ block[i + 3];

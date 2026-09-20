@@ -1,6 +1,7 @@
 cargo-features = ["trim-paths"]
 [package]
 name = "astronaut-builder"
+license = "GPL-3.0-or-later"
 version = "0.2.0"
 edition = "2021"
 
@@ -19,7 +20,6 @@ elf = "0.7.4"
 fatfs-embedded = {git="https://github.com/Vickerinox/fatfs-embedded.git", rev="d910bcbb64ef5720cd1d565145fc6738b7d3d92b"}
 
 sha1 = "0.10.6"
-rust-crypto = "0.2.36"
 clap = { version = "4.5.23", features = ["derive"] }
 thiserror = "2.0.9"
 env_logger = "0.11.11"

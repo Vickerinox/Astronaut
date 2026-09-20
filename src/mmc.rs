@@ -17,6 +17,7 @@ use std::{
 //pub mod aes_ecb;
 pub mod mbr;
 pub mod nandcursor;
+pub mod aes_ecb;
 
 const HWINFO_PATH: &str = "/sys/HWINFO_S.dat";
 const REGULAR_TMD_LEN: usize = 520;
