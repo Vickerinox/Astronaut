@@ -137,7 +137,7 @@ impl Settings {
         ));
         ui.add(Checkbox::new(
             &mut data.config.force_warmboot,
-            "Force Warmboot",
+            "Force Warmboot (skip H&S)",
         ));
 
         ui.add_space(4);
