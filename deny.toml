@@ -26,9 +26,15 @@ feature-depth = 1
 # See https://spdx.org/licenses/ for list of possible licenses
 allow = [
     "MIT",
+    "Zlib", # Used by font builder
+    "NCSA", # Used by font builder
+    "BSL-1.0", # Used by font builder
+    "OFL-1.1", # Used by font builder
+    "Ubuntu-font-1.0", # Used by font builder
     "Apache-2.0",
     "GPL-3.0-or-later",
     "BSD-3-Clause",
+    "BSD-2-Clause", # Used by font builder
     "ISC",
     "Unicode-3.0",
 ]
