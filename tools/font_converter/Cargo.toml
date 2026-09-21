@@ -10,11 +10,11 @@ egui_extras = {version = "0.36.2", default-features = false, features = [
 ]}
 egui_dock = {version = "0.21.1", default-features = false}
 eframe = { version = "0.36.2", default-features = false, features = [
-    "default_fonts",
     "wayland",
     "wgpu",
     "x11",
 ] }
+system-fonts = {version = "0.1.2"}
 image = { version = "0.25", features = ["png"] }
 rfd = { version = "0.17.2" }
 build_tools = { path = "../building/" }

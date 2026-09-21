@@ -3,7 +3,7 @@
 
 pub mod panels;
 
-use std::{error::Error, fs, path::PathBuf};
+use std::{error::Error, fs, path::PathBuf, sync::Arc};
 
 use build_tools::DecodedBMP;
 use eframe::{NativeOptions, egui::{self, Color32, RichText, Sense, TextureHandle, Vec2}, wgpu::naga::CooperativeRole::A};
@@ -113,9 +113,29 @@ impl ToolData {
         }).inner
     }
 }
+pub fn load_gui_fonts(ctx: &egui::Context) {
+    let (_a,_b,c) = system_fonts::find_for_system_locale(system_fonts::FontStyle::Sans);
+    let mut definitions = egui::FontDefinitions::default();
+    for font in c {
+        let font_data = match font.source {
+            system_fonts::FoundFontSource::Path(path_buf) => {
+                let Ok(read_font) = std::fs::read(path_buf) else {continue;};
+                egui::FontData::from_owned(read_font)
+            },
+            system_fonts::FoundFontSource::Bytes(bytes) => {
+                egui::FontData::from_owned(bytes.to_vec())
+            },
+        };
+        definitions.font_data.insert(font.key.clone(), Arc::new(font_data));
+        definitions.families.entry(egui::FontFamily::Proportional).and_modify(|f| f.push(font.key.clone()));
+    }
+    ctx.set_fonts(definitions);
+
+}
 impl Tool {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
+        load_gui_fonts(&cc.egui_ctx);
         
         let state = Toolstate::None;
         
