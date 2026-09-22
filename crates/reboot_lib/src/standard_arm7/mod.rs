@@ -151,8 +151,10 @@ impl ModCryptor {
             // repeat for remaining chunks...
         }
     }
+
     #[cfg(feature = "arm7i")]
     unsafe fn dewit(&mut self) -> ModCryptResult {
+        
         let Self { console_id } = self;
         let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
 
@@ -206,6 +208,7 @@ unsafe fn generate_cid_key(buf: &mut [u32; 4], cid: &[u32; 4]) {
         0x10,
     );
 }
+
 pub fn main_arm7() {
     unsafe {
         // start talking to the ARM9 ASAP
@@ -358,15 +361,10 @@ pub fn main_arm7() {
                     SOUND_HARDWARE.init();
 
                     let header = &(*(common::bootstrap::BOOTINFO_MEM)).twl_header;
-                    /*
-                    AES_HARDWARE.keyslots[0].load_key_x(&[0, 0, 0, 0]);
-                    AES_HARDWARE.keyslots[1].load_key_x(&[0, 0, 0, 0]);
-                    AES_HARDWARE.keyslots[2].load_key_x(&[0, 0, 0, 0]);
-                    AES_HARDWARE.keyslots[3].load_key_x(&[0, 0, 0, 0]);
-                    AES_HARDWARE.keyslots[0].load_key_y(&[0, 0, 0, 0]);
-                    AES_HARDWARE.keyslots[1].load_key_y(&[0, 0, 0, 0]);
-                    AES_HARDWARE.keyslots[2].load_key_y(&[0, 0, 0, 0]);
-                    */
+                    
+                    // Initialize JPG signing with a custom key
+                    AES_HARDWARE.keyslots[2].load_key_x(&[0x6AE73393,0xE2029BBE,0x8AEC4897,0x936375AA]);
+                    AES_HARDWARE.keyslots[2].load_key_y(&[0x1DEB3193,0x806279A5,0x782E864A,0xE4A1ECF9]);
 
                     AES_HARDWARE.init_from_header(header, console_id);
 
@@ -375,6 +373,7 @@ pub fn main_arm7() {
                     NDMA_HARDWARE.reset();
                     MMC_CONTROLLER.reset();
                     SDIO_CONTROLLER.reset();
+
                     if !header.is_dsi_mode() {
                         (*(0x04004C04 as *mut volatile_register::RW<u16>)).modify(|i| i | (1 << 8));
                         SCFG_HARDWARE.roms.write(
