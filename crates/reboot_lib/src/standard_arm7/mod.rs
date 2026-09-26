@@ -15,7 +15,7 @@ use crate::{
     write_sd_sectors, AESCnt, Status, StorageSector, TransactionCode, AES_HARDWARE, DMA_HARDWARE,
     IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
 };
-use common::bootstrap::{self, BOOTINFO_MEM, FirmwareData};
+use common::bootstrap::{self, BOOTINFO_MEM, FirmwareData, TWLHeader};
 use core::arch::asm;
 
 pub mod init;
@@ -362,12 +362,9 @@ pub fn main_arm7() {
 
                     let header = &(*(common::bootstrap::BOOTINFO_MEM)).twl_header;
                     
-                    // Initialize JPG signing with a custom key
-                    AES_HARDWARE.keyslots[2].load_key_x(&[0x6AE73393,0xE2029BBE,0x8AEC4897,0x936375AA]);
-                    AES_HARDWARE.keyslots[2].load_key_y(&[0x1DEB3193,0x806279A5,0x782E864A,0xE4A1ECF9]);
-
                     AES_HARDWARE.init_from_header(header, console_id);
-
+                    load_aes_keys(header);
+                    
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
                     NDMA_HARDWARE.reset();
@@ -509,7 +506,16 @@ pub fn main_arm7() {
         }
     }
 }
-
+unsafe fn load_aes_keys(header: &TWLHeader) {
+    // SSL Client certificate key
+    if header.access_control & 0x200 != 0 {
+        AES_HARDWARE.keyslots[0].load_key(&*(0x3FFC630 as *const _))
+    }
+    // Initialize ???? (Tad? tmd? whatever?)
+    AES_HARDWARE.keyslots[1].load_key(&*(0x3FFC5C0 as *const _));
+    // Initialize JPG signing
+    AES_HARDWARE.keyslots[2].load_key(&*(0x3FFC5B0 as *const _));
+}
 pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
     AES_HARDWARE.master_control.write(AESCnt::empty());
     AES_HARDWARE.reset();

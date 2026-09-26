@@ -52,6 +52,11 @@ pub struct KeySlot {
     pub key_y: [WO<u32>; 4],
 }
 impl KeySlot {
+    pub unsafe fn load_key(&self, key: &[u32; 4]) {
+        for (reg, value) in self.key_n.iter().zip(key) {
+            reg.write(*value);
+        }
+    }
     pub unsafe fn load_key_x(&self, key: &[u32; 4]) {
         for (reg, value) in self.key_x.iter().zip(key) {
             reg.write(*value);
