@@ -141,7 +141,7 @@ fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, 
         };
         empty_tmd.extend_from_slice(&hash);
     }
-    debug!("{} Bytes used total.", bytes_used);
+    debug!("{} Bytes (0x{:X}) used total. ", bytes_used, bytes_used);
     Ok(empty_tmd)
 }
 #[derive(Parser, Default)]
