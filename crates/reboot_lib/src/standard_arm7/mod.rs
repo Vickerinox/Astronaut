@@ -515,6 +515,7 @@ unsafe fn load_aes_keys(header: &TWLHeader) {
     AES_HARDWARE.keyslots[1].load_key(&*(0x3FFC5C0 as *const _));
     // Initialize JPG signing
     AES_HARDWARE.keyslots[2].load_key(&*(0x3FFC5B0 as *const _));
+    // the remaining key slot (slot 3, or the 4th slot) is already occupied for filesystem encryption
 }
 pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
     AES_HARDWARE.master_control.write(AESCnt::empty());
@@ -549,11 +550,13 @@ pub unsafe fn decrypt_module(mem: &mut [u32], mut key: [u32; 4]) {
 unsafe fn clear_arm7_regs() {
     (0x04000004 as *mut u16).write_volatile(0);
 }
+
 unsafe fn firmware_read(data: *mut [crate::StorageSector], offset: u32) {
     let (ptr, len) = data.to_raw_parts();
     let buffer = core::slice::from_raw_parts_mut(ptr as *mut u8, len << 9);
     SPI_HARDWARE.read_firmware(buffer, offset);
 }
+
 fn add_on_key(key: &mut [u32; 4], add: u32) {
     let carry;
     let carry2;
@@ -563,6 +566,7 @@ fn add_on_key(key: &mut [u32; 4], add: u32) {
     (key[2], carry3) = key[2].overflowing_add(carry2 as u32);
     key[3] = key[3].wrapping_add(carry3 as u32);
 }
+
 /// read and decrypt the given sectors from NAND using NDMA.
 #[cfg(feature = "arm7i")]
 pub unsafe fn mmc_read_decrypt(
@@ -592,6 +596,7 @@ pub unsafe fn mmc_read_decrypt(
     );
     Ok(())
 }
+
 #[cfg(feature = "arm7i")]
 pub unsafe fn mmc_write_encrypt(
     data: *mut [crate::StorageSector],
