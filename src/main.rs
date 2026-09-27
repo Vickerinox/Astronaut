@@ -77,6 +77,7 @@ fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, 
     const M_ENTRYPOINT_LOCATION: usize = 0x1329C;
 
     debug!("SELECTED ELF: {:?}", &elf_file_path);
+    let mut bytes_used = 0;
     let file =
         fs::read(elf_file_path).map_err(|e| Crate::TMD.err()(CompileError::ElfNotFound(e)))?;
     let parse = ElfBytes::<AnyEndian>::minimal_parse(&file[..])
@@ -113,6 +114,7 @@ fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, 
         let Some(bin) = empty_tmd.get_mut(file_range) else {
             continue;
         };
+        bytes_used += segment.p_memsz;
         debug!(
             "Processing segment '{}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
             label, segment.p_memsz, file_offset_start, file_offset_end
@@ -139,6 +141,7 @@ fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, 
         };
         empty_tmd.extend_from_slice(&hash);
     }
+    debug!("{} Bytes used total.", bytes_used);
     Ok(empty_tmd)
 }
 #[derive(Parser, Default)]
