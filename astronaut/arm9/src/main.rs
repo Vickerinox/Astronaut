@@ -440,7 +440,9 @@ const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 use reboot_lib::fatfs_embedded;
 unsafe fn main() {
     unsafe {
+        // Print debug string visible on emulators
         reboot_lib::nocash_write("> Welcome to astronaut!\n");
+        // Create App area, used as "God struct"
         let app_area = &mut *(APP_AREA_START as *mut AppArea);
 
         // Turn on the screens (won't be visible until ARM7 turns on the backlight)
@@ -459,13 +461,13 @@ unsafe fn main() {
         IPC_FIFO_HARDWARE.enable();
         IPC_FIFO_HARDWARE.set_status(0);
 
-        // Take over ARM7
+        // Take over ARM7 Co-processor with another exploit
         arm7_exploit::takeover_arm7();
 
         // Steal the 16MB of main mem to use most of it as a heap
         steal_main_mem();
 
-        // Check in with the ARM7 to make sure it's alive
+        // Check in with the ARM7 to make sure it's alive after the exploit
         let mut timeout_counter = 0;
         while IPC_FIFO_HARDWARE.read_status() != 1 {
             timeout_counter += 1;
@@ -529,7 +531,10 @@ unsafe fn main() {
             (&raw mut (*ptr).global_data.loading_mod_file).write(music::MusicPlaying::None);
             (&raw mut (*ptr).global_data.config).write(Config::default());
             (&raw mut (*ptr).global_data.theme).write(Theme::DEFAULT);
+
+            // Copy the blowfish key present in ITCM from stage 2
             (&raw mut (*ptr).global_data.blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
+            
             (&raw mut (*ptr).global_data.safe_mode).write(false);
             app_area.app_data.assume_init_mut()
         };
