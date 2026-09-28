@@ -2,27 +2,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 pub use micro_imgui_ds::gui::DSMicroGuiBackend;
-
-mod backend;
 pub use frontend::{AppData, GlobalData};
+pub use main_menu::MainMenu;
+pub use frontend::pop_dir_entry;
+
+use crate::{configuration::Assets, Fader};
+use micro_imgui_ds::micro_imgui::Backend;
 use micro_imgui_ds::{
     micro_imgui::{InputEvent, Style},
     Input,
 };
 use reboot_lib::Buttons;
+
+mod backend;
 mod browser;
 mod error;
 mod frontend;
 mod main_menu;
 mod special_thanks;
-pub use main_menu::MainMenu;
 mod settings;
-use crate::{configuration::Assets, Fader};
-pub use frontend::pop_dir_entry;
-use micro_imgui_ds::micro_imgui::Backend;
+
 fn goto_end(ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>) {
     ui.add_space(ui.clip_rect().height() - 14);
 }
+
 pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Buttons) {
     let (assets, style) = if app_data.global_data.safe_mode {
         (Assets::default(), Style::DEFAULT)
@@ -51,6 +54,7 @@ pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Butto
         },
     );
 }
+
 pub fn focus_default(
     ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
     use_left_right: bool,
@@ -67,6 +71,7 @@ pub fn focus_default(
         ui.focus_down();
     }
 }
+
 #[link_section = ".text_aux"]
 pub fn show_wallpaper(bmp: crate::bmp::DecodedBMP, destination: *mut u16) {
     if bmp.height() != 192 {

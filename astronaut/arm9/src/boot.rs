@@ -9,13 +9,19 @@ use common::bootstrap::{BOOTINFO_MEM, BootInfoNTR, BootInfoTWL };
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
 use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
+use crate::{gui::GlobalData, set_background, AppArea, APP_AREA_START};
 
 pub enum BootError {
+    /// Binary isn't in a valid memory location
     BadBinaryLocation(core::ops::Range<u32>),
+    /// Entrypoint isn't inside a valid binary
     BadEntrypoint(u32),
+    /// Failed to read ROM file during boot 
     FileReadError,
+    /// Failed to read external Blowfish key during boot
     InvalidBlowfishKey,
 }
+
 impl Debug for BootError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -26,7 +32,7 @@ impl Debug for BootError {
         }
     }
 }
-use crate::{gui::GlobalData, set_background, AppArea, APP_AREA_START};
+
 #[link_section = ".text_itcm"]
 pub fn read_all(
     buffer: &mut [u8],
@@ -38,8 +44,10 @@ pub fn read_all(
     }
     Ok(())
 }
+
 #[link_section = ".text_itcm"]
 pub fn setup_shared_mem(mem: &mut BootInfoTWL) {
+ 
     mem.ntr.header_again = mem.twl_header.head.clone();
     mem.ntr.header = mem.twl_header.head.clone();
 
@@ -78,6 +86,7 @@ pub fn setup_shared_mem(mem: &mut BootInfoTWL) {
     mem.ntr.hardware_info = hw_info_data;
 }
 
+
 #[inline]
 unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
@@ -90,6 +99,7 @@ unsafe fn boot_unreturnable(
     crate::music::stop_mod_file();
     let boot_info = header;
 
+    // Initialize Wifi Firmware
     if app_data.config.wifi_init {
         //Launcher and hiyaCFW can skip wifi firmware load since they do it themselves
         if ![0x00030017_484E4100, 0x00030004_49485900]
@@ -99,6 +109,7 @@ unsafe fn boot_unreturnable(
         }
     }
 
+    // Initialize public/private saves
     {
         let mut prv_path = String::with_capacity(file_path.len());
         let mut pub_path = String::with_capacity(file_path.len());
@@ -118,9 +129,13 @@ unsafe fn boot_unreturnable(
         common::device_list::init(boot_info, file_path, &pub_path, &prv_path);
     }
 
+    // Prepare Jump trampoline
     core::ptr::write_volatile(&mut boot_info.other[0], 0);
 
+
     setup_shared_mem(boot_info);
+    
+    // Prepare ARGv
     if boot_info.twl_header.is_homebrew() {
         let path_bytes = file_path.as_bytes();
         let (trim, path_bytes) = if path_bytes.get(..4) == Some(b"sdmc") {
@@ -144,6 +159,7 @@ unsafe fn boot_unreturnable(
         reboot_lib::nocash_write("> Inserted ARGV \n");
     }
 
+    // Disable memory allocator 
     unsafe { reboot_lib::ALLOCATOR.invalidate() };
 
     let arm9_ram = core::slice::from_raw_parts_mut(
@@ -253,6 +269,7 @@ unsafe fn boot_unreturnable(
         let wifi_type = boot_info.ntr.wifi_other[0];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
         (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF, 0x020005E4 as *const (), 0xC));
+        
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
 
@@ -260,9 +277,12 @@ unsafe fn boot_unreturnable(
     (common::bootstrap::ARM9_JUMP as *mut u32).write_volatile(boot_info.twl_header.head.arm9_entry);
     reboot_lib::flush_mmc();
 
+    // Wait until screen fade has finished (happends asynchronously in the background through IRQ functions)
     while (&*(APP_AREA_START as *mut AppArea)).fader.current.read()
         != (&*(APP_AREA_START as *mut AppArea)).fader.target.read()
-    {}
+    { reboot_lib::swi_halt();}
+
+    
     reboot_lib::disable_all_interrupts();
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
     if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15 {
