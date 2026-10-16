@@ -259,7 +259,7 @@ unsafe fn boot_unreturnable(
     }
 
     // Apply patches (only applies to DSi menu, has option in config)
-    if app_data.config.patch_flag {
+    if app_data.config.patch_dsimenu {
         common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
 

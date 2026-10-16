@@ -74,7 +74,7 @@ impl BootCombos {
     }
 }
 pub struct Config {
-    pub patch_flag: bool,
+    pub patch_dsimenu: bool,
     pub wifi_init: bool,
     pub force_warmboot: bool,
     pub autoboot: String,
@@ -104,7 +104,7 @@ impl Config {
 
         ini.push_str("[options]\n");
         push_boolean(&mut ini, "wifi_firm_upload", self.wifi_init);
-        push_boolean(&mut ini, "patching", self.patch_flag);
+        push_boolean(&mut ini, "patching", self.patch_dsimenu);
         push_boolean(&mut ini, "force_warmboot", self.force_warmboot);
         push_path(&mut ini, "blowfish", &self.ext_blowfish_main);
         push_path(&mut ini, "blowfish_fallback", &self.ext_blowfish_sub);
@@ -187,7 +187,7 @@ fn read_whole_file(path: &mut String) -> Option<Vec<u8>> {
 impl Config {
     pub const fn default() -> Self {
         Self {
-            patch_flag: true,
+            patch_dsimenu: true,
             wifi_init: true,
             autoboot: String::new(),
             music: String::new(),
@@ -212,7 +212,7 @@ impl Config {
             Some(&mut |segment, key, value| match (segment, key, value) {
                 ("[boot]", key, value) => self.handle_boot_entry(key, value, held_buttons),
                 ("[options]", "wifi_firm_upload", key) => handle_bool(&mut self.wifi_init, key),
-                ("[options]", "patching", key) => handle_bool(&mut self.patch_flag, key),
+                ("[options]", "patching", key) => handle_bool(&mut self.patch_dsimenu, key),
                 ("[options]", "force_warmboot", key) => handle_bool(&mut self.force_warmboot, key),
                 ("[options]", "blowfish", value) => self.ext_blowfish_main = value.to_string(),
                 ("[options]", "blowfish_fallback", value) => {

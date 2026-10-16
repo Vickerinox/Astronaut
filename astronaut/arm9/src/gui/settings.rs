@@ -127,20 +127,20 @@ impl Settings {
         ui.header("Settings");
 
         ui.label(" "); //optimizes better than `add_space`, lmao.
-        ui.label("Boot Options:");
+        ui.label("Toggles:");
         ui.add(Checkbox::new(
-            &mut data.config.patch_flag,
-            "DSi Menu patching",
+            &mut data.config.force_warmboot,
+            "Skip H&S screen (Force Warmboot)",
+        ));
+        ui.add(Checkbox::new(
+            &mut data.config.patch_dsimenu,
+            "Region Free DSi Menu",
         ));
         ui.add(Checkbox::new(
             &mut data.config.wifi_init,
-            "WiFi Firmware upload",
+            "Enable WiFi",
         ));
-        ui.add(Checkbox::new(
-            &mut data.config.force_warmboot,
-            "Force Warmboot (skip H&S)",
-        ));
-
+        
         ui.add_space(4);
         ui.label("Theme:");
         ui.horizontal(|ui| {
