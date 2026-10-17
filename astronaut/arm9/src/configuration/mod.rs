@@ -284,9 +284,11 @@ impl GlobalData {
         }
     }
     #[link_section = ".text_aux"]
-    fn load_wallpaper(path: &mut String) -> Option<crate::bmp::DecodedBMP> {
+    fn load_bmp(path: &mut String) -> Option<crate::bmp::DecodedBMP> {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
-        crate::bmp::DecodedBMP::from_reader(file)
+        let mut loader = crate::bmp::AsyncBMPLoader::new();
+        loader.start_load(file).ok()?;
+        loader.continue_load(usize::MAX).ok()?
     }
     unsafe fn load_font(&mut self, font_path: &mut String) {
         if self.safe_mode {
@@ -300,7 +302,7 @@ impl GlobalData {
             crate::load_default_font()
         }
     }
-    pub unsafe fn load_wall<'a, 'b: 'a>(&'b mut self, mut path: &'a mut String) {
+    pub unsafe fn load_wallpaper<'a, 'b: 'a>(&'b mut self, mut path: &'a mut String) {
         fn abort_loading() {
             unsafe {
                 VIDEO_HARDWARE
@@ -315,12 +317,12 @@ impl GlobalData {
             path = &mut self.config.top_wallpaper;
         }
         {
-            if let Some(wallpaper) = Self::load_wallpaper(path) {
+            if let Some(wallpaper) = Self::load_bmp(path) {
                 VIDEO_HARDWARE
                     .vram_control_bank_c
                     .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
-                crate::gui::show_wallpaper(wallpaper, 0x06840000 as *mut u16);
+                crate::gui::show_bmp(wallpaper, 0x06840000 as *mut u16);
 
                 VIDEO_HARDWARE
                     .vram_control_bank_c
@@ -333,7 +335,7 @@ impl GlobalData {
             }
         }
     }
-    unsafe fn load_bg(&mut self, path: &mut String) {
+    unsafe fn load_background(&mut self, path: &mut String) {
         if self.safe_mode {
             return;
         }
@@ -341,8 +343,8 @@ impl GlobalData {
             .vram_control_bank_a
             .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
-        if let Some(background) = Self::load_wallpaper(path) {
-            crate::gui::show_wallpaper(background, 0x06800000 as *mut u16);
+        if let Some(background) = Self::load_bmp(path) {
+            crate::gui::show_bmp(background, 0x06800000 as *mut u16);
         } else {
             for i in 0..(256 * 192) {
                 (0x06800000 as *mut u16).add(i).write(0x8000);
@@ -368,8 +370,8 @@ impl GlobalData {
         } = assets;
         // Video stuff
         self.load_font(&mut font);
-        self.load_wall(&mut wallpaper);
-        self.load_bg(&mut background);
+        self.load_wallpaper(&mut wallpaper);
+        self.load_background(&mut background);
         let video_context = crate::init_graphics();
 
         // Audio stuff

@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::{
-    boot::{self},
-    configuration::Theme,
-    music::{send_mod_file, MusicPlaying},
-    AppArea, APP_AREA_START, SCREEN_RECT,
+    APP_AREA_START, AppArea, SCREEN_RECT, bmp::AsyncBMPLoader, boot::{self}, configuration::Theme, music::{MusicPlaying, send_mod_file},
 };
 
 use alloc::{boxed::Box, format, string::String};
@@ -13,7 +10,7 @@ use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::Backend;
-use reboot_lib::fatfs_embedded;
+use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VRAMCtrl, fatfs_embedded};
 pub struct GlobalData {
     pub our_path: String,
     pub blowfish: BFCTX,
@@ -21,6 +18,8 @@ pub struct GlobalData {
     pub config: crate::configuration::Config,
     pub theme: Theme,
     pub safe_mode: bool,
+    pub bmp_loader: AsyncBMPLoader,
+    pub queued_bmp: Option<crate::bmp::DecodedBMP>,
 }
 
 pub struct AppData {
@@ -45,10 +44,10 @@ impl UiPage for AppBooter {
         };
         ui.request_repaint();
         let error = unsafe {
-            (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
+            (*(APP_AREA_START as *mut AppArea)).fader.set_target(16);
             boot::boot_app(&mut file, &self.path, data)
         };
-        unsafe { (*(APP_AREA_START as *mut AppArea)).fader.target.write(0) };
+        unsafe { (*(APP_AREA_START as *mut AppArea)).fader.set_target(0) };
         let error_string = alloc::format!("Failed to boot file: {error:?}");
         Some(Box::new(super::error::Error::new(error_string)))
     }
@@ -77,13 +76,41 @@ impl AppData {
         let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {
             return;
         };
-        (*(APP_AREA_START as *mut AppArea)).fader.target.write(16);
+        (*(APP_AREA_START as *mut AppArea)).fader.set_target(16);
         //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
         crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
     #[inline(never)]
     #[link_section = ".text_aux"]
-    pub fn do_background_tasks(&mut self) {
+    pub fn do_background_tasks(&mut self, fader: &mut crate::Fader) {
+        if let Some(result) = self.global_data.bmp_loader.continue_load(1024*8).ok() {
+            fader.set_target_top(16);
+            if result.is_some() {
+                self.global_data.queued_bmp = result;
+            }
+        }
+        if let Some(bmp) = self.global_data.queued_bmp.take() {
+            if fader.synced() {
+                unsafe {
+                    VIDEO_HARDWARE
+                        .disp_b_control
+                        .write(DisplayControl::empty());
+                    VIDEO_HARDWARE
+                    .vram_control_bank_c
+                    .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+                    crate::gui::show_bmp(bmp, 0x06840000 as *mut u16);
+
+                    VIDEO_HARDWARE
+                        .vram_control_bank_c
+                        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
+                    VIDEO_HARDWARE
+                        .disp_b_control
+                        .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
+                }
+                fader.set_target_top(0);
+            }
+        }
         match &mut self.global_data.loading_mod_file {
             MusicPlaying::None => (),
             MusicPlaying::Wav(wav_stream) => {

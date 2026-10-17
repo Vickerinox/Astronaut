@@ -278,14 +278,13 @@ unsafe fn boot_unreturnable(
     reboot_lib::flush_mmc();
 
     // Wait until screen fade has finished (happends asynchronously in the background through IRQ functions)
-    while (&*(APP_AREA_START as *mut AppArea)).fader.current.read()
-        != (&*(APP_AREA_START as *mut AppArea)).fader.target.read()
-    { reboot_lib::swi_halt();}
+    while !(&*(APP_AREA_START as *mut AppArea)).fader.synced() { reboot_lib::swi_halt();}
 
     
     reboot_lib::disable_all_interrupts();
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
-    if (&*(APP_AREA_START as *mut AppArea)).fader.current.read() > 15 {
+    
+    if (&*(APP_AREA_START as *mut AppArea)).fader.is_up() {
         set_background(0x7FFF);
         VIDEO_HARDWARE
             .geometry_commands
@@ -296,6 +295,7 @@ unsafe fn boot_unreturnable(
 
         crate::set_bright(0);
     }
+
     if !boot_info.twl_header.is_dsi_mode() {
         nds_mode_switch();
     }

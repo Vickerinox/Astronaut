@@ -372,7 +372,13 @@ impl Browser {
     #[link_section = ".text_aux"]
     fn handle_bmp(&self, file_name: &str, data: &mut GlobalData) {
         let mut path = self.current_path.clone() + file_name;
-        unsafe { data.load_wall(&mut path) };
+        if let Ok(module) = fatfs_embedded::open(&mut path, FileOptions::Read) {
+            if let Ok(header) = data.bmp_loader.start_load(module) {
+                if header.height != 192 || header.width != 256 {
+                    data.bmp_loader.abort_load();
+                } 
+            }
+        }
     }
     /// Decide to do with a file thats been picked in the [`BrowserMode::Browsing`] mode.
     fn standard_goal(&self, file: &FileEntry, data: &mut GlobalData) -> Option<Box<dyn UiPage>> {

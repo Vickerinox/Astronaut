@@ -38,7 +38,7 @@ pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Butto
     let video_context = app_data.global_data.load_theme(assets);
     let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
 
-    fader.target.write(0);
+    fader.set_target(0);
 
     micro_imgui_ds::micro_imgui::run(
         backend,
@@ -49,7 +49,7 @@ pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Butto
         },
         |app_data| {
             if !app_data.global_data.safe_mode {
-                app_data.do_background_tasks();
+                app_data.do_background_tasks(fader);
             }
         },
     );
@@ -73,7 +73,7 @@ pub fn focus_default(
 }
 
 #[link_section = ".text_aux"]
-pub fn show_wallpaper(bmp: crate::bmp::DecodedBMP, destination: *mut u16) {
+pub fn show_bmp(bmp: crate::bmp::DecodedBMP, destination: *mut u16) {
     if bmp.height() != 192 {
         return;
     }
