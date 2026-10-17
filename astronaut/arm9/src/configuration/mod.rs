@@ -17,7 +17,7 @@ use reboot_lib::{
 
 use crate::{
     get_extension,
-    gui::{pop_dir_entry, GlobalData},
+    gui::{pop_dir_entry, show_wallpaper, GlobalData},
     music::{MusicPlaying, StreamingWav},
     FileType,
 };
@@ -258,6 +258,7 @@ fn read_ini(path: &mut String) -> Option<String> {
     [".ini", ".INI"].into_iter().find(|i| path.ends_with(i))?;
     read_whole_file_to_string(path)
 }
+
 impl GlobalData {
     #[link_section = ".text_aux"]
     fn play_startup_music(path: &mut String) -> MusicPlaying {
@@ -318,18 +319,7 @@ impl GlobalData {
         }
         {
             if let Some(wallpaper) = Self::load_bmp(path) {
-                VIDEO_HARDWARE
-                    .vram_control_bank_c
-                    .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-
-                crate::gui::show_bmp(wallpaper, 0x06840000 as *mut u16);
-
-                VIDEO_HARDWARE
-                    .vram_control_bank_c
-                    .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
-                VIDEO_HARDWARE
-                    .disp_b_control
-                    .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
+                show_wallpaper(wallpaper);
             } else {
                 abort_loading();
             }

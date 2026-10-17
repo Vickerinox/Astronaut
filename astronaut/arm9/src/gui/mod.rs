@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-pub use micro_imgui_ds::gui::DSMicroGuiBackend;
+pub use frontend::pop_dir_entry;
 pub use frontend::{AppData, GlobalData};
 pub use main_menu::MainMenu;
-pub use frontend::pop_dir_entry;
+pub use micro_imgui_ds::gui::DSMicroGuiBackend;
 
 use crate::{configuration::Assets, Fader};
 use micro_imgui_ds::micro_imgui::Backend;
@@ -12,17 +12,20 @@ use micro_imgui_ds::{
     micro_imgui::{InputEvent, Style},
     Input,
 };
-use reboot_lib::Buttons;
+use reboot_lib::{Buttons, DisplayControl, VRAMCtrl, VIDEO_HARDWARE};
 
 mod backend;
 mod browser;
 mod error;
 mod frontend;
 mod main_menu;
-mod special_thanks;
 mod settings;
+mod special_thanks;
 
-fn goto_end(ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>, remaining_space: i16) {
+fn goto_end(
+    ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+    remaining_space: i16,
+) {
     ui.add_space(ui.clip_rect().height() - remaining_space);
 }
 
@@ -70,6 +73,22 @@ pub fn focus_default(
     } else if ui.input_pressed(Input::FOCUS_DOWN) {
         ui.focus_down();
     }
+}
+
+#[link_section = ".text_aux"]
+pub unsafe fn show_wallpaper(wallpaper: crate::bmp::DecodedBMP) {
+    VIDEO_HARDWARE
+        .vram_control_bank_c
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+    crate::gui::show_bmp(wallpaper, 0x06840000 as *mut u16);
+
+    VIDEO_HARDWARE
+        .vram_control_bank_c
+        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
+    VIDEO_HARDWARE
+        .disp_b_control
+        .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
 }
 
 #[link_section = ".text_aux"]

@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::{
-    APP_AREA_START, AppArea, SCREEN_RECT, bmp::AsyncBMPLoader, boot::{self}, configuration::Theme, music::{MusicPlaying, send_mod_file},
+    bmp::AsyncBMPLoader,
+    boot::{self},
+    configuration::Theme,
+    music::{send_mod_file, MusicPlaying},
+    AppArea, APP_AREA_START, SCREEN_RECT,
 };
 
 use alloc::{boxed::Box, format, string::String};
@@ -10,7 +14,7 @@ use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::Backend;
-use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VRAMCtrl, fatfs_embedded};
+use reboot_lib::{fatfs_embedded, DisplayControl, VRAMCtrl, VIDEO_HARDWARE};
 pub struct GlobalData {
     pub our_path: String,
     pub blowfish: BFCTX,
@@ -83,7 +87,7 @@ impl AppData {
     #[inline(never)]
     #[link_section = ".text_aux"]
     pub fn do_background_tasks(&mut self, fader: &mut crate::Fader) {
-        if let Some(result) = self.global_data.bmp_loader.continue_load(1024*8).ok() {
+        if let Some(result) = self.global_data.bmp_loader.continue_load(1024 * 8).ok() {
             fader.set_target_top(16);
             if result.is_some() {
                 self.global_data.queued_bmp = result;
@@ -92,21 +96,7 @@ impl AppData {
         if let Some(bmp) = self.global_data.queued_bmp.take() {
             if fader.synced() {
                 unsafe {
-                    VIDEO_HARDWARE
-                        .disp_b_control
-                        .write(DisplayControl::empty());
-                    VIDEO_HARDWARE
-                    .vram_control_bank_c
-                    .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-
-                    crate::gui::show_bmp(bmp, 0x06840000 as *mut u16);
-
-                    VIDEO_HARDWARE
-                        .vram_control_bank_c
-                        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
-                    VIDEO_HARDWARE
-                        .disp_b_control
-                        .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
+                    crate::gui::show_wallpaper(bmp);
                 }
                 fader.set_target_top(0);
             }
