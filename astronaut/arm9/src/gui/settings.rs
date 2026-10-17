@@ -11,7 +11,7 @@ use micro_imgui_ds::{
     micro_imgui::{widgets::checkbox::Checkbox, Backend, Response},
     Input,
 };
-use reboot_lib::fatfs_embedded::{self, fatfs::Error};
+use reboot_lib::fatfs_embedded;
 use reboot_lib::Buttons;
 
 use crate::{
