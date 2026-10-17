@@ -376,7 +376,7 @@ impl Browser {
             if let Ok(header) = data.bmp_loader.start_load(module) {
                 if header.height != 192 || header.width != 256 {
                     data.bmp_loader.abort_load();
-                } 
+                }
             }
         }
     }

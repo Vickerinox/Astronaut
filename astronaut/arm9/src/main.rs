@@ -29,8 +29,7 @@ pub struct Fader {
 }
 impl Fader {
     pub fn is_up(&self) -> bool {
-        self.current_top.read() > 15 &&
-        self.current_bottom.read() > 15
+        self.current_top.read() > 15 && self.current_bottom.read() > 15
     }
     pub fn set_target(&mut self, target: i8) {
         self.set_target_bottom(target);
@@ -44,10 +43,14 @@ impl Fader {
         }
     }
     pub fn set_target_bottom(&mut self, target: i8) {
-        unsafe {self.target_bottom.write(target);}
+        unsafe {
+            self.target_bottom.write(target);
+        }
     }
     pub fn set_target_top(&mut self, target: i8) {
-        unsafe {self.target_top.write(target);}
+        unsafe {
+            self.target_top.write(target);
+        }
     }
     pub fn synced_top(&self) -> bool {
         self.current_top.read() == self.target_top.read()
@@ -71,7 +74,8 @@ use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
 
 use reboot_lib::{
-    ENGINE_A_PALETTES, ENGINE_B_PALETTES, IPC_FIFO_HARDWARE, Interrupt, VRAMCtrl, VideoHardwareHandle, bytemuck, volatile_register,
+    bytemuck, volatile_register, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES,
+    ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
 };
 use reboot_lib::{
     Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl, Viewport,
@@ -455,7 +459,11 @@ unsafe fn load_wifi_firmware(wifi_ver: u8) -> u32 {
 #[link_section = ".text_itcm"]
 unsafe fn irq_screen_fade() {
     let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
-    unsafe fn fade(target: &mut volatile_register::RW<i8>, current: &mut volatile_register::RW<i8>, reg: &mut volatile_register::RW<u16>) {
+    unsafe fn fade(
+        target: &mut volatile_register::RW<i8>,
+        current: &mut volatile_register::RW<i8>,
+        reg: &mut volatile_register::RW<u16>,
+    ) {
         let read = current.read();
         let target = target.read();
         let new = match read.cmp(&target) {
@@ -468,8 +476,16 @@ unsafe fn irq_screen_fade() {
     }
     #[allow(const_item_mutation)]
     {
-        fade(&mut area.target_top, &mut area.current_top, &mut VIDEO_HARDWARE.disp_b_master_bright);
-        fade(&mut area.target_bottom, &mut area.current_bottom, &mut VIDEO_HARDWARE.master_brightness);
+        fade(
+            &mut area.target_top,
+            &mut area.current_top,
+            &mut VIDEO_HARDWARE.disp_b_master_bright,
+        );
+        fade(
+            &mut area.target_bottom,
+            &mut area.current_bottom,
+            &mut VIDEO_HARDWARE.master_brightness,
+        );
     }
 }
 #[link_section = ".text_itcm"]
@@ -547,16 +563,10 @@ unsafe fn main() {
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);
 
         // Mount NAND (eMMC)
-        let _ = app_area
-            .filesystems
-            .nand_fs
-            .mount(c"nand:");
+        let _ = app_area.filesystems.nand_fs.mount(c"nand:");
 
         // Mount SD/MMC Card Slot
-        let _ = app_area
-            .filesystems
-            .sdmc_fs
-            .mount(c"sdmc:");
+        let _ = app_area.filesystems.sdmc_fs.mount(c"sdmc:");
 
         // Find the TMD we were launched from (if any, string left over by stage 2)
         let tmd_path = core::ffi::CStr::from_ptr(0x02FE34C4 as *const _)
@@ -574,12 +584,12 @@ unsafe fn main() {
             (&raw mut (*ptr).global_data.theme).write(Theme::DEFAULT);
             (&raw mut (*ptr).global_data.bmp_loader).write(AsyncBMPLoader::new());
             (&raw mut (*ptr).global_data.queued_bmp).write(None);
-            
+
             // Copy the blowfish key present in ITCM from stage 2
             (&raw mut (*ptr).global_data.blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
-            
+
             (&raw mut (*ptr).global_data.safe_mode).write(false);
-            
+
             app_area.app_data.assume_init_mut()
         };
 

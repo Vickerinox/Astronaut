@@ -6,7 +6,6 @@ use alloc::vec::Vec;
 use crate::boot::read_all;
 use reboot_lib::fatfs_embedded;
 
-
 unsafe impl reboot_lib::bytemuck::NoUninit for BMPHeader {}
 unsafe impl reboot_lib::bytemuck::NoUninit for DIBHeader40Bytes {}
 
@@ -15,7 +14,6 @@ unsafe impl reboot_lib::bytemuck::Zeroable for DIBHeader40Bytes {}
 
 unsafe impl reboot_lib::bytemuck::AnyBitPattern for BMPHeader {}
 unsafe impl reboot_lib::bytemuck::AnyBitPattern for DIBHeader40Bytes {}
-
 
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -37,7 +35,7 @@ pub struct BMPHeader {
 pub struct DIBHeader40Bytes {
     /// Size of the header (should be 40)
     pub size: u32,
-    /// Width of the bitmap 
+    /// Width of the bitmap
     pub width: i32,
     /// Height of the bitmap
     pub height: i32,
@@ -83,14 +81,16 @@ impl DecodedBMP {
 impl BMPHeader {
     pub fn from_reader(fil: &mut fatfs_embedded::fatfs::File) -> Option<Self> {
         let mut header = BMPHeader::default();
-        read_all(reboot_lib::bytemuck::bytes_of_mut(&mut header), fil).is_ok().then_some(header)
+        read_all(reboot_lib::bytemuck::bytes_of_mut(&mut header), fil)
+            .is_ok()
+            .then_some(header)
     }
 }
 impl DIBHeader40Bytes {
     pub fn from_reader(fil: &mut fatfs_embedded::fatfs::File) -> Option<Self> {
         let mut buffer = DIBHeader40Bytes::default();
         read_all(reboot_lib::bytemuck::bytes_of_mut(&mut buffer), fil).ok()?;
-        
+
         // Toss out BMPs that are too large to be reasonable.
         // 1024x1024 is the maximum allowed to be used in a single texture on the DS, but this will do for now.
         if buffer.width > 256 || buffer.height > 192 {
@@ -136,7 +136,6 @@ impl DecodedBMP {
     }
 }
 
-
 pub enum AsyncBMPLoaderError {
     FailedToReadHeader,
     FailedToReadDIB,
@@ -146,56 +145,70 @@ pub enum AsyncBMPLoaderError {
     NoLoadInProgress,
 }
 pub struct AsyncBMPLoader {
-    current_load: Option<(fatfs_embedded::fatfs::File, DecodedBMP)>
+    current_load: Option<(fatfs_embedded::fatfs::File, DecodedBMP)>,
 }
 
 impl AsyncBMPLoader {
     pub fn new() -> Self {
-        Self {
-            current_load: None
-        }
+        Self { current_load: None }
     }
     #[link_section = ".text_aux"]
-    pub fn start_load(&mut self, mut reader: fatfs_embedded::fatfs::File) -> Result<DIBHeader40Bytes, AsyncBMPLoaderError> {
+    pub fn start_load(
+        &mut self,
+        mut reader: fatfs_embedded::fatfs::File,
+    ) -> Result<DIBHeader40Bytes, AsyncBMPLoaderError> {
+        let header =
+            BMPHeader::from_reader(&mut reader).ok_or(AsyncBMPLoaderError::FailedToReadHeader)?;
+        let dib = DIBHeader40Bytes::from_reader(&mut reader)
+            .ok_or(AsyncBMPLoaderError::FailedToReadDIB)?;
 
-        let header = BMPHeader::from_reader(&mut reader).ok_or(AsyncBMPLoaderError::FailedToReadHeader)?;
-        let dib = DIBHeader40Bytes::from_reader(&mut reader).ok_or(AsyncBMPLoaderError::FailedToReadDIB)?;
-        
         let palette_len = dib.palette_len();
         let bitmap_size = dib.bitmap_size as usize;
 
-        self.current_load = Some((reader, DecodedBMP {
-            header,
-            dib,
-            colors: Vec::with_capacity(palette_len*4),
-            bitmap: Vec::with_capacity(bitmap_size),
-        }));
+        self.current_load = Some((
+            reader,
+            DecodedBMP {
+                header,
+                dib,
+                colors: Vec::with_capacity(palette_len * 4),
+                bitmap: Vec::with_capacity(bitmap_size),
+            },
+        ));
         Ok(dib)
     }
     #[link_section = ".text_aux"]
-    pub fn continue_load(&mut self, mut max_bytes: usize) -> Result<Option<DecodedBMP>, AsyncBMPLoaderError> {
-        if let Some((reader,bmp)) = &mut self.current_load {
-            let palette_len = bmp.dib.palette_len()*4;
+    pub fn continue_load(
+        &mut self,
+        mut max_bytes: usize,
+    ) -> Result<Option<DecodedBMP>, AsyncBMPLoaderError> {
+        if let Some((reader, bmp)) = &mut self.current_load {
+            let palette_len = bmp.dib.palette_len() * 4;
             let bitmap_size = bmp.dib.bitmap_size as usize;
             if bmp.colors.len() < palette_len {
                 let remaining = palette_len - bmp.colors.len();
                 let to_read = remaining.min(max_bytes);
                 let start = bmp.colors.len();
                 bmp.colors.resize(start + to_read, 0);
-                read_all(&mut bmp.colors[start..], reader).map_err(|_| AsyncBMPLoaderError::FailedToReadPalette)?;
+                read_all(&mut bmp.colors[start..], reader)
+                    .map_err(|_| AsyncBMPLoaderError::FailedToReadPalette)?;
                 max_bytes -= to_read;
-            } 
+            }
             if bmp.colors.len() == palette_len && max_bytes > 0 {
-                
                 if bmp.bitmap.len() < bitmap_size {
-                    if fatfs_embedded::seek(reader, bmp.header.start_offset+bmp.bitmap.len() as u32).is_err() {
+                    if fatfs_embedded::seek(
+                        reader,
+                        bmp.header.start_offset + bmp.bitmap.len() as u32,
+                    )
+                    .is_err()
+                    {
                         return Err(AsyncBMPLoaderError::FailedToSeekFile);
-                    } 
+                    }
                     let remaining = bitmap_size - bmp.bitmap.len();
                     let to_read = remaining.min(max_bytes);
                     let start = bmp.bitmap.len();
                     bmp.bitmap.resize(start + to_read, 0);
-                    read_all(&mut bmp.bitmap[start..], reader).map_err(|_| AsyncBMPLoaderError::FailedToReadBitmap)?;
+                    read_all(&mut bmp.bitmap[start..], reader)
+                        .map_err(|_| AsyncBMPLoaderError::FailedToReadBitmap)?;
                 }
             }
             if bmp.bitmap.len() == bitmap_size {

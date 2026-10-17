@@ -3,7 +3,10 @@
 
 use eframe::egui;
 
-use crate::{ToolData, panels::{AlwaysUi,  PanelUi}};
+use crate::{
+    ToolData,
+    panels::{AlwaysUi, PanelUi},
+};
 
 pub struct PreviewControlsPanel;
 
@@ -25,4 +28,3 @@ impl AlwaysUi for PreviewControlsPanel {
         });
     }
 }
-

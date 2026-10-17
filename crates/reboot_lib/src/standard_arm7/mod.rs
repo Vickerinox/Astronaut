@@ -15,7 +15,7 @@ use crate::{
     write_sd_sectors, AESCnt, Status, StorageSector, TransactionCode, AES_HARDWARE, DMA_HARDWARE,
     IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
 };
-use common::bootstrap::{self, BOOTINFO_MEM, FirmwareData, TWLHeader};
+use common::bootstrap::{self, FirmwareData, TWLHeader, BOOTINFO_MEM};
 use core::arch::asm;
 
 pub mod init;
@@ -154,7 +154,6 @@ impl ModCryptor {
 
     #[cfg(feature = "arm7i")]
     unsafe fn dewit(&mut self) -> ModCryptResult {
-        
         let Self { console_id } = self;
         let header = &(*common::bootstrap::BOOTINFO_MEM).twl_header;
 
@@ -361,10 +360,10 @@ pub fn main_arm7() {
                     SOUND_HARDWARE.init();
 
                     let header = &(*(common::bootstrap::BOOTINFO_MEM)).twl_header;
-                    
+
                     AES_HARDWARE.init_from_header(header, console_id);
                     load_aes_keys(header);
-                    
+
                     TIMERS.clear();
                     DMA_HARDWARE.reset();
                     NDMA_HARDWARE.reset();

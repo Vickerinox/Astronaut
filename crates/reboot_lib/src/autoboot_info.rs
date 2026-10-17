@@ -5,7 +5,6 @@ use alloc::string::String;
 
 use crate::MemoryWrapper;
 
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct BootMethods {
@@ -20,7 +19,7 @@ unsafe impl bytemuck::NoUninit for BootMethods {}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct BootMethodWords([u32; size_of::<BootMethods>()/size_of::<u32>()]);
+pub struct BootMethodWords([u32; size_of::<BootMethods>() / size_of::<u32>()]);
 unsafe impl bytemuck::AnyBitPattern for BootMethodWords {}
 unsafe impl bytemuck::Zeroable for BootMethodWords {}
 unsafe impl bytemuck::NoUninit for BootMethodWords {}

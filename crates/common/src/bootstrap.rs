@@ -7,7 +7,6 @@ use bytemuck::Zeroable;
 
 use crate::device_list::DeviceList;
 
-
 #[cfg(not(target_arch = "arm"))]
 #[inline(always)]
 pub unsafe fn boot_arm9(_is_twl: bool) -> ! {

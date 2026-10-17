@@ -15,7 +15,9 @@ use reboot_lib::fatfs_embedded::{self, fatfs::Error};
 use reboot_lib::Buttons;
 
 use crate::{
-    FileType, configuration::{BootCombo, Config}, gui::{GlobalData, MainMenu, browser::Browser, frontend::UiPage}, truncate_name,
+    configuration::{BootCombo, Config},
+    gui::{browser::Browser, frontend::UiPage, GlobalData, MainMenu},
+    truncate_name, FileType,
 };
 
 #[derive(Clone)]
@@ -110,12 +112,35 @@ impl Settings {
             data.config.ext_blowfish_main = path;
             Some(Box::new(Self::Overrides))
         };
-        let result = override_string(ui, &mut data.config.music, "Override Music:", &[FileType::Wav, FileType::Mod], a)
-            .or(override_string(ui, &mut data.config.top_wallpaper, "Override Wallpaper", &[FileType::Bmp], b))
-            .or(override_string(ui, &mut data.config.ext_blowfish_main, "Override Blowfish key", &[FileType::Bin], c))
-            .or(ui.input_pressed(Input(Buttons::BUTTON_B)).then_some(Box::new(Self::Main)));
+        let result = override_string(
+            ui,
+            &mut data.config.music,
+            "Override Music:",
+            &[FileType::Wav, FileType::Mod],
+            a,
+        )
+        .or(override_string(
+            ui,
+            &mut data.config.top_wallpaper,
+            "Override Wallpaper",
+            &[FileType::Bmp],
+            b,
+        ))
+        .or(override_string(
+            ui,
+            &mut data.config.ext_blowfish_main,
+            "Override Blowfish key",
+            &[FileType::Bin],
+            c,
+        ))
+        .or(ui
+            .input_pressed(Input(Buttons::BUTTON_B))
+            .then_some(Box::new(Self::Main)));
         super::goto_end(ui, 14);
-        result.or(ui.button("Go Back").clicked().then_some(Box::new(Self::Main)))
+        result.or(ui
+            .button("Go Back")
+            .clicked()
+            .then_some(Box::new(Self::Main)))
     }
     fn main_settings(
         &mut self,
@@ -136,11 +161,8 @@ impl Settings {
             &mut data.config.patch_dsimenu,
             "Region Free DSi Menu",
         ));
-        ui.add(Checkbox::new(
-            &mut data.config.wifi_init,
-            "Enable WiFi",
-        ));
-        
+        ui.add(Checkbox::new(&mut data.config.wifi_init, "Enable WiFi"));
+
         ui.add_space(4);
         ui.label("Theme:");
         ui.horizontal(|ui| {
@@ -163,7 +185,7 @@ impl Settings {
 
         ui.add_space(4);
         ui.label("Overrides:");
-        
+
         if ui.button("change override settings").clicked() {
             *self = Self::Overrides
         }
@@ -173,7 +195,7 @@ impl Settings {
             ui.label("Boot Combos:");
             if ui.button("Change Boot Combos").clicked() {
                 *self = Self::BootCombos(0);
-            }   
+            }
         }
 
         if ui.input_pressed(Input(Buttons::BUTTON_B)) {

@@ -3,7 +3,10 @@
 
 use eframe::egui;
 
-use crate::{ToolData, panels::{AlwaysUi, PanelUi}};
+use crate::{
+    ToolData,
+    panels::{AlwaysUi, PanelUi},
+};
 pub struct ColorPalettePanel;
 
 impl PanelUi for ColorPalettePanel {
@@ -14,18 +17,20 @@ impl PanelUi for ColorPalettePanel {
 
 impl AlwaysUi for ColorPalettePanel {
     fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData) {
-        let Some(color_palette) = &mut data.palette else { ui.centered_and_justified(|ui| ui.label("No Palette available")); return; };
+        let Some(color_palette) = &mut data.palette else {
+            ui.centered_and_justified(|ui| ui.label("No Palette available"));
+            return;
+        };
         ui.heading("Color Palette:");
         ui.group(|ui| {
             ui.label("Palette 1:");
             ui.horizontal_wrapped(|ui| {
-                
                 for color in color_palette[..4].iter_mut() {
                     if ui.color_edit_button_srgba(color).changed() {
                         data.recalculate_textures = true;
                     }
                 }
-            }); 
+            });
         });
         ui.group(|ui| {
             ui.label("Palette 2:");
@@ -35,7 +40,7 @@ impl AlwaysUi for ColorPalettePanel {
                         data.recalculate_textures = true;
                     }
                 }
-            }); 
+            });
         });
     }
 }

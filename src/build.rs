@@ -15,7 +15,6 @@ pub fn build_crate(path: PathBuf, is_release: bool) -> Result<(), CargoError> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
-        
     if is_release {
         cwd.env_remove("ASTRONAUT_DEBUG");
     } else {

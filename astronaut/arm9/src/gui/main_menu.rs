@@ -24,7 +24,7 @@ fn main_menu_ui(
     ui.label("Astronaut made by Vikrinox, 2026");
     ui.header(" ");
     let mut res: Option<Box<dyn UiPage>> = None;
-    
+
     if ui.button("Title List").clicked() {
         res = Some(Box::new(Browser::title_list()))
     }

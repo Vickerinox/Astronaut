@@ -27,5 +27,3 @@ pub unsafe fn init_powerman2() {
 pub unsafe fn init_nwram() {
     (0x4004060 as *mut u32).write_volatile(0);
 }
-
-

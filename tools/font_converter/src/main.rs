@@ -6,7 +6,11 @@ pub mod panels;
 use std::{error::Error, fs, path::PathBuf, sync::Arc};
 
 use build_tools::DecodedBMP;
-use eframe::{NativeOptions, egui::{self, Color32, RichText, Sense, TextureHandle, Vec2}, wgpu::naga::CooperativeRole::A};
+use eframe::{
+    NativeOptions,
+    egui::{self, Color32, RichText, Sense, TextureHandle, Vec2},
+    wgpu::naga::CooperativeRole::A,
+};
 use egui_dock::{LeafNode, NodePath};
 
 use crate::panels::{ColorPalettePanel, Panel, PanelType, PreviewControlsPanel, PreviewPanel};
@@ -34,7 +38,6 @@ enum Toolstate {
     Error(Box<dyn Error>),
 }
 
-
 pub struct ToolData {
     preview_texture: Option<(TextureHandle, TextureHandle)>,
     preview_text: String,
@@ -53,10 +56,17 @@ pub struct Tool {
 }
 fn load_font(state: &mut Toolstate, data: &mut ToolData) {
     data.preview_texture = None;
-    let Some(bmp_path) = rfd::FileDialog::new().add_filter("BMP Image", &["bmp"]).set_title("Select a 4-Bit BMP to make your font from").pick_file() else { *state = Toolstate::Error("No file selected.".into()); return };
+    let Some(bmp_path) = rfd::FileDialog::new()
+        .add_filter("BMP Image", &["bmp"])
+        .set_title("Select a 4-Bit BMP to make your font from")
+        .pick_file()
+    else {
+        *state = Toolstate::Error("No file selected.".into());
+        return;
+    };
     match read_bmp(bmp_path.clone()) {
         Ok(img) => *state = Toolstate::Loaded(img, bmp_path),
-        Err(e) => *state = Toolstate::Error(e)
+        Err(e) => *state = Toolstate::Error(e),
     };
 }
 impl ToolData {
@@ -100,71 +110,89 @@ impl ToolData {
         state
     }
     fn error(&mut self, ui: &mut eframe::egui::Ui, err: &Box<dyn Error>) -> Option<Toolstate> {
-        eframe::egui::Modal::new("banan2".into()).show(ui.ctx(), |ui| {
-            let error_text = format!("{}", err);
-            ui.vertical_centered(|ui| {
-                ui.add_space((ui.available_height()/2.)-50.0);
+        eframe::egui::Modal::new("banan2".into())
+            .show(ui.ctx(), |ui| {
+                let error_text = format!("{}", err);
+                ui.vertical_centered(|ui| {
+                    ui.add_space((ui.available_height() / 2.) - 50.0);
 
-                ui.heading("Error:");
-                ui.label(error_text);
+                    ui.heading("Error:");
+                    ui.label(error_text);
 
-                ui.button("Okay").clicked().then_some(Toolstate::None)
-            }).inner
-        }).inner
+                    ui.button("Okay").clicked().then_some(Toolstate::None)
+                })
+                .inner
+            })
+            .inner
     }
 }
 pub fn load_gui_fonts(ctx: &egui::Context) {
-    let (_a,_b,c) = system_fonts::find_for_system_locale(system_fonts::FontStyle::Sans);
+    let (_a, _b, c) = system_fonts::find_for_system_locale(system_fonts::FontStyle::Sans);
     let mut definitions = egui::FontDefinitions::default();
     for font in c {
         let font_data = match font.source {
             system_fonts::FoundFontSource::Path(path_buf) => {
-                let Ok(read_font) = std::fs::read(path_buf) else {continue;};
+                let Ok(read_font) = std::fs::read(path_buf) else {
+                    continue;
+                };
                 egui::FontData::from_owned(read_font)
-            },
+            }
             system_fonts::FoundFontSource::Bytes(bytes) => {
                 egui::FontData::from_owned(bytes.to_vec())
-            },
+            }
         };
-        definitions.font_data.insert(font.key.clone(), Arc::new(font_data));
-        definitions.families.entry(egui::FontFamily::Proportional).and_modify(|f| f.push(font.key.clone()));
+        definitions
+            .font_data
+            .insert(font.key.clone(), Arc::new(font_data));
+        definitions
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .and_modify(|f| f.push(font.key.clone()));
     }
     ctx.set_fonts(definitions);
-
 }
 impl Tool {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         load_gui_fonts(&cc.egui_ctx);
-        
+
         let state = Toolstate::None;
-        
+
         let mut dock = egui_dock::DockState::new(vec![Panel::new(PreviewPanel, 0)]);
-        
+
         dock.split(
-            NodePath::MAIN_ROOT, 
-            egui_dock::Split::Below, 
-            0.8, 
-            egui_dock::Node::Leaf(LeafNode::new(vec![Panel::new(PreviewControlsPanel, 1)]))
+            NodePath::MAIN_ROOT,
+            egui_dock::Split::Below,
+            0.8,
+            egui_dock::Node::Leaf(LeafNode::new(vec![Panel::new(PreviewControlsPanel, 1)])),
         );
 
         dock.split(
-            NodePath::MAIN_ROOT, 
-            egui_dock::Split::Left, 
-            0.3, 
-            egui_dock::Node::Leaf(LeafNode::new(vec![Panel::new(ColorPalettePanel, 2)]))
+            NodePath::MAIN_ROOT,
+            egui_dock::Split::Left,
+            0.3,
+            egui_dock::Node::Leaf(LeafNode::new(vec![Panel::new(ColorPalettePanel, 2)])),
         );
-        
-        let data =  {
+
+        let data = {
             let preview_texture = None;
             let preview_text = "The quick brown fox jumped over the lazy dog".to_string();
             let color = Color32::WHITE;
             let background_color = Color32::GRAY;
             let palette_2 = false;
-            let palette: Option<[Color32; 8]> = None;    
+            let palette: Option<[Color32; 8]> = None;
             let recalculate_textures = false;
             let last_operation = None;
-            ToolData { preview_texture, preview_text, color, background_color, palette_2, palette, recalculate_textures, last_operation }
+            ToolData {
+                preview_texture,
+                preview_text,
+                color,
+                background_color,
+                palette_2,
+                palette,
+                recalculate_textures,
+                last_operation,
+            }
         };
         let id_generator = 10;
         Tool {
@@ -198,8 +226,15 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
         match &mut tab.ui {
             PanelType::Always(always_ui) => always_ui.ui(ui, &mut self.data),
             PanelType::Loaded(loaded_ui) => match self.state {
-                Toolstate::Loaded(image, bmp_path) => loaded_ui.ui(ui, &mut self.data, image, bmp_path),
-                _ => ui.centered_and_justified(|ui| {ui.label("No Font Loaded.");}).inner,
+                Toolstate::Loaded(image, bmp_path) => {
+                    loaded_ui.ui(ui, &mut self.data, image, bmp_path)
+                }
+                _ => {
+                    ui.centered_and_justified(|ui| {
+                        ui.label("No Font Loaded.");
+                    })
+                    .inner
+                }
             },
         }
     }
@@ -214,32 +249,43 @@ impl eframe::App for Tool {
                         load_font(&mut self.state, &mut self.data);
                     }
 
-                    if let (Toolstate::Loaded(image, bmp_path), Some(color_palette)) = (&self.state, &self.data.palette) {
+                    if let (Toolstate::Loaded(image, bmp_path), Some(color_palette)) =
+                        (&self.state, &self.data.palette)
+                    {
                         if ui.button("Export font.bin").clicked() {
                             if let Some(mut font) = build_tools::convert_font(image) {
                                 font.truncate(2048);
                                 font.insert(0, 0);
                                 font.insert(0, 0);
-                                font.extend(color_palette
-                                .iter()
-                                .map(|i| {
-                                    let [b, g, r, _] = i.to_array();
-                                    let r = ((r >> 3) as u16) << 0;
-                                    let g = ((g >> 3) as u16) << 5;
-                                    let b = ((b >> 3) as u16) << 10;
-                                    (r | g | b).to_le_bytes()
-                                }).flatten());
+                                font.extend(
+                                    color_palette
+                                        .iter()
+                                        .map(|i| {
+                                            let [b, g, r, _] = i.to_array();
+                                            let r = ((r >> 3) as u16) << 0;
+                                            let g = ((g >> 3) as u16) << 5;
+                                            let b = ((b >> 3) as u16) << 10;
+                                            (r | g | b).to_le_bytes()
+                                        })
+                                        .flatten(),
+                                );
                                 let d = rfd::FileDialog::new()
-                                .add_filter("Astronaut font Binary", &["bin"])
-                                .set_title("Select Location to export font.bin")
-                                .set_file_name("font.bin")
-                                .save_file();
+                                    .add_filter("Astronaut font Binary", &["bin"])
+                                    .set_title("Select Location to export font.bin")
+                                    .set_file_name("font.bin")
+                                    .save_file();
                                 if let Some(a) = d {
                                     self.data.last_operation = match fs::write(&a, font) {
-                                        Ok(()) => Some(RichText::new(format!("Font exported to {:?}", &a)).color(Color32::GREEN)),
-                                        Err(e) => Some(RichText::new(format!("Error: {}", e)).color(Color32::RED)),
+                                        Ok(()) => Some(
+                                            RichText::new(format!("Font exported to {:?}", &a))
+                                                .color(Color32::GREEN),
+                                        ),
+                                        Err(e) => Some(
+                                            RichText::new(format!("Error: {}", e))
+                                                .color(Color32::RED),
+                                        ),
                                     };
-                                } 
+                                }
                             } else {
                                 //state = Some(Toolstate::Error(format!("An error occured while converting the font...").into()));
                             }
@@ -251,13 +297,18 @@ impl eframe::App for Tool {
                 ui.menu_button("Panels", |ui| {
                     self.id_generator += 1; // i know this is dogshit, but it works tm
                     if ui.button("Color Palette").clicked() {
-                        self.dock.push_to_first_leaf(Panel::new(ColorPalettePanel, self.id_generator));
+                        self.dock
+                            .push_to_first_leaf(Panel::new(ColorPalettePanel, self.id_generator));
                     }
                     if ui.button("Preview").clicked() {
-                        self.dock.push_to_first_leaf(Panel::new(PreviewPanel, self.id_generator));
+                        self.dock
+                            .push_to_first_leaf(Panel::new(PreviewPanel, self.id_generator));
                     }
                     if ui.button("Preview Controls").clicked() {
-                        self.dock.push_to_first_leaf(Panel::new(PreviewControlsPanel, self.id_generator));
+                        self.dock.push_to_first_leaf(Panel::new(
+                            PreviewControlsPanel,
+                            self.id_generator,
+                        ));
                     }
                 });
             });
@@ -272,37 +323,38 @@ impl eframe::App for Tool {
                 }
             });
         });
-        let mut tab_viewer = TabViewer { data: &mut self.data, state: &mut self.state};
-        
-        eframe::egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| {
-            if self.dock.iter_all_nodes().next().is_none() {
-                ui.centered_and_justified(|ui| ui.label("No panels open."));
-            } else {
-                egui_dock::DockArea::new(&mut self.dock).show_inside(ui, &mut tab_viewer);
-            }
-        });
+        let mut tab_viewer = TabViewer {
+            data: &mut self.data,
+            state: &mut self.state,
+        };
+
+        eframe::egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| {
+                if self.dock.iter_all_nodes().next().is_none() {
+                    ui.centered_and_justified(|ui| ui.label("No panels open."));
+                } else {
+                    egui_dock::DockArea::new(&mut self.dock).show_inside(ui, &mut tab_viewer);
+                }
+            });
 
         let new_state = match &self.state {
-            Toolstate::None => {
-                self.data.nothing(ui)
-            }
-            Toolstate::Error(err) => {
-                self.data.error(ui, err)
-            }
-            _ => None
+            Toolstate::None => self.data.nothing(ui),
+            Toolstate::Error(err) => self.data.error(ui, err),
+            _ => None,
         };
         if let Some(new_state) = new_state {
             self.state = new_state;
         }
-       
     }
 }
 fn main() {
     let mut options = NativeOptions::default();
     options.viewport = options.viewport.with_maximized(true);
     eframe::run_native(
-        "Simple Font Converter", 
-        options, 
-        Box::new(|cc| Ok(Box::new(Tool::new(cc))))
-    ).expect("Failed to launch GUI for font converter");
+        "Simple Font Converter",
+        options,
+        Box::new(|cc| Ok(Box::new(Tool::new(cc)))),
+    )
+    .expect("Failed to launch GUI for font converter");
 }

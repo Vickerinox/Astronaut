@@ -1,23 +1,28 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use super::{DecodedBMP, ToolData};
 use eframe::egui;
-use super::{ToolData, DecodedBMP};
 use std::path::PathBuf;
 
-
+mod color_palette_panel;
 mod preview_control_panel;
 mod preview_panel;
-mod color_palette_panel;
+pub use color_palette_panel::*;
 pub use preview_control_panel::*;
 pub use preview_panel::*;
-pub use color_palette_panel::*;
 
 pub trait AlwaysUi: PanelUi {
     fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData);
 }
 pub trait LoadedUi: PanelUi {
-    fn ui(&mut self, ui: &mut egui::Ui, data: &mut ToolData, image: &DecodedBMP, bmp_path: &PathBuf);
+    fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        data: &mut ToolData,
+        image: &DecodedBMP,
+        bmp_path: &PathBuf,
+    );
 }
 pub trait PanelUi {
     fn name(&mut self) -> &str;
@@ -34,15 +39,12 @@ pub struct Panel {
     pub ui: PanelType,
 }
 
-
-
-
-
-
-
 impl Panel {
     pub fn new(panel: impl AsPanel, id: u64) -> Panel {
-        Panel { id, ui: panel.as_panel() }
+        Panel {
+            id,
+            ui: panel.as_panel(),
+        }
     }
 }
 
@@ -56,4 +58,3 @@ impl AsPanel for PreviewPanel {
         PanelType::Loaded(Box::new(self))
     }
 }
-

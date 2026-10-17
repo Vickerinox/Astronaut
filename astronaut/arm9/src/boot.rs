@@ -3,20 +3,20 @@
 
 use core::fmt::Debug;
 
+use crate::{gui::GlobalData, set_background, AppArea, APP_AREA_START};
 use alloc::string::{String, ToString};
 use common::blowfish::BFCTX;
-use common::bootstrap::{BOOTINFO_MEM, BootInfoNTR, BootInfoTWL };
+use common::bootstrap::{BootInfoNTR, BootInfoTWL, BOOTINFO_MEM};
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
 use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
-use crate::{gui::GlobalData, set_background, AppArea, APP_AREA_START};
 
 pub enum BootError {
     /// Binary isn't in a valid memory location
     BadBinaryLocation(core::ops::Range<u32>),
     /// Entrypoint isn't inside a valid binary
     BadEntrypoint(u32),
-    /// Failed to read ROM file during boot 
+    /// Failed to read ROM file during boot
     FileReadError,
     /// Failed to read external Blowfish key during boot
     InvalidBlowfishKey,
@@ -47,7 +47,6 @@ pub fn read_all(
 
 #[link_section = ".text_itcm"]
 pub fn setup_shared_mem(mem: &mut BootInfoTWL) {
- 
     mem.ntr.header_again = mem.twl_header.head.clone();
     mem.ntr.header = mem.twl_header.head.clone();
 
@@ -86,7 +85,6 @@ pub fn setup_shared_mem(mem: &mut BootInfoTWL) {
     mem.ntr.hardware_info = hw_info_data;
 }
 
-
 #[inline]
 unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
@@ -95,7 +93,6 @@ unsafe fn boot_unreturnable(
     app_data: &mut crate::gui::GlobalData,
     arm7_relocation: bool,
 ) -> ! {
-    
     crate::music::stop_mod_file();
     let boot_info = header;
 
@@ -132,9 +129,8 @@ unsafe fn boot_unreturnable(
     // Prepare Jump trampoline
     core::ptr::write_volatile(&mut boot_info.other[0], 0);
 
-
     setup_shared_mem(boot_info);
-    
+
     // Prepare ARGv
     if boot_info.twl_header.is_homebrew() {
         let path_bytes = file_path.as_bytes();
@@ -159,7 +155,7 @@ unsafe fn boot_unreturnable(
         reboot_lib::nocash_write("> Inserted ARGV \n");
     }
 
-    // Disable memory allocator 
+    // Disable memory allocator
     unsafe { reboot_lib::ALLOCATOR.invalidate() };
 
     let arm9_ram = core::slice::from_raw_parts_mut(
@@ -223,17 +219,15 @@ unsafe fn boot_unreturnable(
 
     // Check if the secure area is used within the rom
     if (0x4000..0x8000).contains(&boot_info.twl_header.head.arm9_offset) {
-        
         let bf = &mut app_data.blowfish;
         let tmp = boot_info.twl_header.head.arm9_load as *mut u32;
 
         // Skip decrypting it if were already working with a decrypted rom
         if tmp.read() != 0xE7FFDEFF || tmp.add(1).read() != 0xE7FFDEFF {
-            
             // build an initial key from the game tid
             let gamecode = boot_info.twl_header.head.tid;
             let mut arg = [gamecode, gamecode >> 1, gamecode << 1];
-        
+
             //Initialize the blowfish context/keys
             bf.init2(&mut arg);
             bf.init2(&mut arg);
@@ -253,7 +247,7 @@ unsafe fn boot_unreturnable(
                 tmp.write(0xE7FFDEFF);
                 tmp.add(1).write(0xE7FFDEFF);
             }
-            
+
             reboot_lib::nocash_write("> Decrypted Secure Area \n");
         }
     }
@@ -269,7 +263,7 @@ unsafe fn boot_unreturnable(
         let wifi_type = boot_info.ntr.wifi_other[0];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
         (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF, 0x020005E4 as *const (), 0xC));
-        
+
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
 
@@ -278,12 +272,13 @@ unsafe fn boot_unreturnable(
     reboot_lib::flush_mmc();
 
     // Wait until screen fade has finished (happends asynchronously in the background through IRQ functions)
-    while !(&*(APP_AREA_START as *mut AppArea)).fader.synced() { reboot_lib::swi_halt();}
+    while !(&*(APP_AREA_START as *mut AppArea)).fader.synced() {
+        reboot_lib::swi_halt();
+    }
 
-    
     reboot_lib::disable_all_interrupts();
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
-    
+
     if (&*(APP_AREA_START as *mut AppArea)).fader.is_up() {
         set_background(0x7FFF);
         VIDEO_HARDWARE
@@ -331,13 +326,15 @@ pub unsafe fn boot_app(
     file_path: &str,
     app_data: &mut GlobalData,
 ) -> BootError {
-
     reboot_lib::nocash_write("> booting ");
     reboot_lib::nocash_write(file_path);
     reboot_lib::nocash_write("\n");
-    
+
     if !app_data.config.ext_blowfish_main.is_empty() {
-        if let Ok(mut fil) = fatfs_embedded::open(&mut app_data.config.ext_blowfish_main.clone(), FileOptions::Read) {
+        if let Ok(mut fil) = fatfs_embedded::open(
+            &mut app_data.config.ext_blowfish_main.clone(),
+            FileOptions::Read,
+        ) {
             if fatfs_embedded::size(&mut fil) as usize == core::mem::size_of::<BFCTX>() {
                 const BLOWFISH_LEN: usize = core::mem::size_of::<BFCTX>();
                 let slice = app_data.blowfish.bytes_mut();
@@ -349,13 +346,14 @@ pub unsafe fn boot_app(
     }
 
     let mem = BOOTINFO_MEM as *mut () as *mut u32;
-    
-    const CLEAR_WORDS: usize = (size_of::<BootInfoTWL>()-size_of::<BootInfoNTR>())/size_of::<u32>();
-    
+
+    const CLEAR_WORDS: usize =
+        (size_of::<BootInfoTWL>() - size_of::<BootInfoNTR>()) / size_of::<u32>();
+
     for i in 0..CLEAR_WORDS {
         mem.add(i).write_volatile(0);
     }
-    
+
     let header = &mut (*common::bootstrap::BOOTINFO_MEM).twl_header;
     let head_buf = reboot_lib::bytemuck::bytes_of_mut(header);
     if read_all(head_buf, r).is_err() {
@@ -411,7 +409,7 @@ pub unsafe fn boot_app(
     if !arm9_range.contains(&header.head.arm9_entry) {
         return BootError::BadEntrypoint(header.head.arm9_entry);
     }
-    
+
     if app_data.config.force_warmboot {
         let _ = reboot_lib::arm9_set_warmboot();
         (0x2FFFDFA as *mut u8).write(0x81);

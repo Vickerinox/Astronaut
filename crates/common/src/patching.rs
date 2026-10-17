@@ -4,9 +4,9 @@
 use crate::bootstrap::TWLHeader;
 
 /// The main patch for the launcher, applied to the decrypted ARM9 binary.
-/// 
+///
 /// This will disable the RSA checks, cart whitelist, and other checks that prevent unwanted games/apps from running.
-/// 
+///
 /// NOTE: while the format is slightly different, this has the same effect on the binary as unlaunch*.
 const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
     blocks: &[
@@ -141,14 +141,12 @@ pub enum VPatchResult {
     Ok,
 
     // the following are signs of a bad rom
-    
     /// Binary ran out before a match could be found
     BinaryRanOut,
     /// Internal logic error
     BadPatch,
 
     // the following are signs of a bad patch (should never be the case, but better safe than sorry)
-
     /// The originals pool ran out before all VBlocks were walked
     MatchRanOut,
     /// The patch pool ran out before all VBlocks were walked
@@ -168,7 +166,6 @@ fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
 
     // walk each block in the patch
     for block in blocks.iter() {
-        
         // Trim the pool of match words
         let Some((orig, remainder)) = originals.split_at_checked(block.original_len as usize)
         else {
@@ -198,7 +195,7 @@ fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
                     l_cursor += 1;
                 }
             }
-        
+
             // Look if all words match
             let match_length = l_words[l_cursor..]
                 .iter()
@@ -213,7 +210,6 @@ fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
                 // False alarm, continue searching
                 l_cursor += match_length
             }
-        
         }
         // Apply the patch for this block
         let patch_cursor = l_cursor.wrapping_add_signed((block.offset as isize) / 2);
