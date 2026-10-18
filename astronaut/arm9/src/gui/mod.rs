@@ -76,7 +76,7 @@ pub fn focus_default(
 }
 
 #[link_section = ".text_aux"]
-pub unsafe fn show_wallpaper(wallpaper: crate::bmp::DecodedBMP) {
+pub unsafe fn show_wallpaper(wallpaper: crate::graphics::bmp::DecodedBMP) {
     VIDEO_HARDWARE
         .vram_control_bank_c
         .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
@@ -92,7 +92,7 @@ pub unsafe fn show_wallpaper(wallpaper: crate::bmp::DecodedBMP) {
 }
 
 #[link_section = ".text_aux"]
-pub fn show_bmp(bmp: crate::bmp::DecodedBMP, destination: *mut u16) {
+pub fn show_bmp(bmp: crate::graphics::bmp::DecodedBMP, destination: *mut u16) {
     if bmp.height() != 192 {
         return;
     }

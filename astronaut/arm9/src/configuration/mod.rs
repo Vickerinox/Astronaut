@@ -285,9 +285,9 @@ impl GlobalData {
         }
     }
     #[link_section = ".text_aux"]
-    fn load_bmp(path: &mut String) -> Option<crate::bmp::DecodedBMP> {
+    fn load_bmp(path: &mut String) -> Option<crate::graphics::bmp::DecodedBMP> {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
-        let mut loader = crate::bmp::AsyncBMPLoader::new();
+        let mut loader = crate::graphics::bmp::AsyncBMPLoader::new();
         loader.start_load(file).ok()?;
         loader.continue_load(usize::MAX).ok()?
     }
@@ -362,7 +362,7 @@ impl GlobalData {
         self.load_font(&mut font);
         self.load_wallpaper(&mut wallpaper);
         self.load_background(&mut background);
-        let video_context = crate::init_graphics();
+        let video_context = crate::graphics::init_graphics();
 
         // Audio stuff
         self.load_music(&mut music);

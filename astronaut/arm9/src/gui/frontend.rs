@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::{
-    bmp::AsyncBMPLoader,
+    graphics::bmp::AsyncBMPLoader,
     boot::{self},
     configuration::Theme,
     music::{send_mod_file, MusicPlaying},
@@ -23,7 +23,7 @@ pub struct GlobalData {
     pub theme: Theme,
     pub safe_mode: bool,
     pub bmp_loader: AsyncBMPLoader,
-    pub queued_bmp: Option<crate::bmp::DecodedBMP>,
+    pub queued_bmp: Option<crate::graphics::bmp::DecodedBMP>,
 }
 
 pub struct AppData {

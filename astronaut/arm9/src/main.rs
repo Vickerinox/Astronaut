@@ -6,9 +6,67 @@
 #![feature(str_from_raw_parts)]
 #![feature(asm_const_ptr)]
 
-pub mod bmp;
+extern crate alloc;
+
+pub mod graphics;
 pub mod music;
 pub mod resources;
+pub mod configuration;
+pub mod fat;
+pub mod arm7_exploit;
+
+mod boot;
+mod gui;
+mod mbr;
+mod nand;
+mod files;
+mod screen_fade;
+
+pub use screen_fade::{Fader, irq_screen_fade};
+pub use files::{filetype, get_extension, truncate_name, FileType, FileEntry};
+pub use micro_imgui_ds::SCREEN_RECT;
+
+use crate::graphics::bmp::AsyncBMPLoader;
+use crate::boot::read_all;
+use crate::configuration::{Config, Theme};
+use crate::fat::driver::SDMMCDriver;
+use crate::gui::{AppData, GlobalData};
+use graphics::font::load_default_font;
+use alloc::vec;
+use alloc::{boxed::Box, string::String};
+use common::blowfish::BFCTX;
+use core::str;
+use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
+use micro_imgui_ds::read_controller;
+use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
+use reboot_lib::fatfs_embedded;
+
+use reboot_lib::{
+    bytemuck,  Interrupt, VRAMCtrl,
+    IPC_FIFO_HARDWARE,
+};
+use reboot_lib::{
+    Buttons,  VideoPowerControl,
+    VIDEO_HARDWARE,
+};
+
+// Where the NWRAM bank for this code start
+const DSI_WRAM_START: usize = 0x037C0000;
+// Where the TMD code is actually placed
+const BINARY_START: usize = 0x037DF27C;
+// Where to put the app area (arbitrary, memory before this is used as stack space)
+const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
+// How long the app area may theorhetically be as to not collide with the TMD
+const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
+
+const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
+
+extern "C" {
+    static mut _itcm_addr: u32;
+    static _itcm_len_words: u8;
+    static _aux_off: u8;
+    static _aux_len: u8;
+}
 pub struct FileSystems {
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
@@ -21,279 +79,16 @@ pub struct AppArea {
     wav_counter: reboot_lib::volatile_register::RW<u32>,
     path_buffer: [u8; 256],
 }
-pub struct Fader {
-    current_top: reboot_lib::volatile_register::RW<i8>,
-    target_top: reboot_lib::volatile_register::RW<i8>,
-    current_bottom: reboot_lib::volatile_register::RW<i8>,
-    target_bottom: reboot_lib::volatile_register::RW<i8>,
-}
-impl Fader {
-    pub fn is_up(&self) -> bool {
-        self.current_top.read() > 15 && self.current_bottom.read() > 15
-    }
-    pub fn set_target(&mut self, target: i8) {
-        self.set_target_bottom(target);
-        self.set_target_top(target);
-    }
-    pub fn set_state(&mut self, target: i8) {
-        self.set_target(target);
-        unsafe {
-            self.current_bottom.write(target);
-            self.current_top.write(target);
-        }
-    }
-    pub fn set_target_bottom(&mut self, target: i8) {
-        unsafe {
-            self.target_bottom.write(target);
-        }
-    }
-    pub fn set_target_top(&mut self, target: i8) {
-        unsafe {
-            self.target_top.write(target);
-        }
-    }
-    pub fn synced_top(&self) -> bool {
-        self.current_top.read() == self.target_top.read()
-    }
-    pub fn synced_bottom(&self) -> bool {
-        self.current_bottom.read() == self.target_bottom.read()
-    }
-    pub fn synced(&self) -> bool {
-        self.synced_bottom() && self.synced_top()
-    }
-}
 reboot_lib::const_assert!(core::mem::size_of::<AppArea>() < APP_AREA_LEN);
-
-use alloc::string::ToString;
-use alloc::vec;
-use alloc::{boxed::Box, string::String};
-use common::blowfish::BFCTX;
-use core::str;
-use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
-use micro_imgui_ds::read_controller;
-use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
-
-use reboot_lib::{
-    bytemuck, volatile_register, Interrupt, VRAMCtrl, VideoHardwareHandle, ENGINE_A_PALETTES,
-    ENGINE_B_PALETTES, IPC_FIFO_HARDWARE,
-};
-use reboot_lib::{
-    Buttons, DisplayControl, MatrixMode, PolygonAttributes, VideoPowerControl, Viewport,
-    VIDEO_HARDWARE,
-};
-
-use crate::bmp::AsyncBMPLoader;
-use crate::boot::read_all;
-use crate::configuration::{Config, Theme};
-use crate::fat::driver::SDMMCDriver;
-use crate::gui::{AppData, GlobalData};
-
-extern crate alloc;
-
-pub mod arm7_exploit;
-mod boot;
-pub mod configuration;
-pub mod fat;
-mod gui;
-mod mbr;
-mod nand;
-#[repr(C)]
-pub struct NandAutobootEntry {
-    category: u16,
-    title_id: u32,
-    version: u32,
-    buttons: reboot_lib::Buttons,
-    _reserved: u16,
-}
-impl NandAutobootEntry {
-    pub const EMPTY: NandAutobootEntry = NandAutobootEntry {
-        category: 0,
-        title_id: 0,
-        version: 0,
-        buttons: Buttons::empty(),
-        _reserved: 0,
-    };
-}
 
 pub unsafe fn steal_main_mem() {
     reboot_lib::ALLOCATOR.init();
 }
-#[inline(always)]
-pub unsafe fn unlaunch_breakpoint() {
-    #[cfg(target_arch = "arm")]
-    core::arch::asm!("mov r11, r11");
-}
-
-#[instruction_set(arm::t32)]
-#[cfg(target_arch = "arm")]
-unsafe fn load_default_font() {
-    use resources::FONT_FILE;
-    core::arch::asm!(
-        "SWI 0x11",
-        in("r0") core::ptr::addr_of!(*FONT_FILE) as *const u8,
-        in("r1") 0x2FF1000,
-        lateout("r0") _,
-        lateout("r1") _,
-        out("r2") _,
-        out("r3") _,
-    );
-}
-#[cfg(not(target_arch = "arm"))]
-unsafe fn load_default_font() {
-    transfer_font_to_vram();
-    panic!()
-}
-#[instruction_set(arm::a32)]
-#[cfg(target_arch = "arm")]
-unsafe fn init_font() {
-    transfer_font_to_vram();
-}
-unsafe fn transfer_font_to_vram() {
-    for i in 0..0x200 {
-        let reg = (0x2FF_1000 as *const u32).add(i).read();
-        (0x6818000 as *mut u32).add(i).write(reg);
-    }
-    for i in 0..4 {
-        let reg = (0x2FF_1800 as *const u32).add(i).read();
-        (0x06890000 as *mut u32).add(i).write(reg);
-    }
-}
-#[cfg(not(target_arch = "arm"))]
-unsafe fn init_font() {
-    panic!()
-}
-
-unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
-    //setup 3d hardware
-    VIDEO_HARDWARE
-        .power_control
-        .write(VideoPowerControl::all() ^ VideoPowerControl::ENGINE_A_ON_TOP);
-    VIDEO_HARDWARE
-        .vram_control_bank_a
-        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK A
-    VIDEO_HARDWARE
-        .vram_control_bank_f
-        .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK F
-
-    VIDEO_HARDWARE
-        .engine_a_ctrl
-        .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_3D | DisplayControl::ENABLE_BG_0);
-
-    VIDEO_HARDWARE.display_control_3d.write(1); //enables texture mapping
-    video_context.next_frame(); //swap geometry buffers
-
-    //init matricies
-    video_context.init_matricies();
-    VIDEO_HARDWARE
-        .geometry_commands
-        .select_matrix_stack(MatrixMode::POSITION);
-    VIDEO_HARDWARE
-        .geometry_commands
-        .scale_matrix(0x1000, -0x1555, -0x1000);
-    VIDEO_HARDWARE
-        .geometry_commands
-        .scale_matrix(0x2000, 0x2000, 0x2000);
-
-    VIDEO_HARDWARE
-        .geometry_commands
-        .translate_matrix(-0x80 * 0x10, -0x60 * 0x10, 100);
-
-    //more init
-    VIDEO_HARDWARE
-        .geometry_commands
-        .pipeline_set_viewport
-        .write(Viewport::WHOLE_SCREEN_DEFAULT);
-    /*
-    VIDEO_HARDWARE
-        .geometry_commands
-        .material_texture_attributes
-        .write((7 << 20) | (2 << 26) | (1 << 29) | 0x3000); //bind font texture
-    */
-    VIDEO_HARDWARE
-        .geometry_commands
-        .material_color_palette
-        .write(0); //use color palette 0
-    VIDEO_HARDWARE
-        .geometry_commands
-        .material_polygon_attributes
-        .write(
-            PolygonAttributes::RENDER_BACK_SURFACE
-                | PolygonAttributes::RENDER_FRONT_SURFACE
-                | PolygonAttributes::POLYGON_ALPHA_SOLID,
-        );
-    VIDEO_HARDWARE.clear_depth.write(0x7FFF); //max depth
-}
-
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
-pub enum FileType {
-    Dir,
-    Rom,
-    Mod,
-    Wav,
-    Bmp,
-    Ini,
-    Bin,
-    None,
-}
-
-pub fn filetype(extension: &str) -> FileType {
-    const ASSOCIATION_LIST: &[(&str, FileType)] = &[
-        (".BIN", FileType::Bin),
-        (".WAV", FileType::Wav),
-        (".MOD", FileType::Mod),
-        (".INI", FileType::Ini),
-        (".BMP", FileType::Bmp),
-        (".NDS", FileType::Rom),
-        (".DSI", FileType::Rom),
-        (".APP", FileType::Rom),
-        (".SRL", FileType::Rom),
-    ];
-    ASSOCIATION_LIST
-        .iter()
-        .filter_map(|(t, i)| extension.ends_with(t).then_some(i))
-        .next()
-        .copied()
-        .unwrap_or(FileType::None)
-}
-pub fn get_extension(str: &str) -> Option<&str> {
-    let len = str.len().checked_sub(4)?;
-    str.get(len..)
-}
-
-#[derive(Clone, PartialEq)]
-pub struct FileEntry {
-    pub file_name: String,
-    pub display_name: String,
-    pub kind: FileType,
-}
-impl PartialOrd for FileEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        match self.kind.partial_cmp(&other.kind) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.display_name.partial_cmp(&other.display_name)
-    }
-}
-pub fn truncate_name(string: &str, bound: usize) -> String {
-    let mut string = string.to_string();
-    if string.len() > bound + 3 {
-        let mut boundary = bound;
-        while !string.is_char_boundary(boundary) {
-            boundary += 1;
-        }
-        string.truncate(boundary);
-        string.push_str("...");
-    }
-    string
-}
-
-pub use micro_imgui_ds::SCREEN_RECT;
 
 unsafe fn early_crash(message: &str) -> ! {
     load_default_font();
     set_bright(0 | (1 << 14));
-    let mut video_context = init_graphics();
+    let mut video_context = graphics::init_graphics();
     micro_imgui_ds::gui::VideoTextPass::new(&mut video_context, SCREEN_RECT).text_pass(
         |text_pass| {
             text_pass.set_color(0x7FFF);
@@ -323,64 +118,7 @@ unsafe fn early_crash(message: &str) -> ! {
     video_context.next_frame();
     loop {}
 }
-unsafe fn init_graphics() -> VideoHardwareHandle {
-    //enable VRAM bank A
-    VIDEO_HARDWARE
-        .vram_control_bank_a
-        .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
-    VIDEO_HARDWARE
-        .vram_control_bank_f
-        .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
-    //enable the 2D engine A, with no backgrounds on.
-    VIDEO_HARDWARE
-        .engine_a_ctrl
-        .write(DisplayControl::BG_MODE_0 | DisplayControl::ENABLE_BG_0);
-
-    // Set background 3 on the sub engine to cover the whole screen and be flipped vertically to prepare for wallpaper
-    // (Note: this is done since BMP bitmaps are "vertically flipped", starting from the bottom left and ending on the top right)
-    VIDEO_HARDWARE.engine_b_bgctrl[3].write((1 << 14) | (1 << 7) | (1 << 2));
-    VIDEO_HARDWARE.engine_b_bgscrl[6].write(0);
-    VIDEO_HARDWARE.engine_b_bgscrl[7].write(0);
-    VIDEO_HARDWARE.engine_b_bg3_ref[0].write(0);
-    VIDEO_HARDWARE.engine_b_bg3_ref[1].write((191) << 8);
-
-    VIDEO_HARDWARE.engine_b_bg3_scale[0].write(256);
-    VIDEO_HARDWARE.engine_b_bg3_scale[1].write(0);
-    VIDEO_HARDWARE.engine_b_bg3_scale[2].write(0);
-    VIDEO_HARDWARE.engine_b_bg3_scale[3].write(0xFF00);
-
-    //copy font to vram
-
-    init_font();
-
-    let mut video_context = reboot_lib::VideoHardwareHandle::new();
-    init_3d_hardware(&mut video_context);
-    video_context.next_frame();
-    video_context
-}
-
-unsafe fn find_wifi_firmware_path() -> Option<String> {
-    const CONTENT_FOLDER: &str = "nand:/title/0003000F/484E4341/content/";
-    let app_version = {
-        let mut firmware_tmd = fatfs_embedded::open(
-            &mut alloc::format!("{CONTENT_FOLDER}title.tmd"),
-            FileOptions::Read,
-        )
-        .ok()?;
-        let mut app_version = [0u8; 4];
-        fatfs_embedded::seek(&mut firmware_tmd, 0x1E4).ok()?;
-        read_all(&mut app_version, &mut firmware_tmd).ok()?;
-        u32::from_be_bytes(app_version)
-    };
-    Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
-}
-extern "C" {
-    static mut _itcm_addr: u32;
-    static _itcm_len_words: u8;
-    static _aux_off: u8;
-    static _aux_len: u8;
-}
 /// Loads the code thats within the ".text_aux" segment into memory
 unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
     let Ok(mut file) = fatfs_embedded::open(&mut data.our_path, FileOptions::Read) else {
@@ -408,94 +146,11 @@ unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
     }
     true
 }
-fn find_firmware_for_card(header: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
-    let firmware_count = header.get(0x2).copied()?;
-    let firm_params = (0..firmware_count as usize)
-        .into_iter()
-        .filter_map(|i| {
-            let offset = 0x4 + (i * 32);
-            header.get(offset..offset + 9)
-        })
-        .filter(|i| i.get(8).copied() == Some(version))
-        .next()?;
-
-    let offset = { u32::from_le_bytes(firm_params.first_chunk()?.clone()) };
-    let size = { u32::from_le_bytes(firm_params.get(4..)?.first_chunk()?.clone()) };
-    Some((offset, size))
-}
-unsafe fn get_wifi_firmware(
-    wifi_ver: u8,
-) -> Option<(fatfs_embedded::fatfs::File, alloc::alloc::Layout)> {
-    let mut firmware_path = find_wifi_firmware_path()?;
-    let mut firmware = fatfs_embedded::open(&mut firmware_path, FileOptions::Read).ok()?;
-    fatfs_embedded::seek(&mut firmware, 0xA0).ok()?;
-    let mut header = [0u8; 0x60];
-    read_all(&mut header, &mut firmware).ok()?;
-    let (offset, size) = find_firmware_for_card(&header, wifi_ver)?;
-
-    fatfs_embedded::seek(&mut firmware, offset).ok()?;
-
-    let layout = core::alloc::Layout::from_size_align(size as usize, 4).ok()?;
-    Some((firmware, layout))
-}
-unsafe fn load_wifi_firmware(wifi_ver: u8) -> u32 {
-    let mut ret = 0xDEADBEEF;
-    let Some((mut firmware, layout)) = get_wifi_firmware(wifi_ver) else {
-        return ret;
-    };
-    let firmware_ptr = alloc::alloc::alloc(layout);
-    let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, layout.size());
-
-    if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
-        ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
-            Ok(_) => 0,
-            Err(e) => e.get(),
-        };
-    }
-
-    alloc::alloc::dealloc(firmware_ptr, layout);
-    ret
-}
-#[link_section = ".text_itcm"]
-unsafe fn irq_screen_fade() {
-    let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
-    unsafe fn fade(
-        target: &mut volatile_register::RW<i8>,
-        current: &mut volatile_register::RW<i8>,
-        reg: &mut volatile_register::RW<u16>,
-    ) {
-        let read = current.read();
-        let target = target.read();
-        let new = match read.cmp(&target) {
-            core::cmp::Ordering::Less => (read + 3).min(target),
-            core::cmp::Ordering::Equal => return,
-            core::cmp::Ordering::Greater => (read - 2).max(target),
-        };
-        current.write(new);
-        reg.write(new as u16 | (1 << 14));
-    }
-    #[allow(const_item_mutation)]
-    {
-        fade(
-            &mut area.target_top,
-            &mut area.current_top,
-            &mut VIDEO_HARDWARE.disp_b_master_bright,
-        );
-        fade(
-            &mut area.target_bottom,
-            &mut area.current_bottom,
-            &mut VIDEO_HARDWARE.master_brightness,
-        );
-    }
-}
 #[link_section = ".text_itcm"]
 unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
 }
-const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
-
-use reboot_lib::fatfs_embedded;
 unsafe fn main() {
     unsafe {
         // Print debug string visible on emulators
@@ -513,7 +168,7 @@ unsafe fn main() {
         // Set the Screen to all white
         set_bright(16 | (1 << 14));
         // Set the backgrounds to a default color
-        set_background(BACKGROUND_COLOR);
+        graphics::set_background(BACKGROUND_COLOR);
 
         // Initialize IPC
         IPC_FIFO_HARDWARE.enable();
@@ -627,20 +282,6 @@ unsafe fn main() {
         gui::load_gui(app_data, &mut app_area.fader, buttons);
     }
 }
-
-pub unsafe fn set_background(color: u16) {
-    ENGINE_A_PALETTES.bg_palettes[0].write(color);
-    ENGINE_B_PALETTES.bg_palettes[0].write(color);
-}
-
-// Where the NWRAM bank for this code start
-const DSI_WRAM_START: usize = 0x037C0000;
-// Where the TMD code is actually placed
-const BINARY_START: usize = 0x037DF27C;
-// Where to put the app area (arbitrary, memory before this is used as stack space)
-const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
-// How long the app area may theorhetically be as to not collide with the TMD
-const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
 
 #[no_mangle]
 #[cfg(target_arch = "arm")]
