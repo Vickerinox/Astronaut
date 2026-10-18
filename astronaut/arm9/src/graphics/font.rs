@@ -5,7 +5,7 @@
 #[instruction_set(arm::t32)]
 #[cfg(target_arch = "arm")]
 pub unsafe fn load_default_font() {
-    use resources::FONT_FILE;
+    use crate::resources::FONT_FILE;
     core::arch::asm!(
         "SWI 0x11",
         in("r0") core::ptr::addr_of!(*FONT_FILE) as *const u8,
