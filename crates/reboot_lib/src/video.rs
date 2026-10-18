@@ -256,10 +256,34 @@ impl Viewport {
 
 #[repr(C)]
 pub struct VideoHardware {
+    /// Display control for the main graphics engine
     pub engine_a_ctrl: RW<DisplayControl>,
     _0x4: u16,
+    /// Vertical line counter
     pub vcount: RO<u16>,
-    _0x8: [u8; 0x58],
+    /// (Main engine) Background Control registers
+    pub engine_a_bgctrl: [RW<u16>; 4],
+    /// (Main engine) Background Scroll registers
+    pub engine_a_bgscrl: [RW<u16>; 8],
+    /// (Main engine) Background 2 transform registers
+    pub engine_a_bg2_scale: [RW<u16>; 4],
+    /// (Main engine) Background 2 reference point registers
+    pub engine_a_bg2_ref: [RW<u32>; 2],
+    /// (Main engine) Background 3 transform registers
+    pub engine_a_bg3_scale: [RW<u16>; 4],
+    /// (Main engine) Background 3 reference point registers
+    pub engine_a_bg3_ref: [RW<u32>; 2],
+    /// (Main engine) Window 0 and 1 settings
+    pub engine_a_window: [WO<u16>; 4],
+    /// (Main engine) Window in/out settings
+    pub engine_a_winio: [RW<u16>; 2],
+    /// (Main engine) Mosiac effect setting
+    pub engine_a_mosiac: WO<u16>,
+
+    _0x4e: u16,
+    pub engine_a_effects: RW<u16>,
+    pub engine_a_alphas: RW<u16>,
+    _0x56: [u8; 12],
     pub display_control_3d: RW<u16>,
     _0x62: u16,
     pub display_capture: RW<u32>,
@@ -307,16 +331,33 @@ pub struct VideoHardware {
     pub clip_matrix_result: [RO<u32>; 0x10],
     pub vector_matrix_result: [RO<u32>; 6],
     _0x698: [u8; 0x968],
-    pub disp_b_control: RW<DisplayControl>,
+
+    /// Display control for the sub graphics engine
+    pub engine_b_ctrl: RW<DisplayControl>,
     _0x1004: u32,
-    pub disp_b_bgctrl: [RW<u16>; 4],
-    pub disp_b_bgscrl: [RW<u16>; 8],
-    pub disp_b_bg2_scale: [RW<u16>; 4],
-    pub disp_b_bg2_ref: [RW<u32>; 2],
-    pub disp_b_bg3_scale: [RW<u16>; 4],
-    pub disp_b_bg3_ref: [RW<u32>; 2],
-    pub gba_registers: [u8; 0x18],
-    _0x1058: [u8; 0x14],
+    
+    /// (Sub engine) Background Control registers
+    pub engine_b_bgctrl: [RW<u16>; 4],
+    /// (Sub engine) Background Scroll registers
+    pub engine_b_bgscrl: [WO<u16>; 8],
+    /// (Sub engine) Background 2 transform registers
+    pub engine_b_bg2_scale: [WO<u16>; 4],
+    /// (Sub engine) Background 2 reference point registers
+    pub engine_b_bg2_ref: [WO<u32>; 2],
+    /// (Sub engine) Background 3 transform registers
+    pub engine_b_bg3_scale: [WO<u16>; 4],
+    /// (Sub engine) Background 3 reference point registers
+    pub engine_b_bg3_ref: [WO<u32>; 2],
+    /// (Sub engine) Window 0 and 1 settings
+    pub engine_b_window: [WO<u16>; 4],
+    /// (Sub engine) Window in/out settings
+    pub engine_b_winio: [RW<u16>; 2],
+    /// (Sub engine) Mosiac effect setting
+    pub engine_b_mosiac: WO<u16>,
+    _0x104e: u16,
+    pub engine_b_effects: RW<u16>,
+    pub engine_b_alphas: RW<u16>,
+    _0x1054: [u8; 0x18],
     pub disp_b_master_bright: RW<u16>,
 }
 

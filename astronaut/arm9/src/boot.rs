@@ -286,7 +286,7 @@ unsafe fn boot_unreturnable(
             .pipeline_swap_buffers
             .write(0);
         VIDEO_HARDWARE.engine_a_ctrl.write(DisplayControl::empty());
-        VIDEO_HARDWARE.disp_b_control.write(DisplayControl::empty());
+        VIDEO_HARDWARE.engine_b_ctrl.write(DisplayControl::empty());
 
         crate::set_bright(0);
     }

@@ -81,19 +81,19 @@ bitflags::bitflags! {
 
     #[derive(Clone, Copy)]
     pub struct VRAMCtrl: u8 {
-        // Enable this VRAM bank
+        /// Enable this VRAM bank
         const ENABLE = (1<<7);
 
-        // Set the offset of this bank to 0 within the MST
+        /// Set the offset of this bank to 0 within the MST
         const OFFSET_0 = (0<<3);
-        // Set the offset of this bank to 1 within the MST
+        /// Set the offset of this bank to 1 within the MST
         const OFFSET_1 = (1<<3);
-        // Set the offset of this bank to 2 within the MST
+        /// Set the offset of this bank to 2 within the MST
         const OFFSET_2 = (2<<3);
-        // Set the offset of this bank to 3 within the MST
+        /// Set the offset of this bank to 3 within the MST
         const OFFSET_3 = (3<<3);
 
-        // LCD Mapping for the VRAM bank
+        /// LCD Mapping for the VRAM bank
         const MST_0 = 0;
         const MST_1 = 1;
         const MST_2 = 2;

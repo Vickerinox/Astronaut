@@ -307,7 +307,7 @@ impl GlobalData {
         fn abort_loading() {
             unsafe {
                 VIDEO_HARDWARE
-                    .disp_b_control
+                    .engine_b_ctrl
                     .write(DisplayControl::BG_MODE_5);
             }
         }

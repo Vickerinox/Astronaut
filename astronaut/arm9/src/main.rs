@@ -339,16 +339,16 @@ unsafe fn init_graphics() -> VideoHardwareHandle {
 
     // Set background 3 on the sub engine to cover the whole screen and be flipped vertically to prepare for wallpaper
     // (Note: this is done since BMP bitmaps are "vertically flipped", starting from the bottom left and ending on the top right)
-    VIDEO_HARDWARE.disp_b_bgctrl[3].write((1 << 14) | (1 << 7) | (1 << 2));
-    VIDEO_HARDWARE.disp_b_bgscrl[6].write(0);
-    VIDEO_HARDWARE.disp_b_bgscrl[7].write(0);
-    VIDEO_HARDWARE.disp_b_bg3_ref[0].write(0);
-    VIDEO_HARDWARE.disp_b_bg3_ref[1].write((191) << 8);
+    VIDEO_HARDWARE.engine_b_bgctrl[3].write((1 << 14) | (1 << 7) | (1 << 2));
+    VIDEO_HARDWARE.engine_b_bgscrl[6].write(0);
+    VIDEO_HARDWARE.engine_b_bgscrl[7].write(0);
+    VIDEO_HARDWARE.engine_b_bg3_ref[0].write(0);
+    VIDEO_HARDWARE.engine_b_bg3_ref[1].write((191) << 8);
 
-    VIDEO_HARDWARE.disp_b_bg3_scale[0].write(256);
-    VIDEO_HARDWARE.disp_b_bg3_scale[1].write(0);
-    VIDEO_HARDWARE.disp_b_bg3_scale[2].write(0);
-    VIDEO_HARDWARE.disp_b_bg3_scale[3].write(0xFF00);
+    VIDEO_HARDWARE.engine_b_bg3_scale[0].write(256);
+    VIDEO_HARDWARE.engine_b_bg3_scale[1].write(0);
+    VIDEO_HARDWARE.engine_b_bg3_scale[2].write(0);
+    VIDEO_HARDWARE.engine_b_bg3_scale[3].write(0xFF00);
 
     //copy font to vram
 

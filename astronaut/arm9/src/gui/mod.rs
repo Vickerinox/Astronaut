@@ -87,7 +87,7 @@ pub unsafe fn show_wallpaper(wallpaper: crate::bmp::DecodedBMP) {
         .vram_control_bank_c
         .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_4);
     VIDEO_HARDWARE
-        .disp_b_control
+        .engine_b_ctrl
         .write(DisplayControl::BG_MODE_5 | DisplayControl::ENABLE_BG_3);
 }
 
