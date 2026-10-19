@@ -1,7 +1,9 @@
-use reboot_lib::{DisplayControl, MatrixMode, PolygonAttributes, VIDEO_HARDWARE, VRAMCtrl, VideoHardwareHandle, VideoPowerControl, Viewport};
+use reboot_lib::{
+    DisplayControl, MatrixMode, PolygonAttributes, VRAMCtrl, VideoHardwareHandle,
+    VideoPowerControl, Viewport, VIDEO_HARDWARE,
+};
 
 use crate::graphics::font::init_font;
-
 
 unsafe fn init_3d_hardware(video_context: &mut VideoHardwareHandle) {
     //setup 3d hardware

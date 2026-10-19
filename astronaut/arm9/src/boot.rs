@@ -3,7 +3,7 @@
 
 use core::fmt::Debug;
 
-use crate::{gui::GlobalData, graphics::set_background, AppArea, APP_AREA_START};
+use crate::{graphics::set_background, gui::GlobalData, AppArea, APP_AREA_START};
 use alloc::string::{String, ToString};
 use common::blowfish::BFCTX;
 use common::bootstrap::{BootInfoNTR, BootInfoTWL, BOOTINFO_MEM};

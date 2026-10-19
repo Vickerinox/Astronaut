@@ -8,47 +8,41 @@
 
 extern crate alloc;
 
+pub mod arm7_exploit;
+pub mod configuration;
+pub mod fat;
 pub mod graphics;
 pub mod music;
 pub mod resources;
-pub mod configuration;
-pub mod fat;
-pub mod arm7_exploit;
 
 mod boot;
+mod files;
 mod gui;
 mod mbr;
 mod nand;
-mod files;
 mod screen_fade;
 
-pub use screen_fade::{Fader, irq_screen_fade};
-pub use files::{filetype, get_extension, truncate_name, FileType, FileEntry};
+pub use files::{filetype, get_extension, truncate_name, FileEntry, FileType};
 pub use micro_imgui_ds::SCREEN_RECT;
+pub use screen_fade::{irq_screen_fade, Fader};
 
-use crate::graphics::bmp::AsyncBMPLoader;
 use crate::boot::read_all;
 use crate::configuration::{Config, Theme};
 use crate::fat::driver::SDMMCDriver;
+use crate::graphics::bmp::AsyncBMPLoader;
 use crate::gui::{AppData, GlobalData};
-use graphics::font::load_default_font;
 use alloc::vec;
 use alloc::{boxed::Box, string::String};
 use common::blowfish::BFCTX;
 use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
+use graphics::font::load_default_font;
 use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
-use reboot_lib::{LCDStatus, fatfs_embedded};
+use reboot_lib::{fatfs_embedded, LCDStatus};
 
-use reboot_lib::{
-    bytemuck,  Interrupt, VRAMCtrl,
-    IPC_FIFO_HARDWARE,
-};
-use reboot_lib::{
-    Buttons,  VideoPowerControl,
-    VIDEO_HARDWARE,
-};
+use reboot_lib::{bytemuck, Interrupt, VRAMCtrl, IPC_FIFO_HARDWARE};
+use reboot_lib::{Buttons, VideoPowerControl, VIDEO_HARDWARE};
 
 // Where the NWRAM bank for this code start
 const DSI_WRAM_START: usize = 0x037C0000;
@@ -325,7 +319,6 @@ pub unsafe extern "C" fn _start() {
 
         // Halt the CPU after main returns (if it does)
         "11: b 11b", // Infinite loop
-
 
         // Exception manifold
         "1: mov r0, #1","bl {exception}",

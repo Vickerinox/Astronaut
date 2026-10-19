@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
 #[instruction_set(arm::t32)]
 #[cfg(target_arch = "arm")]
 pub unsafe fn load_default_font() {

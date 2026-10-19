@@ -1,10 +1,9 @@
-
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use reboot_lib::{VIDEO_HARDWARE, volatile_register};
+use reboot_lib::{volatile_register, VIDEO_HARDWARE};
 
-use crate::{APP_AREA_START, AppArea};
+use crate::{AppArea, APP_AREA_START};
 
 pub struct Fader {
     current_top: reboot_lib::volatile_register::RW<i8>,
@@ -48,7 +47,6 @@ impl Fader {
         self.synced_bottom() && self.synced_top()
     }
 }
-
 
 #[link_section = ".text_itcm"]
 pub unsafe fn irq_screen_fade() {

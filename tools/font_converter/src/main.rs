@@ -78,19 +78,15 @@ impl ToolData {
 
                 ui.heading("Astronaut font converter");
                 ui.label("Made by vikrinox, 2026");
-                
-
                 let s: Option<eframe::egui::Response> = ui.data(|r| r.get_temp("buttonguy".into()));
                 let s = s.map(|i| ui.style().interact(&i).clone()).unwrap_or(ui.style().noninteractive().clone());
 
-
                 let res = egui::Frame::new().stroke(s.bg_stroke).outer_margin(5.0-s.bg_stroke.width).inner_margin(10.0).corner_radius(s.corner_radius).fill(s.bg_fill).show(ui, |ui|{
-                    
                     ui.set_width(120.0);
                     ui.add(egui::Image::new(eframe::egui::include_image!("../folder_icon.png")).max_size(Vec2::new(20.0, 20.0)).tint(s.fg_stroke.color));
                     ui.add(egui::Label::new(egui::RichText::new("Load Source BMP").color(s.fg_stroke.color)).selectable(false));
                 }).response.interact(Sense::click());
-               
+
                 if res.clicked() {
                     load_font(state.get_or_insert(Toolstate::None), self);
                 }

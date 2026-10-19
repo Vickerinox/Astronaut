@@ -356,7 +356,7 @@ pub struct VideoHardware {
     /// Display control for the sub graphics engine
     pub engine_b_ctrl: RW<DisplayControl>,
     _0x1004: u32,
-    
+
     /// (Sub engine) Background Control registers
     pub engine_b_bgctrl: [RW<u16>; 4],
     /// (Sub engine) Background Scroll registers
