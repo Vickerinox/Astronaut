@@ -5,6 +5,7 @@
 #![no_std]
 
 #[no_mangle]
+#[link_section = ".text_entry"]
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
 pub unsafe extern "C" fn _start() {
@@ -61,7 +62,7 @@ pub unsafe extern "C" fn _start() {
 #[no_mangle]
 unsafe extern "C" fn exception() {
     panic!("");
-}
+} 
 
 #[no_mangle]
 #[cfg(not(target_arch = "arm"))]
@@ -70,7 +71,7 @@ pub unsafe extern "C" fn _start() {
 }
 fn main() {
     reboot_lib::standard_arm7::main_arm7();
-}
+} 
 
 #[cfg(target_arch = "arm")]
 #[panic_handler]

@@ -1,7 +1,8 @@
 /* Memory layout of ourself once we've been taken over by the arm9 */
 MEMORY
 {
-  SACRED_MEM_2 : ORIGIN = 0x0600000C, LENGTH = 0x8000
+  BIN_SPACE : ORIGIN = 0x0, LENGTH = 0x8000
+  SACRED_MEM_2 : ORIGIN = 0x06000000, LENGTH = 0x8000
 }
 
 /* The entry point */
@@ -9,15 +10,20 @@ ENTRY(_start);
 
 SECTIONS
 {
-  .rodata :
+  .text_entry : 
   {
-    *(.rodata .rodata.*);
-  } > SACRED_MEM_2
+    *(.text_entry);
+  } > SACRED_MEM_2 AT > BIN_SPACE
 
   .text :
   {
     *(.text .text.*);
-  } > SACRED_MEM_2
+  } > SACRED_MEM_2 AT > BIN_SPACE
+
+  .rodata :
+  {
+    *(.rodata .rodata.*);
+  } > SACRED_MEM_2 AT > BIN_SPACE
 
   /DISCARD/ :
   {

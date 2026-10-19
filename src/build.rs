@@ -46,40 +46,29 @@ pub fn _compile_arm7(
     elf_file_path: PathBuf,
     include_file_path: PathBuf,
 ) -> Result<(), CompileError> {
-    const MAGIC_ENTRYPOINT_ADDRESS: usize = 0x600000C;
-    const HEADER_SIZE: usize = 12;
-    //const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
+    
 
     let file = std::fs::read(elf_file_path).map_err(CompileError::ElfNotFound)?;
     let parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&file[..])
         .map_err(CompileError::ElfParseError)?;
     let entrypoint = parse.ehdr.e_entry;
 
-    let mut empty_bin = vec![0u8; HEADER_SIZE];
+    let mut empty_bin = Vec::new();
 
     let segments = parse.segments().ok_or(CompileError::ElfMissingSegments)?;
+    /* 
     let entry_point = entrypoint - (MAGIC_ENTRYPOINT_ADDRESS as u64); // | 1; // 1 = THUMB
     let entry_value = ((entry_point as u32) >> 2).wrapping_sub(1) & 0xFFFFFF;
-
-    /*
-        ldr     r3, .L4
-        bx      r3
-        .L4:
-        .word   <entry_point>
-    */
-    empty_bin[..(HEADER_SIZE - 4)]
-        .copy_from_slice(&[0x00, 0x30, 0x9f, 0xe5, 0x13, 0xff, 0x2f, 0xe1]);
-    empty_bin[(HEADER_SIZE - 4)..HEADER_SIZE]
-        .copy_from_slice(&(entry_point as u32 + MAGIC_ENTRYPOINT_ADDRESS as u32).to_le_bytes());
 
     debug!(
         "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",
         entrypoint, entry_point, entry_value
     );
+    */
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
-        let file_offset_start =
-            (segment.p_vaddr as i64) - (MAGIC_ENTRYPOINT_ADDRESS as i64) + (HEADER_SIZE as i64);
-        let file_offset_end = file_offset_start + segment.p_filesz as i64;
+        let file_offset_start = segment.p_paddr as i64 + 4;
+        let file_offset_end = file_offset_start + segment.p_memsz as i64;
+
         if file_offset_start.is_negative() {
             continue;
         }

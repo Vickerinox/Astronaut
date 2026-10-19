@@ -357,7 +357,7 @@ impl GlobalData {
             mut wallpaper,
             mut background,
             mut font,
-        } = assets;
+        } = assets; 
         // Video stuff
         self.load_font(&mut font);
         self.load_wallpaper(&mut wallpaper);
