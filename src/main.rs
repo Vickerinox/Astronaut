@@ -92,7 +92,8 @@ fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, 
         });
     };
     //let entry_point = entrypoint - (MAGIC_START_POINT as u64);
-    let entry_value = (entrypoint as u32) + 4;
+    // the 4 is due to arm shenanigans, the 0x80 is due to dev console compatability.
+    let entry_value = (entrypoint as u32) + 4 + 0x80;
     debug!(
         "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
         entrypoint, entry_value, entry_value

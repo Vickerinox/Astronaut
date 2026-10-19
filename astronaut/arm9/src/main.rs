@@ -283,7 +283,28 @@ unsafe fn main() {
 #[instruction_set(arm::a32)]
 pub unsafe extern "C" fn _start() {
     core::arch::asm!(
-        // turn off interrupts via the IME register
+        // Dev console shifter, fixes dev console compat (entrypoint for dev consoles).
+        "13:",
+        "mov r0, #0x04000000",
+        "str r0, [r0, #0x208]",
+        "ldr r1, =10f",
+        "add r2, r1, 0x14000",
+        "12:",
+        "ldr r0, [r1, #0x80]",
+        "str r0, [r1]",
+        "add r1, 4", 
+        "cmp r1, r2",
+        "bne 12b",
+        
+        // Dev console trap, catches dev consoles.
+        ".word 0, 0, 0, 0, 0, 0, 0, 0", 
+        ".word 0, 0, 0, 0, 0, 0, 0, 0",
+        "b 13b",
+        ".word 0, 0, 0, 0, 0, 0, 0, 0",
+        ".word 0, 0, 0, 0, 0, 0, 0",
+
+        "10:",
+        // turn off interrupts via the IME register (entrypoint for retail consoles)
         "mov r0, #0x04000000",
         "str r0, [r0, #0x208]",
 
