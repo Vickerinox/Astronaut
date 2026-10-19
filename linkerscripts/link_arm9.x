@@ -15,15 +15,19 @@ ENTRY(_start);
 
 SECTIONS
 {
-
-  .rodata_main :
+  .text_entry : 
   {
-    *(.rodata .rodata.*);
+    *(.text_entry);
   } > EXPLOIT_MEM AT > TMD_REGION1
 
   .text_main :
   {
     *(.text .text.*);
+  } > EXPLOIT_MEM AT > TMD_REGION1
+
+  .rodata_main :
+  {
+    *(.rodata .rodata.*);
   } > EXPLOIT_MEM AT > TMD_REGION1
 
   .data_main :

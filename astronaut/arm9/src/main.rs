@@ -278,6 +278,7 @@ unsafe fn main() {
 }
 
 #[no_mangle]
+#[link_section = ".text_entry"]
 #[cfg(target_arch = "arm")]
 #[instruction_set(arm::a32)]
 pub unsafe extern "C" fn _start() {
