@@ -14,7 +14,7 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 ## Limitations
 * ROMS may only occupy address 0x2000000 to 0x2ffffff and the arm 7 may additionally use 0x37F8000 to 0x3790000, any other binary locations can't be loaded.
 * DS Mode roms have no audio, as the codec chip isn't initialized for them yet.
-* Wifi initialization is slow and unstable. (Use the `Wifi Firmware Upload` option to toggle it)
+* Wifi initialization is slow and unstable. (Use the `Enable Wifi` option to toggle it)
 
 ### Known problematic titles
 * DSi System Settings - Shows ``An Error Has Occured.`` (can be booted from the DSi menu)
