@@ -189,6 +189,14 @@ impl AsyncBMPLoader {
                 let to_read = remaining.min(max_bytes);
                 let start = bmp.colors.len();
                 bmp.colors.resize(start + to_read, 0);
+                if fatfs_embedded::seek(
+                    reader,
+                    bmp.dib.size + 14 + start as u32,
+                )
+                .is_err()
+                {
+                    return Err(AsyncBMPLoaderError::FailedToSeekFile);
+                }
                 read_all(&mut bmp.colors[start..], reader)
                     .map_err(|_| AsyncBMPLoaderError::FailedToReadPalette)?;
                 max_bytes -= to_read;

@@ -39,7 +39,7 @@ use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
 use micro_imgui_ds::read_controller;
 use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
-use reboot_lib::fatfs_embedded;
+use reboot_lib::{LCDStatus, fatfs_embedded};
 
 use reboot_lib::{
     bytemuck,  Interrupt, VRAMCtrl,
@@ -212,7 +212,7 @@ unsafe fn main() {
         reboot_lib::enable_interrupt(Interrupt::VBlank);
         music::init();
 
-        core::ptr::write_volatile(0x04000004 as *mut u16, 0xFFFF);
+        VIDEO_HARDWARE.lcd_status.write(LCDStatus::VBLANK_IRQ);
 
         let sdmmc_driver = app_area.sdmmc_driver.write(SDMMCDriver::new());
         fatfs_embedded::fatfs::diskio::install(sdmmc_driver);

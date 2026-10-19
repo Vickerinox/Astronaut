@@ -199,6 +199,26 @@ bitflags! {
         const ENABLE_EXT_OBJ_PALETTE = (1 << 31);
     }
     #[derive(Clone, Copy)]
+    pub struct LCDStatus: u16 {
+        /// (RO) VBlank status of both screens
+        const VBLANK = (1<<0);
+        /// (RO) HBlank status of both screens
+        const HBLANK = (1<<1);
+        /// (RO) VCount status of both screens
+        const VCOUNT = (1<<2);
+        /// VBlank IRQ enable flag
+        const VBLANK_IRQ = (1<<3);
+        /// HBlank IRQ enable flag
+        const HBLANK_IRQ = (1<<4);
+        /// VCount IRQ enable flag
+        const VCOUNT_IRQ = (1<<5);
+        /// LCD ready flag (1=ready)
+        #[cfg(feature = "arm9i")]
+        const LCD_READY = (1<<6);
+        /// Bitmask for VCount Setting
+        const VCOUNT_SETTING_MASK = (0b1_11111111<<7);
+    }
+    #[derive(Clone, Copy)]
     pub struct PolygonAttributes: u32 {
         const ENABLE_LIGHT_0 = (1 << 0);
         const ENABLE_LIGHT_1 = (1 << 1);
@@ -258,7 +278,8 @@ impl Viewport {
 pub struct VideoHardware {
     /// Display control for the main graphics engine
     pub engine_a_ctrl: RW<DisplayControl>,
-    _0x4: u16,
+    /// I/O flags for both screens (blanking flags + IRQ control)
+    pub lcd_status: RW<LCDStatus>,
     /// Vertical line counter
     pub vcount: RO<u16>,
     /// (Main engine) Background Control registers
