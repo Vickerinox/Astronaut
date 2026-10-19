@@ -115,13 +115,6 @@ pub fn show_bmp(bmp: crate::graphics::bmp::DecodedBMP, destination: *mut u16) {
     let pixel_iter: core::iter::Map<core::slice::ChunksExact<'_, u8>, &dyn Fn(&[u8]) -> u16> =
         match (bmp.dib.bits_per_pixel, bmp.dib.compression) {
             (16, 3) => {
-                if bmp.palette_table()
-                    != &[
-                        00, 0x7C, 0x00, 0x00, 0xE0, 0x03, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00,
-                    ]
-                {
-                    return;
-                }
                 bmp.bitmap.chunks_exact(2).map(&|chunk| {
                     let pixel = u16::from_le_bytes([chunk[0], chunk[1]]);
                     let red = pixel & 0x1F;
@@ -132,13 +125,6 @@ pub fn show_bmp(bmp: crate::graphics::bmp::DecodedBMP, destination: *mut u16) {
             }
             (8, 0) => bmp.bitmap.chunks_exact(1).map(&a),
             (32, 3) => {
-                if bmp.palette_table()
-                    != &[
-                        00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
-                    ]
-                {
-                    return;
-                }
                 bmp.bitmap.chunks_exact(4).map(&b)
             }
             (24, 0) => bmp.bitmap.chunks_exact(3).map(&b),
