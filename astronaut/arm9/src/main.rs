@@ -301,13 +301,12 @@ pub unsafe extern "C" fn _start() {
         ".word 0, 0, 0, 0, 0, 0, 0, 0",
         "b 13b",
         ".word 0, 0, 0, 0, 0, 0, 0, 0",
-        ".word 0, 0, 0, 0, 0, 0, 0",
-
-        "10:",
+        ".word 0, 0, 0, 0, 0",
         // turn off interrupts via the IME register (entrypoint for retail consoles)
         "mov r0, #0x04000000",
         "str r0, [r0, #0x208]",
 
+        "10:",
         // load start of stack(s)
         "mov r0, #0x12",
         "msr cpsr, r0",
