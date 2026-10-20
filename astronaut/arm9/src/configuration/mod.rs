@@ -420,6 +420,9 @@ impl GlobalData {
             VIDEO_HARDWARE
                 .vram_control_bank_a
                 .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+            VIDEO_HARDWARE
+                .vram_control_bank_f
+                .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
 
             if let Some(background) = bottom_screen.flatten() {
                 crate::gui::show_bmp(background, 0x06800000 as *mut u16);
@@ -433,6 +436,9 @@ impl GlobalData {
             VIDEO_HARDWARE
                 .vram_control_bank_a
                 .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3);
+            VIDEO_HARDWARE
+                .vram_control_bank_f
+                .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK F
         }
         
         if let Some(wallpaper) = top_screen.flatten() {
