@@ -26,8 +26,8 @@ Astronaut is primarily licensed under the GPL version 3 license, with exception 
 * GodMode9i - NAND drive fails to mount (relaunch godmode9i from within itself and the problem is fixed) 
 
 
-## State of the project (Last updated 2026-08-14)
-Currently, while astronaut is adequate to recreate the basic functionality of unlaunch, i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now.
+## State of the project (Last updated 2026-10-20)
+Currently, while astronaut is adequate for casual users, i (vikrinox) do not personally deem it adequate for a full 1.0 release as of right now.
 
 ## Compiling yourself
 Due to the complexity of building DS binaries from rust, the main crate of this repository is actually a builder program, as opposed to the actual code (which you will instead find in the `astronaut` folder). 
@@ -56,4 +56,7 @@ Astronaut currently looks for the settings in two locations; ``sdmc:/_nds/astron
 ## Themes
 It is possible to style the astronaut GUI with the help of themes. These are centered around arbitrarily placed `.ini` file. Once selected from the gui and saved, it will act as the theme upon next reboot.
 
+## Contributing and AI
+Contributions are very welcome. Astronaut is ultimately built for the DSi modding community, and i see no reason to gatekeep it. However i do not appreciate the use of generative AI in this project, as i question the ethics of current AI companies and a significant portion of vibecoders. Exceptions can be made in cases where the AI use is properly disclosed, confirmed to be human reviewed as well as overseen by me, and is of little significance to the resulting PR. If one is caught trying to hide the fact they used AI they will no longer be permitted to contribute to this project.
 
+To enforce this stance the project makes use of [no-agents.md](https://codeberg.org/rossabaker/no-agents.md), alterations to these files in your PR will make it extremely difficult for me to accept your PR.
