@@ -388,14 +388,14 @@ impl GlobalData {
         loop {
             if bottom_screen.is_none() {
                 match loader.continue_load(2048) {
-                    Ok(None) => (),
+                    Ok(None) => continue,
                     Ok(Some(a)) => bottom_screen = Some(Some(a)),
                     Err(_) => {
                         bottom_screen = Some(None);
-                        if fatfs_embedded::open(&mut wallpaper, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
-                            top_screen = Some(None);
-                        }
                     },
+                }
+                if fatfs_embedded::open(&mut wallpaper, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
+                    top_screen = Some(None);
                 }
             } else if top_screen.is_none() {
                 match loader.continue_load(2048) {
