@@ -14,7 +14,7 @@ pub unsafe fn load_default_font() {
         out("r2") _,
         out("r3") _,
     );
-} 
+}
 #[cfg(not(target_arch = "arm"))]
 pub unsafe fn load_default_font() {
     transfer_font_to_vram(&*(0x2FF1000 as *const _));

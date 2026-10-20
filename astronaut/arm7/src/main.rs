@@ -62,7 +62,7 @@ pub unsafe extern "C" fn _start() {
 #[no_mangle]
 unsafe extern "C" fn exception() {
     panic!("");
-} 
+}
 
 #[no_mangle]
 #[cfg(not(target_arch = "arm"))]
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn _start() {
 }
 fn main() {
     reboot_lib::standard_arm7::main_arm7();
-} 
+}
 
 #[cfg(target_arch = "arm")]
 #[panic_handler]

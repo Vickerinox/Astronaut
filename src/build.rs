@@ -46,8 +46,6 @@ pub fn _compile_arm7(
     elf_file_path: PathBuf,
     include_file_path: PathBuf,
 ) -> Result<(), CompileError> {
-    
-
     let file = std::fs::read(elf_file_path).map_err(CompileError::ElfNotFound)?;
     let parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&file[..])
         .map_err(CompileError::ElfParseError)?;
@@ -56,7 +54,7 @@ pub fn _compile_arm7(
     let mut empty_bin = Vec::new();
 
     let segments = parse.segments().ok_or(CompileError::ElfMissingSegments)?;
-    /* 
+    /*
     let entry_point = entrypoint - (MAGIC_ENTRYPOINT_ADDRESS as u64); // | 1; // 1 = THUMB
     let entry_value = ((entry_point as u32) >> 2).wrapping_sub(1) & 0xFFFFFF;
 

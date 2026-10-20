@@ -12,7 +12,7 @@ pub struct SDMMCDriver {
     pub sdmc_controller: Option<BasicSDMMCCursor<'static>>,
     pub nand_error: u32,
     pub sdmc_error: u32,
-} 
+}
 impl SDMMCDriver {
     pub fn new() -> Self {
         Self {

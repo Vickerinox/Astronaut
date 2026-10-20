@@ -287,17 +287,17 @@ pub unsafe extern "C" fn _start() {
         "13:",
         "mov r0, #0x04000000",
         "str r0, [r0, #0x208]",
-        "ldr r1, =10f",
-        "add r2, r1, 0x14000",
+        "ldr r1, =10f", //dest
+        "add r0, r1, 0x80", //source
+        "add r2, r1, 0x14000", //limit
         "12:",
-        "ldr r0, [r1, #0x80]",
-        "str r0, [r1]",
-        "add r1, 4", 
+        "ldmia r0!, {{r3-lr}}",
+        "stmia r1!, {{r3-lr}}",
         "cmp r1, r2",
-        "bne 12b",
-        
+        "blt 12b",
+
         // Dev console trap, catches dev consoles.
-        ".word 0, 0, 0, 0, 0, 0, 0, 0", 
+        ".word 0, 0, 0, 0, 0, 0, 0, 0",
         ".word 0, 0, 0, 0, 0, 0, 0, 0",
         "b 13b",
         ".word 0, 0, 0, 0, 0, 0, 0, 0",
@@ -326,9 +326,9 @@ pub unsafe extern "C" fn _start() {
         "mov r1, #0x01000000",
         "mov r2, #0x1000",
 
-        "10: subs r2, 1",
-        "ldr r3, [r0, r2, LSL #2]",
-        "str r3, [r1, r2, LSL #2]",
+        "10: subs r2, 32",
+        "ldmia r0!, {{r3-r10}}",
+        "stmia r1!, {{r3-r10}}",
         "bne 10b",
 
         // Load Exception vector
