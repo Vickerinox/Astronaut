@@ -377,6 +377,7 @@ impl GlobalData {
         let mut loader = AsyncBMPLoader::new();
 
         self.fader.set_target(16);
+        self.theme = Theme::DEFAULT;
         let (assets, style) = self.theme.load(&mut self.config.theme_path);
         let Assets { mut music, mut wallpaper, mut background, mut font } = assets;
         if fatfs_embedded::open(&mut background, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
