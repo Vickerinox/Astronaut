@@ -192,9 +192,6 @@ unsafe fn main() {
         // ARM7 is alive! make sure to let it know we know.
         IPC_FIFO_HARDWARE.set_status(0);
 
-        // We could start working the fader
-        app_area.app_data.assume_init_mut().global_data.fader.set_state(16);
-
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         reboot_lib::interupts::init_interrupts();
 
@@ -202,7 +199,6 @@ unsafe fn main() {
 
         reboot_lib::set_interrupt_function(Interrupt::VBlank, irq_screen_fade);
         reboot_lib::enable_interrupt(Interrupt::IPCNonEmpty);
-        reboot_lib::enable_interrupt(Interrupt::VBlank);
         music::init();
 
         VIDEO_HARDWARE.lcd_status.write(LCDStatus::VBLANK_IRQ);
@@ -238,14 +234,18 @@ unsafe fn main() {
 
             (&raw mut (*ptr).global_data.safe_mode).write(false);
 
+            (&mut (*ptr).global_data.fader).set_state(16);
+
             app_area.app_data.assume_init_mut()
         };
+        reboot_lib::enable_interrupt(Interrupt::VBlank);
 
         // Figure out what to start
         let (buttons, _, _) = read_controller();
         let force_menu = buttons == (Buttons::BUTTON_A | Buttons::BUTTON_B);
         app_data.global_data.config.load(buttons);
 
+        // This is the point where astronaut should try to load something else
         if !force_menu {
             // Chainload by other homebrew
             if let Some(params) = BOOT_INFO.unlaunch.parameters() {
@@ -261,7 +261,7 @@ unsafe fn main() {
             app_data.autoboot();
         }
 
-        // Failed to load additional code segment
+        // Load additional code segment required for the GUI 
         if !load_aux_segment(&mut app_data.global_data) {
             //Enable safe mode (fill code area with infinite loops instead)
             VIDEO_HARDWARE

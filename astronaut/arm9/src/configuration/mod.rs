@@ -16,10 +16,7 @@ use reboot_lib::{
 };
 
 use crate::{
-    get_extension,
-    gui::{pop_dir_entry, show_wallpaper, GlobalData},
-    music::{MusicPlaying, StreamingWav},
-    FileType,
+    FileType, get_extension, graphics::bmp::AsyncBMPLoader, gui::{GlobalData, pop_dir_entry, show_wallpaper}, music::{MusicPlaying, StreamingWav},
 };
 
 pub struct BootCombo {
@@ -367,6 +364,78 @@ impl GlobalData {
         // Audio stuff
         self.load_music(&mut music);
         video_context
+    }
+    #[link_section = ".text_aux"]
+    #[inline(never)]
+    pub unsafe fn hot_reload_theme(&mut self, ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>) {
+        if self.safe_mode {
+            return;
+        }
+        let mut bottom_screen = None;
+        let mut top_screen = None;
+
+        let mut loader = AsyncBMPLoader::new();
+
+        self.fader.set_target(16);
+        let (assets, style) = self.theme.load(&mut self.config.theme_path);
+        let Assets { mut music, mut wallpaper, mut background, mut font } = assets;
+        if fatfs_embedded::open(&mut background, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
+            bottom_screen = Some(None);
+            if fatfs_embedded::open(&mut wallpaper, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
+                top_screen = Some(None);
+            }
+        }
+        loop {
+            if bottom_screen.is_none() {
+                match loader.continue_load(2048) {
+                    Ok(None) => (),
+                    Ok(Some(a)) => bottom_screen = Some(Some(a)),
+                    Err(_) => {
+                        bottom_screen = Some(None);
+                        if fatfs_embedded::open(&mut wallpaper, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
+                            top_screen = Some(None);
+                        }
+                    },
+                }
+            } else if top_screen.is_none() {
+                match loader.continue_load(2048) {
+                    Ok(None) => (),
+                    Ok(Some(a)) => top_screen = Some(Some(a)),
+                    Err(_) => {
+                        top_screen = Some(None);
+                    },
+                }
+            } else {
+                break;
+            }
+        }
+        self.load_font(&mut font); 
+        while !self.fader.synced() {}
+        {
+            VIDEO_HARDWARE
+                .vram_control_bank_a
+                .write(VRAMCtrl::ENABLE | VRAMCtrl::LCD_MAPPED);
+
+            if let Some(background) = bottom_screen.flatten() {
+                crate::gui::show_bmp(background, 0x06800000 as *mut u16);
+            } else {
+                for i in 0..(256 * 192) {
+                    (0x06800000 as *mut u16).add(i).write(0x8000);
+                }
+            }
+            crate::graphics::font::init_font();
+
+            VIDEO_HARDWARE
+                .vram_control_bank_a
+                .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3);
+        }
+        
+        if let Some(wallpaper) = top_screen.flatten() {
+            show_wallpaper(wallpaper);
+        }
+    
+        *ui.style_mut() = style;
+        self.fader.set_target(0);
     }
 }
 fn load_font(path: &mut String) -> Option<Vec<u8>> {

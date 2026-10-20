@@ -24,6 +24,7 @@ use crate::{
 pub enum Settings {
     Main,
     Overrides,
+    ThemeReload,
     BootCombos(usize),
     SelectedCombo(Buttons, SelectorState),
     SavedSettings { nand: bool, sd: bool },
@@ -176,7 +177,7 @@ impl Settings {
                     Box::new(Self::Main),
                     &|data: &mut GlobalData, path: String| -> Option<Box<dyn UiPage>> {
                         data.config.theme_path = path;
-                        Some(Box::new(Self::Main))
+                        Some(Box::new(Self::ThemeReload))
                     },
                 )
                 .map(into_ui);
@@ -215,6 +216,15 @@ impl Settings {
             }
         });
         result
+    }
+    fn theme_reload(
+        &mut self,
+        ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+        data: &mut super::GlobalData,
+    ) -> Option<Box<dyn UiPage>> {
+        unsafe { data.hot_reload_theme(ui); }
+        ui.request_repaint();
+        Some(Box::new(Self::Main))
     }
     #[inline(never)]
     #[link_section = ".text_aux"]
@@ -424,6 +434,7 @@ impl UiPage for Settings {
                 ui.button("Ok").clicked().then_some(Box::new(MainMenu))
             }
             Settings::Overrides => self.override_settings(ui, data),
+            Settings::ThemeReload => self.theme_reload(ui, data),
         }
     }
 }

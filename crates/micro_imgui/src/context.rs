@@ -131,6 +131,9 @@ impl<'a, B: Backend> Frame<'a, B> {
     pub fn style(&self) -> &Style {
         &self.ctx.style
     }
+    pub fn style_mut(&mut self) -> &mut Style {
+        &mut self.ctx.style
+    }
     pub fn paint_shape(&mut self, shape: crate::primitives::Shape<B::Image>) {
         self.ctx.backend.draw_shape(shape, None);
     }
