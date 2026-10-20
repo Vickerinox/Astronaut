@@ -50,7 +50,7 @@ impl Fader {
 
 #[link_section = ".text_itcm"]
 pub unsafe fn irq_screen_fade() {
-    let area = &mut (*(APP_AREA_START as *mut AppArea)).fader;
+    let area = &mut (*(APP_AREA_START as *mut AppArea)).app_data.assume_init_mut().global_data.fader;
     unsafe fn fade(
         target: &mut volatile_register::RW<i8>,
         current: &mut volatile_register::RW<i8>,

@@ -29,7 +29,7 @@ fn goto_end(
     ui.add_space(ui.clip_rect().height() - remaining_space);
 }
 
-pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Buttons) {
+pub unsafe fn load_gui(app_data: &mut AppData, buttons: Buttons) {
     let (assets, style) = if app_data.global_data.safe_mode {
         (Assets::default(), Style::DEFAULT)
     } else {
@@ -41,7 +41,7 @@ pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Butto
     let video_context = app_data.global_data.load_theme(assets);
     let backend = micro_imgui_ds::DSMicroGuiBackend::new(video_context, buttons);
 
-    fader.set_target(0);
+    app_data.global_data.fader.set_target(0);
 
     micro_imgui_ds::micro_imgui::run(
         backend,
@@ -52,7 +52,7 @@ pub unsafe fn load_gui(app_data: &mut AppData, fader: &mut Fader, buttons: Butto
         },
         |app_data| {
             if !app_data.global_data.safe_mode {
-                app_data.do_background_tasks(fader);
+                app_data.do_background_tasks();
             }
         },
     );

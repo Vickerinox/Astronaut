@@ -69,7 +69,6 @@ pub struct AppArea {
     sdmmc_driver: core::mem::MaybeUninit<SDMMCDriver>,
     app_data: core::mem::MaybeUninit<AppData>,
     filesystems: FileSystems,
-    fader: Fader,
     wav_counter: reboot_lib::volatile_register::RW<u32>,
     path_buffer: [u8; 256],
 }
@@ -194,7 +193,7 @@ unsafe fn main() {
         IPC_FIFO_HARDWARE.set_status(0);
 
         // We could start working the fader
-        app_area.fader.set_state(16);
+        app_area.app_data.assume_init_mut().global_data.fader.set_state(16);
 
         core::ptr::write_volatile(0x4000304 as *mut u32, 0b1000001111);
         reboot_lib::interupts::init_interrupts();
@@ -253,7 +252,7 @@ unsafe fn main() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
                     let mut file_path = params.parse_path();
                     if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {
-                        (*(APP_AREA_START as *mut AppArea)).fader.set_target(16);
+                        app_data.global_data.fader.set_target(16);
                         boot::boot_app(&mut file, &mut file_path, &mut app_data.global_data);
                     }
                 }
@@ -273,7 +272,7 @@ unsafe fn main() {
             }
             app_data.global_data.safe_mode = true;
         }
-        gui::load_gui(app_data, &mut app_area.fader, buttons);
+        gui::load_gui(app_data, buttons);
     }
 }
 

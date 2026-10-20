@@ -15,12 +15,14 @@ use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::Backend;
 use reboot_lib::fatfs_embedded;
+use crate::Fader;
 pub struct GlobalData {
     pub our_path: String,
     pub blowfish: BFCTX,
     pub loading_mod_file: MusicPlaying,
     pub config: crate::configuration::Config,
     pub theme: Theme,
+    pub fader: Fader,
     pub safe_mode: bool,
     pub bmp_loader: AsyncBMPLoader,
     pub queued_bmp: Option<crate::graphics::bmp::DecodedBMP>,
@@ -48,10 +50,10 @@ impl UiPage for AppBooter {
         };
         ui.request_repaint();
         let error = unsafe {
-            (*(APP_AREA_START as *mut AppArea)).fader.set_target(16);
+            data.fader.set_target(16);
             boot::boot_app(&mut file, &self.path, data)
         };
-        unsafe { (*(APP_AREA_START as *mut AppArea)).fader.set_target(0) };
+        unsafe { data.fader.set_target(0) };
         let error_string = alloc::format!("Failed to boot file: {error:?}");
         Some(Box::new(super::error::Error::new(error_string)))
     }
@@ -80,25 +82,25 @@ impl AppData {
         let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {
             return;
         };
-        (*(APP_AREA_START as *mut AppArea)).fader.set_target(16);
+        self.global_data.fader.set_target(16);
         //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
         crate::boot::boot_app(&mut file, &path, &mut self.global_data);
     }
     #[inline(never)]
     #[link_section = ".text_aux"]
-    pub fn do_background_tasks(&mut self, fader: &mut crate::Fader) {
+    pub fn do_background_tasks(&mut self) {
         if let Some(result) = self.global_data.bmp_loader.continue_load(1024 * 8).ok() {
-            fader.set_target_top(16);
+            self.global_data.fader.set_target_top(16);
             if result.is_some() {
                 self.global_data.queued_bmp = result;
             }
         }
         if let Some(bmp) = self.global_data.queued_bmp.take() {
-            if fader.synced() {
+            if self.global_data.fader.synced() {
                 unsafe {
                     crate::gui::show_wallpaper(bmp);
                 }
-                fader.set_target_top(0);
+                self.global_data.fader.set_target_top(0);
             }
         }
         match &mut self.global_data.loading_mod_file {
