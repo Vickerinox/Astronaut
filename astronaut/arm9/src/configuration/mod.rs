@@ -388,7 +388,7 @@ impl GlobalData {
         }
         loop {
             if bottom_screen.is_none() {
-                match loader.continue_load(2048) {
+                match loader.continue_load(4096) {
                     Ok(None) => continue,
                     Ok(Some(a)) => bottom_screen = Some(Some(a)),
                     Err(_) => {
@@ -399,7 +399,7 @@ impl GlobalData {
                     top_screen = Some(None);
                 }
             } else if top_screen.is_none() {
-                match loader.continue_load(2048) {
+                match loader.continue_load(4096) {
                     Ok(None) => (),
                     Ok(Some(a)) => top_screen = Some(Some(a)),
                     Err(_) => {
