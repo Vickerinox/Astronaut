@@ -411,11 +411,6 @@ impl GlobalData {
         }
         self.load_font(&mut font); 
         while !self.fader.synced() {}
-        if self.config.music.is_empty() {
-            let _ = crate::music::stop_mod_file();
-            self.loading_mod_file = MusicPlaying::None;
-            self.load_music(&mut music);
-        }
         {
             VIDEO_HARDWARE
                 .vram_control_bank_a
@@ -440,13 +435,17 @@ impl GlobalData {
                 .vram_control_bank_f
                 .write(VRAMCtrl::ENABLE | VRAMCtrl::MST_3); //map VRAM BANK F
         }
-        
         if let Some(wallpaper) = top_screen.flatten() {
             show_wallpaper(wallpaper);
         }
-    
         *ui.style_mut() = style;
         self.fader.set_target(0);
+        
+        if self.config.music.is_empty() {
+            let _ = crate::music::stop_mod_file();
+            self.loading_mod_file = MusicPlaying::None;
+            self.load_music(&mut music);
+        }
     }
 }
 fn load_font(path: &mut String) -> Option<Vec<u8>> {
