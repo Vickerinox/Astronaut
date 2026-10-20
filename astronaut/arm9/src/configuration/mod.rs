@@ -411,6 +411,11 @@ impl GlobalData {
         }
         self.load_font(&mut font); 
         while !self.fader.synced() {}
+        if self.config.music.is_empty() {
+            let _ = crate::music::stop_mod_file();
+            self.loading_mod_file = MusicPlaying::None;
+            self.load_music(&mut music);
+        }
         {
             VIDEO_HARDWARE
                 .vram_control_bank_a
