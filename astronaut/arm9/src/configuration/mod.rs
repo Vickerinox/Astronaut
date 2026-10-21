@@ -372,6 +372,15 @@ impl GlobalData {
         if self.safe_mode {
             return;
         }
+        #[link_section = ".text_aux"]
+        #[inline(never)]
+        fn start_and_validate_load(loader: &mut AsyncBMPLoader, path: &mut String) -> bool {
+            fatfs_embedded::open(path, FileOptions::Read)
+                .ok()
+                .and_then(|i| loader.start_load(i).ok())
+                .map(|i| i.width == 256 && i.height == 192)
+                .unwrap_or(false)
+        }
         let mut bottom_screen = None;
         let mut top_screen = None;
 
@@ -381,9 +390,9 @@ impl GlobalData {
         self.theme = Theme::DEFAULT;
         let (assets, style) = self.theme.load(&mut self.config.theme_path);
         let Assets { mut music, mut wallpaper, mut background, mut font } = assets;
-        if fatfs_embedded::open(&mut background, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
+        if !start_and_validate_load(&mut loader, &mut background) {
             bottom_screen = Some(None);
-            if fatfs_embedded::open(&mut wallpaper, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
+            if !start_and_validate_load(&mut loader, &mut wallpaper) {
                 top_screen = Some(None);
             }
         }
@@ -396,12 +405,12 @@ impl GlobalData {
                         bottom_screen = Some(None);
                     },
                 }
-                if fatfs_embedded::open(&mut wallpaper, FileOptions::Read).ok().and_then(|i| loader.start_load(i).ok()).is_none() {
+                if !start_and_validate_load(&mut loader, &mut wallpaper) {
                     top_screen = Some(None);
                 }
             } else if top_screen.is_none() {
                 match loader.continue_load(4096) {
-                    Ok(None) => (),
+                    Ok(None) => continue,
                     Ok(Some(a)) => top_screen = Some(Some(a)),
                     Err(_) => {
                         top_screen = Some(None);
