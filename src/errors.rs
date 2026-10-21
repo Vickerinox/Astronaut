@@ -56,10 +56,6 @@ pub enum CompileError {
     ElfSegmentError(ParseError),
     #[error("elf is missing segments ")]
     ElfMissingSegments,
-    #[error("bin file create failure {0}")]
-    _BinCreationFailure(IoError),
-    #[error("bin could not be written {0}")]
-    _BinWriteFailute(IoError),
     #[error("NAND Injection error {0}")]
     NANDInject(NANDInjectError),
     #[error("could not run cargo command {0}")]
