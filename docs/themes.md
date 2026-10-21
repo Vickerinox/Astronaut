@@ -21,7 +21,6 @@ This section contains basic colors
 * ``folders``: The text color used for folders in the file explorer
 * ``assets``: The text color used for other astronaut related assets in the file explorer
 
-
 ## widgets
 
 This section contains the styling for the GUI's widgets. There is also the `widgets.pressed` subsection for the widget being pressed on, and `widgets.active` for the currently highlighted widget.

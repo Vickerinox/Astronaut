@@ -11,7 +11,6 @@ use std::{
 
 use clap::Parser;
 use elf::{endian::AnyEndian, ElfBytes};
-//use rfd::FileDialog;
 use log::{debug, error, info, warn};
 use sha1::Digest;
 
@@ -19,48 +18,6 @@ use self::errors::{BuildError, CompileError, Crate, NANDInjectError};
 mod build;
 mod errors;
 mod mmc;
-mod testing;
-
-fn _inject_elf(
-    elf_file_path: &PathBuf,
-    memory: &mut [u8],
-    start_addr: usize,
-) -> Result<(), CompileError> {
-    debug!("SELECTED ELF: {:?}", &elf_file_path);
-    let file = fs::read(elf_file_path).map_err(CompileError::ElfNotFound)?;
-    let parse =
-        ElfBytes::<AnyEndian>::minimal_parse(&file[..]).map_err(CompileError::ElfParseError)?;
-    let entrypoint = parse.ehdr.e_entry;
-
-    let Some(segments) = parse.segments() else {
-        return Err(CompileError::ElfMissingSegments);
-    };
-    let entry_point = entrypoint - start_addr as u64;
-    let entry_value = (entrypoint as u32) + 4;
-    debug!(
-        "Elf entrypoint: {}, file offset: {:x}, address: {:x}",
-        entrypoint, entry_point, entry_value
-    );
-    let mut end = 0;
-    for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
-        let file_offset_start = (segment.p_vaddr as i64) - (start_addr as i64);
-        let file_offset_end = file_offset_start + segment.p_filesz as i64;
-        if file_offset_start.is_negative() {
-            continue;
-        }
-        let data = parse
-            .segment_data(&segment)
-            .map_err(CompileError::ElfSegmentError)?;
-        let file_range = (file_offset_start as usize)..(file_offset_end as usize);
-        end = file_offset_end.max(end);
-        debug!(
-            "Processing segment '{:x?}': {} bytes, file start: 0x{:x?}, file end: 0x{:x?}",
-            segment.p_flags, segment.p_filesz, file_offset_start, file_offset_end
-        );
-        memory[file_range].copy_from_slice(data);
-    }
-    Ok(())
-}
 
 fn construct_tmd(elf_file_path: PathBuf, include_hash: bool) -> Result<Vec<u8>, BuildError> {
     ///PLEASE DONT TOUCH THIS, ITS VITAL TO THE EXPLOITS FUNCTION
