@@ -1,6 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct BinFont {
+    font_data: [u32; 0x200],
+    colors: [u32; 4],
+}
+
 #[instruction_set(arm::t32)]
 #[cfg(target_arch = "arm")]
 pub unsafe fn load_default_font() {
@@ -24,12 +31,6 @@ pub unsafe fn init_font() {
     transfer_font_to_vram(&*(0x2FF1000 as *const _));
 }
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct BinFont {
-    font_data: [u32; 0x200],
-    colors: [u32; 4],
-}
 unsafe fn transfer_font_to_vram(font: &BinFont) {
     let BinFont { font_data, colors } = font;
     for (i, val) in font_data.iter().copied().enumerate() {

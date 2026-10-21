@@ -9,7 +9,6 @@ use build_tools::DecodedBMP;
 use eframe::{
     NativeOptions,
     egui::{self, Color32, RichText, Sense, TextureHandle, Vec2},
-    wgpu::naga::CooperativeRole::A,
 };
 use egui_dock::{LeafNode, NodePath};
 
@@ -245,7 +244,7 @@ impl eframe::App for Tool {
                         load_font(&mut self.state, &mut self.data);
                     }
 
-                    if let (Toolstate::Loaded(image, bmp_path), Some(color_palette)) =
+                    if let (Toolstate::Loaded(image, _bmp_path), Some(color_palette)) =
                         (&self.state, &self.data.palette)
                     {
                         if ui.button("Export font.bin").clicked() {
