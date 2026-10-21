@@ -91,10 +91,7 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
         "Spawning cargo command cargo build -r in {}",
         path.to_str().expect("already checked")
     );
-    info!(
-        "libclang path is: {:?}",
-        std::env::var("LIBCLANG_PATH")
-    );
+    info!("libclang path is: {:?}", std::env::var("LIBCLANG_PATH"));
     if !cwd
         .wait()
         .map_err(|e| CargoError::FailedCommand(e))?
@@ -129,7 +126,7 @@ pub fn compile_arm7(elf_file_path: PathBuf) -> Result<Vec<u8>, CompileError> {
             .segment_data(&segment)
             .map_err(|e| CompileError::ElfSegmentError(e))?;
         if empty_bin.len() < file_offset_end as usize {
-            empty_bin.resize(file_offset_end as usize,0 );
+            empty_bin.resize(file_offset_end as usize, 0);
         }
         let file_range = (file_offset_start as usize)..(file_offset_end as usize);
         debug!(

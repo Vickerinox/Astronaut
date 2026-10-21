@@ -5,7 +5,7 @@ use std::{path::PathBuf, process::Stdio};
 
 use log::{debug, error};
 
-use crate::errors::{CargoError};
+use crate::errors::CargoError;
 
 pub fn build_crate(path: PathBuf, is_release: bool) -> Result<(), CargoError> {
     let mut cwd = std::process::Command::new("cargo");

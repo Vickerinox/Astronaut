@@ -59,10 +59,10 @@ pub unsafe extern "C" fn _start() {
         options(noreturn) // No return possible from this function
     );
 }
-#[no_mangle] 
+#[no_mangle]
 unsafe extern "C" fn exception() {
     panic!("");
-} 
+}
 
 #[no_mangle]
 #[cfg(not(target_arch = "arm"))]

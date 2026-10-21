@@ -6,7 +6,7 @@ pub use frontend::{AppData, GlobalData};
 pub use main_menu::MainMenu;
 pub use micro_imgui_ds::gui::DSMicroGuiBackend;
 
-use crate::{configuration::Assets};
+use crate::configuration::Assets;
 use micro_imgui_ds::micro_imgui::Backend;
 use micro_imgui_ds::{
     micro_imgui::{InputEvent, Style},
