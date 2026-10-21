@@ -93,12 +93,7 @@ pub fn build_crate(path: PathBuf) -> Result<(), CargoError> {
     );
     info!(
         "libclang path is: {:?}",
-        std::env::var("LIBCLANG_PATH") /*
-                                       std::env::set_var(
-                                           "LIBCLANG_PATH",
-                                           "/nix/store/2hn01gz32n3axgmzrcclivngcgkcxqbm-clang-21.1.7-lib/lib"
-                                       )
-                                       */
+        std::env::var("LIBCLANG_PATH")
     );
     if !cwd
         .wait()
@@ -148,107 +143,6 @@ pub fn compile_arm7(elf_file_path: PathBuf) -> Result<Vec<u8>, CompileError> {
         empty_bin.push(0u8);
     }
     info!("ARM Binary is {:x?} bytes", empty_bin.len());
-
-    info!("MISSION COMPLETE");
-    Ok(empty_bin)
-}
-
-pub fn compile_bootstrap(elf9_file_path: PathBuf) -> Result<Vec<u8>, CompileError> {
-    const HEADER_SIZE: usize = 12;
-    const BLANK_BRANCH_INSTRUCTION: u32 = 0xEA000000;
-
-    let arm9_file = std::fs::read(elf9_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
-    let arm9_parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&arm9_file[..])
-        .map_err(|e| CompileError::ElfParseError(e))?;
-    let arm9_entrypoint = arm9_parse.ehdr.e_entry;
-
-    let mut empty_bin = vec![255u8; HEADER_SIZE];
-
-    let arm9_segments = arm9_parse
-        .segments()
-        .ok_or(CompileError::ElfMissingSegments)?;
-    let arm9_entry_point = arm9_entrypoint;
-    let arm9_entry_value = ((arm9_entry_point as u32) >> 2).wrapping_add(1) & 0xFFFFFF;
-
-    empty_bin[..4].copy_from_slice(&(BLANK_BRANCH_INSTRUCTION | arm9_entry_value).to_ne_bytes());
-
-    println!(
-        "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",
-        arm9_entrypoint, arm9_entry_point, arm9_entry_value
-    );
-    let mut arm7_start = 0;
-    for segment in arm9_segments
-        .iter()
-        .filter(|f| f.p_type == 1 && f.p_filesz != 0)
-    {
-        let file_offset_start = (segment.p_vaddr as i64) + (HEADER_SIZE as i64);
-        let file_offset_end = file_offset_start + segment.p_filesz as i64;
-        if file_offset_start.is_negative() {
-            continue;
-        }
-        arm7_start = arm7_start.max(file_offset_end - HEADER_SIZE as i64);
-        let data = arm9_parse
-            .segment_data(&segment)
-            .map_err(|e| CompileError::ElfSegmentError(e))?;
-        if empty_bin.len() < file_offset_end as usize {
-            let extra_len = (file_offset_end as usize) - empty_bin.len();
-            empty_bin.append(&mut vec![0; extra_len]);
-        }
-        let file_range = (file_offset_start as usize)..(file_offset_end as usize);
-        println!(
-            "SEGMENT OCCUPIED {} BYTES, {:x?} {:x?}",
-            segment.p_filesz, file_offset_start, file_offset_end
-        );
-        empty_bin[file_range].copy_from_slice(data);
-    }
-
-    /*
-    let arm7_file = std::fs::read(elf7_file_path).map_err(|e| CompileError::ElfNotFound(e))?;
-    let arm7_parse = elf::ElfBytes::<elf::endian::AnyEndian>::minimal_parse(&arm7_file[..])
-        .map_err(|e| CompileError::ElfParseError(e))?;
-    let arm7_entrypoint = arm7_parse.ehdr.e_entry;
-
-    let arm7_segments = arm7_parse
-        .segments()
-        .ok_or(CompileError::ElfMissingSegments)?;
-    let arm7_entry_point = arm7_entrypoint + arm7_start as u64;
-    let arm7_entry_value = ((arm7_entry_point as u32) >> 2) & 0xFFFFFF;
-
-    empty_bin[4..8].copy_from_slice(&(BLANK_BRANCH_INSTRUCTION | arm7_entry_value).to_ne_bytes());
-
-    debug!(
-        "Entry address: {:x} Entry value: {:x} Entry offset: {:x}",
-        arm7_entrypoint, arm7_entry_point, arm7_entry_value
-    );
-    for segment in arm7_segments
-        .iter()
-        .filter(|f| f.p_type == 1 && f.p_filesz != 0)
-    {
-        let file_offset_start = (segment.p_vaddr as i64) + (HEADER_SIZE as i64) + arm7_start;
-        let file_offset_end = file_offset_start + segment.p_filesz as i64;
-        if file_offset_start.is_negative() {
-            continue;
-        }
-        let data = arm7_parse
-            .segment_data(&segment)
-            .map_err(|e| CompileError::ElfSegmentError(e))?;
-        if empty_bin.len() < file_offset_end as usize {
-            let extra_len = (file_offset_end as usize) - empty_bin.len();
-            empty_bin.append(&mut vec![0; extra_len]);
-        }
-        let file_range = (file_offset_start as usize)..(file_offset_end as usize);
-        debug!(
-            "SEGMENT OCCUPIED {} BYTES, {:x?} {:x?}",
-            segment.p_filesz, file_offset_start, file_offset_end
-        );
-        empty_bin[file_range].copy_from_slice(data);
-    }
-    */
-    assert!(
-        empty_bin.len() < 0x4000,
-        "WHATT TEHTEHETHTEHHETTE {:x}",
-        empty_bin.len()
-    );
 
     info!("MISSION COMPLETE");
     Ok(empty_bin)
