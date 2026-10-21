@@ -478,6 +478,7 @@ fn handlecolorset(set: &mut ColorSet, key: &str, value: &str) {
         "fill" => parse_color(value, &mut set.frame_fill),
         "outline" => parse_color(value, &mut set.frame_outline),
         "text" => parse_color(value, set.override_text_color.get_or_insert_default()),
+        "accent" => parse_color(value, set.override_accent_color.get_or_insert_default()),
         _ => (),
     }
 }

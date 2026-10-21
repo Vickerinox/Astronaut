@@ -3,7 +3,7 @@
 
 use crate::{
     ui::{AutoAdd, Ui},
-    Backend, Color, Rect, Response, Sense, Shape, Vec2,
+    Backend, Rect, Response, Sense, Shape, Vec2,
 };
 
 pub struct Checkbox<'a> {
@@ -22,6 +22,7 @@ impl<'t> AutoAdd for Checkbox<'t> {
 
         let (b, _, c) = ui.prepare_complication(prep_size);
         let color = c.override_text_color.unwrap_or(ui.style().text_color);
+        let checkbox_color = c.override_accent_color.unwrap_or(ui.style().accent_color);
         let bounds = b
             .translate(Vec2::new(11, 1))
             .include_point(ui.clip_rect().max);
@@ -49,7 +50,7 @@ impl<'t> AutoAdd for Checkbox<'t> {
         if *option {
             ui.draw(Shape::Rectangle {
                 area: checkbox.scale_uniform(-2),
-                fill: ui.style().accent_color,
+                fill: checkbox_color,
                 rounding: 1,
                 outline_color: colorset.frame_outline,
                 outline_size: 1,

@@ -28,6 +28,7 @@ pub struct ColorSet {
     pub frame_fill: Color,
     pub frame_outline: Color,
     pub override_text_color: Option<Color>,
+    pub override_accent_color: Option<Color>,
 }
 impl Style {
     pub const DEFAULT: Self = Self {
@@ -35,16 +36,19 @@ impl Style {
             frame_fill: Color::new(100, 100, 100),
             frame_outline: Color::new(20, 20, 20),
             override_text_color: None,
+            override_accent_color: None,
         },
         focused: ColorSet {
             frame_fill: Color::new(100, 100, 100),
             frame_outline: Color::new(200, 200, 200),
             override_text_color: None,
+            override_accent_color: None,
         },
         pressed: ColorSet {
             frame_fill: Color::new(32, 32, 32),
             frame_outline: Color::new(10, 10, 10),
             override_text_color: None,
+            override_accent_color: None,
         },
         background_color: Color::new(32, 32, 32),
         text_color: Color::new(200, 200, 200),
