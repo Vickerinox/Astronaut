@@ -287,7 +287,7 @@ impl GlobalData {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
         let mut loader = crate::graphics::bmp::AsyncBMPLoader::new();
         loader.start_load(file).ok()?;
-        loader.continue_load(usize::MAX).asset()
+        loader.continue_load(usize::MAX).finished()
     }
     unsafe fn load_font(&mut self, font_path: &mut String) {
         if self.safe_mode {

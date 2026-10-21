@@ -144,6 +144,8 @@ pub enum AsyncBMPLoaderError {
     FailedToSeekFile,
     
 }
+
+/// A container for loading BMP images asynchronously
 pub struct AsyncBMPLoader {
     current_load: Option<(fatfs_embedded::fatfs::File, DecodedBMP)>,
 }
@@ -156,7 +158,8 @@ pub enum AsyncBMPLoadResult {
 }
 
 impl AsyncBMPLoadResult {
-    pub fn asset(self) -> Option<DecodedBMP> {
+    /// If this result is a [`Self::Finished`] result, return the inside bmp
+    pub fn finished(self) -> Option<DecodedBMP> {
         match self {
             AsyncBMPLoadResult::Finished(decoded_bmp) => Some(decoded_bmp),
             AsyncBMPLoadResult::Working => None,
