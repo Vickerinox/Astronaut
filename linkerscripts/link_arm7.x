@@ -25,6 +25,11 @@ SECTIONS
     *(.rodata .rodata.*);
   } > SACRED_MEM_2 AT > BIN_SPACE
 
+  .data :
+  {
+    *(.data .data.*);
+  } > SACRED_MEM_2 AT > BIN_SPACE
+
   /DISCARD/ :
   {
     *(.ARM.exidx .ARM.exidx.*);
