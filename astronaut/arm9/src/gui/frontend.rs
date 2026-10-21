@@ -53,7 +53,7 @@ impl UiPage for AppBooter {
             data.fader.set_target(16);
             boot::boot_app(&mut file, &self.path, data)
         };
-        unsafe { data.fader.set_target(0) };
+        data.fader.set_target(0);
         let error_string = alloc::format!("Failed to boot file: {error:?}");
         Some(Box::new(super::error::Error::new(error_string)))
     }

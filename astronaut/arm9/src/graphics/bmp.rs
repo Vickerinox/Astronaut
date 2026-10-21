@@ -162,7 +162,7 @@ impl AsyncBMPLoadResult {
         match self {
             AsyncBMPLoadResult::Finished(decoded_bmp) => Some(decoded_bmp),
             AsyncBMPLoadResult::Working => None,
-            AsyncBMPLoadResult::Error(async_bmploader_error) => None,
+            AsyncBMPLoadResult::Error(_async_bmploader_error) => None,
             AsyncBMPLoadResult::NoLoadInProgress => None,
         }
     }

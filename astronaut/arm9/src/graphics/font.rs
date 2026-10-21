@@ -20,14 +20,8 @@ pub unsafe fn load_default_font() {
     panic!()
 }
 
-#[instruction_set(arm::a32)]
-#[cfg(target_arch = "arm")]
 pub unsafe fn init_font() {
     transfer_font_to_vram(&*(0x2FF1000 as *const _));
-}
-#[cfg(not(target_arch = "arm"))]
-pub unsafe fn init_font() {
-    panic!()
 }
 
 #[repr(C)]
