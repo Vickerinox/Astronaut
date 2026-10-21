@@ -142,16 +142,44 @@ pub enum AsyncBMPLoaderError {
     FailedToReadPalette,
     FailedToReadBitmap,
     FailedToSeekFile,
-    NoLoadInProgress,
+    
 }
 pub struct AsyncBMPLoader {
     current_load: Option<(fatfs_embedded::fatfs::File, DecodedBMP)>,
 }
 
+pub enum AsyncBMPLoadResult {
+    Finished(DecodedBMP),
+    Working,
+    Error(AsyncBMPLoaderError),
+    NoLoadInProgress,
+}
+
+impl AsyncBMPLoadResult {
+    pub fn asset(self) -> Option<DecodedBMP> {
+        match self {
+            AsyncBMPLoadResult::Finished(decoded_bmp) => Some(decoded_bmp),
+            AsyncBMPLoadResult::Working => None,
+            AsyncBMPLoadResult::Error(async_bmploader_error) => None,
+            AsyncBMPLoadResult::NoLoadInProgress => None,
+        }
+    }
+}
+
 impl AsyncBMPLoader {
+    /// Construct a new Loader
     pub fn new() -> Self {
         Self { current_load: None }
     }
+
+    /// Start loading a BMP with the BMP loader
+    /// 
+    /// In order to retrieve the BMP, at least one call must be made to [``AsyncBMPLoader::continue_load``]
+    /// 
+    /// If the load is initially successful, an [`Ok`] response is returned with the header of the BMP.
+    /// This can be used to either abort the load (if the BMP is of an undesired size or format) or start a new load.
+    /// 
+    /// If this function is called with another load in progress, it will abort the previous load.
     #[link_section = ".text_aux"]
     pub fn start_load(
         &mut self,
@@ -176,11 +204,19 @@ impl AsyncBMPLoader {
         ));
         Ok(dib)
     }
+
+    /// Continue loading the last started BMP
+    /// 
+    /// This will give one of 3 results according to [`AsyncBMPLoadResult`]
+    /// 
+    /// Once the image has finished or returned an error this function will keep returning [`AsyncBMPLoadResult::NoLoadInProgress`] until another load is started.
+    /// 
+    /// the `max_bytes` argument specifies how many bytes of the BMP can be read before the function must return. If this quantity is reached, [`AsyncBMPLoadResult::Working`] is returned instead of a meaningful result.
     #[link_section = ".text_aux"]
     pub fn continue_load(
         &mut self,
         mut max_bytes: usize,
-    ) -> Result<Option<DecodedBMP>, AsyncBMPLoaderError> {
+    ) -> AsyncBMPLoadResult {
         if let Some((reader, bmp)) = &mut self.current_load {
             let palette_len = bmp.dib.palette_len() * 4;
             let bitmap_size = bmp.dib.bitmap_size as usize;
@@ -190,10 +226,11 @@ impl AsyncBMPLoader {
                 let start = bmp.colors.len();
                 bmp.colors.resize(start + to_read, 0);
                 if fatfs_embedded::seek(reader, bmp.dib.size + 14 + start as u32).is_err() {
-                    return Err(AsyncBMPLoaderError::FailedToSeekFile);
+                    return AsyncBMPLoadResult::Error(AsyncBMPLoaderError::FailedToSeekFile);
                 }
-                read_all(&mut bmp.colors[start..], reader)
-                    .map_err(|_| AsyncBMPLoaderError::FailedToReadPalette)?;
+                if read_all(&mut bmp.colors[start..], reader).is_err() {
+                    return AsyncBMPLoadResult::Error(AsyncBMPLoaderError::FailedToReadPalette)
+                }
                 max_bytes -= to_read;
             }
             if bmp.colors.len() == palette_len && max_bytes > 0 {
@@ -204,26 +241,30 @@ impl AsyncBMPLoader {
                     )
                     .is_err()
                     {
-                        return Err(AsyncBMPLoaderError::FailedToSeekFile);
+                        return AsyncBMPLoadResult::Error(AsyncBMPLoaderError::FailedToSeekFile);
                     }
                     let remaining = bitmap_size - bmp.bitmap.len();
                     let to_read = remaining.min(max_bytes);
                     let start = bmp.bitmap.len();
                     bmp.bitmap.resize(start + to_read, 0);
-                    read_all(&mut bmp.bitmap[start..], reader)
-                        .map_err(|_| AsyncBMPLoaderError::FailedToReadBitmap)?;
+                    if read_all(&mut bmp.bitmap[start..], reader).is_err() {
+                        return AsyncBMPLoadResult::Error(AsyncBMPLoaderError::FailedToReadBitmap);
+                    }
                 }
             }
             if bmp.bitmap.len() == bitmap_size {
                 let bmp = self.current_load.take().unwrap().1;
-                Ok(Some(bmp))
+                AsyncBMPLoadResult::Finished(bmp)
             } else {
-                Ok(None)
+                AsyncBMPLoadResult::Working
             }
         } else {
-            Err(AsyncBMPLoaderError::NoLoadInProgress)
+            AsyncBMPLoadResult::NoLoadInProgress
         }
     }
+    /// Abort the currently ongoing load (if any)
+    /// 
+    /// In the case where there is no load, this does nothing.
     #[link_section = ".text_aux"]
     pub fn abort_load(&mut self) {
         self.current_load = None;

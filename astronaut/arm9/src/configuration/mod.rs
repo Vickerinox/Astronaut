@@ -16,7 +16,7 @@ use reboot_lib::{
 };
 
 use crate::{
-    FileType, get_extension, graphics::bmp::AsyncBMPLoader, gui::{GlobalData, pop_dir_entry, show_wallpaper}, music::{MusicPlaying, StreamingWav},
+    FileType, get_extension, graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader}, gui::{GlobalData, pop_dir_entry, show_wallpaper}, music::{MusicPlaying, StreamingWav},
 };
 
 pub struct BootCombo {
@@ -287,7 +287,7 @@ impl GlobalData {
         let file = fatfs_embedded::open(path, FileOptions::Read).ok()?;
         let mut loader = crate::graphics::bmp::AsyncBMPLoader::new();
         loader.start_load(file).ok()?;
-        loader.continue_load(usize::MAX).ok()?
+        loader.continue_load(usize::MAX).asset()
     }
     unsafe fn load_font(&mut self, font_path: &mut String) {
         if self.safe_mode {
@@ -399,22 +399,18 @@ impl GlobalData {
         loop {
             if bottom_screen.is_none() {
                 match loader.continue_load(4096) {
-                    Ok(None) => continue,
-                    Ok(Some(a)) => bottom_screen = Some(Some(a)),
-                    Err(_) => {
-                        bottom_screen = Some(None);
-                    },
+                    AsyncBMPLoadResult::Working => continue,
+                    AsyncBMPLoadResult::Error(_) | AsyncBMPLoadResult::NoLoadInProgress => bottom_screen = Some(None),
+                    AsyncBMPLoadResult::Finished(a) => bottom_screen = Some(Some(a)),
                 }
                 if !start_and_validate_load(&mut loader, &mut wallpaper) {
                     top_screen = Some(None);
                 }
             } else if top_screen.is_none() {
                 match loader.continue_load(4096) {
-                    Ok(None) => continue,
-                    Ok(Some(a)) => top_screen = Some(Some(a)),
-                    Err(_) => {
-                        top_screen = Some(None);
-                    },
+                    AsyncBMPLoadResult::Working => continue,
+                    AsyncBMPLoadResult::Error(_) | AsyncBMPLoadResult::NoLoadInProgress => top_screen = Some(None),
+                    AsyncBMPLoadResult::Finished(a) => top_screen = Some(Some(a)),
                 }
             } else {
                 break;
