@@ -152,6 +152,7 @@ impl Theme {
                 ("[assets]", "font") => handle_path(&base_dir, &mut assets.font, value),
                 ("[colors]", "background") => parse_color(value, &mut style.background_color),
                 ("[colors]", "text") => parse_color(value, &mut style.text_color),
+                ("[colors]", "accent") => parse_color(value, &mut style.accent_color),
                 ("[colors]", "assets") => parse_color(value, &mut self.asset_color),
                 ("[colors]", "roms") => parse_color(value, &mut self.bootable_color),
                 ("[colors]", "folders") => parse_color(value, &mut self.folder_color),

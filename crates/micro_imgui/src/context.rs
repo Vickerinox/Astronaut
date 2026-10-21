@@ -20,6 +20,7 @@ pub struct Style {
     pub pressed: ColorSet,
     pub background_color: Color,
     pub text_color: Color,
+    pub accent_color: Color,
 }
 #[derive(Clone)]
 #[repr(C)]
@@ -47,6 +48,7 @@ impl Style {
         },
         background_color: Color::new(32, 32, 32),
         text_color: Color::new(200, 200, 200),
+        accent_color: Color::new(200, 200, 200),
     };
 }
 impl Default for Style {

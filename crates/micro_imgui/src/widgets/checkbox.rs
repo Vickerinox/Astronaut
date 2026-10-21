@@ -49,7 +49,7 @@ impl<'t> AutoAdd for Checkbox<'t> {
         if *option {
             ui.draw(Shape::Rectangle {
                 area: checkbox.scale_uniform(-2),
-                fill: Color::new(200, 200, 200),
+                fill: ui.style().accent_color,
                 rounding: 1,
                 outline_color: colorset.frame_outline,
                 outline_size: 1,

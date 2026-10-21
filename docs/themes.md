@@ -16,6 +16,7 @@ This section contains basic colors
 
 * ``background``: The main background color
 * ``text``: The main text color
+* ``accent`` : the color of indicators (e.g. checkbox filling)
 * ``roms``: The text color used for roms in the file explorer
 * ``folders``: The text color used for folders in the file explorer
 * ``assets``: The text color used for other astronaut related assets in the file explorer
