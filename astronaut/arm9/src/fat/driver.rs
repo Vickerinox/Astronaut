@@ -13,6 +13,7 @@ pub struct SDMMCDriver {
     pub nand_error: u32,
     pub sdmc_error: u32,
 }
+
 impl SDMMCDriver {
     pub fn new() -> Self {
         Self {
@@ -22,7 +23,6 @@ impl SDMMCDriver {
             sdmc_error: 0,
         }
     }
-
     unsafe fn try_mount_sd(
         &mut self,
         buffer: &'static mut [reboot_lib::StorageSector],

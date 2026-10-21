@@ -222,7 +222,9 @@ impl Settings {
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut super::GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        unsafe { data.hot_reload_theme(ui); }
+        unsafe {
+            data.hot_reload_theme(ui);
+        }
         ui.request_repaint();
         Some(Box::new(Self::Main))
     }

@@ -142,7 +142,6 @@ pub enum AsyncBMPLoaderError {
     FailedToReadPalette,
     FailedToReadBitmap,
     FailedToSeekFile,
-    
 }
 
 /// A container for loading BMP images asynchronously
@@ -176,12 +175,12 @@ impl AsyncBMPLoader {
     }
 
     /// Start loading a BMP with the BMP loader
-    /// 
+    ///
     /// In order to retrieve the BMP, at least one call must be made to [``AsyncBMPLoader::continue_load``]
-    /// 
+    ///
     /// If the load is initially successful, an [`Ok`] response is returned with the header of the BMP.
     /// This can be used to either abort the load (if the BMP is of an undesired size or format) or start a new load.
-    /// 
+    ///
     /// If this function is called with another load in progress, it will abort the previous load.
     #[link_section = ".text_aux"]
     pub fn start_load(
@@ -209,17 +208,14 @@ impl AsyncBMPLoader {
     }
 
     /// Continue loading the last started BMP
-    /// 
+    ///
     /// This will give one of 3 results according to [`AsyncBMPLoadResult`]
-    /// 
+    ///
     /// Once the image has finished or returned an error this function will keep returning [`AsyncBMPLoadResult::NoLoadInProgress`] until another load is started.
-    /// 
+    ///
     /// the `max_bytes` argument specifies how many bytes of the BMP can be read before the function must return. If this quantity is reached, [`AsyncBMPLoadResult::Working`] is returned instead of a meaningful result.
     #[link_section = ".text_aux"]
-    pub fn continue_load(
-        &mut self,
-        mut max_bytes: usize,
-    ) -> AsyncBMPLoadResult {
+    pub fn continue_load(&mut self, mut max_bytes: usize) -> AsyncBMPLoadResult {
         if let Some((reader, bmp)) = &mut self.current_load {
             let palette_len = bmp.dib.palette_len() * 4;
             let bitmap_size = bmp.dib.bitmap_size as usize;
@@ -232,7 +228,7 @@ impl AsyncBMPLoader {
                     return AsyncBMPLoadResult::Error(AsyncBMPLoaderError::FailedToSeekFile);
                 }
                 if read_all(&mut bmp.colors[start..], reader).is_err() {
-                    return AsyncBMPLoadResult::Error(AsyncBMPLoaderError::FailedToReadPalette)
+                    return AsyncBMPLoadResult::Error(AsyncBMPLoaderError::FailedToReadPalette);
                 }
                 max_bytes -= to_read;
             }
@@ -266,7 +262,7 @@ impl AsyncBMPLoader {
         }
     }
     /// Abort the currently ongoing load (if any)
-    /// 
+    ///
     /// In the case where there is no load, this does nothing.
     #[link_section = ".text_aux"]
     pub fn abort_load(&mut self) {

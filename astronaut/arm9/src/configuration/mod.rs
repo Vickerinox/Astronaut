@@ -16,7 +16,11 @@ use reboot_lib::{
 };
 
 use crate::{
-    FileType, get_extension, graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader}, gui::{GlobalData, pop_dir_entry, show_wallpaper}, music::{MusicPlaying, StreamingWav},
+    get_extension,
+    graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader},
+    gui::{pop_dir_entry, show_wallpaper, GlobalData},
+    music::{MusicPlaying, StreamingWav},
+    FileType,
 };
 
 pub struct BootCombo {
@@ -368,7 +372,10 @@ impl GlobalData {
     }
     #[link_section = ".text_aux"]
     #[inline(never)]
-    pub unsafe fn hot_reload_theme(&mut self, ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>) {
+    pub unsafe fn hot_reload_theme(
+        &mut self,
+        ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
+    ) {
         if self.safe_mode {
             return;
         }
@@ -389,7 +396,12 @@ impl GlobalData {
         self.fader.set_target(16);
         self.theme = Theme::DEFAULT;
         let (assets, style) = self.theme.load(&mut self.config.theme_path);
-        let Assets { mut music, mut wallpaper, mut background, mut font } = assets;
+        let Assets {
+            mut music,
+            mut wallpaper,
+            mut background,
+            mut font,
+        } = assets;
         if !start_and_validate_load(&mut loader, &mut background) {
             bottom_screen = Some(None);
             if !start_and_validate_load(&mut loader, &mut wallpaper) {
@@ -400,7 +412,9 @@ impl GlobalData {
             if bottom_screen.is_none() {
                 match loader.continue_load(4096) {
                     AsyncBMPLoadResult::Working => continue,
-                    AsyncBMPLoadResult::Error(_) | AsyncBMPLoadResult::NoLoadInProgress => bottom_screen = Some(None),
+                    AsyncBMPLoadResult::Error(_) | AsyncBMPLoadResult::NoLoadInProgress => {
+                        bottom_screen = Some(None)
+                    }
                     AsyncBMPLoadResult::Finished(a) => bottom_screen = Some(Some(a)),
                 }
                 if !start_and_validate_load(&mut loader, &mut wallpaper) {
@@ -409,14 +423,16 @@ impl GlobalData {
             } else if top_screen.is_none() {
                 match loader.continue_load(4096) {
                     AsyncBMPLoadResult::Working => continue,
-                    AsyncBMPLoadResult::Error(_) | AsyncBMPLoadResult::NoLoadInProgress => top_screen = Some(None),
+                    AsyncBMPLoadResult::Error(_) | AsyncBMPLoadResult::NoLoadInProgress => {
+                        top_screen = Some(None)
+                    }
                     AsyncBMPLoadResult::Finished(a) => top_screen = Some(Some(a)),
                 }
             } else {
                 break;
             }
         }
-        self.load_font(&mut font); 
+        self.load_font(&mut font);
         while !self.fader.synced() {}
         {
             VIDEO_HARDWARE
@@ -447,7 +463,7 @@ impl GlobalData {
         }
         *ui.style_mut() = style;
         self.fader.set_target(0);
-        
+
         if self.config.music.is_empty() {
             let _ = crate::music::stop_mod_file();
             self.loading_mod_file = MusicPlaying::None;

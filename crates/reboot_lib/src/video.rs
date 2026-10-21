@@ -179,7 +179,7 @@ bitflags! {
     #[derive(Clone, Copy)]
     pub struct DisplayControl: u32 {
         const ENABLE = 0x10000;
-        
+
         const BG_MODE_0 = 0x10000;
         const BG_MODE_1 = 0x10001;
         const BG_MODE_2 = 0x10002;

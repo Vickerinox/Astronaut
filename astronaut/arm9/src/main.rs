@@ -261,7 +261,7 @@ unsafe fn main() {
             app_data.autoboot();
         }
 
-        // Load additional code segment required for the GUI 
+        // Load additional code segment required for the GUI
         if !load_aux_segment(&mut app_data.global_data) {
             //Enable safe mode (fill code area with infinite loops instead)
             VIDEO_HARDWARE

@@ -2,16 +2,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::{
-    APP_AREA_START, AppArea, SCREEN_RECT, boot::{self}, configuration::Theme, graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader}, music::{MusicPlaying, send_mod_file},
+    boot::{self},
+    configuration::Theme,
+    graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader},
+    music::{send_mod_file, MusicPlaying},
+    AppArea, APP_AREA_START, SCREEN_RECT,
 };
 
+use crate::Fader;
 use alloc::{boxed::Box, format, string::String};
 use common::blowfish::BFCTX;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::Backend;
 use reboot_lib::fatfs_embedded;
-use crate::Fader;
 pub struct GlobalData {
     pub our_path: String,
     pub blowfish: BFCTX,
@@ -85,7 +89,9 @@ impl AppData {
     #[inline(never)]
     #[link_section = ".text_aux"]
     pub fn do_background_tasks(&mut self) {
-        if let AsyncBMPLoadResult::Finished(result) = self.global_data.bmp_loader.continue_load(1024 * 8) {
+        if let AsyncBMPLoadResult::Finished(result) =
+            self.global_data.bmp_loader.continue_load(1024 * 8)
+        {
             self.global_data.fader.set_target_top(16);
             self.global_data.queued_bmp = Some(result);
         }
