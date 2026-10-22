@@ -21,6 +21,7 @@ It is possible to style the astronaut GUI with the help of themes. These are cen
 ![A custom theme based on musician convexity](images/credit_to_convexity.png)
 ![A custom theme based on the lego theme bionicle](images/credit_to_legogroup.png)
 
+Credit goes to convexity, caikslyce, and the lego group for various assets used in these custom themes.
 
 ## Limitations
 * Older and more obscure homebrew may not work due to complications with the loader. In these cases, chainload them from your homebrew menu of choice instead.
