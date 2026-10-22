@@ -117,7 +117,7 @@ pub fn compile_arm7(elf_file_path: PathBuf) -> Result<Vec<u8>, CompileError> {
     let segments = parse.segments().ok_or(CompileError::ElfMissingSegments)?;
 
     for segment in segments.iter().filter(|f| f.p_type == 1 && f.p_filesz != 0) {
-        let file_offset_start = segment.p_paddr as i64 + 4;
+        let file_offset_start = segment.p_paddr as i64;
         let file_offset_end = file_offset_start + segment.p_filesz as i64;
         if file_offset_start.is_negative() {
             continue;
