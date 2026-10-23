@@ -26,7 +26,7 @@ Credit goes to convexity, caikslyce, and the lego group for various assets used 
 ## Limitations
 * Older and more obscure homebrew may not work due to complications with the loader. In these cases, chainload them from your homebrew menu of choice instead.
 * DS Mode ROMs have no audio, as the codec chip isn't initialized for them yet. This can also be fixed by simply using your homebrew menu of choice instead.
-* Wifi initialization is (relatively) slow and unstable. (Use the `Enable Wifi` option to toggle it)
+* Wifi initialization is unstable. (Use the `Enable Wifi` option to toggle it)
 
 ### Known problematic titles
 The below apps are known to have issues, in case of DSiWare it is usually fixed by simply launching it from the DSi home menu instead (or a DSiWare compatible homebrew menu)
