@@ -41,6 +41,7 @@ unsafe fn nwifi_restart_card() -> bool {
     if !wifi_card_send_command(crate::mmc::Command::SelectCard, address, false).successful() {
         return true;
     }
+    
 
     if sdio_write_func_byte(SDIOFunc::Zero, 2, 0) {
         return true;
@@ -49,6 +50,8 @@ unsafe fn nwifi_restart_card() -> bool {
     if sdio_write_func_byte(SDIOFunc::Zero, 2, 2) {
         return true;
     }
+    
+    PORT.clock = ClockCnt::FREQ_16M | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
     crate::swi_delay(0xF000);
 
     let Some(mut interface_cnt) = sdio_read_func_byte(SDIOFunc::Zero, 7) else {
@@ -104,6 +107,7 @@ unsafe fn nwifi_init_func1() -> bool {
         return true;
     }
 
+    
     crate::swi_delay(0x10000);
 
     if nwifi_read_intern_word(0x40C0) != Some(2) {
@@ -188,10 +192,14 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     }
     //set initial registers
     dsio_hw_init();
+
     //perform reset on the card (enough to be sure were in 4-bit bus width)
     if nwifi_restart_card() {
         return 1;
     }
+
+    
+
     //perform func0 initialization (which readies us for func1)
     if nwifi_init_func0() {
         return 2;

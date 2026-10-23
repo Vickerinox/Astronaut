@@ -124,7 +124,7 @@ impl AESEngine {
         let in_dma = crate::ndma::ChannelConfig {
             word_count: len,
             block_size: 4,
-            timing: 8,
+            timing: 1,
             fill_mode: 0,
             control: NDMAControl::ENABLE
                 .with_start_mode(NDMAStartMode::Arm7WriteAES)
@@ -135,7 +135,7 @@ impl AESEngine {
         let out_dma = crate::ndma::ChannelConfig {
             word_count: len,
             block_size: 4,
-            timing: 8,
+            timing: 1,
             fill_mode: 0,
             control: NDMAControl::ENABLE
                 .with_start_mode(NDMAStartMode::Arm7ReadAES)

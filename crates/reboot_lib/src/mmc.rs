@@ -6,7 +6,7 @@ use core::{
     ops::{BitAndAssign, BitOrAssign, Not},
 };
 
-use crate::{MemoryWrapper, StorageSector};
+use crate::{MemoryWrapper, StorageSector, ndma::NDMAStartMode};
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 use crate::swi_delay;
@@ -141,7 +141,7 @@ bitflags::bitflags! {
     }
 }
 // A rust implementation of profi2000's TMIO in pure rust. And awful.
-
+#[cfg(feature = "arm7i")]
 impl MMC {
     pub unsafe fn reset(&self) {
         self.data_control_32
@@ -249,7 +249,43 @@ impl MMC {
         self.block_count_32
             .write(((port.buffer.len() * 4) / port.block_len as usize) as u16);
         let mut timeout = 0;
-
+        #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
+        if command.transmits_data() {
+            use crate::ndma::{BlockSize, DestinationMode, NDMA_HARDWARE, NDMAControl, SourceMode};
+            let (words, block_size, start_mode) = match port.block_len {
+                512 => (BlockSize::Words128, 128, NDMAStartMode::Arm7SDMMC),
+                128 => (BlockSize::Words32, 32, NDMAStartMode::Arm7DsiWiFi),
+                _ => return Status::ERR_ILLEGAL_ACCESS,
+            };
+            let word_count = port.buffer.len() as u32;
+            if command.reads_data() {
+                let in_dma = crate::ndma::ChannelConfig {
+                    word_count,
+                    block_size,
+                    timing: 1,
+                    fill_mode: 0,
+                    control: NDMAControl::ENABLE
+                        .with_start_mode(start_mode)
+                        .with_dst_mode(DestinationMode::Increment)
+                        .with_src_mode(SourceMode::Fixed)
+                        .with_block_size(words),
+                };
+                NDMA_HARDWARE.set_raw_dma(0, in_dma, core::mem::transmute(&self.data_fifo_32), core::mem::transmute(port.buffer as *mut u32));
+            } else {
+                let in_dma = crate::ndma::ChannelConfig {
+                    word_count,
+                    block_size,
+                    timing: 1,
+                    fill_mode: 0,
+                    control: NDMAControl::ENABLE
+                        .with_start_mode(start_mode)
+                        .with_dst_mode(DestinationMode::Fixed)
+                        .with_src_mode(SourceMode::Increment)
+                        .with_block_size(words),
+                };
+                NDMA_HARDWARE.set_raw_dma(0, in_dma, core::mem::transmute(port.buffer as *mut u32),core::mem::transmute(&self.data_fifo_32));
+            }
+        }
         self.param.write(argument);
         self.command.write(command as u16);
 
@@ -265,54 +301,9 @@ impl MMC {
         self.tmio_get_response(port, command as u16);
 
         if command.transmits_data() {
-            let mut sector_iter = (&mut *port.buffer).chunks_exact_mut(port.block_len as usize / 4);
-            let Some(mut current_sector) = sector_iter.next() else {
-                return Status::from_bits_retain(0x4B4B4B4B);
-            };
-            timeout = 0;
-            if command.reads_data() {
-                // Read loop
-                while !value.intersects(Status::ALL_ERRORS) {
-                    timeout += 1;
-                    if timeout > 0x10_0000 {
-                        return !Status::INSERTED;
-                    }
-                    if self
-                        .data_control_32
-                        .read()
-                        .contains(DataControl32::RX_READY)
-                    {
-                        timeout = 0;
-                        for word in current_sector.iter_mut() {
-                            (word as *mut u32).write_volatile(self.data_fifo_32.read());
-                        }
-                        let Some(next_sector) = sector_iter.next() else {
-                            break;
-                        };
-                        current_sector = next_sector;
-                    }
-                    value |= self.status.read();
-                }
-            } else {
-                // Write loop
-                while !value.intersects(Status::ALL_ERRORS) {
-                    timeout += 1;
-                    if timeout > 0x10_0000 {
-                        return !Status::INSERTED;
-                    }
-                    if !self.data_control_32.read().contains(DataControl32::TX_BUSY) {
-                        timeout = 0;
-                        for word in current_sector.iter_mut() {
-                            self.data_fifo_32.write(*word);
-                        }
-                        let Some(next_sector) = sector_iter.next() else {
-                            break;
-                        };
-                        current_sector = next_sector;
-                    }
-                    value |= self.status.read();
-                }
-            }
+            use crate::ndma::NDMA_HARDWARE;
+            while !value.contains(Status::DATA_END) {value |= self.status.read()};
+            NDMA_HARDWARE.await_channel(0);
         }
 
         value.intersection(Status::ALL_ERRORS)
@@ -484,7 +475,6 @@ const CMD_DATA_R: u16 = 1 << 12;
 const CMD_DATA_MULTI: u16 = 1 << 13;
 const CMD_DATA_W: u16 = 0;
 
-#[derive(Debug)]
 pub struct TMIOPort {
     pub port_num: u16,
     pub clock: ClockCnt,
@@ -493,6 +483,7 @@ pub struct TMIOPort {
     pub buffer: *mut [u32],
     pub response: [u32; 4],
 }
+
 impl TMIOPort {
     pub const fn sdmmc<const N: u16>() -> Self {
         assert!(
@@ -526,6 +517,7 @@ impl TMIOPort {
         };
     }
 }
+
 impl Default for TMIOPort {
     fn default() -> Self {
         Self {
