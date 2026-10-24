@@ -82,6 +82,15 @@ impl<'a> BasicSDMMCCursor<'a> {
         oneself.read_sector(0)?;
         Ok(oneself)
     }
+    pub fn upgrade_buffer<'b: 'a>(&mut self, new_buffer: &'b mut [StorageSector]) -> Result<(), BasicSDMMCError> {
+        assert!(new_buffer.len() > self.buffer.len());
+        self.flush()?;
+        self.buffer = new_buffer;
+        if self.read_sector(self.buffer_sector).is_err() {
+            return Err(BasicSDMMCError::BadRead);
+        }
+        Ok(())
+    }
     pub fn read_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
             true => read_encrypted_nand(self.buffer, self.lba + sector),

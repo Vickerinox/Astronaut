@@ -92,7 +92,7 @@ impl FatFsDriver for SDMMCDriver {
                     self.nand_controller = unsafe {
                         self.try_mount_nand(core::slice::from_raw_parts_mut(
                             0x2FD0000 as *mut reboot_lib::StorageSector,
-                            8,
+                            4,
                         ))
                     };
                     self.nand_controller.is_none() as u8

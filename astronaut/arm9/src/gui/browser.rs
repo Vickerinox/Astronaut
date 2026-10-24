@@ -203,59 +203,69 @@ pub struct TitleLister {
     folders: Vec<String>,
     current_folder: Option<(fatfs_embedded::fatfs::Directory, String)>,
 }
+pub enum ListerResult {
+    Entry(FileEntry),
+    NoMoreEntries,
+    NoWorkDone,
+}
 
 impl TitleLister {
     pub fn new() -> Self {
         let mut folders = Vec::with_capacity(500);
-        folders.push("sdmc:/".to_string());
+        
         folders.push("nand:/".to_string());
+        folders.push("sdmc:/".to_string());
+        
         Self {
             folders,
             current_folder: None,
         }
     }
     // Perform one action as part of scanning
-    pub fn take_one(&mut self) -> Result<FileEntry, bool> {
+    pub fn take_one(&mut self) -> ListerResult {
         match &mut self.current_folder {
             Some((folder, folder_path)) => {
-                let file = fatfs_embedded::readdir(folder).map_err(|_| false)?;
+                let Ok(file) = fatfs_embedded::readdir(folder) else { return ListerResult::NoMoreEntries;};
                 if file.fattrib & fatfs_embedded::fatfs::FileAttributes::Hidden.bits() > 0 {
-                    return Err(true);
+                    return ListerResult::NoWorkDone;
                 }
-                let name = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }
-                    .to_str()
-                    .map_err(|_| true)?;
+                let Ok(name) = unsafe { core::ffi::CStr::from_ptr(file.fname.as_ptr()) }
+                    .to_str() else { return ListerResult::NoWorkDone;};
                 let name = alloc::string::String::from(name);
                 if name.is_empty() {
                     self.current_folder = None;
-                    return Err(true);
+                    return ListerResult::NoWorkDone;
                 }
                 let is_dir =
                     file.fattrib & fatfs_embedded::fatfs::FileAttributes::Directory.bits() > 0;
 
                 if is_dir {
                     if name.starts_with(".") {
-                        return Err(true);
+                        return ListerResult::NoWorkDone;
+                    }
+                    if folder_path.starts_with("nand") {
+                        if ["data","0003000f","import","progress","shared1","shared2","sys","ticket","tmp"].contains(&name.as_str()) {
+                            return ListerResult::NoWorkDone;
+                        }
                     }
                     self.folders.push(folder_path.clone() + &name + "/");
                 } else {
-                    let s_name = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }
-                        .to_str()
-                        .map_err(|_| true)?;
+                    let Ok(s_name) = unsafe { core::ffi::CStr::from_ptr(file.altname.as_ptr()) }
+                        .to_str() else { return ListerResult::NoWorkDone;};
                     let s_name = if s_name.is_empty() { &name } else { s_name };
                     if filetype(s_name) == FileType::Rom {
                         let mut path = folder_path.clone() + &name;
 
-                        let mut file =
-                            fatfs_embedded::open(&mut path, FileOptions::Read).map_err(|_| true)?;
+                        let Ok(mut file) =
+                            fatfs_embedded::open(&mut path, FileOptions::Read) else { return ListerResult::NoWorkDone;};
                         let mut title = [0u8; 12];
                         if read_all(&mut title, &mut file).is_err() {
-                            return Err(true);
+                            return ListerResult::NoWorkDone;
                         }
-                        let r_name = str::from_utf8(&title).map_err(|_| true)?;
+                        let Ok(r_name) = str::from_utf8(&title)  else { return ListerResult::NoWorkDone;};
 
                         let dname = r_name.to_string() + " (" + &truncate_name(&name, 21) + ")";
-                        return Ok(FileEntry {
+                        return ListerResult::Entry(FileEntry {
                             display_name: dname,
                             file_name: path,
                             kind: FileType::Rom,
@@ -264,21 +274,25 @@ impl TitleLister {
                 }
             }
             None => {
-                let mut folder_path = self.folders.pop().ok_or(false)?;
-                let folder = fatfs_embedded::opendir(&mut folder_path).map_err(|_| true)?;
-                self.current_folder = Some((folder, folder_path));
+                let Some(mut folder_path) = self.folders.pop() else { return ListerResult::NoMoreEntries };
+                if fatfs_embedded::chdir(&mut folder_path).is_ok() {
+                    let Ok(folder) = fatfs_embedded::opendir(&mut format!("{}.", &folder_path[..5])) else { return ListerResult::NoWorkDone };
+                    self.current_folder = Some((folder, folder_path));
+                }
             }
         }
-        Err(true)
+        ListerResult::NoWorkDone
     }
+    #[link_section = ".text_aux"]
+    #[inline(never)]
     pub fn scan_once(&mut self, current_files: &mut Vec<FileEntry>) -> bool {
         for _ in 0..5 {
             match self.take_one() {
-                Ok(title) => {
+                ListerResult::Entry(title) => {
                     current_files.push(title);
                 }
-                Err(true) => (),
-                Err(false) => return false,
+                ListerResult::NoWorkDone => (),
+                ListerResult::NoMoreEntries => return false,
             }
         }
         true
@@ -577,12 +591,11 @@ impl UiPage for Browser {
                 new_state = Some(self.exit.clone_ui());
             } else {
                 if let Some(list) = list {
-                    if list.scan_once(&mut self.immediate_files) {
-                        ui.request_repaint();
-                    } else {
+                    if !list.scan_once(&mut self.immediate_files) {
                         self.current_path = format!("Found {} titles", self.immediate_files.len());
                         self.mode = BrowserMode::TitleList(None, *t);
                     }
+                    ui.request_repaint();
                 }
             }
         } else {
