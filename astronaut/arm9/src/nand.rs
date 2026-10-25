@@ -60,7 +60,6 @@ pub struct BasicSDMMCCursor<'a> {
     buffer: &'a mut [StorageSector],
     offset: usize,
     buffer_sector: u32,
-    lba: u32,
     nand: bool,
     dirty: bool,
 }
@@ -68,14 +67,12 @@ pub struct BasicSDMMCCursor<'a> {
 impl<'a> BasicSDMMCCursor<'a> {
     pub fn new(
         buffer: &'a mut [StorageSector],
-        lba_sector: u32,
         is_nand: bool,
     ) -> Result<Self, u32> {
         let mut oneself = Self {
             buffer_sector: 0,
             buffer,
             offset: 0,
-            lba: lba_sector,
             nand: is_nand,
             dirty: false,
         };
@@ -93,14 +90,14 @@ impl<'a> BasicSDMMCCursor<'a> {
     }
     pub fn read_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
-            true => read_encrypted_nand(self.buffer, self.lba + sector),
-            false => read_sd_card(self.buffer, self.lba + sector),
+            true => read_encrypted_nand(self.buffer,  sector),
+            false => read_sd_card(self.buffer,  sector),
         }
     }
     pub fn write_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
-            true => write_decrypted_nand(self.buffer, self.lba + sector),
-            false => write_sd_card(self.buffer, self.lba + sector),
+            true => write_decrypted_nand(self.buffer,  sector),
+            false => write_sd_card(self.buffer, sector),
         }
     }
     fn advance_sector(&mut self) -> Result<(), BasicSDMMCError> {

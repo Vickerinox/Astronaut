@@ -3,9 +3,9 @@
 
 use fatfs_embedded::fatfs::diskio::{DiskResult, FatFsDriver, IoctlCommand};
 use reboot_lib::{arm9_check_sdmmc, arm9_init_sdmmc};
-use reboot_lib::{bytemuck, fatfs_embedded};
+use reboot_lib::fatfs_embedded;
 
-use crate::{mbr, nand::read_encrypted_nand, nand::read_sd_card, nand::BasicSDMMCCursor};
+use crate::nand::BasicSDMMCCursor;
 
 pub struct SDMMCDriver {
     pub nand_controller: Option<BasicSDMMCCursor<'static>>,
@@ -27,16 +27,7 @@ impl SDMMCDriver {
         &mut self,
         buffer: &'static mut [reboot_lib::StorageSector],
     ) -> Option<BasicSDMMCCursor<'static>> {
-        read_sd_card(&mut buffer[..4], 0).ok()?;
-        let lba = {
-            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&buffer[0]);
-            if !mbr.has_valid_signature() {
-                return None;
-            }
-            core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba))
-        };
-
-        match BasicSDMMCCursor::new(buffer, lba, false) {
+        match BasicSDMMCCursor::new(buffer, false) {
             Ok(succ) => Some(succ),
             Err(code) => {
                 self.sdmc_error = code;
@@ -49,17 +40,7 @@ impl SDMMCDriver {
         &mut self,
         buffer: &'static mut [reboot_lib::StorageSector],
     ) -> Option<BasicSDMMCCursor<'static>> {
-        read_encrypted_nand(&mut buffer[..4], 0).ok()?;
-        let lba = {
-            let mbr: &mbr::MBR = bytemuck::must_cast_ref(&buffer[0]);
-            if !mbr.has_valid_signature() {
-                return None;
-            }
-            core::ptr::read_unaligned(core::ptr::addr_of!(mbr.partitions[0].lba))
-        };
-        read_encrypted_nand(buffer, lba).ok()?;
-
-        match BasicSDMMCCursor::new(buffer, lba, true) {
+        match BasicSDMMCCursor::new(buffer, true) {
             Ok(succ) => Some(succ),
             Err(code) => {
                 self.nand_error = code;

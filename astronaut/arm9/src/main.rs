@@ -18,7 +18,6 @@ pub mod resources;
 mod boot;
 mod files;
 mod gui;
-mod mbr;
 mod nand;
 mod screen_fade;
 

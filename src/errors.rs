@@ -1,7 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: GPL-3.0-or-later
-
-use crate::mmc::mbr::MBRError;
 use elf::ParseError;
 use fatfs_embedded::fatfs::Error as FatFsError;
 use std::fmt::Display;
@@ -92,8 +90,6 @@ pub enum NANDInjectError {
     MMCWrite(FileOpError),
     #[error("mmc seek failed {0:?}")]
     MMCSeek(FatFsError),
-    #[error("could not read mbr {0:?}")]
-    MBR(MBRError),
     #[error("fat fs creation failed {0:?}")]
     FileSystemCreation(FatFsError),
     #[error("HWINFO.DAT not found {0:?}, is filesystem corrupted? ")]

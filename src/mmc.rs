@@ -6,7 +6,6 @@ use core::array;
 use fatfs_embedded::fatfs::diskio::DiskResult;
 use fatfs_embedded::fatfs::{FileAttributes, FileOptions};
 use log::debug;
-use mbr::ByteDecode;
 use nandcursor::{NandSectorCursor, NandWrapper};
 use sha1::{Digest, Sha1};
 use std::{fs, vec};
@@ -16,7 +15,6 @@ use std::{
 };
 //pub mod aes_ecb;
 pub mod aes_ecb;
-pub mod mbr;
 pub mod nandcursor;
 
 const HWINFO_PATH: &str = "/sys/HWINFO_S.dat";
@@ -50,22 +48,9 @@ fn open_main_twl(nand_image: &mut [u8]) -> Result<NativeFatFsDriver<&mut [u8]>, 
         let key_y = 0xE1A00005_202DDD1D_BD4DC4D3_0AB9DC76;
         (key_x ^ key_y).wrapping_add(KEY_SCRAMBLE).rotate_left(42)
     };
-    let mut reader = NandSectorCursor::new(
-        NandWrapper::new(&mut nand_image[..512]),
-        [0u8; 512],
-        ctr,
-        key,
-    );
-
-    let mbr = mbr::MBR::from_reads(&mut reader).map_err(NANDInjectError::MBR)?;
-    drop(reader);
-
-    let start = (mbr.partitions[0].lba * 512) as usize;
-    let end = start + (mbr.partitions[0].sector_count * 512) as usize;
-    let ctr = ctr + (start as u128 >> 4);
 
     let reader = NandSectorCursor::new(
-        NandWrapper::new(&mut nand_image[start..end]),
+        NandWrapper::new(&mut nand_image[..]),
         [0u8; 512],
         ctr,
         key,
