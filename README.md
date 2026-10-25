@@ -36,6 +36,7 @@ The below apps are known to have issues, in case of DSiWare it is usually fixed 
 * Rayman (DSiWare) - Crashes on save points, shows corrupted graphics on title screen
 * Mario VS DK minis march again - top screen while loading shows the wrong graphics
 * Brain Age Express: Sudoku - Shows garbage on bottom screen during ESRB splash
+* Asphalt 4 elite racing - freezes right after ESRB screen
 * GodMode9i - NAND drive fails to mount (relaunch godmode9i from within itself and the problem is fixed) 
 
 
