@@ -342,14 +342,15 @@ impl Settings {
                     *self = Settings::SelectedCombo(buttons, SelectorState::Holding(0));
                     ui.request_repaint();
                 }
-                ui.label("hold a button combo to start, or A+B to cancel.");
+                ui.label("Hold the button combo to use...");
+                ui.label( "or A+B to cancel.");
                 None
             }
             SelectorState::Holding(timer) => {
                 ui.label(&format_combo(buttons));
                 if buttons == Buttons::empty() {
                     *self = Settings::SelectedCombo(combo, SelectorState::WaitingInput);
-                } else if timer > 90 {
+                } else if timer > 30 {
                     *self = Settings::SelectedCombo(buttons, SelectorState::Selected);
                 } else if buttons == combo {
                     *self = Settings::SelectedCombo(buttons, SelectorState::Holding(timer + 1));
