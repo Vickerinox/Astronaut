@@ -9,7 +9,7 @@ use common::blowfish::BFCTX;
 use common::bootstrap::{BootInfoNTR, BootInfoTWL, BOOTINFO_MEM};
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
-use reboot_lib::{swi_crc16, DisplayControl, VIDEO_HARDWARE};
+use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, swi_crc16};
 
 pub enum BootError {
     /// Binary isn't in a valid memory location
@@ -343,6 +343,9 @@ unsafe fn boot_unreturnable(
     reboot_lib::disable_all_interrupts();
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
 
+    VIDEO_HARDWARE
+            .power_control.modify(|i| i | VideoPowerControl::ENGINE_A_ON_TOP);
+        
     if app_data.fader.is_up() {
         set_background(0x7FFF);
         VIDEO_HARDWARE
@@ -351,6 +354,7 @@ unsafe fn boot_unreturnable(
             .write(0);
         VIDEO_HARDWARE.engine_a_ctrl.write(DisplayControl::empty());
         VIDEO_HARDWARE.engine_b_ctrl.write(DisplayControl::empty());
+        
 
         crate::set_bright(0);
     }

@@ -324,7 +324,7 @@ pub struct VideoHardware {
     pub vram_control_bank_h: WO<VRAMCtrl>,
     pub vram_control_bank_i: WO<VRAMCtrl>,
     _unimplemented_3: [u8; 0xBA],
-    pub power_control: WO<VideoPowerControl>,
+    pub power_control: RW<VideoPowerControl>,
     _unimplemented_4: [u8; 0x1A],
     pub rendered_lines: RO<u8>,
     _free_bus: [u8; 15],
