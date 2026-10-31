@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
-use core::{num::NonZeroU32, ptr::addr_of_mut};
+use core::{num::NonZeroU32, ptr::addr_of_mut, time};
 
 use volatile_register::RW;
 
@@ -11,6 +11,111 @@ use crate::{
     rtc::RTC_HARDWARE,
     ClockCnt, Control, DataControl32, Status, StorageSector, TMIOPort, SDIO_CONTROLLER,
 };
+
+/// Do EVERYTHING there is to do to intialize the wifi card on the DSi. 
+/// 
+/// ``wifi_version`` is the board type used (1 = DWM-W015, 2 = DWM-W024)
+/// 
+/// ``firmware`` is the raw bytes of the firmware segments used for that board (gotten from the firmware file in the 0003000f folder on NAND)
+/// 
+/// returns 0 on success, or an error number
+pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 {
+    // TODO: find a better way to detect already uploaded firmware?
+    if I2C_HARDWARE
+        .read_register(PowerRegister::WIFILED.into())
+        .ok()
+        == Some(0x13)
+    {
+        return 0;
+    }
+    //set initial registers for SDIO interface
+    dsio_hw_init();
+
+    //perform reset on the card (enough to be sure were in 4-bit bus width)
+    if nwifi_restart_card() {
+        return 1;
+    }
+
+    //perform func0 initialization (which readies us for func1)
+    if nwifi_init_func0() {
+        return 2;
+    }
+    //perform func1 initialization
+    if nwifi_init_func1() {
+        return 3;
+    }
+
+    //find out what the base address of the data segment for this card is
+    let Some(interest_area) = find_interest_addr(firmware) else {
+        return 5;
+    };
+
+    (0x200_05E4 as *mut [u8; 12]).write(interest_area.clone());
+    let Some(a) = interest_area.first_chunk().cloned() else {
+        return 5;
+    };
+    let data_base = u32::from_le_bytes(a);
+    // Upload segment D (bootstub data)
+    let Some((part_d, dest)) = get_wifi_part(firmware, FirmwarePart::PartD) else {
+        return 6;
+    };
+    if wifi_card_upload_binary(dest, part_d) {
+        return 6;
+    }
+    // Upload segment C (bootstub code)
+    let Some((part_c, dest)) = get_wifi_part(firmware, FirmwarePart::PartC) else {
+        return 7;
+    };
+    if wifi_card_upload_binary(dest, part_c) {
+        return 7;
+    }
+    // Execute bootstub code
+    if wifi_card_execute(dest + 0x400000, dest).is_none() {
+        return 8;
+    }
+    // Upload segment A (firmware code)
+    let Some((part_a, dest)) = get_wifi_part(firmware, FirmwarePart::PartA) else {
+        return 9;
+    };
+    if wifi_card_upload_binary_lz(dest, part_a) {
+        return 9;
+    }
+    // Upload segment B (firmware data, reffered to as "firmware database" by nocash)
+    let Some((part_b, dest)) = get_wifi_part(firmware, FirmwarePart::PartB) else {
+        return 10;
+    };
+    if wifi_card_upload_binary(dest, part_b) {
+        return 10;
+    }
+    // Write these random words which i have no idea what they do
+    if wifi_card_write_memory(data_base + 0x18, &mut dest.to_le_bytes()) {
+        return 11;
+    }
+    if wifi_card_write_memory(data_base + 0x6C, &mut 0x80u32.to_le_bytes()) {
+        return 11;
+    }
+    if wifi_card_write_memory(data_base + 0x74, &mut 0x63u32.to_le_bytes()) {
+        return 11;
+    }
+    // Start the firmware
+    if nwifi_start_firmware() {
+        return 12;
+    }
+    // Get confirmation that the firmware is launched
+    let mut timeout = 0;
+    loop {
+        if nwifi_read_intern_word(data_base + 0x58) == Some(1) {
+            break;
+        } else {
+            crate::swi::swi_delay(0x100);
+            timeout += 1;
+            if timeout > 0x10000 {
+                return 13;
+            }
+        };
+    }
+    0
+}
 
 unsafe fn nwifi_restart_card() -> bool {
     PORT.option = 0x40EE;
@@ -181,100 +286,7 @@ pub unsafe fn dsio_hw_init() {
     SDIO_CONTROLLER.ext_card_detect_dat3_mask.write(0xDB);
     SDIO_CONTROLLER.options.write(0x40EE);
 }
-pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 {
-    // TODO: find a better way to detect already uploaded firmware?
-    if I2C_HARDWARE
-        .read_register(PowerRegister::WIFILED.into())
-        .ok()
-        == Some(0x13)
-    {
-        return 0;
-    }
-    //set initial registers
-    dsio_hw_init();
 
-    //perform reset on the card (enough to be sure were in 4-bit bus width)
-    if nwifi_restart_card() {
-        return 1;
-    }
-
-    
-
-    //perform func0 initialization (which readies us for func1)
-    if nwifi_init_func0() {
-        return 2;
-    }
-    //perform func1 initialization
-    if nwifi_init_func1() {
-        return 3;
-    }
-
-    //find out what the base address of the data segment for this card is
-    let Some(interest_area) = find_interest_addr(firmware) else {
-        return 5;
-    };
-
-    (0x200_05E4 as *mut [u8; 12]).write(interest_area.clone());
-    let Some(a) = interest_area.first_chunk().cloned() else {
-        return 5;
-    };
-    let data_base = u32::from_le_bytes(a);
-    // Upload segment D (bootstub data)
-    let Some((part_d, dest)) = get_wifi_part(firmware, FirmwarePart::PartD) else {
-        return 6;
-    };
-    if wifi_card_upload_binary(dest, part_d) {
-        return 6;
-    }
-    // Upload segment C (bootstub code)
-    let Some((part_c, dest)) = get_wifi_part(firmware, FirmwarePart::PartC) else {
-        return 7;
-    };
-    if wifi_card_upload_binary(dest, part_c) {
-        return 7;
-    }
-    // Execute bootstub code
-    if wifi_card_execute(dest + 0x400000, dest).is_none() {
-        return 8;
-    }
-    // Upload segment A (firmware code)
-    let Some((part_a, dest)) = get_wifi_part(firmware, FirmwarePart::PartA) else {
-        return 9;
-    };
-    if wifi_card_upload_binary_lz(dest, part_a) {
-        return 9;
-    }
-    // Upload segment B (firmware data, reffered to as "firmware database" by nocash)
-    let Some((part_b, dest)) = get_wifi_part(firmware, FirmwarePart::PartB) else {
-        return 10;
-    };
-    if wifi_card_upload_binary(dest, part_b) {
-        return 10;
-    }
-    // Write these random words which i have no idea what they do
-    if wifi_card_write_memory(data_base + 0x18, &mut dest.to_le_bytes()) {
-        return 11;
-    }
-    if wifi_card_write_memory(data_base + 0x6C, &mut 0x80u32.to_le_bytes()) {
-        return 11;
-    }
-    if wifi_card_write_memory(data_base + 0x74, &mut 0x63u32.to_le_bytes()) {
-        return 11;
-    }
-    // Start the firmware
-    if nwifi_start_firmware() {
-        return 12;
-    }
-    // Get confirmation that the firmware is launched
-    loop {
-        if nwifi_read_intern_word(data_base + 0x58) == Some(1) {
-            break;
-        } else {
-            crate::swi::swi_delay(0x100)
-        };
-    }
-    0
-}
 
 fn find_firmware_for_card(version: u8, firmware: &mut [u8]) -> Option<&mut [u8]> {
     let firmware_count = firmware.get(0xa2).copied()?;

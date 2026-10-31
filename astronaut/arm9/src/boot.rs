@@ -33,69 +33,6 @@ impl Debug for BootError {
     }
 }
 
-unsafe fn find_wifi_firmware_path() -> Option<String> {
-    const CONTENT_FOLDER: &str = "nand:/title/0003000F/484E4341/content/";
-    let app_version = {
-        let mut firmware_tmd = fatfs_embedded::open(
-            &mut alloc::format!("{CONTENT_FOLDER}title.tmd"),
-            FileOptions::Read,
-        )
-        .ok()?;
-        let mut app_version = [0u8; 4];
-        fatfs_embedded::seek(&mut firmware_tmd, 0x1E4).ok()?;
-        read_all(&mut app_version, &mut firmware_tmd).ok()?;
-        u32::from_be_bytes(app_version)
-    };
-    Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
-}
-fn find_firmware_for_card(header: &[u8; 0x60], version: u8) -> Option<(u32, u32)> {
-    let firmware_count = header.get(0x2).copied()?;
-    let firm_params = (0..firmware_count as usize)
-        .into_iter()
-        .filter_map(|i| {
-            let offset = 0x4 + (i * 32);
-            header.get(offset..offset + 9)
-        })
-        .filter(|i| i.get(8).copied() == Some(version))
-        .next()?;
-
-    let offset = { u32::from_le_bytes(firm_params.first_chunk()?.clone()) };
-    let size = { u32::from_le_bytes(firm_params.get(4..)?.first_chunk()?.clone()) };
-    Some((offset, size))
-}
-unsafe fn get_wifi_firmware(
-    wifi_ver: u8,
-) -> Option<(fatfs_embedded::fatfs::File, alloc::alloc::Layout)> {
-    let mut firmware_path = find_wifi_firmware_path()?;
-    let mut firmware = fatfs_embedded::open(&mut firmware_path, FileOptions::Read).ok()?;
-    fatfs_embedded::seek(&mut firmware, 0xA0).ok()?;
-    let mut header = [0u8; 0x60];
-    read_all(&mut header, &mut firmware).ok()?;
-    let (offset, size) = find_firmware_for_card(&header, wifi_ver)?;
-
-    fatfs_embedded::seek(&mut firmware, offset).ok()?;
-
-    let layout = core::alloc::Layout::from_size_align(size as usize, 4).ok()?;
-    Some((firmware, layout))
-}
-unsafe fn load_wifi_firmware(wifi_ver: u8) -> u32 {
-    let mut ret = 0xDEADBEEF;
-    let Some((mut firmware, layout)) = get_wifi_firmware(wifi_ver) else {
-        return ret;
-    };
-    let firmware_ptr = alloc::alloc::alloc(layout);
-    let mut firmware_buffer = core::slice::from_raw_parts_mut(firmware_ptr, layout.size());
-
-    if read_all(&mut firmware_buffer, &mut firmware).is_ok() {
-        ret = match reboot_lib::arm9_init_nwifi(firmware_buffer) {
-            Ok(_) => 0,
-            Err(e) => e.get(),
-        };
-    }
-
-    alloc::alloc::dealloc(firmware_ptr, layout);
-    ret
-}
 
 #[link_section = ".text_itcm"]
 pub fn read_all(
@@ -166,7 +103,10 @@ unsafe fn boot_unreturnable(
         if ![0x00030017_484E4100, 0x00030004_49485900]
             .contains(&(boot_info.twl_header.title_id & !0xFF))
         {
-            load_wifi_firmware(boot_info.ntr.wifi_other[0]);
+            let error = crate::twl_wifi::load_wifi_firmware(boot_info.ntr.wifi_other[0]);
+            if error > 0 {
+                panic!("WiFi Init failed code {error}");
+            }
         }
     }
 

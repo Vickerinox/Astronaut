@@ -14,6 +14,7 @@ pub mod fat;
 pub mod graphics;
 pub mod music;
 pub mod resources;
+pub mod twl_wifi;
 
 mod boot;
 mod files;
