@@ -1,5 +1,5 @@
 use alloc::string::String;
-use reboot_lib::{bytemuck, fatfs_embedded::{self, fatfs::FileOptions}};
+use reboot_lib::{bytemuck::{self, Zeroable}, fatfs_embedded::{self, fatfs::FileOptions}};
 
 use crate::boot::read_all;
 
@@ -14,21 +14,21 @@ unsafe impl bytemuck::AnyBitPattern for AssumedHeader {}
 unsafe impl bytemuck::NoUninit for AssumedHeader {}
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct AssumedHeader {
     header: WiFiFirmwareFileHeader,
     entries: [WifiFirmwareEntry; 2],
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct WiFiFirmwareFileHeader {
     version_number: u16,
     firmwares_included: u8,
     _reserved: u8,
 }
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct WifiFirmwareEntry {
     offset: u32,
     size: u32,
@@ -68,7 +68,7 @@ unsafe fn get_wifi_firmware(
     // Seek to end of signature "preheader"
     fatfs_embedded::seek(&mut firmware, 0xA0).ok()?;
     // Read and parse "true header"
-    let mut header = AssumedHeader::default();
+    let mut header = AssumedHeader::zeroed();
     read_all(bytemuck::bytes_of_mut(&mut header), &mut firmware).ok()?;
     let WifiFirmwareEntry { offset, size, .. } = find_firmware_for_card(&header, wifi_ver)?;
 

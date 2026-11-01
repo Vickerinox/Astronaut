@@ -4,7 +4,7 @@
 use alloc::vec::Vec;
 
 use crate::boot::read_all;
-use reboot_lib::fatfs_embedded;
+use reboot_lib::{bytemuck::Zeroable, fatfs_embedded};
 
 unsafe impl reboot_lib::bytemuck::NoUninit for BMPHeader {}
 unsafe impl reboot_lib::bytemuck::NoUninit for DIBHeader40Bytes {}
@@ -16,7 +16,7 @@ unsafe impl reboot_lib::bytemuck::AnyBitPattern for BMPHeader {}
 unsafe impl reboot_lib::bytemuck::AnyBitPattern for DIBHeader40Bytes {}
 
 #[repr(C, packed)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct BMPHeader {
     /// The value "BM"
     pub identity: u16,
@@ -31,7 +31,7 @@ pub struct BMPHeader {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct DIBHeader40Bytes {
     /// Size of the header (should be 40)
     pub size: u32,
@@ -80,7 +80,7 @@ impl DecodedBMP {
 }
 impl BMPHeader {
     pub fn from_reader(fil: &mut fatfs_embedded::fatfs::File) -> Option<Self> {
-        let mut header = BMPHeader::default();
+        let mut header = BMPHeader::zeroed();
         read_all(reboot_lib::bytemuck::bytes_of_mut(&mut header), fil)
             .is_ok()
             .then_some(header)
@@ -88,7 +88,7 @@ impl BMPHeader {
 }
 impl DIBHeader40Bytes {
     pub fn from_reader(fil: &mut fatfs_embedded::fatfs::File) -> Option<Self> {
-        let mut buffer = DIBHeader40Bytes::default();
+        let mut buffer = DIBHeader40Bytes::zeroed();
         read_all(reboot_lib::bytemuck::bytes_of_mut(&mut buffer), fil).ok()?;
 
         // Toss out BMPs that are too large to be reasonable.
