@@ -117,6 +117,30 @@ pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 
     0
 }
 
+/// Initialize the SDIO interface to prepare for everything else were about to do
+pub unsafe fn dsio_hw_init() {
+    (*(0x4004008 as *mut RW<u32>)).modify(|i| i | (1 << 19) | (1 << 23));
+    //wifi_card_wlan_init_bmi
+    (*(0x4004C04 as *mut RW<u16>)).write(0);
+    crate::swi_delay(5 * 134056);
+
+    I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 0x13);
+    (*(0x4004020 as *mut RW<u16>)).write(1); //SCFG: wifi on?
+
+    SDIO_CONTROLLER.port_select.write(0);
+    SDIO_CONTROLLER
+        .data_control_32
+        .write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32);
+    SDIO_CONTROLLER.data_control.write(Control::USE_DATA32);
+    SDIO_CONTROLLER.soft_reset.write(0);
+    SDIO_CONTROLLER.soft_reset.write(1);
+    SDIO_CONTROLLER.irmask.write(Status::all());
+    SDIO_CONTROLLER.ext_card_detect_mask.write(0xDB);
+    SDIO_CONTROLLER.ext_card_detect_dat3_mask.write(0xDB);
+    SDIO_CONTROLLER.options.write(0x40EE);
+}
+
+/// Initialize the wifi card to a point where we can send func0 commands to it.
 unsafe fn nwifi_restart_card() -> bool {
     PORT.option = 0x40EE;
     SDIO_CONTROLLER.wait_busy();
@@ -174,6 +198,8 @@ unsafe fn nwifi_restart_card() -> bool {
     SDIO_CONTROLLER.prepare_port(&mut PORT);
     false
 }
+
+/// Initialize func0 to a point where we can start sending func1 commands too.
 unsafe fn nwifi_init_func0() -> bool {
     if sdio_write_func_byte(SDIOFunc::Zero, 0x12, 0x2) {
         return true;
@@ -197,6 +223,8 @@ unsafe fn nwifi_init_func0() -> bool {
     while sdio_read_func_byte(SDIOFunc::Zero, 3) != Some(2) {}
     false
 }
+
+/// Initialize func1 so we can start uploading the Wifi firmware 
 unsafe fn nwifi_init_func1() -> bool {
     /*
     let Some(is_fw_uploaded) = nwifi_read_intern_word(interest_addr + 0x58) else {
@@ -212,7 +240,6 @@ unsafe fn nwifi_init_func1() -> bool {
         return true;
     }
 
-    
     crate::swi_delay(0x10000);
 
     if nwifi_read_intern_word(0x40C0) != Some(2) {
@@ -265,28 +292,6 @@ unsafe fn wifi_card_send_command(
     }
     SDIO_CONTROLLER.send_command_inner(&mut PORT, command, arg)
 }
-pub unsafe fn dsio_hw_init() {
-    (*(0x4004008 as *mut RW<u32>)).modify(|i| i | (1 << 19) | (1 << 23));
-    //wifi_card_wlan_init_bmi
-    (*(0x4004C04 as *mut RW<u16>)).write(0);
-    crate::swi_delay(5 * 134056);
-
-    I2C_HARDWARE.write_register(PowerRegister::WIFILED.into(), 0x13);
-    (*(0x4004020 as *mut RW<u16>)).write(1); //SCFG: wifi on?
-
-    SDIO_CONTROLLER.port_select.write(0);
-    SDIO_CONTROLLER
-        .data_control_32
-        .write(DataControl32::USE_DATA32 | DataControl32::CLEAR_FIFO_32);
-    SDIO_CONTROLLER.data_control.write(Control::USE_DATA32);
-    SDIO_CONTROLLER.soft_reset.write(0);
-    SDIO_CONTROLLER.soft_reset.write(1);
-    SDIO_CONTROLLER.irmask.write(Status::all());
-    SDIO_CONTROLLER.ext_card_detect_mask.write(0xDB);
-    SDIO_CONTROLLER.ext_card_detect_dat3_mask.write(0xDB);
-    SDIO_CONTROLLER.options.write(0x40EE);
-}
-
 
 fn find_firmware_for_card(version: u8, firmware: &mut [u8]) -> Option<&mut [u8]> {
     let firmware_count = firmware.get(0xa2).copied()?;
@@ -304,6 +309,7 @@ fn find_firmware_for_card(version: u8, firmware: &mut [u8]) -> Option<&mut [u8]>
     let firmware = firmware.get_mut(offset..)?;
     Some(firmware)
 }
+/// Loads the "RAM vars" values from the firmware (see GBATEK for more info: https://problemkaputt.de/gbatek-dsi-sd-mmc-firmware-wifi-firmware.htm)
 fn find_interest_addr(firmware: &[u8]) -> Option<&[u8; 12]> {
     let first = firmware.first_chunk::<4>()?.clone();
     let id_count = first[1];
@@ -315,13 +321,12 @@ fn find_interest_addr(firmware: &[u8]) -> Option<&[u8; 12]> {
         .flatten()?;
     Some(chunk)
 }
-unsafe fn upload_wifi_firmware(wifi_version: u8, firmware: &[u8], interest_area: u32) -> u32 {
-    0
-}
+
 unsafe fn nwifi_start_firmware() -> bool {
     wifi_wait_count4();
     nwifi_write_mbox_u32(1, true)
 }
+
 #[repr(u8)]
 enum FirmwarePart {
     PartA = 0,
@@ -329,6 +334,7 @@ enum FirmwarePart {
     PartC = 2,
     PartD = 3,
 }
+/// Extract a segment from the wifi part and returning the content of that segment and the load address for it
 fn get_wifi_part<'a>(firmware: &'a mut [u8], part: FirmwarePart) -> Option<(&'a mut [u8], u32)> {
     let parts = firmware.get(4 + (part as u8 as usize * 16)..)?;
     let (offset, rem) = parts.split_first_chunk::<4>()?;
@@ -342,6 +348,7 @@ fn get_wifi_part<'a>(firmware: &'a mut [u8], part: FirmwarePart) -> Option<(&'a 
         .get_mut(offset..offset + len)
         .map(|i| (i, destination))
 }
+/// Upload a wifi firmware segment to the card
 unsafe fn wifi_card_upload_binary(addr: u32, binary: &mut [u8]) -> bool {
     const CHUNK_SIZE: usize = 0x1F0;
     for (i, chunk) in binary.chunks_mut(CHUNK_SIZE).enumerate() {
@@ -351,6 +358,7 @@ unsafe fn wifi_card_upload_binary(addr: u32, binary: &mut [u8]) -> bool {
     }
     false
 }
+/// Upload a compressed wifi firmware segment
 unsafe fn wifi_card_upload_binary_lz(addr: u32, binary: &mut [u8]) -> bool {
     if wifi_card_start_lz(addr) {
         return true;
@@ -362,7 +370,6 @@ unsafe fn wifi_card_upload_binary_lz(addr: u32, binary: &mut [u8]) -> bool {
     }
     false
 }
-
 unsafe fn wifi_card_start_lz(addr: u32) -> bool {
     wifi_wait_count4();
     nwifi_write_mbox_u32(0xD, false) | nwifi_write_mbox_u32(addr, true)
