@@ -54,6 +54,9 @@ When compiling Astronaut yourself you will need the following installed:
 * the `arm-none-eabi-gcc` compiler.  
 * ``git`` version control. (used to generate git hash for main menu)
 
+>[!NOTE]
+>On arch based linux distros, you will likely also need the ``extra/arm-none-eabi-newlib`` package (or similar).
+
 Once rust and the other dependencies are installed, compiling *should* be as simple as running `cargo run`. Optionally, you can provide a number of command line arguments to change how astronaut is compiled. For information, use ``cargo run -- --help``. (NOTE: the first set of ``--`` means we're finished providing command line arguments for cargo, and everything thereafter goes to the compiled build program.)
 
 ## Compatability with Unlaunch (and the a+b combo)

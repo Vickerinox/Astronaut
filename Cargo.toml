@@ -17,7 +17,7 @@ members = [
 [dependencies]
 common = {path="./crates/common"}
 elf = "0.7.4"
-fatfs-embedded = {git="https://github.com/Vickerinox/fatfs-embedded.git", rev="5eabf690f45e04e9cef1d2601760008f0682606f"}
+fatfs-embedded = {git="https://github.com/Vickerinox/fatfs-embedded.git", rev="0789fadb95bf9c8a23984c4fc2ea816dfc385bf8"}
 
 sha1 = "0.10.6"
 clap = { version = "4.5.23", features = ["derive"] }
