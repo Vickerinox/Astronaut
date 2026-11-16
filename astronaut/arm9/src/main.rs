@@ -22,11 +22,12 @@ mod gui;
 mod nand;
 mod screen_fade;
 
+use alloc::string::ToString;
 pub use files::{filetype, get_extension, truncate_name, FileEntry, FileType};
 pub use micro_imgui_ds::SCREEN_RECT;
 pub use screen_fade::{irq_screen_fade, Fader};
 
-use crate::boot::read_all;
+use crate::boot::{boot_app, read_all};
 use crate::configuration::{Config, Theme};
 use crate::fat::driver::SDMMCDriver;
 use crate::graphics::bmp::AsyncBMPLoader;
@@ -143,6 +144,13 @@ unsafe fn load_aux_segment(data: &mut GlobalData) -> bool {
 unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
+}
+pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
+    BOOT_INFO.official.set_slot1();
+    BOOT_INFO.optional.reset();
+    let mut file_path = "nand:/title/00030017/484e4150/content/00000002.app".to_string();
+    let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };
+    boot_app(&mut r, &file_path, app_data);
 }
 unsafe fn main() {
     unsafe {

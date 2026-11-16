@@ -10,9 +10,14 @@ use crate::MemoryWrapper;
 pub struct BootMethods {
     pub optional: OptBoot,
     pub official: OfficialBoot,
-    _0x400: [u8; 0x400],
+    system_settings: SystemSettings,
+    _0x528: [u32; 0xB8/4],
+    wifi: WifiParams,
+    hwinfo_n: HWINFONbuf,
+    _0x614: [u32; 0x1EC/4],
     pub unlaunch: UnlaunchBoot,
 }
+
 unsafe impl bytemuck::AnyBitPattern for BootMethods {}
 unsafe impl bytemuck::Zeroable for BootMethods {}
 unsafe impl bytemuck::NoUninit for BootMethods {}
@@ -58,7 +63,6 @@ impl OptBoot {
             unknown2: 0,
             unknown_buffer: [0; _],
         };
-        self.flags = 0x17;
     }
 }
 #[repr(C)]
@@ -75,6 +79,23 @@ pub struct OfficialBoot {
     unknown_buffer: [u8; 0xE0],
 }
 impl OfficialBoot {
+    pub fn set_slot1(&mut self) {
+        self.gamecode = u32::from_be_bytes(*b"CNLT");
+        self.unknown = 1;
+        self.crc_length = 0x18;
+        self.old_title_id = u64::from_le_bytes(*b"\0\0\0\0CART"); // can be anything afaik, just not 0
+        self.new_title_id = u64::from_le_bytes(*b"\0\0\0\0CART");
+        self.flags = 0x13; // what actually tells the launcher we're trying to do slot-1
+        self.unknown2 = 0;
+        self.crc = unsafe {
+            crate::swi_crc16(
+                0xFFFF,
+                core::ptr::addr_of!(self.old_title_id) as *const (),
+                self.crc_length as usize,
+            )
+        };
+        self.unknown_buffer = [0; _];
+    }
     pub fn reset(&mut self) {
         *self = Self {
             gamecode: 0,
@@ -174,5 +195,31 @@ impl UnlaunchParams {
             .unwrap_or_default()
     }
 }
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct WifiParams {
+    kind: u8,
+    unknown: u8,
+    crc: u16,
+    vars: u32,
+    base: u32,
+    size: u32,
+    unknown2: [u32; 0x10/4],
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SystemSettings {
+    // bytes from 0x88..=0x1AF in TWLCFG0/1.dat
+    buffer: [u8; 0x128],
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HWINFONbuf {
+    // bytes from 0x88..=0x9B in HWINFO_N.dat
+    buffer: [u8; 0x14],
+}
+
 /// Boot info provided by past boots of the console
 pub const BOOT_INFO: MemoryWrapper<BootMethods> = MemoryWrapper(0x200_0000 as *mut _);
+
