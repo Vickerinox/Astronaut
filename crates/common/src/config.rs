@@ -3,15 +3,18 @@
 
 use crate::bootstrap::BootInfoTWL;
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct WifiConfig {
     pub version: u16,
     pub crc: u16,
     pub data_segment: u32,
     pub base_address: u32,
     pub length: u32,
+    unknown: [u32; 0x10/4],
 }
 #[repr(C)]
-pub struct TWLCfg {
+#[derive(Clone, Copy)]
+pub struct TWLSettings {
     //flags
     pub config_flags: u32,
     _0x4: u8,
@@ -60,9 +63,6 @@ pub struct TWLCfg {
     _0x9f: [u8; 2],
     pub pc_pin: [u8; 5],
     pub pc_secret_answer: [u16; 65],
-    _0x128: [u8; 0xD8],
-    _0x200: [u8; 0xE0],
-    pub wifi_data: WifiConfig,
 }
 
 #[repr(u8)]
@@ -113,13 +113,12 @@ impl Region {
 pub unsafe fn init(header: &mut BootInfoTWL) {
     let region = Region::from_gamecode(header.twl_header.head.tid);
     let common = &header.ntr.firmware_data.bytes;
-    let config = &mut *(0x200_0400 as *mut TWLCfg);
+    let config = &mut *(0x200_0400 as *mut TWLSettings);
+    
     config.config_flags = 0x0100000F;
     config.country = 0x4E;
     config.language = 1;
-
     config.eula[0] = 1;
-
     config.system_menu_free_slots = 9;
     config.system_menu_used_slots = 30;
     config.unknown = 3;

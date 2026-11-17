@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use alloc::string::String;
+use common::config::{TWLSettings, WifiConfig};
 
 use crate::MemoryWrapper;
 
@@ -10,10 +11,10 @@ use crate::MemoryWrapper;
 pub struct BootMethods {
     pub optional: OptBoot,
     pub official: OfficialBoot,
-    system_settings: SystemSettings,
+    pub system_settings: TWLSettings,
     _0x528: [u32; 0xB8/4],
-    pub wifi: WifiParams,
-    hwinfo_n: HWINFONbuf,
+    pub wifi_data: WifiConfig,
+    pub hwinfo: HWINFONbuf,
     _0x614: [u32; 0x1EC/4],
     pub unlaunch: UnlaunchBoot,
 }
@@ -60,11 +61,17 @@ impl OptBoot {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OfficialBoot {
-    gamecode: u32,
+    /// Signature of the structure
+    signature: u32,
+    /// Unknown
     unknown: u8,
-    crc_length: u8,
+    /// length of CRC (should be size of OfficialBootParams)
+    crc_len: u8,
+    /// CRC code 
     crc: u16,
-    params: OfficialBootParams,
+    /// Parameters
+    params: core::mem::MaybeUninit<OfficialBootParams>,
+    /// Leftover buffer, unknown
     unknown_buffer: [u8; 0xE0],
 }
 #[repr(C)]
@@ -77,25 +84,38 @@ pub struct OfficialBootParams {
 }
 impl OfficialBoot {
     pub fn set_slot1(&mut self) {
-        self.gamecode = u32::from_be_bytes(*b"CNLT");
+        self.signature = u32::from_be_bytes(*b"CNLT");
         self.unknown = 1;
-        self.crc_length = 0x18;
-        self.params.old_title_id = u64::from_le_bytes(*b"\0\0\0\0CART"); // can be anything afaik, just not 0
-        self.params.new_title_id = u64::from_le_bytes(*b"\0\0\0\0CART");
-        self.params.flags = 0x13; // what actually tells the launcher we're trying to do slot-1
-        self.params.unknown2 = 0;
+        self.params.write(OfficialBootParams { 
+            old_title_id: u64::from_le_bytes(*b"\0\0\0\0CART"), // can be anything afaik, just not 0
+            new_title_id: u64::from_le_bytes(*b"\0\0\0\0CART"), // can be anything afaik, just not 0
+            flags: 0x13, // what actually tells the launcher we're trying to do slot-1
+            unknown2: 0 
+        });
         self.crc = crate::calculate_crc!(self.params);
+        self.crc_len = core::mem::size_of::<OfficialBootParams>() as _;
         self.unknown_buffer = [0; _];
     }
+
+    pub fn get_params<'a>(&'a self) -> Option<&'a OfficialBootParams> {
+        // Validate Signature
+        if self.signature != u32::from_be_bytes(*b"CNLT") {
+            return None;
+        }
+        // Validate CRC length
+        if self.crc_len != core::mem::size_of::<OfficialBootParams>() as _ {
+            return None;
+        }
+        // Calculate CRC
+        // Safety: the length is known and function only reads memory
+        let crc = crate::calculate_crc!(self.params); 
+        // Verify CRC
+        // Safety: params doesn't have any invalid bit patterns and have been verified by the CRC
+        (crc == self.crc).then_some(unsafe { self.params.assume_init_ref() })
+    }
+    
     pub fn reset(&mut self) {
-        *self = Self {
-            gamecode: 0,
-            unknown: 0,
-            crc_length: 0,
-            crc: 0,
-            params: unsafe { core::mem::zeroed()},
-            unknown_buffer: [0; _],
-        };
+        *self = unsafe { core::mem::zeroed()};
     }
 }
 const_assert!(core::mem::size_of::<OfficialBoot>() == 0x100);
@@ -178,17 +198,6 @@ impl UnlaunchParams {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct WifiParams {
-    kind: u8,
-    unknown: u8,
-    crc: u16,
-    vars: u32,
-    base: u32,
-    size: u32,
-    unknown2: [u32; 0x10/4],
-}
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SystemSettings {

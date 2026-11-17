@@ -53,15 +53,19 @@ const BINARY_START: usize = 0x037DF27C;
 const APP_AREA_START: usize = DSI_WRAM_START + 0xC000;
 // How long the app area may theorhetically be as to not collide with the TMD
 const APP_AREA_LEN: usize = BINARY_START - APP_AREA_START;
+// The location in which the path to the currently running TMD is stored by stage2.
+const TMD_STR_ADDR: *const core::ffi::c_char = 0x02FE34C4 as *const _;
 
 const BACKGROUND_COLOR: u16 = 0b0_00100_00100_00100;
 
+// Values provided by the linker script to let us determine where to load AUX and ITCM segments of ourself
 extern "C" {
     static mut _itcm_addr: u32;
     static _itcm_len_words: u8;
     static _aux_off: u8;
     static _aux_len: u8;
 }
+
 pub struct FileSystems {
     pub nand_fs: RawFileSystem,
     pub sdmc_fs: RawFileSystem,
@@ -224,7 +228,7 @@ unsafe fn main() {
         let _ = app_area.filesystems.sdmc_fs.mount(c"sdmc:");
 
         // Find the TMD we were launched from (if any, string left over by stage 2)
-        let tmd_path = core::ffi::CStr::from_ptr(0x02FE34C4 as *const _)
+        let tmd_path = core::ffi::CStr::from_ptr(TMD_STR_ADDR)
             .to_str()
             .map(|i| String::from("nand:/") + i)
             .unwrap_or(String::new());
