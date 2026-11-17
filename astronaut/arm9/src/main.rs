@@ -34,7 +34,7 @@ use crate::graphics::bmp::AsyncBMPLoader;
 use crate::gui::{AppData, GlobalData};
 use alloc::vec;
 use alloc::{boxed::Box, string::String};
-use common::blowfish::BFCTX;
+use common::blowfish::BlowfishCTX;
 use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
 use graphics::font::load_default_font;
@@ -145,6 +145,7 @@ unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
 }
+#[allow(const_item_mutation)]
 pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
     BOOT_INFO.official.set_slot1();
     BOOT_INFO.optional.reset();
@@ -152,6 +153,8 @@ pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
     let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };
     boot_app(&mut r, &file_path, app_data);
 }
+const NDS_MODE_BLOWFISH: *const BlowfishCTX = 0x1FFC894 as *const BlowfishCTX;
+
 unsafe fn main() {
     unsafe {
         // Print debug string visible on emulators
@@ -238,7 +241,7 @@ unsafe fn main() {
             (&raw mut (*ptr).global_data.queued_bmp).write(None);
 
             // Copy the blowfish key present in ITCM from stage 2
-            (&raw mut (*ptr).global_data.blowfish).write((*(0x1FFC894 as *const BFCTX)).clone());
+            (&raw mut (*ptr).global_data.blowfish).write((*NDS_MODE_BLOWFISH).clone());
 
             (&raw mut (*ptr).global_data.safe_mode).write(false);
 

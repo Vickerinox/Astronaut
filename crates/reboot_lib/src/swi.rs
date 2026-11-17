@@ -62,6 +62,19 @@ pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     retu
 }
 
+#[macro_export]
+macro_rules! calculate_crc {
+    ($var:expr) => {
+        unsafe {
+            $crate::swi_crc16(
+                0xFFFF,
+                core::ptr::addr_of!($var) as *const (),
+                core::mem::size_of_val(&$var),
+            )
+        }
+    };
+}
+
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 pub unsafe fn swi_vblank() {
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this

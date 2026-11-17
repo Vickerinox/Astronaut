@@ -72,28 +72,27 @@ pub struct OfficialBoot {
     unknown: u8,
     crc_length: u8,
     crc: u16,
+    params: OfficialBootParams,
+    unknown_buffer: [u8; 0xE0],
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct OfficialBootParams {
     old_title_id: u64,
     new_title_id: u64,
     flags: u32,
     unknown2: u32,
-    unknown_buffer: [u8; 0xE0],
 }
 impl OfficialBoot {
     pub fn set_slot1(&mut self) {
         self.gamecode = u32::from_be_bytes(*b"CNLT");
         self.unknown = 1;
         self.crc_length = 0x18;
-        self.old_title_id = u64::from_le_bytes(*b"\0\0\0\0CART"); // can be anything afaik, just not 0
-        self.new_title_id = u64::from_le_bytes(*b"\0\0\0\0CART");
-        self.flags = 0x13; // what actually tells the launcher we're trying to do slot-1
-        self.unknown2 = 0;
-        self.crc = unsafe {
-            crate::swi_crc16(
-                0xFFFF,
-                core::ptr::addr_of!(self.old_title_id) as *const (),
-                self.crc_length as usize,
-            )
-        };
+        self.params.old_title_id = u64::from_le_bytes(*b"\0\0\0\0CART"); // can be anything afaik, just not 0
+        self.params.new_title_id = u64::from_le_bytes(*b"\0\0\0\0CART");
+        self.params.flags = 0x13; // what actually tells the launcher we're trying to do slot-1
+        self.params.unknown2 = 0;
+        self.crc = crate::calculate_crc!(self.params);
         self.unknown_buffer = [0; _];
     }
     pub fn reset(&mut self) {
@@ -102,10 +101,7 @@ impl OfficialBoot {
             unknown: 0,
             crc_length: 0,
             crc: 0,
-            old_title_id: 0,
-            new_title_id: 0,
-            flags: 0,
-            unknown2: 0,
+            params: unsafe { core::mem::zeroed()},
             unknown_buffer: [0; _],
         };
     }
@@ -168,13 +164,7 @@ impl UnlaunchBoot {
         }
         // Calculate CRC
         // Safety: the length is known and function only reads memory
-        let crc = unsafe {
-            crate::swi_crc16(
-                0xFFFF,
-                core::ptr::addr_of!(self.params) as *const (),
-                self.crc_len as usize,
-            )
-        };
+        let crc = crate::calculate_crc!(self.params); 
         // Verify CRC
         // Safety: params doesn't have any invalid bit patterns and have been verified by the CRC
         (crc == self.crc).then_some(unsafe { self.params.assume_init_ref() })

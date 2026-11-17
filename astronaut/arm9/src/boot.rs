@@ -5,7 +5,7 @@ use core::fmt::Debug;
 
 use crate::{graphics::set_background, gui::GlobalData, AppArea, APP_AREA_START};
 use alloc::string::{String, ToString};
-use common::blowfish::BFCTX;
+use common::blowfish::BlowfishCTX;
 use common::bootstrap::{BootInfoNTR, BootInfoTWL, BOOTINFO_MEM};
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
@@ -343,8 +343,8 @@ pub unsafe fn boot_app(
             &mut app_data.config.ext_blowfish_main.clone(),
             FileOptions::Read,
         ) {
-            if fatfs_embedded::size(&mut fil) as usize == core::mem::size_of::<BFCTX>() {
-                const BLOWFISH_LEN: usize = core::mem::size_of::<BFCTX>();
+            if fatfs_embedded::size(&mut fil) as usize == core::mem::size_of::<BlowfishCTX>() {
+                const BLOWFISH_LEN: usize = core::mem::size_of::<BlowfishCTX>();
                 let slice = app_data.blowfish.bytes_mut();
                 if fatfs_embedded::read(&mut fil, slice) != Ok(BLOWFISH_LEN as u32) {
                     return BootError::InvalidBlowfishKey;

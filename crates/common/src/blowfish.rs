@@ -4,20 +4,24 @@
 use crate::bootstrap::TWLHeader;
 
 #[derive(Clone, Copy)]
-pub struct BFCTX {
+pub struct BlowfishCTX {
     magic: [u32; 0x412],
 }
 
-unsafe impl bytemuck::Zeroable for BFCTX {}
-unsafe impl bytemuck::Pod for BFCTX {}
+unsafe impl bytemuck::Zeroable for BlowfishCTX {}
+unsafe impl bytemuck::Pod for BlowfishCTX {}
 
-impl BFCTX {
+impl BlowfishCTX {
+    // Access individual bytes of the blowfish context
     pub fn bytes(&self) -> &[u8] {
         bytemuck::must_cast_slice(&self.magic)
     }
+
+    // Mutably ccess individual bytes of the blowfish context
     pub fn bytes_mut(&mut self) -> &mut [u8] {
         bytemuck::must_cast_slice_mut(&mut self.magic)
     }
+
     fn lookup(&self, v: u32) -> u32 {
         let mut a = (v >> 24) & 0xFF;
         let mut b = (v >> 16) & 0xFF;

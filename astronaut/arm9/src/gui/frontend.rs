@@ -11,14 +11,14 @@ use crate::{
 
 use crate::Fader;
 use alloc::{boxed::Box, format, string::String};
-use common::blowfish::BFCTX;
+use common::blowfish::BlowfishCTX;
 use fatfs_embedded::fatfs::FileOptions;
 use micro_imgui_ds::micro_imgui;
 use micro_imgui_ds::micro_imgui::Backend;
 use reboot_lib::fatfs_embedded;
 pub struct GlobalData {
     pub our_path: String,
-    pub blowfish: BFCTX,
+    pub blowfish: BlowfishCTX,
     pub loading_mod_file: MusicPlaying,
     pub config: crate::configuration::Config,
     pub theme: Theme,
