@@ -12,7 +12,7 @@ pub struct BootMethods {
     pub official: OfficialBoot,
     system_settings: SystemSettings,
     _0x528: [u32; 0xB8/4],
-    wifi: WifiParams,
+    pub wifi: WifiParams,
     hwinfo_n: HWINFONbuf,
     _0x614: [u32; 0x1EC/4],
     pub unlaunch: UnlaunchBoot,
@@ -22,17 +22,9 @@ unsafe impl bytemuck::AnyBitPattern for BootMethods {}
 unsafe impl bytemuck::Zeroable for BootMethods {}
 unsafe impl bytemuck::NoUninit for BootMethods {}
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct BootMethodWords([u32; size_of::<BootMethods>() / size_of::<u32>()]);
-unsafe impl bytemuck::AnyBitPattern for BootMethodWords {}
-unsafe impl bytemuck::Zeroable for BootMethodWords {}
-unsafe impl bytemuck::NoUninit for BootMethodWords {}
-
 impl BootMethods {
     pub fn clear(&mut self) {
-        let words = bytemuck::must_cast_mut::<BootMethods, BootMethodWords>(self);
-        words.0 = [0; _];
+        *self = unsafe { core::mem::zeroed() };
     }
 }
 

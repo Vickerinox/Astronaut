@@ -41,7 +41,7 @@ pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 #[allow(unused_variables)]
-pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
+pub unsafe fn unsafe_swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     let mut retu = start;
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
@@ -61,15 +61,23 @@ pub unsafe fn swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
     );
     retu
 }
-
+/// Safely calculate the crc16 of a datatype with compile time checks
+/// 
+/// This function will panic if ``T`` doesn't have an alignment equal to or greater than two,
+/// which is the minimum accepted by the crc16 function.
+#[inline(always)]
+#[cfg(any(feature = "arm9", feature = "arm7"))]
+pub fn swi_crc16<T>(start: u16, source: &T) -> u16 {
+    let _ = crate::typecheck::TypeCheck::<T, u16>::ASSERT_ALIGN_GREATER_THAN_EQUAL;
+    unsafe { unsafe_swi_crc16(start, core::ptr::addr_of!(*source) as _, core::mem::size_of_val(source)) }
+}
 #[macro_export]
 macro_rules! calculate_crc {
     ($var:expr) => {
         unsafe {
             $crate::swi_crc16(
                 0xFFFF,
-                core::ptr::addr_of!($var) as *const (),
-                core::mem::size_of_val(&$var),
+                &$var
             )
         }
     };

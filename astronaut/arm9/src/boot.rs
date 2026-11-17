@@ -266,7 +266,7 @@ unsafe fn boot_unreturnable(
         common::config::init(boot_info);
         let wifi_type = boot_info.ntr.wifi_other[0];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
-        (0x20005E2 as *mut u16).write_volatile(swi_crc16(0xFFFF, 0x020005E4 as *const (), 0xC));
+        (0x20005E2 as *mut u16).write_volatile(reboot_lib::calculate_crc!(*(0x020005E4 as *const [u32; 3])));
 
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
