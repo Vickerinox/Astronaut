@@ -41,7 +41,7 @@ pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 #[allow(unused_variables)]
-pub unsafe fn unsafe_swi_crc16(start: u16, source: *const (), len: usize) -> u16 {
+pub unsafe fn swi_crc16_raw(start: u16, source: *const (), len: usize) -> u16 {
     let mut retu = start;
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
@@ -69,10 +69,10 @@ pub unsafe fn unsafe_swi_crc16(start: u16, source: *const (), len: usize) -> u16
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 pub fn swi_crc16<T>(start: u16, source: &T) -> u16 {
     let _ = crate::typecheck::TypeCheck::<T, u16>::ASSERT_ALIGN_GREATER_THAN_EQUAL;
-    unsafe { unsafe_swi_crc16(start, core::ptr::addr_of!(*source) as _, core::mem::size_of_val(source)) }
+    unsafe { swi_crc16_raw(start, core::ptr::addr_of!(*source) as _, core::mem::size_of_val(source)) }
 }
 #[macro_export]
-macro_rules! calculate_crc {
+macro_rules! crc_of {
     ($var:expr) => {
         unsafe {
             $crate::swi_crc16(

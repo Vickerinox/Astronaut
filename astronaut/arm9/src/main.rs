@@ -153,7 +153,35 @@ unsafe fn set_bright(factor: u16) {
 pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
     CONSOLE_INFO.official_autoboot.set_slot1();
     CONSOLE_INFO.optional_autoboot.reset();
-    let mut file_path = "nand:/title/00030017/484e4150/content/00000002.app".to_string();
+
+    let tid = {
+        let Ok(mut hwinfo_file) =
+            fatfs_embedded::open(&mut String::from("nand:/sys/HWINFO_S.dat"), FileOptions::Read)
+                else { return; };
+        if fatfs_embedded::seek(&mut hwinfo_file, 0xA0).is_err() {
+            return
+        }
+        let mut tid_buffer = 0u32;
+        if read_all(bytemuck::bytes_of_mut(&mut tid_buffer),&mut hwinfo_file).is_err() {
+            return;
+        }
+        tid_buffer
+    };
+    let version = {
+        let mut tmd_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/title.tmd");
+        let Ok(mut firmware_tmd) =
+            fatfs_embedded::open(&mut tmd_path, FileOptions::Read)
+                else { return; };
+        let mut app_version = [0u8; 4];
+        if fatfs_embedded::seek(&mut firmware_tmd, 0x1E4).is_err() {
+            return;
+        } 
+        if read_all(&mut app_version, &mut firmware_tmd).is_err() {
+            return
+        }
+        u32::from_be_bytes(app_version)
+    };
+    let mut file_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/{version:08x}.app");
     let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };
     boot_app(&mut r, &file_path, app_data);
 }

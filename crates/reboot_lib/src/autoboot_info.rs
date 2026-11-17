@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Viktor Karlsson <viktor@koda.re>
 // SPDX-License-Identifier: MIT
 
+use core::mem::MaybeUninit;
+
 use alloc::string::String;
 use common::config::{TWLSettings, WifiConfig};
 
@@ -70,7 +72,7 @@ pub struct OfficialBoot {
     /// CRC code 
     crc: u16,
     /// Parameters
-    params: core::mem::MaybeUninit<OfficialBootParams>,
+    params: MaybeUninit<OfficialBootParams>,
     /// Leftover buffer, unknown
     unknown_buffer: [u8; 0xE0],
 }
@@ -83,23 +85,24 @@ pub struct OfficialBootParams {
     unknown2: u32,
 }
 impl OfficialBoot {
+    pub const SIGNATURE_MAGIC: u32 = u32::from_be_bytes(*b"CNLT");
     pub fn set_slot1(&mut self) {
-        self.signature = u32::from_be_bytes(*b"CNLT");
+        self.signature = Self::SIGNATURE_MAGIC;
         self.unknown = 1;
         self.params.write(OfficialBootParams { 
-            old_title_id: u64::from_le_bytes(*b"\0\0\0\0CART"), // can be anything afaik, just not 0
-            new_title_id: u64::from_le_bytes(*b"\0\0\0\0CART"), // can be anything afaik, just not 0
+            old_title_id: u64::from_le_bytes(*b"CARTCART"), // can be anything afaik, just not 0
+            new_title_id: u64::from_le_bytes(*b"CARTCART"), // can be anything afaik, just not 0
             flags: 0x13, // what actually tells the launcher we're trying to do slot-1
             unknown2: 0 
         });
-        self.crc = crate::calculate_crc!(self.params);
+        self.crc = crate::crc_of!(self.params);
         self.crc_len = core::mem::size_of::<OfficialBootParams>() as _;
         self.unknown_buffer = [0; _];
     }
 
     pub fn get_params<'a>(&'a self) -> Option<&'a OfficialBootParams> {
         // Validate Signature
-        if self.signature != u32::from_be_bytes(*b"CNLT") {
+        if self.signature != Self::SIGNATURE_MAGIC {
             return None;
         }
         // Validate CRC length
@@ -108,7 +111,7 @@ impl OfficialBoot {
         }
         // Calculate CRC
         // Safety: the length is known and function only reads memory
-        let crc = crate::calculate_crc!(self.params); 
+        let crc = crate::crc_of!(self.params); 
         // Verify CRC
         // Safety: params doesn't have any invalid bit patterns and have been verified by the CRC
         (crc == self.crc).then_some(unsafe { self.params.assume_init_ref() })
@@ -159,7 +162,7 @@ pub struct UnlaunchBoot {
     /// CRC code for the parameters
     crc: u16,
     /// The parameters
-    params: core::mem::MaybeUninit<UnlaunchParams>,
+    params: MaybeUninit<UnlaunchParams>,
 }
 const_assert!(core::mem::size_of::<UnlaunchBoot>() == 0x400);
 
@@ -176,7 +179,7 @@ impl UnlaunchBoot {
         }
         // Calculate CRC
         // Safety: the length is known and function only reads memory
-        let crc = crate::calculate_crc!(self.params); 
+        let crc = crate::crc_of!(self.params); 
         // Verify CRC
         // Safety: params doesn't have any invalid bit patterns and have been verified by the CRC
         (crc == self.crc).then_some(unsafe { self.params.assume_init_ref() })

@@ -5,17 +5,17 @@ use alloc::boxed::Box;
 use micro_imgui_ds::{gui, micro_imgui::Backend};
 use reboot_lib::Buttons;
 
-use crate::gui::{browser::Browser, frontend::UiPage, special_thanks::SpecialThanks};
+use crate::gui::{GlobalData, browser::Browser, frontend::UiPage, special_thanks::SpecialThanks};
 
 #[derive(Clone)]
 pub struct MainMenu;
 
 fn main_menu_ui(
     ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
-    safe_mode: bool,
+    data: &mut GlobalData,
 ) -> Option<Box<dyn UiPage>> {
     super::focus_default(ui, false);
-    if safe_mode {
+    if data.safe_mode {
         ui.header("Welcome! (safe mode)");
     } else {
         ui.header("Welcome!");
@@ -41,6 +41,13 @@ fn main_menu_ui(
     if ui.button("Settings").clicked() {
         res = Some(Box::new(super::settings::Settings::Main));
     }
+    if ui.button("Launch slot-1").clicked() {
+        unsafe {
+            data.fader.set_target(16);
+            crate::boot_slot1(data);
+            data.fader.set_target(0);
+        }
+    }
     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
         res = Some(Box::new(SpecialThanks));
     }
@@ -52,8 +59,8 @@ impl UiPage for MainMenu {
     fn ui(
         &mut self,
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
-        data: &mut super::GlobalData,
+        data: &mut GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        main_menu_ui(ui, data.safe_mode)
+        main_menu_ui(ui, data)
     }
 }
