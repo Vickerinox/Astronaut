@@ -8,22 +8,22 @@ use crate::MemoryWrapper;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct BootMethods {
-    pub optional: OptBoot,
-    pub official: OfficialBoot,
+pub struct ConsoleInfo {
+    pub optional_autoboot: OptBoot,
+    pub official_autoboot: OfficialBoot,
     pub system_settings: TWLSettings,
     _0x528: [u32; 0xB8/4],
     pub wifi_data: WifiConfig,
-    pub hwinfo: HWINFONbuf,
+    pub hwinfo: HWInfo,
     _0x614: [u32; 0x1EC/4],
-    pub unlaunch: UnlaunchBoot,
+    pub unlaunch_autoboot: UnlaunchBoot,
 }
 
-unsafe impl bytemuck::AnyBitPattern for BootMethods {}
-unsafe impl bytemuck::Zeroable for BootMethods {}
-unsafe impl bytemuck::NoUninit for BootMethods {}
+unsafe impl bytemuck::AnyBitPattern for ConsoleInfo {}
+unsafe impl bytemuck::Zeroable for ConsoleInfo {}
+unsafe impl bytemuck::NoUninit for ConsoleInfo {}
 
-impl BootMethods {
+impl ConsoleInfo {
     pub fn clear(&mut self) {
         *self = unsafe { core::mem::zeroed() };
     }
@@ -206,11 +206,14 @@ pub struct SystemSettings {
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct HWINFONbuf {
-    // bytes from 0x88..=0x9B in HWINFO_N.dat
+pub struct HWInfo {
+    // bytes from 0x0..0x14 in HWINFO_N.dat
     buffer: [u8; 0x14],
 }
+unsafe impl bytemuck::NoUninit for HWInfo {}
+unsafe impl bytemuck::Zeroable for HWInfo {}
+unsafe impl bytemuck::AnyBitPattern for HWInfo {}
 
 /// Boot info provided by past boots of the console
-pub const BOOT_INFO: MemoryWrapper<BootMethods> = MemoryWrapper(0x200_0000 as *mut _);
+pub const CONSOLE_INFO: MemoryWrapper<ConsoleInfo> = MemoryWrapper(0x200_0000 as *mut _);
 

@@ -7,9 +7,10 @@ use crate::{graphics::set_background, gui::GlobalData, AppArea, APP_AREA_START};
 use alloc::string::{String, ToString};
 use common::blowfish::BlowfishCTX;
 use common::bootstrap::{BootInfoNTR, BootInfoTWL, BOOTINFO_MEM};
+use reboot_lib::autoboot_info::CONSOLE_INFO;
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
-use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, swi_crc16};
+use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, bytemuck, swi_crc16};
 
 pub enum BootError {
     /// Binary isn't in a valid memory location
@@ -95,6 +96,23 @@ unsafe fn boot_unreturnable(
     arm7_relocation: bool,
 ) -> ! {
     crate::music::stop_mod_file();
+
+    {
+        // Insert system settings
+        if let Ok(mut file) = fatfs_embedded::open(&mut String::from("nand:/shared1/TWLCFG0.dat"), FileOptions::Read) {
+            if fatfs_embedded::seek(&mut file, 0x88).is_ok() {
+                let config = &mut CONSOLE_INFO.system_settings;
+                let _ = read_all(bytemuck::bytes_of_mut(config), &mut file);
+            }
+        }
+        // Insert hardware info
+        if let Ok(mut file) = fatfs_embedded::open(&mut String::from("nand:/sys/HWINFO_N.dat"), FileOptions::Read) {
+            let hwinfo = &mut CONSOLE_INFO.hwinfo;
+            let _ = read_all(bytemuck::bytes_of_mut(hwinfo), &mut file);
+        }
+    }
+    
+
     let boot_info = header;
 
     // Initialize Wifi Firmware
@@ -128,6 +146,7 @@ unsafe fn boot_unreturnable(
         }
 
         common::device_list::init(boot_info, file_path, &pub_path, &prv_path);
+        reboot_lib::nocash_write("> Inserted Device List \n");
     }
 
     // Prepare Jump trampoline
@@ -261,9 +280,11 @@ unsafe fn boot_unreturnable(
         common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
 
-    reboot_lib::nocash_write("> Inserted Device List \n");
+    
     {
+
         common::config::init(boot_info);
+        
         let wifi_type = boot_info.ntr.wifi_other[0];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
         (0x20005E2 as *mut u16).write_volatile(reboot_lib::calculate_crc!(*(0x020005E4 as *const [u32; 3])));

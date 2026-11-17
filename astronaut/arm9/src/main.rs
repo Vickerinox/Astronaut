@@ -39,7 +39,7 @@ use core::str;
 use fatfs_embedded::fatfs::{FileOptions, RawFileSystem};
 use graphics::font::load_default_font;
 use micro_imgui_ds::read_controller;
-use reboot_lib::autoboot_info::{UnlaunchBootFlags, BOOT_INFO};
+use reboot_lib::autoboot_info::{UnlaunchBootFlags, CONSOLE_INFO};
 use reboot_lib::{fatfs_embedded, LCDStatus};
 
 use reboot_lib::{bytemuck, Interrupt, VRAMCtrl, IPC_FIFO_HARDWARE};
@@ -151,8 +151,8 @@ unsafe fn set_bright(factor: u16) {
 }
 #[allow(const_item_mutation)]
 pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
-    BOOT_INFO.official.set_slot1();
-    BOOT_INFO.optional.reset();
+    CONSOLE_INFO.official_autoboot.set_slot1();
+    CONSOLE_INFO.optional_autoboot.reset();
     let mut file_path = "nand:/title/00030017/484e4150/content/00000002.app".to_string();
     let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };
     boot_app(&mut r, &file_path, app_data);
@@ -263,7 +263,7 @@ unsafe fn main() {
         // This is the point where astronaut should try to load something else
         if !force_menu {
             // Chainload by other homebrew
-            if let Some(params) = BOOT_INFO.unlaunch.parameters() {
+            if let Some(params) = CONSOLE_INFO.unlaunch_autoboot.parameters() {
                 if params.flags.contains(UnlaunchBootFlags::BOOT) {
                     let mut file_path = params.parse_path();
                     if let Ok(mut file) = fatfs_embedded::open(&mut file_path, FileOptions::Read) {

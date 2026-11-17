@@ -12,6 +12,9 @@ pub struct WifiConfig {
     pub length: u32,
     unknown: [u32; 0x10/4],
 }
+unsafe impl bytemuck::NoUninit for TWLSettings {}
+unsafe impl bytemuck::Zeroable for TWLSettings {}
+unsafe impl bytemuck::AnyBitPattern for TWLSettings {}
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TWLSettings {
@@ -112,27 +115,6 @@ impl Region {
 }
 pub unsafe fn init(header: &mut BootInfoTWL) {
     let region = Region::from_gamecode(header.twl_header.head.tid);
-    let common = &header.ntr.firmware_data.bytes;
-    let config = &mut *(0x200_0400 as *mut TWLSettings);
-    
-    config.config_flags = 0x0100000F;
-    config.country = 0x4E;
-    config.language = 1;
-    config.eula[0] = 1;
-    config.system_menu_free_slots = 9;
-    config.system_menu_used_slots = 30;
-    config.unknown = 3;
-    config.unknown2 = 0x0201209C;
-    config.birth_month = common[3];
-    config.favorite_color = common[2];
-    config.birth_day = common[4];
-    config.alarm_hour = common[0x52];
-    config.alarm_minute = common[0x53];
-    config.alarm_enable = common[0x56];
-    config.rtc_year = common[0x66];
-    config.nickname.copy_from_slice(&common[0x6..0x6 + 0x16]);
-    config.message.copy_from_slice(&common[0x1C..0x1C + 0x36]);
-    config.rtc_offset.copy_from_slice(&common[0x68..0x70]);
 
     (0x2FFFD68 as *mut u32).write_volatile(region.lang_bitmask());
     (0x2FFFD6C as *mut u32).write_volatile(0);
