@@ -69,6 +69,7 @@ pub unsafe fn swi_crc16_raw(start: u16, source: *const (), len: usize) -> u16 {
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 pub fn swi_crc16<T>(start: u16, source: &T) -> u16 {
     let _ = crate::typecheck::TypeCheck::<T, u16>::ASSERT_ALIGN_GREATER_THAN_EQUAL;
+    let _ = crate::typecheck::TypeCheck::<T, u16>::ASSERT_SIZE_MULTIPLE_OF;
     unsafe { swi_crc16_raw(start, core::ptr::addr_of!(*source) as _, core::mem::size_of_val(source)) }
 }
 #[macro_export]
@@ -77,6 +78,14 @@ macro_rules! crc_of {
         unsafe {
             $crate::swi_crc16(
                 0xFFFF,
+                &$var
+            )
+        }
+    };
+    ($var:expr, $start:expr) => {
+        unsafe {
+            $crate::swi_crc16(
+                $start,
                 &$var
             )
         }

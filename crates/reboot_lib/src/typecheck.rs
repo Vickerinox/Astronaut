@@ -9,4 +9,6 @@ pub(crate) struct TypeCheck<A,B>(A,B);
 impl<A, B> TypeCheck<A, B> {
   pub(crate) const ASSERT_ALIGN_GREATER_THAN_EQUAL: () =
     assert!(core::mem::align_of::<A>() >= core::mem::align_of::<B>());
+  pub(crate) const ASSERT_SIZE_MULTIPLE_OF: () = 
+    assert!(core::mem::size_of::<A>() % core::mem::size_of::<B>() == 0);
 }
