@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::{
-    boot::{self},
-    configuration::Theme,
-    graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader},
-    music::{send_mod_file, MusicPlaying},
-    AppArea, APP_AREA_START, SCREEN_RECT,
+    APP_AREA_START, AppArea, SCREEN_RECT, boot::{self}, boot_slot1, configuration::Theme, graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader}, music::{MusicPlaying, send_mod_file},
 };
 
 use crate::Fader;
@@ -79,12 +75,17 @@ impl<T: Clone + UiPage + 'static> ClonableUiPage for T {
 impl AppData {
     pub unsafe fn autoboot(&mut self) {
         let mut path = core::mem::take(&mut self.global_data.config.autoboot);
-        let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {
-            return;
-        };
-        self.global_data.fader.set_target(16);
-        //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
-        crate::boot::boot_app(&mut file, &path, &mut self.global_data);
+        if path.is_empty() { return };
+        if &path == "slot-1" { 
+            boot_slot1(&mut self.global_data);
+        } else {
+            let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {
+                return;
+            };
+            self.global_data.fader.set_target(16);
+            //self.current_ui = CurrentUI::LoadingApp { file, file_path: str };
+            crate::boot::boot_app(&mut file, &path, &mut self.global_data);
+        }
     }
     #[inline(never)]
     #[link_section = ".text_aux"]

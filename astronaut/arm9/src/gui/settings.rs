@@ -402,6 +402,11 @@ impl Settings {
                             ret = Some(Box::new(b))
                         }
                     }
+                    if ui.button("Use Slot-1").clicked() {
+                        data.config.boot_combos.start(buttons);
+                        a(data, String::from("slot-1"));
+                        *self = Self::BootCombos(0);
+                    }
                     if ui.button("cancel").clicked() {
                         *self = Self::BootCombos(0);
                     }

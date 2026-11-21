@@ -245,6 +245,8 @@ impl StreamingWav {
             }
         }
     }
+    #[inline(never)]
+    #[link_section = ".text_aux"]
     pub unsafe fn fetch_new(&mut self, mut count: usize) {
         pub fn read_all(
             mut buffer: &mut [u8],
