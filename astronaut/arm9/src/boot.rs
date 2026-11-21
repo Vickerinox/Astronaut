@@ -279,6 +279,9 @@ unsafe fn boot_unreturnable(
     if app_data.config.patch_dsimenu {
         common::patching::look_for_launcher_patch(&boot_info.twl_header);
     }
+    if app_data.config.patch_dsimenu_autoboot {
+        common::patching::apply_launcher_slot1_autoboot(&boot_info.twl_header);
+    }
 
     
     {

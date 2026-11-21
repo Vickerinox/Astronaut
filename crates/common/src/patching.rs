@@ -115,6 +115,25 @@ const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
         0x4770, 0x2001, 0x2582, 0xad, 0x46c0, 0x46c0, 0x46c0, 0x46c0, 0x46c0, 0x2001,
     ],
 };
+
+/// An additional patch applied to the launcher when needing to autoboot slot-1
+/// 
+/// This is done by injecting the instruction that fetches the autoboot entry 
+/// of the cartridge header (0x1F) with a value of 0x44 (signaling autoboot)
+const LAUNCHER_ARM7_AUTOBOOT_PATCH: VPatch<'static> = VPatch {
+    blocks: &[VBlock {
+            original_len: 0x8,
+            patch_len: 0x08,
+            offset: 0xc,
+    }],
+    originals: &[
+        0x0008,0x0A00,0x1058,0xE595,0x06B2,0xE1D7,0x101F,0xE5D1
+    ],
+    patches: &[
+        0x1080, 0xE281, 0x0002, 0xE3C0, 0x1049, 0xE5D1, 0x1121, 0xE1A0
+    ],
+};
+
 #[derive(Debug)]
 pub struct VPatch<'a> {
     /// Paths the walker should take to apply the patch, 1 block = 1 patch
@@ -163,7 +182,6 @@ fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
     } = patch;
     // make a walker
     let mut l_cursor = 0;
-
     // walk each block in the patch
     for block in blocks.iter() {
         // Trim the pool of match words
@@ -232,5 +250,14 @@ pub unsafe fn look_for_launcher_patch(header: &TWLHeader) {
             header.head.arm9_size as usize / 2,
         );
         if app_vlaunch_patch(binary, &LAUNCHER_ARM9_PATCH) != VPatchResult::Ok {};
+    }
+}
+pub unsafe fn apply_launcher_slot1_autoboot(header: &TWLHeader) {
+    if header.title_id & !0xFF == 0x00030017_484E4100 {
+        let binary = core::slice::from_raw_parts_mut(
+            header.arm7i_load as *mut u16,
+            header.arm7i_size as usize / 2,
+        );
+        if app_vlaunch_patch(binary, &LAUNCHER_ARM7_AUTOBOOT_PATCH) != VPatchResult::Ok {};
     }
 }

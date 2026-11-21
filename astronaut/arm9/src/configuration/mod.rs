@@ -76,6 +76,7 @@ impl BootCombos {
 }
 pub struct Config {
     pub patch_dsimenu: bool,
+    pub patch_dsimenu_autoboot: bool,
     pub wifi_init: bool,
     pub force_warmboot: bool,
     pub autoboot: String,
@@ -190,6 +191,7 @@ impl Config {
     pub const fn default() -> Self {
         Self {
             patch_dsimenu: true,
+            patch_dsimenu_autoboot: false,
             wifi_init: true,
             autoboot: String::new(),
             music: String::new(),

@@ -67,7 +67,7 @@ In order to make sure there is not a sea of chaos within the DSi Modding communi
 Astronaut also supports unlaunch's "autoload" API. Meaning that options for loading DS homebrew with unlaunch will (in most cases) be redirected to Astronaut accordingly.
 
 ## Compatability with slot-1
-There is no support for launching the cartridge inserted into slot-1 from the Astronaut gui. Instead, it is recommended to autoboot the DSi Menu or a homebrew slot-1 launcher to get this functionality. 
+Currently astronaut only has slot-1 compatability by launching the DSi menu with an autoboot patch. This means compatability is great, but if the cartridge launch fails the user will be taken to the DSi menu. Region modded consoles will also have problems with this as they already have problems with the launcher as is.
 
 ## Contributing and AI
 Contributions are very welcome. Astronaut is ultimately built for the DSi modding community, and i see no reason to gatekeep it. However i do not appreciate the use of generative AI in this project, as i question the ethics of current AI companies and a significant portion of vibecoders. Exceptions can be made in cases where the AI use is properly disclosed, confirmed to be human reviewed as well as overseen by me, and is of little significance to the resulting PR. If one is caught trying to hide the fact they used AI they will no longer be permitted to contribute to this project

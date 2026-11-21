@@ -151,7 +151,7 @@ unsafe fn set_bright(factor: u16) {
 }
 #[allow(const_item_mutation)]
 pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
-    CONSOLE_INFO.official_autoboot.set_slot1();
+    CONSOLE_INFO.official_autoboot.reset();
     CONSOLE_INFO.optional_autoboot.reset();
 
     let tid = {
@@ -183,6 +183,9 @@ pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
     };
     let mut file_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/{version:08x}.app");
     let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };
+    app_data.config.force_warmboot = true;
+    app_data.config.patch_dsimenu = true;
+    app_data.config.patch_dsimenu_autoboot = true;
     boot_app(&mut r, &file_path, app_data);
 }
 const NDS_MODE_BLOWFISH: *const BlowfishCTX = 0x1FFC894 as *const BlowfishCTX;
