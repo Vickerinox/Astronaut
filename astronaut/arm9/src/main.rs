@@ -289,6 +289,7 @@ unsafe fn main() {
                     }
                 }
             }
+            // Chainload by official warmboot API
             if let Some(_params) = CONSOLE_INFO.official_autoboot.get_params() {
                 boot_launcher(&mut app_data.global_data);
             }
