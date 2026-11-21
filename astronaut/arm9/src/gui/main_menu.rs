@@ -38,15 +38,15 @@ fn main_menu_ui(
             res = Some(Box::new(sd))
         }
     }
-    if ui.button("Settings").clicked() {
-        res = Some(Box::new(super::settings::Settings::Main));
-    }
     if ui.button("Launch slot-1").clicked() {
         unsafe {
             data.fader.set_target(16);
             crate::boot_slot1(data);
             data.fader.set_target(0);
         }
+    }
+    if ui.button("Settings").clicked() {
+        res = Some(Box::new(super::settings::Settings::Main));
     }
     if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
         res = Some(Box::new(SpecialThanks));
