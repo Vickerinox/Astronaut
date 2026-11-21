@@ -149,44 +149,31 @@ unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
 }
+fn grab_app_id(path: &mut String, offset: u32) -> Option<u32> {
+    let mut hwinfo_file =
+        fatfs_embedded::open(path, FileOptions::Read).ok()?;
+    fatfs_embedded::seek(&mut hwinfo_file, offset).ok()?;
+    let mut tid_buffer = 0u32;
+    read_all(bytemuck::bytes_of_mut(&mut tid_buffer),&mut hwinfo_file).ok()?;
+    Some(tid_buffer)
+}
+unsafe fn boot_launcher(app_data: &mut GlobalData) {
+    let Some(tid) = grab_app_id(&mut String::from("nand:/sys/HWINFO_S.dat"), 0xA0) else { return };
+    let mut tmd_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/title.tmd");
+    let Some(version) = grab_app_id(&mut tmd_path, 0x1E4) else { return };
+    let version = version.to_be();
+    let mut file_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/{version:08x}.app");
+    let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };
+    boot_app(&mut r, &file_path, app_data);
+}
 #[allow(const_item_mutation)]
 pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
     CONSOLE_INFO.official_autoboot.reset();
     CONSOLE_INFO.optional_autoboot.reset();
-
-    let tid = {
-        let Ok(mut hwinfo_file) =
-            fatfs_embedded::open(&mut String::from("nand:/sys/HWINFO_S.dat"), FileOptions::Read)
-                else { return; };
-        if fatfs_embedded::seek(&mut hwinfo_file, 0xA0).is_err() {
-            return
-        }
-        let mut tid_buffer = 0u32;
-        if read_all(bytemuck::bytes_of_mut(&mut tid_buffer),&mut hwinfo_file).is_err() {
-            return;
-        }
-        tid_buffer
-    };
-    let version = {
-        let mut tmd_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/title.tmd");
-        let Ok(mut firmware_tmd) =
-            fatfs_embedded::open(&mut tmd_path, FileOptions::Read)
-                else { return; };
-        let mut app_version = [0u8; 4];
-        if fatfs_embedded::seek(&mut firmware_tmd, 0x1E4).is_err() {
-            return;
-        } 
-        if read_all(&mut app_version, &mut firmware_tmd).is_err() {
-            return
-        }
-        u32::from_be_bytes(app_version)
-    };
-    let mut file_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/{version:08x}.app");
-    let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };
     app_data.config.force_warmboot = true;
     app_data.config.patch_dsimenu = true;
     app_data.config.patch_dsimenu_autoboot = true;
-    boot_app(&mut r, &file_path, app_data);
+    boot_launcher(app_data);
 }
 const NDS_MODE_BLOWFISH: *const BlowfishCTX = 0x1FFC894 as *const BlowfishCTX;
 
@@ -302,6 +289,9 @@ unsafe fn main() {
                         boot::boot_app(&mut file, &mut file_path, &mut app_data.global_data);
                     }
                 }
+            }
+            if let Some(_params) = CONSOLE_INFO.official_autoboot.get_params() {
+                boot_launcher(&mut app_data.global_data);
             }
             // Load default app based on config
             app_data.autoboot();
