@@ -17,10 +17,20 @@ pub unsafe fn swi_delay(duration: u32) {
         },
     );
 }
+#[derive(Default)]
+pub struct SHA1Hash([u32; 5]);
 
+impl SHA1Hash {
+    pub fn words(&self) -> &[u32; 5] {
+        &self.0
+    }
+}
+#[inline(always)]
+pub fn swi_sha1_calc<T>(hash: &mut SHA1Hash, source: &T) {
+    unsafe { swi_sha1_calc_raw(hash, core::ptr::addr_of!(*source) as _, core::mem::size_of_val(source));}
+}
 #[cfg(any(feature = "arm9i", feature = "arm7i"))]
-#[allow(unused_variables)]
-pub unsafe fn swi_sha1_calc(dest: *mut u8, source: *const u8, len: usize) {
+pub unsafe fn swi_sha1_calc_raw(dest: *mut SHA1Hash, source: *const (), len: usize) {
     #[cfg(target_arch = "arm")] //rust analyzer gets pissed if you remove this
     crate::critical_function(
         #[instruction_set(arm::t32)]
@@ -91,6 +101,7 @@ macro_rules! crc_of {
         }
     };
 }
+
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 pub unsafe fn swi_vblank() {

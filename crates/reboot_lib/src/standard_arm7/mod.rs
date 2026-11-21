@@ -2,18 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    check_sdmmc,
-    i2c::I2CRegister,
-    ndma::NDMA_HARDWARE,
-    scfg::{ExtSCFG, ROMSCFG, SCFG_HARDWARE},
-    sound::{SoundControl, SoundFormat, SOUND_HARDWARE},
-    spi::{
-        touchscreen::{read_tsc_pos_cdc, CdcReg, CntReg},
-        Control, PowerRegiser, SPI_HARDWARE,
-    },
-    timers::TIMERS,
-    write_sd_sectors, AESCnt, Status, StorageSector, TransactionCode, AES_HARDWARE, DMA_HARDWARE,
-    IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
+    AES_HARDWARE, AESCnt, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, SHA1Hash, Status, StorageSector, TransactionCode, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, scfg::{ExtSCFG, ROMSCFG, SCFG_HARDWARE}, sound::{SOUND_HARDWARE, SoundControl, SoundFormat}, spi::{
+        Control, PowerRegiser, SPI_HARDWARE, touchscreen::{CdcReg, CntReg, read_tsc_pos_cdc},
+    }, timers::TIMERS, write_sd_sectors,
 };
 use common::bootstrap::{self, FirmwareData, TWLHeader, BOOTINFO_MEM};
 use core::arch::asm;
@@ -200,13 +191,7 @@ impl ModCryptor {
         ModCryptResult::Ok
     }
 }
-unsafe fn generate_cid_key(buf: &mut [u32; 4], cid: &[u32; 4]) {
-    crate::swi_sha1_calc(
-        buf as *mut u32 as *mut _,
-        core::ptr::addr_of!(*cid) as *const u8,
-        0x10,
-    );
-}
+
 
 pub fn main_arm7() {
     unsafe {
@@ -411,10 +396,10 @@ pub fn main_arm7() {
                         },
                         2 => match crate::init_sdmmc(crate::DeviceSelect::EMMC) {
                             Ok(_) => {
-                                generate_cid_key(
-                                    &mut key,
-                                    crate::get_cid(crate::DeviceSelect::EMMC),
-                                );
+                                let mut hash = SHA1Hash::default();
+                                let cid = crate::get_cid(crate::DeviceSelect::EMMC);
+                                crate::swi::swi_sha1_calc(&mut hash, cid);
+                                key = *hash.words().first_chunk().unwrap();
                                 0
                             }
                             Err(err) => err as u16 as u32,
