@@ -170,7 +170,6 @@ unsafe fn boot_launcher(app_data: &mut GlobalData) {
 pub unsafe fn boot_slot1(app_data: &mut GlobalData) {
     CONSOLE_INFO.official_autoboot.reset();
     CONSOLE_INFO.optional_autoboot.reset();
-    app_data.config.force_warmboot = true;
     app_data.config.patch_dsimenu = true;
     app_data.config.patch_dsimenu_autoboot = true;
     boot_launcher(app_data);
