@@ -174,7 +174,7 @@ pub enum VPatchResult {
     /// Data in the pools was left over despite the whole patch being applied
     MalformedPatch,
 }
-
+#[link_section = ".text_itcm"]
 fn app_vlaunch_patch(l_words: &mut [u16], patch: &VPatch) -> VPatchResult {
     let VPatch {
         blocks,
@@ -260,8 +260,6 @@ pub unsafe fn apply_launcher_slot1_autoboot(header: &TWLHeader) {
             header.arm7i_load as *mut u16,
             header.arm7i_size as usize / 2,
         );
-        core::arch::asm!("mov r11, r11");
         if app_vlaunch_patch(binary, &LAUNCHER_ARM7_AUTOBOOT_PATCH) != VPatchResult::Ok {};
-        core::arch::asm!("mov r11, r11");
     }
 }

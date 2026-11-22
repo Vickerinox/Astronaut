@@ -87,7 +87,6 @@ pub fn setup_shared_mem(mem: &mut BootInfoTWL) {
     mem.ntr.hardware_info = hw_info_data;
 }
 
-#[inline]
 unsafe fn boot_unreturnable(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
@@ -97,14 +96,21 @@ unsafe fn boot_unreturnable(
 ) -> ! {
     crate::music::stop_mod_file();
 
+    #[allow(const_item_mutation)]
     {
         // Insert system settings
-        let config = &mut CONSOLE_INFO.system_settings;
-        let _ = crate::grab_in_file(&mut String::from("nand:/shared1/TWLCFG0.dat"), config, 0x88);
+        let _ = crate::grab_in_file(
+            &mut String::from("nand:/shared1/TWLCFG0.dat"), 
+            &mut CONSOLE_INFO.system_settings,
+            0x88
+        );
         
         // Insert hardware info
-        let hwinfo = &mut CONSOLE_INFO.hwinfo;
-        let _ = crate::grab_in_file(&mut String::from("nand:/sys/HWINFO_N.dat"), hwinfo, 0);
+        let _ = crate::grab_in_file(
+            &mut String::from("nand:/sys/HWINFO_N.dat"), 
+            &mut CONSOLE_INFO.hwinfo, 
+            0x88
+        );
     }
     
 
@@ -347,7 +353,6 @@ pub unsafe fn nds_mode_switch() {
     );
 }
 
-#[link_section = ".text_itcm"]
 pub unsafe fn boot_app(
     r: &mut fatfs_embedded::fatfs::File,
     file_path: &str,
@@ -358,17 +363,12 @@ pub unsafe fn boot_app(
     reboot_lib::nocash_write("\n");
 
     if !app_data.config.ext_blowfish_main.is_empty() {
-        if let Ok(mut fil) = fatfs_embedded::open(
-            &mut app_data.config.ext_blowfish_main.clone(),
-            FileOptions::Read,
-        ) {
-            if fatfs_embedded::size(&mut fil) as usize == core::mem::size_of::<BlowfishCTX>() {
-                const BLOWFISH_LEN: usize = core::mem::size_of::<BlowfishCTX>();
-                let slice = app_data.blowfish.bytes_mut();
-                if fatfs_embedded::read(&mut fil, slice) != Ok(BLOWFISH_LEN as u32) {
-                    return BootError::InvalidBlowfishKey;
-                }
-            }
+        if crate::grab_in_file(
+            &mut app_data.config.ext_blowfish_main, 
+            &mut app_data.blowfish, 
+        0
+        ).is_err() {
+            return BootError::InvalidBlowfishKey;
         }
     }
 

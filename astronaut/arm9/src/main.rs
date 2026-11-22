@@ -149,6 +149,8 @@ unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
 }
+#[inline(never)]
+#[link_section = ".text_itcm"]
 fn grab_in_file_bytes(path: &mut String, buffer: &mut [u8], offset: u32) -> Result<(), fatfs_embedded::fatfs::Error> {
     let mut file = fatfs_embedded::open(path, FileOptions::Read)?;
     fatfs_embedded::seek(&mut file, offset)?;
