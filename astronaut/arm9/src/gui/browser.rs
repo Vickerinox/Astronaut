@@ -18,7 +18,6 @@ use reboot_lib::fatfs_embedded;
 use reboot_lib::{music_modules::mods::MODAsyncLoader, Buttons};
 
 use crate::{
-    boot::read_all,
     filetype,
     gui::{
         frontend::{pop_dir_entry, AppBooter, ClonableUiPage, UiPage},

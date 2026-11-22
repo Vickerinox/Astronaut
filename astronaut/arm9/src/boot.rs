@@ -5,12 +5,11 @@ use core::fmt::Debug;
 
 use crate::{graphics::set_background, gui::GlobalData, AppArea, APP_AREA_START};
 use alloc::string::{String, ToString};
-use common::blowfish::BlowfishCTX;
 use common::bootstrap::{BootInfoNTR, BootInfoTWL, BOOTINFO_MEM};
 use reboot_lib::autoboot_info::CONSOLE_INFO;
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
-use reboot_lib::{bytemuck, swi_crc16, DisplayControl, VideoPowerControl, VIDEO_HARDWARE};
+use reboot_lib::{DisplayControl, VideoPowerControl, VIDEO_HARDWARE};
 
 pub enum BootError {
     /// Binary isn't in a valid memory location

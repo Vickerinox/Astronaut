@@ -22,7 +22,6 @@ mod gui;
 mod nand;
 mod screen_fade;
 
-use alloc::string::ToString;
 pub use files::{filetype, get_extension, truncate_name, FileEntry, FileType};
 pub use micro_imgui_ds::SCREEN_RECT;
 pub use screen_fade::{irq_screen_fade, Fader};
