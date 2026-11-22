@@ -255,11 +255,8 @@ impl TitleLister {
                     let s_name = if s_name.is_empty() { &name } else { s_name };
                     if filetype(s_name) == FileType::Rom {
                         let mut path = folder_path.clone() + &name;
-
-                        let Ok(mut file) =
-                            fatfs_embedded::open(&mut path, FileOptions::Read) else { return ListerResult::NoWorkDone;};
                         let mut title = [0u8; 12];
-                        if read_all(&mut title, &mut file).is_err() {
+                        if crate::grab_in_file(&mut path, &mut title, 0x0).is_err() {
                             return ListerResult::NoWorkDone;
                         }
                         let Ok(r_name) = str::from_utf8(&title)  else { return ListerResult::NoWorkDone;};

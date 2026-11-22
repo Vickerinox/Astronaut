@@ -10,57 +10,51 @@ use crate::gui::{GlobalData, browser::Browser, frontend::UiPage, special_thanks:
 #[derive(Clone)]
 pub struct MainMenu;
 
-fn main_menu_ui(
-    ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
-    data: &mut GlobalData,
-) -> Option<Box<dyn UiPage>> {
-    super::focus_default(ui, false);
-    if data.safe_mode {
-        ui.header("Welcome! (safe mode)");
-    } else {
-        ui.header("Welcome!");
-    }
-    ui.add_space(4);
-    ui.label("Astronaut made by Vikrinox, 2026");
-    ui.header(" ");
-    let mut res: Option<Box<dyn UiPage>> = None;
-
-    if ui.button("Title List").clicked() {
-        res = Some(Box::new(Browser::title_list()))
-    }
-    if ui.button("Browse SD Card").clicked() {
-        if let Some(sd) = Browser::open_sd() {
-            res = Some(Box::new(sd))
-        }
-    }
-    if ui.button("Browse NAND").clicked() {
-        if let Some(sd) = Browser::open_nand() {
-            res = Some(Box::new(sd))
-        }
-    }
-    if ui.button("Launch slot-1").clicked() {
-        unsafe {
-            data.fader.set_target(16);
-            crate::boot_slot1(data);
-            data.fader.set_target(0);
-        }
-    }
-    if ui.button("Settings").clicked() {
-        res = Some(Box::new(super::settings::Settings::Main));
-    }
-    if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
-        res = Some(Box::new(SpecialThanks));
-    }
-    super::goto_end(ui, 14);
-    ui.label( concat!("version ", env!("CARGO_PKG_VERSION"), env!("GIT_HASH")));
-    res
-}
 impl UiPage for MainMenu {
     fn ui(
         &mut self,
         ui: &mut micro_imgui_ds::micro_imgui::Ui<'_, '_, micro_imgui_ds::DSMicroGuiBackend>,
         data: &mut GlobalData,
     ) -> Option<Box<dyn UiPage>> {
-        main_menu_ui(ui, data)
+        super::focus_default(ui, false);
+        if data.safe_mode {
+            ui.header("Welcome! (safe mode)");
+        } else {
+            ui.header("Welcome!");
+        }
+        ui.add_space(4);
+        ui.label("Astronaut made by Vikrinox, 2026");
+        ui.header(" ");
+        let mut res: Option<Box<dyn UiPage>> = None;
+
+        if ui.button("Title List").clicked() {
+            res = Some(Box::new(Browser::title_list()))
+        }
+        if ui.button("Browse SD Card").clicked() {
+            if let Some(sd) = Browser::open_sd() {
+                res = Some(Box::new(sd))
+            }
+        }
+        if ui.button("Browse NAND").clicked() {
+            if let Some(sd) = Browser::open_nand() {
+                res = Some(Box::new(sd))
+            }
+        }
+        if ui.button("Launch slot-1").clicked() {
+            unsafe {
+                data.fader.set_target(16);
+                crate::boot_slot1(data);
+                data.fader.set_target(0);
+            }
+        }
+        if ui.button("Settings").clicked() {
+            res = Some(Box::new(super::settings::Settings::Main));
+        }
+        if ui.input_pressed(gui::Input(Buttons::BUTTON_START)) {
+            res = Some(Box::new(SpecialThanks));
+        }
+        super::goto_end(ui, 14);
+        ui.label( concat!("version ", env!("CARGO_PKG_VERSION"), env!("GIT_HASH")));
+        res
     }
 }

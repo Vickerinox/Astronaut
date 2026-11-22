@@ -149,18 +149,26 @@ unsafe fn set_bright(factor: u16) {
     VIDEO_HARDWARE.master_brightness.write(factor);
     VIDEO_HARDWARE.disp_b_master_bright.write(factor);
 }
-fn grab_app_id(path: &mut String, offset: u32) -> Option<u32> {
-    let mut hwinfo_file =
-        fatfs_embedded::open(path, FileOptions::Read).ok()?;
-    fatfs_embedded::seek(&mut hwinfo_file, offset).ok()?;
-    let mut tid_buffer = 0u32;
-    read_all(bytemuck::bytes_of_mut(&mut tid_buffer),&mut hwinfo_file).ok()?;
-    Some(tid_buffer)
+fn grab_in_file_bytes(path: &mut String, buffer: &mut [u8], offset: u32) -> Result<(), fatfs_embedded::fatfs::Error> {
+    let mut file = fatfs_embedded::open(path, FileOptions::Read)?;
+    fatfs_embedded::seek(&mut file, offset)?;
+    read_all(buffer,&mut file)?;
+    Ok(())
+}
+#[inline(always)]
+pub(crate) fn grab_in_file<T: bytemuck::NoUninit + bytemuck::AnyBitPattern>(path: &mut String, buffer: &mut T, offset: u32) -> Result<(), fatfs_embedded::fatfs::Error> {
+    grab_in_file_bytes(path, bytemuck::bytes_of_mut(buffer), offset)
 }
 unsafe fn boot_launcher(app_data: &mut GlobalData) {
-    let Some(tid) = grab_app_id(&mut String::from("nand:/sys/HWINFO_S.dat"), 0xA0) else { return };
+    let mut tid = 0u32;
+    let mut version = 0u32;
+    if grab_in_file(&mut String::from("nand:/sys/HWINFO_S.dat"), &mut tid, 0xA0).is_err() {
+        return
+    }
     let mut tmd_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/title.tmd");
-    let Some(version) = grab_app_id(&mut tmd_path, 0x1E4) else { return };
+    if grab_in_file(&mut tmd_path, &mut version, 0x1E4).is_err() { 
+        return 
+    };
     let version = version.to_be();
     let mut file_path = alloc::format!("nand:/title/00030017/{tid:08x}/content/{version:08x}.app");
     let Ok(mut r) = fatfs_embedded::open(&mut file_path, FileOptions::Read) else { return };

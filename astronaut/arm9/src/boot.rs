@@ -99,17 +99,12 @@ unsafe fn boot_unreturnable(
 
     {
         // Insert system settings
-        if let Ok(mut file) = fatfs_embedded::open(&mut String::from("nand:/shared1/TWLCFG0.dat"), FileOptions::Read) {
-            if fatfs_embedded::seek(&mut file, 0x88).is_ok() {
-                let config = &mut CONSOLE_INFO.system_settings;
-                let _ = read_all(bytemuck::bytes_of_mut(config), &mut file);
-            }
-        }
+        let config = &mut CONSOLE_INFO.system_settings;
+        let _ = crate::grab_in_file(&mut String::from("nand:/shared1/TWLCFG0.dat"), config, 0x88);
+        
         // Insert hardware info
-        if let Ok(mut file) = fatfs_embedded::open(&mut String::from("nand:/sys/HWINFO_N.dat"), FileOptions::Read) {
-            let hwinfo = &mut CONSOLE_INFO.hwinfo;
-            let _ = read_all(bytemuck::bytes_of_mut(hwinfo), &mut file);
-        }
+        let hwinfo = &mut CONSOLE_INFO.hwinfo;
+        let _ = crate::grab_in_file(&mut String::from("nand:/sys/HWINFO_N.dat"), hwinfo, 0);
     }
     
 

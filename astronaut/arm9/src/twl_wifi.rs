@@ -39,19 +39,12 @@ struct WifiFirmwareEntry {
 
 
 unsafe fn find_wifi_firmware_path() -> Option<String> {
-    const CONTENT_FOLDER: &str = "nand:/title/0003000F/484E4341/content/";
     let app_version = {
-        let mut firmware_tmd = fatfs_embedded::open(
-            &mut alloc::format!("{CONTENT_FOLDER}title.tmd"),
-            FileOptions::Read,
-        )
-        .ok()?;
-        let mut app_version = [0u8; 4];
-        fatfs_embedded::seek(&mut firmware_tmd, 0x1E4).ok()?;
-        read_all(&mut app_version, &mut firmware_tmd).ok()?;
-        u32::from_be_bytes(app_version)
+        let mut tid = 0u32;
+        crate::grab_in_file(&mut String::from("nand:/title/0003000F/484E4341/content/title.tmd"), &mut tid, 0x1E4).ok()?;
+        tid.to_be()
     };
-    Some(alloc::format!("{CONTENT_FOLDER}{app_version:08x?}.app"))
+    Some(alloc::format!("nand:/title/0003000F/484E4341/content/{app_version:08x?}.app"))
 }
 fn find_firmware_for_card(header: &AssumedHeader, version: u8) -> Option<WifiFirmwareEntry> {
     header.entries
