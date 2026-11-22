@@ -2,9 +2,18 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    AES_HARDWARE, AESCnt, DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER, SHA1Hash, Status, StorageSector, TransactionCode, check_sdmmc, i2c::I2CRegister, ndma::NDMA_HARDWARE, scfg::{ExtSCFG, ROMSCFG, SCFG_HARDWARE}, sound::{SOUND_HARDWARE, SoundControl, SoundFormat}, spi::{
-        Control, PowerRegiser, SPI_HARDWARE, touchscreen::{CdcReg, CntReg, read_tsc_pos_cdc},
-    }, timers::TIMERS, write_sd_sectors,
+    check_sdmmc,
+    i2c::I2CRegister,
+    ndma::NDMA_HARDWARE,
+    scfg::{ExtSCFG, ROMSCFG, SCFG_HARDWARE},
+    sound::{SoundControl, SoundFormat, SOUND_HARDWARE},
+    spi::{
+        touchscreen::{read_tsc_pos_cdc, CdcReg, CntReg},
+        Control, PowerRegiser, SPI_HARDWARE,
+    },
+    timers::TIMERS,
+    write_sd_sectors, AESCnt, SHA1Hash, Status, StorageSector, TransactionCode, AES_HARDWARE,
+    DMA_HARDWARE, IPC_FIFO_HARDWARE, MMC_CONTROLLER, SDIO_CONTROLLER,
 };
 use common::bootstrap::{self, FirmwareData, TWLHeader, BOOTINFO_MEM};
 use core::arch::asm;
@@ -191,7 +200,6 @@ impl ModCryptor {
         ModCryptResult::Ok
     }
 }
-
 
 pub fn main_arm7() {
     unsafe {

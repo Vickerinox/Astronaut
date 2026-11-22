@@ -57,7 +57,6 @@ mod allocator;
 /// [related GBATEK page](https://problemkaputt.de/gbatek-dsi-i2c-bus.htm)
 pub mod i2c;
 pub mod interupts;
-pub mod typecheck;
 mod ipc;
 pub mod mbk;
 mod memory;
@@ -71,6 +70,7 @@ pub mod spi;
 pub mod standard_arm7;
 mod swi;
 pub mod timers;
+pub mod typecheck;
 mod video;
 pub use bitflags;
 pub mod rtc;

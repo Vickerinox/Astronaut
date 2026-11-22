@@ -12,12 +12,12 @@ use crate::{
     ClockCnt, Control, DataControl32, Status, StorageSector, TMIOPort, SDIO_CONTROLLER,
 };
 
-/// Do EVERYTHING there is to do to intialize the wifi card on the DSi. 
-/// 
+/// Do EVERYTHING there is to do to intialize the wifi card on the DSi.
+///
 /// ``wifi_version`` is the board type used (1 = DWM-W015, 2 = DWM-W024)
-/// 
+///
 /// ``firmware`` is the raw bytes of the firmware segments used for that board (gotten from the firmware file in the 0003000f folder on NAND)
-/// 
+///
 /// returns 0 on success, or an error number
 pub unsafe fn nwifi_init_complete(wifi_version: u8, firmware: &mut [u8]) -> u32 {
     // TODO: find a better way to detect already uploaded firmware?
@@ -170,7 +170,6 @@ unsafe fn nwifi_restart_card() -> bool {
     if !wifi_card_send_command(crate::mmc::Command::SelectCard, address, false).successful() {
         return true;
     }
-    
 
     if sdio_write_func_byte(SDIOFunc::Zero, 2, 0) {
         return true;
@@ -179,7 +178,7 @@ unsafe fn nwifi_restart_card() -> bool {
     if sdio_write_func_byte(SDIOFunc::Zero, 2, 2) {
         return true;
     }
-    
+
     PORT.clock = ClockCnt::FREQ_16M | ClockCnt::ENABLE | ClockCnt::AUTO_STOP;
     crate::swi_delay(0xF000);
 
@@ -224,7 +223,7 @@ unsafe fn nwifi_init_func0() -> bool {
     false
 }
 
-/// Initialize func1 so we can start uploading the Wifi firmware 
+/// Initialize func1 so we can start uploading the Wifi firmware
 unsafe fn nwifi_init_func1() -> bool {
     /*
     let Some(is_fw_uploaded) = nwifi_read_intern_word(interest_addr + 0x58) else {

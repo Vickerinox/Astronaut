@@ -49,12 +49,7 @@ fn open_main_twl(nand_image: &mut [u8]) -> Result<NativeFatFsDriver<&mut [u8]>, 
         (key_x ^ key_y).wrapping_add(KEY_SCRAMBLE).rotate_left(42)
     };
 
-    let reader = NandSectorCursor::new(
-        NandWrapper::new(&mut nand_image[..]),
-        [0u8; 512],
-        ctr,
-        key,
-    );
+    let reader = NandSectorCursor::new(NandWrapper::new(&mut nand_image[..]), [0u8; 512], ctr, key);
 
     let fs = NativeFatFsDriver { nand: reader };
     Ok(fs)

@@ -268,7 +268,6 @@ unsafe impl Zeroable for TWLHeader {}
 unsafe impl AnyBitPattern for TWLHeader {}
 unsafe impl NoUninit for TWLHeader {}
 
-
 unsafe impl Zeroable for ShortNDSHeader {}
 unsafe impl AnyBitPattern for ShortNDSHeader {}
 unsafe impl NoUninit for ShortNDSHeader {}

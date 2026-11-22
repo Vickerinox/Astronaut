@@ -27,7 +27,13 @@ impl SHA1Hash {
 }
 #[inline(always)]
 pub fn swi_sha1_calc<T>(hash: &mut SHA1Hash, source: &T) {
-    unsafe { swi_sha1_calc_raw(hash, core::ptr::addr_of!(*source) as _, core::mem::size_of_val(source));}
+    unsafe {
+        swi_sha1_calc_raw(
+            hash,
+            core::ptr::addr_of!(*source) as _,
+            core::mem::size_of_val(source),
+        );
+    }
 }
 #[cfg(any(feature = "arm9i", feature = "arm7i"))]
 pub unsafe fn swi_sha1_calc_raw(dest: *mut SHA1Hash, source: *const (), len: usize) {
@@ -72,7 +78,7 @@ pub unsafe fn swi_crc16_raw(start: u16, source: *const (), len: usize) -> u16 {
     retu
 }
 /// Safely calculate the crc16 of a datatype with compile time checks
-/// 
+///
 /// This function will panic if ``T`` doesn't have an alignment equal to or greater than two,
 /// which is the minimum accepted by the crc16 function.
 #[inline(always)]
@@ -80,28 +86,23 @@ pub unsafe fn swi_crc16_raw(start: u16, source: *const (), len: usize) -> u16 {
 pub fn swi_crc16<T>(start: u16, source: &T) -> u16 {
     let _ = crate::typecheck::TypeCheck::<T, u16>::ASSERT_ALIGN_GREATER_THAN_EQUAL;
     let _ = crate::typecheck::TypeCheck::<T, u16>::ASSERT_SIZE_MULTIPLE_OF;
-    unsafe { swi_crc16_raw(start, core::ptr::addr_of!(*source) as _, core::mem::size_of_val(source)) }
+    unsafe {
+        swi_crc16_raw(
+            start,
+            core::ptr::addr_of!(*source) as _,
+            core::mem::size_of_val(source),
+        )
+    }
 }
 #[macro_export]
 macro_rules! crc_of {
     ($var:expr) => {
-        unsafe {
-            $crate::swi_crc16(
-                0xFFFF,
-                &$var
-            )
-        }
+        unsafe { $crate::swi_crc16(0xFFFF, &$var) }
     };
     ($var:expr, $start:expr) => {
-        unsafe {
-            $crate::swi_crc16(
-                $start,
-                &$var
-            )
-        }
+        unsafe { $crate::swi_crc16($start, &$var) }
     };
 }
-
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 pub unsafe fn swi_vblank() {

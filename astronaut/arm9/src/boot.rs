@@ -10,7 +10,7 @@ use common::bootstrap::{BootInfoNTR, BootInfoTWL, BOOTINFO_MEM};
 use reboot_lib::autoboot_info::CONSOLE_INFO;
 use reboot_lib::fatfs_embedded::{self, fatfs::FileOptions};
 use reboot_lib::scfg::{ClockSCFG, ExtSCFG, SCFG_HARDWARE};
-use reboot_lib::{DisplayControl, VIDEO_HARDWARE, VideoPowerControl, bytemuck, swi_crc16};
+use reboot_lib::{bytemuck, swi_crc16, DisplayControl, VideoPowerControl, VIDEO_HARDWARE};
 
 pub enum BootError {
     /// Binary isn't in a valid memory location
@@ -33,7 +33,6 @@ impl Debug for BootError {
         }
     }
 }
-
 
 #[link_section = ".text_itcm"]
 pub fn read_all(
@@ -100,19 +99,18 @@ unsafe fn boot_unreturnable(
     {
         // Insert system settings
         let _ = crate::grab_in_file(
-            &mut String::from("nand:/shared1/TWLCFG0.dat"), 
+            &mut String::from("nand:/shared1/TWLCFG0.dat"),
             &mut CONSOLE_INFO.system_settings,
-            0x88
+            0x88,
         );
-        
+
         // Insert hardware info
         let _ = crate::grab_in_file(
-            &mut String::from("nand:/sys/HWINFO_N.dat"), 
-            &mut CONSOLE_INFO.hwinfo, 
-            0x88
+            &mut String::from("nand:/sys/HWINFO_N.dat"),
+            &mut CONSOLE_INFO.hwinfo,
+            0x88,
         );
     }
-    
 
     let boot_info = header;
 
@@ -284,14 +282,13 @@ unsafe fn boot_unreturnable(
         common::patching::apply_launcher_slot1_autoboot(&boot_info.twl_header);
     }
 
-    
     {
-
         common::config::init(boot_info);
-        
+
         let wifi_type = boot_info.ntr.wifi_other[0];
         (0x20005E0 as *mut u8).write_volatile(wifi_type);
-        (0x20005E2 as *mut u16).write_volatile(reboot_lib::crc_of!(*(0x020005E4 as *const [u32; 3])));
+        (0x20005E2 as *mut u16)
+            .write_volatile(reboot_lib::crc_of!(*(0x020005E4 as *const [u32; 3])));
 
         reboot_lib::nocash_write("> Inserted TWL_CONFIG \n");
     }
@@ -309,8 +306,9 @@ unsafe fn boot_unreturnable(
     core::ptr::write_volatile(0x4000000 as *mut u32, 0b00000000_00000001_00000000_00000000);
 
     VIDEO_HARDWARE
-            .power_control.modify(|i| i | VideoPowerControl::ENGINE_A_ON_TOP);
-        
+        .power_control
+        .modify(|i| i | VideoPowerControl::ENGINE_A_ON_TOP);
+
     if app_data.fader.is_up() {
         set_background(0x7FFF);
         VIDEO_HARDWARE
@@ -319,7 +317,6 @@ unsafe fn boot_unreturnable(
             .write(0);
         VIDEO_HARDWARE.engine_a_ctrl.write(DisplayControl::empty());
         VIDEO_HARDWARE.engine_b_ctrl.write(DisplayControl::empty());
-        
 
         crate::set_bright(0);
     }
@@ -364,10 +361,12 @@ pub unsafe fn boot_app(
 
     if !app_data.config.ext_blowfish_main.is_empty() {
         if crate::grab_in_file(
-            &mut app_data.config.ext_blowfish_main, 
-            &mut app_data.blowfish, 
-        0
-        ).is_err() {
+            &mut app_data.config.ext_blowfish_main,
+            &mut app_data.blowfish,
+            0,
+        )
+        .is_err()
+        {
             return BootError::InvalidBlowfishKey;
         }
     }

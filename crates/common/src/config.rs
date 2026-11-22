@@ -10,7 +10,7 @@ pub struct WifiConfig {
     pub data_segment: u32,
     pub base_address: u32,
     pub length: u32,
-    unknown: [u32; 0x10/4],
+    unknown: [u32; 0x10 / 4],
 }
 unsafe impl bytemuck::NoUninit for TWLSettings {}
 unsafe impl bytemuck::Zeroable for TWLSettings {}

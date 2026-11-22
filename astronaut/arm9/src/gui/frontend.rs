@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::{
-    APP_AREA_START, AppArea, SCREEN_RECT, boot::{self}, boot_slot1, configuration::Theme, graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader}, music::{MusicPlaying, send_mod_file},
+    boot::{self},
+    boot_slot1,
+    configuration::Theme,
+    graphics::bmp::{AsyncBMPLoadResult, AsyncBMPLoader},
+    music::{send_mod_file, MusicPlaying},
+    AppArea, APP_AREA_START, SCREEN_RECT,
 };
 
 use crate::Fader;
@@ -75,8 +80,10 @@ impl<T: Clone + UiPage + 'static> ClonableUiPage for T {
 impl AppData {
     pub unsafe fn autoboot(&mut self) {
         let mut path = core::mem::take(&mut self.global_data.config.autoboot);
-        if path.is_empty() { return };
-        if &path == "slot-1" { 
+        if path.is_empty() {
+            return;
+        };
+        if &path == "slot-1" {
             boot_slot1(&mut self.global_data);
         } else {
             let Ok(mut file) = fatfs_embedded::open(&mut path, FileOptions::Read) else {

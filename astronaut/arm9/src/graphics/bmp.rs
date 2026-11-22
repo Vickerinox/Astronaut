@@ -98,7 +98,8 @@ impl DIBHeader40Bytes {
         }
         // Substitute the bitmap size if it's not specified
         if buffer.bitmap_size == 0 {
-            buffer.bitmap_size = (buffer.width as u32 * buffer.height as u32 * buffer.bits_per_pixel as u32) / 8;
+            buffer.bitmap_size =
+                (buffer.width as u32 * buffer.height as u32 * buffer.bits_per_pixel as u32) / 8;
         }
         // And if all else fails, no single image should be larger than 1MB anyway. (that doesn't even fit in VRAM!)
         if buffer.bitmap_size > (1 << 20) {

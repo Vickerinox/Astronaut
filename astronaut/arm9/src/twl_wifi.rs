@@ -1,5 +1,8 @@
 use alloc::string::String;
-use reboot_lib::{bytemuck::{self, Zeroable}, fatfs_embedded::{self, fatfs::FileOptions}};
+use reboot_lib::{
+    bytemuck::{self, Zeroable},
+    fatfs_embedded::{self, fatfs::FileOptions},
+};
 
 use crate::boot::read_all;
 
@@ -36,22 +39,29 @@ struct WifiFirmwareEntry {
     sha1_hash: [u8; 0x14],
 }
 
-
-
 unsafe fn find_wifi_firmware_path() -> Option<String> {
     let app_version = {
         let mut tid = 0u32;
-        crate::grab_in_file(&mut String::from("nand:/title/0003000F/484E4341/content/title.tmd"), &mut tid, 0x1E4).ok()?;
+        crate::grab_in_file(
+            &mut String::from("nand:/title/0003000F/484E4341/content/title.tmd"),
+            &mut tid,
+            0x1E4,
+        )
+        .ok()?;
         tid.to_be()
     };
-    Some(alloc::format!("nand:/title/0003000F/484E4341/content/{app_version:08x?}.app"))
+    Some(alloc::format!(
+        "nand:/title/0003000F/484E4341/content/{app_version:08x?}.app"
+    ))
 }
 fn find_firmware_for_card(header: &AssumedHeader, version: u8) -> Option<WifiFirmwareEntry> {
-    header.entries
+    header
+        .entries
         .get(..header.header.firmwares_included as usize)?
         .into_iter()
         .filter(|i| i.wifi_board_type == version as u32)
-        .next().cloned()
+        .next()
+        .cloned()
 }
 unsafe fn get_wifi_firmware(
     wifi_ver: u8,

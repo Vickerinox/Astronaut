@@ -117,22 +117,20 @@ const LAUNCHER_ARM9_PATCH: VPatch<'static> = VPatch {
 };
 
 /// An additional patch applied to the launcher when needing to autoboot slot-1
-/// 
-/// This is done by injecting the instruction that fetches the autoboot entry 
-/// of the cartridge header (0x1F) to instead load a word from the logo 
+///
+/// This is done by injecting the instruction that fetches the autoboot entry
+/// of the cartridge header (0x1F) to instead load a word from the logo
 /// segment at 0x14C which automatically makes all cartridges detect as autoboot
 const LAUNCHER_ARM7_AUTOBOOT_PATCH: VPatch<'static> = VPatch {
     blocks: &[VBlock {
-            original_len: 0x8,
-            patch_len: 0x02,
-            offset: 0xc,
+        original_len: 0x8,
+        patch_len: 0x02,
+        offset: 0xc,
     }],
     originals: &[
-        0x0008,0x0A00,0x1058,0xE595,0x06B2,0xE1D7,0x101F,0xE5D1
+        0x0008, 0x0A00, 0x1058, 0xE595, 0x06B2, 0xE1D7, 0x101F, 0xE5D1,
     ],
-    patches: &[
-        0x114c, 0xe591
-    ],
+    patches: &[0x114c, 0xe591],
 };
 
 #[derive(Debug)]
@@ -255,7 +253,6 @@ pub unsafe fn look_for_launcher_patch(header: &TWLHeader) {
 }
 pub unsafe fn apply_launcher_slot1_autoboot(header: &TWLHeader) {
     if header.title_id & !0xFF == 0x00030017_484E4100 {
-        
         let binary = core::slice::from_raw_parts_mut(
             header.arm7i_load as *mut u16,
             header.arm7i_size as usize / 2,

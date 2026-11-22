@@ -65,10 +65,7 @@ pub struct BasicSDMMCCursor<'a> {
 }
 
 impl<'a> BasicSDMMCCursor<'a> {
-    pub fn new(
-        buffer: &'a mut [StorageSector],
-        is_nand: bool,
-    ) -> Result<Self, u32> {
+    pub fn new(buffer: &'a mut [StorageSector], is_nand: bool) -> Result<Self, u32> {
         let mut oneself = Self {
             buffer_sector: 0,
             buffer,
@@ -79,7 +76,10 @@ impl<'a> BasicSDMMCCursor<'a> {
         oneself.read_sector(0)?;
         Ok(oneself)
     }
-    pub fn upgrade_buffer<'b: 'a>(&mut self, new_buffer: &'b mut [StorageSector]) -> Result<(), BasicSDMMCError> {
+    pub fn upgrade_buffer<'b: 'a>(
+        &mut self,
+        new_buffer: &'b mut [StorageSector],
+    ) -> Result<(), BasicSDMMCError> {
         assert!(new_buffer.len() > self.buffer.len());
         self.flush()?;
         self.buffer = new_buffer;
@@ -90,13 +90,13 @@ impl<'a> BasicSDMMCCursor<'a> {
     }
     pub fn read_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
-            true => read_encrypted_nand(self.buffer,  sector),
-            false => read_sd_card(self.buffer,  sector),
+            true => read_encrypted_nand(self.buffer, sector),
+            false => read_sd_card(self.buffer, sector),
         }
     }
     pub fn write_sector(&mut self, sector: u32) -> Result<(), u32> {
         match self.nand {
-            true => write_decrypted_nand(self.buffer,  sector),
+            true => write_decrypted_nand(self.buffer, sector),
             false => write_sd_card(self.buffer, sector),
         }
     }

@@ -316,8 +316,7 @@ impl Settings {
         _data: &mut super::GlobalData,
         nand: bool,
         sd: bool,
-
-    ) -> Option<Box<dyn UiPage>>{
+    ) -> Option<Box<dyn UiPage>> {
         let message = match (nand, sd) {
             (true, true) => "Settings saved to SD Card and System!",
             (true, false) => "Settings saved on system memory!",
@@ -343,7 +342,7 @@ impl Settings {
                     ui.request_repaint();
                 }
                 ui.label("Hold the button combo to use...");
-                ui.label( "or A+B to cancel.");
+                ui.label("or A+B to cancel.");
                 None
             }
             SelectorState::Holding(timer) => {
@@ -448,7 +447,7 @@ impl UiPage for Settings {
             Settings::Main => self.main_settings(ui, data),
             Settings::BootCombos(page) => self.boot_combo_settings(page, ui, data),
             Settings::SelectedCombo(combo, timer) => self.combo_maker(ui, data, combo, timer),
-            Settings::SavedSettings { nand, sd } => self.saves(ui, data,nand, sd),
+            Settings::SavedSettings { nand, sd } => self.saves(ui, data, nand, sd),
             Settings::Overrides => self.override_settings(ui, data),
             Settings::ThemeReload => self.theme_reload(ui, data),
         }

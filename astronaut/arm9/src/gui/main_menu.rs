@@ -5,7 +5,7 @@ use alloc::boxed::Box;
 use micro_imgui_ds::{gui, micro_imgui::Backend};
 use reboot_lib::Buttons;
 
-use crate::gui::{GlobalData, browser::Browser, frontend::UiPage, special_thanks::SpecialThanks};
+use crate::gui::{browser::Browser, frontend::UiPage, special_thanks::SpecialThanks, GlobalData};
 
 #[derive(Clone)]
 pub struct MainMenu;
@@ -54,7 +54,11 @@ impl UiPage for MainMenu {
             res = Some(Box::new(SpecialThanks));
         }
         super::goto_end(ui, 14);
-        ui.label( concat!("version ", env!("CARGO_PKG_VERSION"), env!("GIT_HASH")));
+        ui.label(concat!(
+            "version ",
+            env!("CARGO_PKG_VERSION"),
+            env!("GIT_HASH")
+        ));
         res
     }
 }

@@ -6,7 +6,7 @@ use core::{
     ops::{BitAndAssign, BitOrAssign, Not},
 };
 
-use crate::{MemoryWrapper, StorageSector, ndma::NDMAStartMode};
+use crate::{ndma::NDMAStartMode, MemoryWrapper, StorageSector};
 
 #[cfg(any(feature = "arm9", feature = "arm7"))]
 use crate::swi_delay;
@@ -251,7 +251,7 @@ impl MMC {
         let mut timeout = 0;
         #[cfg(all(feature = "arm7i", not(feature = "arm9i")))]
         if command.transmits_data() {
-            use crate::ndma::{BlockSize, DestinationMode, NDMA_HARDWARE, NDMAControl, SourceMode};
+            use crate::ndma::{BlockSize, DestinationMode, NDMAControl, SourceMode, NDMA_HARDWARE};
             let (words, block_size, start_mode) = match port.block_len {
                 512 => (BlockSize::Words128, 128, NDMAStartMode::Arm7SDMMC),
                 128 => (BlockSize::Words32, 32, NDMAStartMode::Arm7DsiWiFi),
@@ -270,7 +270,12 @@ impl MMC {
                         .with_src_mode(SourceMode::Fixed)
                         .with_block_size(words),
                 };
-                NDMA_HARDWARE.set_raw_dma(0, in_dma, core::mem::transmute(&self.data_fifo_32), core::mem::transmute(port.buffer as *mut u32));
+                NDMA_HARDWARE.set_raw_dma(
+                    0,
+                    in_dma,
+                    core::mem::transmute(&self.data_fifo_32),
+                    core::mem::transmute(port.buffer as *mut u32),
+                );
             } else {
                 let in_dma = crate::ndma::ChannelConfig {
                     word_count,
@@ -283,7 +288,12 @@ impl MMC {
                         .with_src_mode(SourceMode::Increment)
                         .with_block_size(words),
                 };
-                NDMA_HARDWARE.set_raw_dma(0, in_dma, core::mem::transmute(port.buffer as *mut u32),core::mem::transmute(&self.data_fifo_32));
+                NDMA_HARDWARE.set_raw_dma(
+                    0,
+                    in_dma,
+                    core::mem::transmute(port.buffer as *mut u32),
+                    core::mem::transmute(&self.data_fifo_32),
+                );
             }
         }
         self.param.write(argument);
@@ -302,7 +312,9 @@ impl MMC {
 
         if command.transmits_data() {
             use crate::ndma::NDMA_HARDWARE;
-            while !value.contains(Status::DATA_END) {value |= self.status.read()};
+            while !value.contains(Status::DATA_END) {
+                value |= self.status.read()
+            }
             NDMA_HARDWARE.await_channel(0);
         }
 

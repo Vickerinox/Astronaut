@@ -14,10 +14,10 @@ pub struct ConsoleInfo {
     pub optional_autoboot: OptBoot,
     pub official_autoboot: OfficialBoot,
     pub system_settings: TWLSettings,
-    _0x528: [u32; 0xB8/4],
+    _0x528: [u32; 0xB8 / 4],
     pub wifi_data: WifiConfig,
     pub hwinfo: HWInfo,
-    _0x614: [u32; 0x1EC/4],
+    _0x614: [u32; 0x1EC / 4],
     pub unlaunch_autoboot: UnlaunchBoot,
 }
 
@@ -69,7 +69,7 @@ pub struct OfficialBoot {
     unknown: u8,
     /// length of CRC (should be size of OfficialBootParams)
     crc_len: u8,
-    /// CRC code 
+    /// CRC code
     crc: u16,
     /// Parameters
     params: MaybeUninit<OfficialBootParams>,
@@ -89,11 +89,11 @@ impl OfficialBoot {
     pub fn set_slot1(&mut self) {
         self.signature = Self::SIGNATURE_MAGIC;
         self.unknown = 1;
-        self.params.write(OfficialBootParams { 
+        self.params.write(OfficialBootParams {
             old_title_id: u64::from_le_bytes(*b"CARTCART"), // can be anything afaik, just not 0
             new_title_id: u64::from_le_bytes(*b"CARTCART"), // can be anything afaik, just not 0
             flags: 0x13, // what actually tells the launcher we're trying to do slot-1
-            unknown2: 0 
+            unknown2: 0,
         });
         self.crc = crate::crc_of!(self.params);
         self.crc_len = core::mem::size_of::<OfficialBootParams>() as _;
@@ -111,14 +111,14 @@ impl OfficialBoot {
         }
         // Calculate CRC
         // Safety: the length is known and function only reads memory
-        let crc = crate::crc_of!(self.params); 
+        let crc = crate::crc_of!(self.params);
         // Verify CRC
         // Safety: params doesn't have any invalid bit patterns and have been verified by the CRC
         (crc == self.crc).then_some(unsafe { self.params.assume_init_ref() })
     }
-    
+
     pub fn reset(&mut self) {
-        *self = unsafe { core::mem::zeroed()};
+        *self = unsafe { core::mem::zeroed() };
     }
 }
 const_assert!(core::mem::size_of::<OfficialBoot>() == 0x100);
@@ -179,7 +179,7 @@ impl UnlaunchBoot {
         }
         // Calculate CRC
         // Safety: the length is known and function only reads memory
-        let crc = crate::crc_of!(self.params); 
+        let crc = crate::crc_of!(self.params);
         // Verify CRC
         // Safety: params doesn't have any invalid bit patterns and have been verified by the CRC
         (crc == self.crc).then_some(unsafe { self.params.assume_init_ref() })
@@ -219,4 +219,3 @@ unsafe impl bytemuck::AnyBitPattern for HWInfo {}
 
 /// Boot info provided by past boots of the console
 pub const CONSOLE_INFO: MemoryWrapper<ConsoleInfo> = MemoryWrapper(0x200_0000 as *mut _);
-
